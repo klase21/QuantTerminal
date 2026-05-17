@@ -4,8 +4,9 @@
 
 "use client"
 
-import useOrderbookStore
-from "@/stores/useOrderbookStore"
+import {
+  useOrderbookStore,
+} from "@/store/useOrderbookStore"
 
 export default function OrderbookPanel() {
   const {

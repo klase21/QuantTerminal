@@ -2,39 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-
-  color-scheme: dark;
-
-}
-
-html,
 body {
-
-  margin: 0;
-  padding: 0;
-
-  background: #000;
+  background: #0a0a0a;
   color: white;
-
-  overflow-x: hidden;
-
-}
-
-* {
-
-  box-sizing: border-box;
-
 }
 
 @keyframes tickerScroll {
 
-  from {
-    transform: translate3d(0, 0, 0);
+  0% {
+    transform: translateX(0);
   }
 
-  to {
-    transform: translate3d(-50%, 0, 0);
+  100% {
+    transform: translateX(-50%);
   }
 
 }
@@ -44,7 +24,5 @@ body {
   animation:
     tickerScroll
     20s linear infinite;
-
-  will-change: transform;
 
 }

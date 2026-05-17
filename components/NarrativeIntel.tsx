@@ -6,7 +6,7 @@
 
 import {
   useNarrativeStore
-} from "@/stores/useNarrativeStore"
+} from "@/store/useNarrativeStore"
 
 export default function NarrativeIntel() {
 

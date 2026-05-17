@@ -1,74 +1,49 @@
-// ======================================================
-// components/LatencyPanel.tsx
-// ======================================================
-
 "use client"
 
-import { Ticker } from "@/types/market"
+import useMarketStore from "@/store/useMarketStore"
 
-interface Props {
-  tickers: Ticker[]
-}
+export default function LatencyPanel() {
 
-export default function LatencyPanel({
-  tickers,
-}: Props) {
-
-  const latencies =
-    tickers.map(
-      (t) => t.latency ?? 0
+  const markets =
+    useMarketStore(
+      (state) => state.markets
     )
 
-  const avgLatency =
-    latencies.length > 0
-      ? Math.round(
-          latencies.reduce(
-            (a, b) => a + b,
-            0
-          ) / latencies.length
-        )
-      : 0
-
-  const maxLatency =
-    latencies.length > 0
-      ? Math.max(...latencies)
-      : 0
+  const rows =
+    Object.values(markets)
+      .slice(0, 10)
 
   return (
-    <div
-      className="
-        bg-black
-        border
-        border-zinc-800
-        rounded-2xl
-        p-4
-      "
-    >
-      <div className="text-sm text-zinc-400 mb-3">
-        Latency Monitor
-      </div>
+    <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5">
 
-      <div className="space-y-2">
+      <h2 className="text-xl font-bold mb-4">
+        Exchange Latency
+      </h2>
 
-        <div className="flex justify-between">
-          <span className="text-zinc-500">
-            Average
-          </span>
+      <div className="space-y-3">
 
-          <span className="text-white">
-            {avgLatency} ms
-          </span>
-        </div>
+        {rows.map((coin) => (
 
-        <div className="flex justify-between">
-          <span className="text-zinc-500">
-            Max
-          </span>
+          <div
+            key={coin.symbol}
+            className="flex justify-between text-sm"
+          >
+            <span>
+              {coin.symbol}
+            </span>
 
-          <span className="text-red-400">
-            {maxLatency} ms
-          </span>
-        </div>
+            <span
+              className={
+                coin.latency < 100
+                  ? "text-green-400"
+                  : "text-yellow-400"
+              }
+            >
+              {coin.latency}ms
+            </span>
+
+          </div>
+        ))}
 
       </div>
     </div>

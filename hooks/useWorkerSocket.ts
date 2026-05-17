@@ -16,7 +16,7 @@ export default function useWorkerSocket() {
     worker.postMessage({
       type: "CONNECT",
       url:
-        "wss://fstream.binance.com/ws/btcusdt@trade",
+        "wss://stream.binance.com:9443/ws/btcusdt@trade",
     })
 
     worker.onmessage = (event) => {

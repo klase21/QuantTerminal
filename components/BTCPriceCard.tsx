@@ -1,78 +1,26 @@
 "use client"
 
-import { useMarketStore } from "@/stores/useMarketStore"
+import { useMarketStore } from "@/store/useMarketStore"
 
 export default function BTCPriceCard() {
-
-  const btcPrice =
-    useMarketStore(
-      (s) =>
-        s.tickers["BTCUSDT"]?.price || 0
-    )
-
-  const change24h =
-    useMarketStore(
-      (s) =>
-        s.tickers["BTCUSDT"]
-          ?.change24h || 0
-    )
+  const btcPrice = useMarketStore((s) => s.btcPrice)
 
   return (
-
-    <div
-      className="
-        bg-black
-        border
-        border-zinc-800
-        rounded-2xl
-        p-5
-      "
-    >
-
-      <div
-        className="
-          text-zinc-500
-          text-sm
-          mb-2
-        "
-      >
+    <div className="bg-black border border-zinc-800 rounded-2xl p-5">
+      <div className="text-zinc-400 text-sm mb-2">
         BTCUSDT
       </div>
 
-      <div
-        className="
-          text-3xl
-          font-bold
-          text-white
-        "
-      >
+      <div className="text-3xl font-bold text-white">
         $
-        {btcPrice.toLocaleString()}
+        {btcPrice
+          ? btcPrice.toLocaleString()
+          : "Loading..."}
       </div>
 
-      <div
-        className={`
-          mt-2
-          text-sm
-          font-medium
-          ${
-            change24h >= 0
-              ? "text-green-500"
-              : "text-red-500"
-          }
-        `}
-      >
-
-        {change24h >= 0
-          ? "+"
-          : ""}
-
-        {change24h.toFixed(2)}%
-
+      <div className="text-green-400 text-sm mt-2">
+        LIVE
       </div>
-
     </div>
-
   )
-
 }

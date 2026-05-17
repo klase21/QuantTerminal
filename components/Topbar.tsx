@@ -8,10 +8,9 @@ export default function Topbar() {
     (state) => state.soundEnabled
   )
 
-	const toggleSound =
-	  useAlertStore(
-		(state) => state.toggleSound
-	  )  
+  const setSoundEnabled = useAlertStore(
+    (state) => state.setSoundEnabled
+  )
 
   return (
     <div className="flex items-center justify-between border-b border-zinc-800 bg-black px-4 py-3">
@@ -23,7 +22,7 @@ export default function Topbar() {
         <AlertSoundToggle
           enabled={soundEnabled}
           onToggle={() =>
-            toggleSound()
+            setSoundEnabled(!soundEnabled)
           }
         />
       </div>

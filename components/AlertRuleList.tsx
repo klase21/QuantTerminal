@@ -37,7 +37,7 @@ export default function AlertRuleList() {
               </div>
 
               <div className="text-sm text-muted-foreground">
-                Trigger : {rule.condition}
+                {rule.condition} {rule.value}
               </div>
 
             </div>

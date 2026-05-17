@@ -24,8 +24,6 @@ import { useAlertStore }
 import { useAlertRuleStore }
   from "@/stores/useAlertRuleStore"
 
-import type { AlertSeverity } from "@/types/alert"
-
 export default function AlertCenter() {
 
   // ======================================================
@@ -171,10 +169,7 @@ export default function AlertCenter() {
 
           }
 
-          // ======================================================
           // COOLDOWN
-          // ======================================================
-
           const now =
             Date.now()
 
@@ -227,7 +222,7 @@ export default function AlertCenter() {
             `${rule.type} triggered`
 
           // ======================================================
-          // ALERT SEVERITY
+          // ALERT TYPE
           // ======================================================
 
           const severity =
@@ -257,11 +252,13 @@ export default function AlertCenter() {
           // ======================================================
 
           if (
-            soundEnabled
+            soundEnabled &&
+            rule.sound
           ) {
 
             playAlertSound(
-              rule.sound || "default"
+              rule.soundFile ||
+                "/sounds/alert.mp3"
             )
 
           }
@@ -274,13 +271,10 @@ export default function AlertCenter() {
             "[ALERT]",
             {
               rule:
-                rule.id,
-
+                rule.name,
               type:
                 rule.type,
-
               severity,
-
               message,
             }
           )
@@ -327,7 +321,8 @@ export default function AlertCenter() {
         (alert) => {
 
           const severity =
-            alert.severity
+            alert.severity ||
+            "INFO"
 
           return (
 

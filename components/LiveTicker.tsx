@@ -12,7 +12,7 @@ export default function LiveTicker() {
 
   useEffect(() => {
     const ws = new WebSocket(
-      "wss://fstream.binance.com/market/ws/!ticker@arr"
+      "wss://stream.binance.com:9443/ws/!ticker@arr"
     )
 
     ws.onmessage = (event) => {

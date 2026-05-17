@@ -7,7 +7,7 @@
 import { useEffect } from "react"
 
 import { useExchangeStore }
-  from "@/stores/useExchangeStore"
+  from "@/store/useExchangeStore"
 
 export default function useMultiExchangeSocket() {
 

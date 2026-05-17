@@ -24,7 +24,7 @@ export default function useFootprint(
     >()
 
     const ws = new WebSocket(
-      `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@trade`
+      `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@trade`
     )
 
     ws.onmessage = (event) => {

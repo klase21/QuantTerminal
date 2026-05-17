@@ -2,32 +2,22 @@
 // stores/useAlertRuleStore.ts
 // ======================================================
 
-"use client"
-
 import { create } from "zustand"
 
-import type {
-  AlertRule,
-} from "@/types/alert"
+import { AlertRule } from "@/types/alert"
 
 interface AlertRuleStore {
 
   rules: AlertRule[]
 
-  addRule:
-    (rule: AlertRule) => void
+  addRule: (rule: AlertRule) => void
 
-  removeRule:
-    (id: string) => void
+  removeRule: (id: string) => void
 
-  toggleRule:
-    (id: string) => void
+  toggleRule: (id: string) => void
 
   updateLastTriggered:
-    (
-      id: string,
-      timestamp: number
-    ) => void
+    (id: string, time: number) => void
 
 }
 
@@ -37,18 +27,13 @@ export const useAlertRuleStore =
     rules: [],
 
     addRule: (rule) =>
-
       set((state) => ({
 
-        rules: [
-          rule,
-          ...state.rules,
-        ],
+        rules: [rule, ...state.rules],
 
       })),
 
     removeRule: (id) =>
-
       set((state) => ({
 
         rules:
@@ -59,44 +44,34 @@ export const useAlertRuleStore =
       })),
 
     toggleRule: (id) =>
-
       set((state) => ({
 
         rules:
           state.rules.map((r) =>
-
             r.id === id
               ? {
                   ...r,
-                  enabled:
-                    !r.enabled,
+                  enabled: !r.enabled,
                 }
               : r
-
           ),
 
       })),
 
-    updateLastTriggered: (
-      id,
-      timestamp
-    ) =>
+    updateLastTriggered:
+      (id, time) =>
+        set((state) => ({
 
-      set((state) => ({
+          rules:
+            state.rules.map((r) =>
+              r.id === id
+                ? {
+                    ...r,
+                    lastTriggered: time,
+                  }
+                : r
+            ),
 
-        rules:
-          state.rules.map((r) =>
-
-            r.id === id
-              ? {
-                  ...r,
-                  lastTriggered:
-                    timestamp,
-                }
-              : r
-
-          ),
-
-      })),
+        })),
 
   }))

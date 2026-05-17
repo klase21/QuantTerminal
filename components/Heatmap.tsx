@@ -1,135 +1,116 @@
 "use client"
 
-export interface HeatLevel {
-  price: number
-  liquidity: number
-  side: "bid" | "ask"
-}
+import {
+  useEffect,
+  useRef,
+} from "react"
+
+import {
+  HeatmapFrame,
+} from "@/hooks/useDepthHeatmap"
 
 interface Props {
-  levels: HeatLevel[]
+  levels: HeatmapFrame[]
 }
 
 export default function Heatmap({
   levels,
 }: Props) {
+  const canvasRef =
+    useRef<HTMLCanvasElement>(null)
 
-  if (!levels.length) {
+  useEffect(() => {
+    const canvas =
+      canvasRef.current
 
-    return (
+    if (!canvas) return
 
-      <div
-        className="
-          h-[400px]
-          flex
-          items-center
-          justify-center
-          text-zinc-500
-          text-sm
-        "
-      >
-        No heatmap data
-      </div>
+    const ctx =
+      canvas.getContext("2d")
 
+    if (!ctx) return
+
+    const width = canvas.width
+    const height = canvas.height
+
+    ctx.clearRect(
+      0,
+      0,
+      width,
+      height
     )
 
-  }
+    if (!levels.length) return
 
-  const maxLiquidity =
-    Math.max(
-      ...levels.map(
-        (l) => l.liquidity
-      )
-    )
+    const allPrices =
+      levels.flatMap((f) => [
+        ...f.bids.map((b) => b.price),
+        ...f.asks.map((a) => a.price),
+      ])
 
-  return (
+    const minPrice =
+      Math.min(...allPrices)
 
-    <div
-      className="
-        h-[400px]
-        overflow-y-auto
-        space-y-[2px]
-      "
-    >
+    const maxPrice =
+      Math.max(...allPrices)
 
-      {levels.map(
-        (
-          level,
-          index
-        ) => {
+    const priceRange =
+      maxPrice - minPrice || 1
+
+    const frameWidth =
+      width / levels.length
+
+    levels.forEach(
+      (frame, xIndex) => {
+        const combined = [
+          ...frame.bids,
+          ...frame.asks,
+        ]
+
+        combined.forEach((level) => {
+          const y =
+            height -
+            ((level.price -
+              minPrice) /
+              priceRange) *
+              height
 
           const intensity =
-            level.liquidity /
-            maxLiquidity
+            Math.min(
+              level.liquidity / 5,
+              1
+            )
 
-          return (
+          if (level.side === "bid") {
+            ctx.fillStyle = `rgba(0,255,120,${intensity})`
+          } else {
+            ctx.fillStyle = `rgba(255,80,80,${intensity})`
+          }
 
-            <div
-              key={index}
-              className="
-                relative
-                h-5
-                rounded
-                overflow-hidden
-                bg-zinc-900
-              "
-            >
-
-              {/* HEAT */}
-              <div
-                className={`
-                  absolute
-                  inset-y-0
-                  left-0
-
-                  ${
-                    level.side === "bid"
-                      ? "bg-emerald-500/70"
-                      : "bg-red-500/70"
-                  }
-                `}
-                style={{
-                  width: `${
-                    intensity * 100
-                  }%`,
-                }}
-              />
-
-              {/* TEXT */}
-              <div
-                className="
-                  relative
-                  z-10
-                  flex
-                  items-center
-                  justify-between
-                  px-2
-                  text-[10px]
-                  text-white
-                "
-              >
-
-                <span>
-                  {level.price.toFixed(2)}
-                </span>
-
-                <span>
-                  {Math.round(
-                    level.liquidity
-                  ).toLocaleString()}
-                </span>
-
-              </div>
-
-            </div>
-
+          ctx.fillRect(
+            xIndex * frameWidth,
+            y,
+            frameWidth + 1,
+            3
           )
+        })
+      }
+    )
+  }, [levels])
 
-        }
-      )}
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
 
+      <div className="text-lg font-semibold mb-4">
+        Liquidity Heatmap
+      </div>
+
+      <canvas
+        ref={canvasRef}
+        width={700}
+        height={320}
+        className="w-full h-[320px] rounded"
+      />
     </div>
-
   )
-
 }

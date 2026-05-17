@@ -1,5 +1,3 @@
-export {}
-
 let socket: WebSocket | null = null
 
 interface MarketPacket {

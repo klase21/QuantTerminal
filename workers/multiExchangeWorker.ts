@@ -1,44 +1,48 @@
 const exchanges = [
-
   {
-    name: "BINANCE",
-    url: "wss://fstream.binance.com/market/ws/btcusdt@trade",
+    name: "BINANCE_FUTURES",
+
+    // ======================================================
+    // BINANCE FUTURES TRADE STREAM
+    // ======================================================
+
+    url:
+      "wss://fstream.binance.com/ws/btcusdt@trade",
   },
 
   {
-    name: "BYBIT",
-    url: "wss://stream.bybit.com/v5/public/spot",
-  },
+    name: "BYBIT_FUTURES",
 
+    // ======================================================
+    // BYBIT LINEAR USDT PERP
+    // ======================================================
+
+    url:
+      "wss://stream.bybit.com/v5/public/linear",
+  },
 ]
 
 const sockets: WebSocket[] = []
 
 self.onmessage = () => {
 
-  // 기존 소켓 종료
-  sockets.forEach((socket) => {
-    socket.close()
-  })
-
-  sockets.length = 0
-
   exchanges.forEach((exchange) => {
 
-    const ws = new WebSocket(
-      exchange.url
-    )
+    const ws =
+      new WebSocket(exchange.url)
 
     sockets.push(ws)
 
-    // =========================================
-    // OPEN
-    // =========================================
+    // ======================================================
+    // BYBIT SUBSCRIBE
+    // ======================================================
 
     ws.onopen = () => {
 
-      // BYBIT subscribe 필요
-      if (exchange.name === "BYBIT") {
+      if (
+        exchange.name ===
+        "BYBIT_FUTURES"
+      ) {
 
         ws.send(
           JSON.stringify({
@@ -56,61 +60,75 @@ self.onmessage = () => {
 
     }
 
-    // =========================================
+    // ======================================================
     // MESSAGE
-    // =========================================
+    // ======================================================
 
     ws.onmessage = (msg) => {
 
-      self.postMessage({
+      try {
 
-        exchange:
-          exchange.name,
+        const parsed =
+          JSON.parse(msg.data)
 
-        data:
-          JSON.parse(
-            msg.data
-          ),
+        postMessage({
 
-      })
+          exchange:
+            exchange.name,
+
+          data: parsed,
+
+        })
+
+      } catch (err) {
+
+        console.error(
+          "WS Parse Error",
+          err
+        )
+
+      }
 
     }
 
-    // =========================================
+    // ======================================================
     // ERROR
-    // =========================================
+    // ======================================================
 
     ws.onerror = (err) => {
 
-      self.postMessage({
-
-        type: "error",
-
-        exchange:
-          exchange.name,
-
-        error: err,
-
-      })
+      console.error(
+        `${exchange.name} WS Error`,
+        err
+      )
 
     }
 
-    // =========================================
+    // ======================================================
     // CLOSE
-    // =========================================
+    // ======================================================
 
     ws.onclose = () => {
 
-      self.postMessage({
-
-        type: "closed",
-
-        exchange:
-          exchange.name,
-
-      })
+      console.warn(
+        `${exchange.name} WS Closed`
+      )
 
     }
+
+  })
+
+}
+
+// ======================================================
+// CLEANUP
+// ======================================================
+
+self.onclose = () => {
+
+  sockets.forEach((ws) => {
+
+    ws.close()
 
   })
 

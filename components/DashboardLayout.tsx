@@ -1,39 +1,59 @@
 // ======================================================
-// components/DashboardLayout.tsx
+// app/dashboard/DashboardLayout.tsx
 // ======================================================
 
 "use client"
 
-import { useMemo } from "react"
+import {
+  useEffect,
+  useState,
+} from "react"
 
+import TickerBar from "@/components/TickerBar"
 import Orderbook from "@/components/Orderbook"
-
+import MacroIntel from "@/components/MacroIntel"
+import Footprint from "@/components/Footprint"
 import Heatmap from "@/components/Heatmap"
+import VolumeProfile from "@/components/VolumeProfile"
+import SymbolSelector from "@/components/SymbolSelector"
 
-import TradingChart from "@/components/TradingChart"
-
-import MarketOverview from "@/components/MarketOverview"
-
-import CVDPanel from "@/components/CVDPanel"
-
-import BTCPriceCard from "@/components/BTCPriceCard"
+import Panel from "@/components/ui/Panel"
 
 import RightPanelTabs from "@/components/RightPanelTabs"
+import ResizablePanelGroup from "@/components/ResizablePanelGroup"
 
+import useMarketSocket from "@/hooks/useMarketSocket"
+import useOrderbookSocket from "@/hooks/useOrderbookSocket"
+import useTradeSocket from "@/hooks/useTradeSocket"
+import useLiquidationSocket from "@/hooks/useLiquidationSocket"
+import useTradeFlowSocket from "@/hooks/useTradeFlowSocket"
+import useFootprint from "@/hooks/useFootprint"
 import useDepthHeatmap from "@/hooks/useDepthHeatmap"
+import useVolumeProfile from "@/hooks/useVolumeProfile"
 
-import useHeatmapHistory from "@/hooks/useHeatmapHistory"
+import { useHeatmapHistory } from "@/hooks/useHeatmapHistory"
 
 import useLiquidityEvents from "@/hooks/useLiquidityEvents"
-
-import useLiquidationSocket from "@/hooks/useLiquidationSocket"
+import useAbsorptionDetector from "@/hooks/useAbsorptionDetector"
 
 import { useMarketStore } from "@/stores/useMarketStore"
+
+import MultiChartWorkspace from "@/components/MultiChartWorkspace"
+
+import AlertCenter from "@/components/AlertCenter"
+import useAlertEngine from "@/hooks/useAlertEngine"
 
 export default function DashboardLayout() {
 
   // ======================================================
-  // STORE
+  // SOCKETS
+  // ======================================================
+
+  // ALL MARKET TICKERS
+  useMarketSocket()
+
+  // ======================================================
+  // SELECTED SYMBOL
   // ======================================================
 
   const symbol =
@@ -41,373 +61,635 @@ export default function DashboardLayout() {
       (s) => s.selectedSymbol
     )
 
+  // ======================================================
+  // ORDERBOOK
+  // ======================================================
+
+  useOrderbookSocket(
+    symbol
+  )
+
   const orderbook =
     useMarketStore(
       (s) => s.orderbook
     )
 
   // ======================================================
-  // HEATMAP
+  // STREAMS
   // ======================================================
 
-  const heatmapFrames =
-    useDepthHeatmap(symbol)
+  const { trades } =
+    useTradeSocket(
+      symbol
+    )
 
-  const heatmapHistory =
-    useHeatmapHistory(
-      orderbook?.bids || [],
-      orderbook?.asks || []
+  const { liquidations } =
+    useLiquidationSocket()
+
+  const flow =
+    useTradeFlowSocket(
+      symbol
     )
 
   // ======================================================
-  // FLATTEN
+  // ANALYTICS
   // ======================================================
 
-  const flattenedHeatLevels =
-    useMemo(() => {
+  const footprint =
+    useFootprint(
+      symbol
+    )
 
-      return (
-        heatmapFrames || []
-      ).flatMap((frame) => [
+  const heatmap =
+    useDepthHeatmap(
+      symbol
+    )
 
-        ...frame.bids,
+  const volumeProfile =
+    useVolumeProfile(
+      symbol
+    )
 
-        ...frame.asks,
+  const frames =
+    useHeatmapHistory(
 
-      ])
+      orderbook?.bids || [],
 
-    }, [heatmapFrames])
+      orderbook?.asks || []
 
-  // ======================================================
-  // EVENTS
-  // ======================================================
+    )
 
   const liquidityEvents =
     useLiquidityEvents(
-      flattenedHeatLevels
+      heatmap || []
     )
 
-  const {
+  const absorptionEvents =
+    useAbsorptionDetector(
+      trades || []
+    )
+
+  // ======================================================
+  // ALERT ENGINE
+  // ======================================================
+
+  useAlertEngine({
+
+    absorptionEvents,
+
+    liquidityEvents,
+
     liquidations,
-  } = useLiquidationSocket()
+
+  })
 
   // ======================================================
-  // MOCK CHART DATA
+  // PANEL COLLAPSE
   // ======================================================
 
-  const candles = [
+  const [
+    collapsed,
+    setCollapsed,
+  ] = useState<
+    Record<
+      string,
+      boolean
+    >
+  >({
 
-    {
-      time:
-        Math.floor(Date.now() / 1000) - 300,
+    macro: false,
 
-      open: 65000,
-      high: 65100,
-      low: 64950,
-      close: 65080,
-    },
+    orderbook: false,
 
-    {
-      time:
-        Math.floor(Date.now() / 1000) - 240,
+    heatmap: false,
 
-      open: 65080,
-      high: 65200,
-      low: 65050,
-      close: 65150,
-    },
+    workspace: false,
 
-    {
-      time:
-        Math.floor(Date.now() / 1000) - 180,
+    footprint: false,
 
-      open: 65150,
-      high: 65320,
-      low: 65100,
-      close: 65280,
-    },
+    volumeProfile: false,
 
-    {
-      time:
-        Math.floor(Date.now() / 1000) - 120,
+    rightPanel: false,
 
-      open: 65280,
-      high: 65350,
-      low: 65220,
-      close: 65240,
-    },
+  })
 
-    {
-      time:
-        Math.floor(Date.now() / 1000) - 60,
+  // ======================================================
+  // LOAD LAYOUT
+  // ======================================================
 
-      open: 65240,
-      high: 65400,
-      low: 65210,
-      close: 65380,
-    },
+  useEffect(() => {
 
-  ]
+    const saved =
+      localStorage.getItem(
+        "qt-layout-collapse"
+      )
+
+    if (saved) {
+
+      setCollapsed(
+        JSON.parse(saved)
+      )
+
+    }
+
+  }, [])
+
+  // ======================================================
+  // SAVE LAYOUT
+  // ======================================================
+
+  useEffect(() => {
+
+    localStorage.setItem(
+
+      "qt-layout-collapse",
+
+      JSON.stringify(
+        collapsed
+      )
+
+    )
+
+  }, [collapsed])
+
+  // ======================================================
+  // SHORTCUTS
+  // ======================================================
+
+  useEffect(() => {
+
+    const onKey = (
+      e: KeyboardEvent
+    ) => {
+
+      // ALT + 1
+      if (
+        e.altKey &&
+        e.key === "1"
+      ) {
+
+        setCollapsed(
+          (prev) => ({
+
+            ...prev,
+
+            orderbook:
+              !prev.orderbook,
+
+          })
+        )
+
+      }
+
+      // ALT + 2
+      if (
+        e.altKey &&
+        e.key === "2"
+      ) {
+
+        setCollapsed(
+          (prev) => ({
+
+            ...prev,
+
+            heatmap:
+              !prev.heatmap,
+
+          })
+        )
+
+      }
+
+      // ALT + 3
+      if (
+        e.altKey &&
+        e.key === "3"
+      ) {
+
+        setCollapsed(
+          (prev) => ({
+
+            ...prev,
+
+            footprint:
+              !prev.footprint,
+
+          })
+        )
+
+      }
+
+      // ALT + 4
+      if (
+        e.altKey &&
+        e.key === "4"
+      ) {
+
+        setCollapsed(
+          (prev) => ({
+
+            ...prev,
+
+            workspace:
+              !prev.workspace,
+
+          })
+        )
+
+      }
+
+    }
+
+    window.addEventListener(
+      "keydown",
+      onKey
+    )
+
+    return () =>
+
+      window.removeEventListener(
+        "keydown",
+        onKey
+      )
+
+  }, [])
+
+  // ======================================================
+  // TOGGLE PANEL
+  // ======================================================
+
+  function togglePanel(
+    key: string
+  ) {
+
+    setCollapsed(
+      (prev) => ({
+
+        ...prev,
+
+        [key]:
+          !prev[key],
+
+      })
+    )
+
+  }
+
+  // ======================================================
+  // RENDER
+  // ======================================================
 
   return (
 
     <div
       className="
-        w-full
-        h-screen
+        flex
+        flex-col
+        min-h-screen
         bg-black
         text-white
-        overflow-hidden
+        overflow-x-hidden
       "
     >
 
-      {/* ====================================================== */}
-      {/* TOP */}
-      {/* ====================================================== */}
+      {/* ======================================================
+          TOP TICKER BAR
+      ====================================================== */}
 
       <div
         className="
           border-b
-          border-zinc-800
-          p-4
+          border-zinc-900
+          px-4
+          py-3
+          shrink-0
+          bg-zinc-950
         "
       >
 
-        <div
-          className="
-            flex
-            items-center
-            justify-between
-          "
-        >
-
-          <BTCPriceCard />
-
-          <div
-            className="
-              text-sm
-              text-zinc-400
-            "
-          >
-
-            Selected:
-            {" "}
-            {symbol.toUpperCase()}
-
-          </div>
-
-        </div>
+        <TickerBar />
 
       </div>
 
-      {/* ====================================================== */}
-      {/* BODY */}
-      {/* ====================================================== */}
+      {/* ======================================================
+          SYMBOL SELECTOR
+      ====================================================== */}
 
       <div
         className="
-          grid
-          grid-cols-12
-          gap-4
-          p-4
-          h-[calc(100vh-90px)]
+          border-b
+          border-zinc-900
+          px-4
+          py-3
+          shrink-0
         "
       >
 
-        {/* ====================================================== */}
-        {/* LEFT */}
-        {/* ====================================================== */}
-
-        <div
-          className="
-            col-span-3
-            space-y-4
-            overflow-y-auto
-          "
-        >
-
-          <div
-            className="
-              bg-zinc-950
-              border
-              border-zinc-800
-              rounded-2xl
-              p-4
-            "
-          >
-
-            <div
-              className="
-                text-sm
-                font-semibold
-                mb-4
-              "
-            >
-
-              Orderbook
-
-            </div>
-
-            <Orderbook
-
-              bids={
-                (
-                  orderbook?.bids || []
-                ).map((b) => ({
-
-                  price: b.price,
-
-                  qty: b.quantity,
-
-                }))
-              }
-
-              asks={
-                (
-                  orderbook?.asks || []
-                ).map((a) => ({
-
-                  price: a.price,
-
-                  qty: a.quantity,
-
-                }))
-              }
-
-            />
-
-          </div>
-
-          <div
-            className="
-              bg-zinc-950
-              border
-              border-zinc-800
-              rounded-2xl
-              p-4
-            "
-          >
-
-            <div
-              className="
-                text-sm
-                font-semibold
-                mb-4
-              "
-            >
-
-              Liquidity Heatmap
-
-            </div>
-
-            <Heatmap
-              levels={
-                flattenedHeatLevels
-              }
-            />
-
-          </div>
-
-        </div>
-
-        {/* ====================================================== */}
-        {/* CENTER */}
-        {/* ====================================================== */}
-
-        <div
-          className="
-            col-span-6
-            space-y-4
-            overflow-y-auto
-          "
-        >
-
-          <div
-            className="
-              bg-zinc-950
-              border
-              border-zinc-800
-              rounded-2xl
-              p-4
-            "
-          >
-
-            <TradingChart
-              data={candles}
-            />
-
-          </div>
-
-          <div
-            className="
-              grid
-              grid-cols-2
-              gap-4
-            "
-          >
-
-            <div
-              className="
-                bg-zinc-950
-                border
-                border-zinc-800
-                rounded-2xl
-                p-4
-              "
-            >
-
-              <MarketOverview />
-
-            </div>
-
-            <div
-              className="
-                bg-zinc-950
-                border
-                border-zinc-800
-                rounded-2xl
-                p-4
-              "
-            >
-
-              <CVDPanel />
-
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* ====================================================== */}
-        {/* RIGHT */}
-        {/* ====================================================== */}
-
-        <div
-          className="
-            col-span-3
-            overflow-y-auto
-          "
-        >
-
-          <RightPanelTabs
-
-            liquidityEvents={
-              liquidityEvents
-            }
-
-            liquidations={
-              liquidations
-            }
-
-            heatmapHistory={
-              heatmapHistory
-            }
-
-          />
-
-        </div>
+        <SymbolSelector />
 
       </div>
+
+      {/* ======================================================
+          MAIN
+      ====================================================== */}
+
+      <main
+        className="
+          flex-1
+          overflow-y-auto
+          p-4
+        "
+      >
+
+        <ResizablePanelGroup
+
+          // ======================================================
+          // LEFT
+          // ======================================================
+
+          left={
+
+            <div className="space-y-4">
+
+              {/* MACRO */}
+              <Panel
+
+                title="Macro Intel"
+
+                collapsible
+
+                collapsed={
+                  collapsed.macro
+                }
+
+                onToggle={() =>
+                  togglePanel(
+                    "macro"
+                  )
+                }
+
+              >
+
+                {!collapsed.macro && (
+
+                  <MacroIntel />
+
+                )}
+
+              </Panel>
+
+              {/* ORDERBOOK */}
+              <Panel
+
+                title="Orderbook"
+
+                right="ALT+1"
+
+                collapsible
+
+                collapsed={
+                  collapsed.orderbook
+                }
+
+                onToggle={() =>
+                  togglePanel(
+                    "orderbook"
+                  )
+                }
+
+              >
+
+                {!collapsed.orderbook && (
+
+                  <Orderbook
+
+                    bids={
+                      orderbook?.bids || []
+                    }
+
+                    asks={
+                      orderbook?.asks || []
+                    }
+
+                  />
+
+                )}
+
+              </Panel>
+
+              {/* HEATMAP */}
+              <Panel
+
+                title="Heatmap"
+
+                right="ALT+2"
+
+                collapsible
+
+                collapsed={
+                  collapsed.heatmap
+                }
+
+                onToggle={() =>
+                  togglePanel(
+                    "heatmap"
+                  )
+                }
+
+              >
+
+                {!collapsed.heatmap && (
+
+                  <Heatmap
+                    levels={
+                      heatmap
+                    }
+                  />
+
+                )}
+
+              </Panel>
+
+            </div>
+
+          }
+
+          // ======================================================
+          // CENTER
+          // ======================================================
+
+          center={
+
+            <div className="space-y-4">
+
+              {/* MULTI CHART */}
+              <Panel
+
+                title="Multi-Chart Workspace"
+
+                right="ALT+4"
+
+                collapsible
+
+                collapsed={
+                  collapsed.workspace
+                }
+
+                onToggle={() =>
+                  togglePanel(
+                    "workspace"
+                  )
+                }
+
+              >
+
+                {!collapsed.workspace && (
+
+                  <MultiChartWorkspace />
+
+                )}
+
+              </Panel>
+
+              {/* FOOTPRINT */}
+              <Panel
+
+                title="Footprint"
+
+                right="ALT+3"
+
+                collapsible
+
+                collapsed={
+                  collapsed.footprint
+                }
+
+                onToggle={() =>
+                  togglePanel(
+                    "footprint"
+                  )
+                }
+
+              >
+
+                {!collapsed.footprint && (
+
+                  <Footprint
+                    levels={
+                      footprint
+                    }
+                  />
+
+                )}
+
+              </Panel>
+
+              {/* VOLUME PROFILE */}
+              <Panel
+
+                title="Volume Profile"
+
+                collapsible
+
+                collapsed={
+                  collapsed.volumeProfile
+                }
+
+                onToggle={() =>
+                  togglePanel(
+                    "volumeProfile"
+                  )
+                }
+
+              >
+
+                {!collapsed.volumeProfile && (
+
+                  <VolumeProfile
+
+                    levels={
+                      volumeProfile
+                    }
+
+                  />
+
+                )}
+
+              </Panel>
+
+            </div>
+
+          }
+
+          // ======================================================
+          // RIGHT
+          // ======================================================
+
+          right={
+
+            <Panel
+
+              title="Right Workspace"
+
+              collapsible
+
+              collapsed={
+                collapsed.rightPanel
+              }
+
+              onToggle={() =>
+                togglePanel(
+                  "rightPanel"
+                )
+              }
+
+            >
+
+              {!collapsed.rightPanel && (
+
+                <RightPanelTabs
+
+                  trades={
+                    trades
+                  }
+
+                  liquidations={
+                    liquidations
+                  }
+
+                  frames={
+                    frames
+                  }
+
+                  absorptionEvents={
+                    absorptionEvents
+                  }
+
+                  liquidityEvents={
+                    liquidityEvents
+                  }
+
+                  flow={
+                    flow
+                  }
+
+                />
+
+              )}
+
+            </Panel>
+
+          }
+
+        />
+
+      </main>
+
+      {/* ======================================================
+          ALERT CENTER
+      ====================================================== */}
+
+      <AlertCenter />
 
     </div>
 

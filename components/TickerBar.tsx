@@ -4,7 +4,8 @@
 
 "use client"
 
-import Marquee from "react-fast-marquee"
+import Marquee
+  from "react-fast-marquee"
 
 import {
   useMarketStore,
@@ -13,10 +14,6 @@ import {
 import {
   cn,
 } from "@/lib/utils"
-
-import type {
-  Ticker,
-} from "@/types/market"
 
 export default function TickerBar() {
 
@@ -33,7 +30,7 @@ export default function TickerBar() {
   // SORTED
   // ======================================================
 
-  const sorted: Ticker[] =
+  const sorted =
     Object.values(
       tickers
     )
@@ -50,8 +47,8 @@ export default function TickerBar() {
       .sort(
         (a, b) =>
 
-          (b.quoteVolume || 0) -
-          (a.quoteVolume || 0)
+          b.quoteVolume -
+          a.quoteVolume
       )
 
       // TOP 40
@@ -110,7 +107,7 @@ export default function TickerBar() {
           (ticker) => {
 
             const positive =
-              ticker.change24h >= 0
+              ticker.change >= 0
 
             return (
 
@@ -172,9 +169,7 @@ export default function TickerBar() {
                     ? "+"
                     : ""}
 
-                  {ticker.change24h.toFixed(
-                    2
-                  )}
+                  {(ticker.change24h ?? 0).toFixed(2)}
 
                   %
 
@@ -193,7 +188,7 @@ export default function TickerBar() {
                   {" "}
 
                   {(
-                    (ticker.quoteVolume || 0) /
+                    ticker.quoteVolume /
                     1_000_000
                   ).toFixed(1)}
 
@@ -209,7 +204,7 @@ export default function TickerBar() {
                   "
                 >
 
-                  {ticker.latency || 0}
+                  {ticker.latency}
                   ms
 
                 </div>

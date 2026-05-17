@@ -2,13 +2,19 @@
 // stores/useAlertStore.ts
 // ======================================================
 
-"use client"
-
 import { create } from "zustand"
 
-import type {
-  AlertItem,
-} from "@/types/alert"
+export interface AlertItem {
+
+  id: string
+
+  type: string
+
+  message: string
+
+  timestamp: number
+
+}
 
 interface AlertStore {
 
@@ -16,14 +22,13 @@ interface AlertStore {
 
   soundEnabled: boolean
 
-  addAlert:
-    (alert: AlertItem) => void
+  addAlert: (alert: AlertItem) => void
 
-  removeAlert:
-    (id: string) => void
+  removeAlert: (id: string) => void
 
-  toggleSound:
-    () => void
+  clearAlerts: () => void
+
+  toggleSound: () => void
 
 }
 
@@ -35,18 +40,16 @@ export const useAlertStore =
     soundEnabled: true,
 
     addAlert: (alert) =>
-
       set((state) => ({
 
         alerts: [
           alert,
           ...state.alerts,
-        ],
+        ].slice(0, 50),
 
       })),
 
     removeAlert: (id) =>
-
       set((state) => ({
 
         alerts:
@@ -56,8 +59,14 @@ export const useAlertStore =
 
       })),
 
-    toggleSound: () =>
+    clearAlerts: () =>
+      set({
 
+        alerts: [],
+
+      }),
+
+    toggleSound: () =>
       set((state) => ({
 
         soundEnabled:

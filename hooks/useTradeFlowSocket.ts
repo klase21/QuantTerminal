@@ -24,7 +24,7 @@ export default function useTradeFlowSocket(
     let cumulative = 0
 
     const ws = new WebSocket(
-      `wss://fstream.binance.com/market/ws/${symbol.toLowerCase()}@aggTrade`
+      `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@aggTrade`
     )
 
     ws.onmessage = (event) => {
