@@ -4,27 +4,45 @@
 
 "use client"
 
+import type {
+  ReactNode,
+} from "react"
+
 import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react"
 
 interface Props {
+
   title: string
-  right?: string
-  children: React.ReactNode
+
+  right?: ReactNode
+
+  children: ReactNode
+
   collapsible?: boolean
+
   collapsed?: boolean
+
   onToggle?: () => void
+
 }
 
 export default function Panel({
+
   title,
+
   right,
+
   children,
+
   collapsible,
+
   collapsed,
+
   onToggle,
+
 }: Props) {
 
   return (
@@ -40,6 +58,7 @@ export default function Panel({
     >
 
       {/* HEADER */}
+
       <div
         className="
           flex
@@ -91,21 +110,15 @@ export default function Panel({
         </div>
 
         {right && (
-
-          <div
-            className="
-              text-xs
-              text-zinc-500
-            "
-          >
+          <div>
             {right}
           </div>
-
         )}
 
       </div>
 
       {/* BODY */}
+
       {!collapsed && (
 
         <div className="p-4">
@@ -117,5 +130,7 @@ export default function Panel({
       )}
 
     </div>
+
   )
+
 }

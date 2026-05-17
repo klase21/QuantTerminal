@@ -53,9 +53,21 @@ export default function AlertRulePanel() {
               </div>
 
               <div className="text-xs text-zinc-500">
-                Min Size:
+
+                Condition:
                 {" "}
-                {rule.minSize?.toLocaleString()}
+
+                {rule.condition.toLocaleString()}
+
+              </div>
+
+              <div className="text-xs text-zinc-500">
+
+                Severity:
+                {" "}
+
+                {rule.severity || "INFO"}
+
               </div>
 
             </div>
@@ -65,7 +77,13 @@ export default function AlertRulePanel() {
                 toggleRule(rule.id)
               }
               className={`
-                px-3 py-1 rounded-lg text-xs font-semibold
+                px-3
+                py-1
+                rounded-lg
+                text-xs
+                font-semibold
+                transition-all
+
                 ${
                   rule.enabled
                     ? "bg-green-500/20 text-green-400"
@@ -73,9 +91,11 @@ export default function AlertRulePanel() {
                 }
               `}
             >
+
               {rule.enabled
                 ? "ON"
                 : "OFF"}
+
             </button>
 
           </div>

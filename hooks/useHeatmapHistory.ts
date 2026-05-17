@@ -1,67 +1,70 @@
-// ======================================================
-// hooks/useHeatmapHistory.ts
-// ======================================================
-
 "use client"
 
-import { useEffect, useState } from "react"
+import {
+  useEffect,
+  useState,
+} from "react"
 
-interface OrderBookLevel {
+export interface OrderBookLevel {
+
   price: number
+
   quantity: number
+
 }
 
-interface HeatmapLevel {
-  price: number
-  liquidity: number
-  side: "bid" | "ask"
-}
+export interface HeatmapSnapshot {
 
-interface HeatmapFrame {
   time: number
-  levels: HeatmapLevel[]
+
+  bids: OrderBookLevel[]
+
+  asks: OrderBookLevel[]
+
 }
 
-const MAX_FRAMES = 300
+export default function useHeatmapHistory(
 
-export function useHeatmapHistory(
   bids: OrderBookLevel[],
+
   asks: OrderBookLevel[]
+
 ) {
-  const [frames, setFrames] = useState<HeatmapFrame[]>([])
+
+  const [history, setHistory] =
+    useState<HeatmapSnapshot[]>([])
 
   useEffect(() => {
-    if (!bids.length || !asks.length) return
 
-    const levels: HeatmapLevel[] = [
-      ...bids.slice(0, 25).map((bid) => ({
-        price: bid.price,
-        liquidity: bid.quantity,
-        side: "bid" as const,
-      })),
-
-      ...asks.slice(0, 25).map((ask) => ({
-        price: ask.price,
-        liquidity: ask.quantity,
-        side: "ask" as const,
-      })),
-    ]
-
-    const frame: HeatmapFrame = {
-      time: Date.now(),
-      levels,
+    if (
+      bids.length === 0 &&
+      asks.length === 0
+    ) {
+      return
     }
 
-    setFrames((prev) => {
-      const next = [...prev, frame]
+    const snapshot: HeatmapSnapshot = {
 
-      if (next.length > MAX_FRAMES) {
-        next.shift()
-      }
+      time: Date.now(),
 
-      return next
+      bids,
+
+      asks,
+
+    }
+
+    setHistory((prev) => {
+
+      const merged = [
+        ...prev,
+        snapshot,
+      ]
+
+      return merged.slice(-120)
+
     })
+
   }, [bids, asks])
 
-  return frames
+  return history
 }

@@ -26,22 +26,30 @@ export default function useLiquidationSocket() {
 
       if (!Array.isArray(data)) return
 
-      const parsed = data.map((liq: any) => {
-        const order = liq.o
+      const parsed: Liquidation[] = data.map(
+        (liq: any) => {
+          const order = liq.o
 
-        return {
-          symbol: order.s,
-          side: order.S === "SELL"
-            ? "LONG"
-            : "SHORT",
-          price: Number(order.p),
-          qty: Number(order.q),
-          value:
-            Number(order.p) *
-            Number(order.q),
-          time: order.T,
+          return {
+            symbol: order.s,
+
+            side:
+              order.S === "SELL"
+                ? "LONG"
+                : "SHORT",
+
+            price: Number(order.p),
+
+            qty: Number(order.q),
+
+            value:
+              Number(order.p) *
+              Number(order.q),
+
+            time: order.T,
+          }
         }
-      })
+      )
 
       setLiquidations((prev) => {
         const merged = [

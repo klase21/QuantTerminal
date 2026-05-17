@@ -4,6 +4,9 @@ import {
   createChart,
   ColorType,
   CandlestickSeries,
+  CandlestickData,
+  UTCTimestamp,
+  Time,
 } from "lightweight-charts"
 
 import {
@@ -26,10 +29,12 @@ interface Props {
 export default function TradingChart({
   data,
 }: Props) {
+
   const chartContainerRef =
     useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+
     if (!chartContainerRef.current)
       return
 
@@ -88,14 +93,34 @@ export default function TradingChart({
         }
       )
 
-    candleSeries.setData(data)
+    const formattedData:
+      CandlestickData<Time>[] =
+        data.map((candle) => ({
+
+          time:
+            Math.floor(
+              candle.time / 1000
+            ) as UTCTimestamp,
+
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+
+        }))
+
+    candleSeries.setData(
+      formattedData
+    )
 
     const handleResize = () => {
+
       chart.applyOptions({
         width:
           chartContainerRef.current
             ?.clientWidth,
       })
+
     }
 
     window.addEventListener(
@@ -104,13 +129,16 @@ export default function TradingChart({
     )
 
     return () => {
+
       window.removeEventListener(
         "resize",
         handleResize
       )
 
       chart.remove()
+
     }
+
   }, [data])
 
   return (

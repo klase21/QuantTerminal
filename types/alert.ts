@@ -1,34 +1,64 @@
-export type AlertCondition =
-  | "price_above"
-  | "price_below"
-  | "volume_spike"
-  | "liquidation_spike"
-  | "oi_spike"
+// ======================================================
+// types/alert.ts
+// ======================================================
 
-export type AlertSoundType =
+export type AlertSeverity =
+  | "INFO"
+  | "WARNING"
+  | "CRITICAL"
+
+export type AlertType =
+  | "PRICE_ABOVE"
+  | "PRICE_BELOW"
+  | "VOLUME_SPIKE"
+  | "LIQUIDATION"
+  | "ABSORPTION"
+  | "LIQUIDITY_SWEEP"
+
+export type AlertSound =
   | "default"
   | "absorption"
   | "liquidation"
 
 export interface AlertRule {
 
+  // ======================================================
+  // CORE
+  // ======================================================
+
   id: string
-
-  symbol: string
-
-  condition: AlertCondition
-
-  value: number
 
   enabled: boolean
 
-  cooldown: number
+  type: AlertType
 
-  lastTriggered?: number
+  symbol: string
 
-  sound: AlertSoundType
+  // ======================================================
+  // CONDITIONS
+  // ======================================================
+
+  condition: number
+
+  cooldown?: number
+
+  // ======================================================
+  // UI
+  // ======================================================
 
   message?: string
+
+  severity?: AlertSeverity
+
+  sound?: AlertSound
+
+  // ======================================================
+  // META
+  // ======================================================
+
+  createdAt: number
+
+  lastTriggered?: number
 
 }
 
@@ -36,9 +66,11 @@ export interface AlertItem {
 
   id: string
 
-  type: string
+  type: AlertType
 
   message: string
+
+  severity?: AlertSeverity
 
   timestamp: number
 

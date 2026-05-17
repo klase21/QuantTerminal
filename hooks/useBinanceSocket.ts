@@ -1,34 +1,152 @@
+// ======================================================
+// stores/useMarketStore.ts
+// ======================================================
+
 "use client"
 
-import { useEffect } from "react"
-import { useMarketStore } from "@/store/useMarketStore"
+import { create } from "zustand"
 
-export default function useBinanceSocket() {
-  const setBtcPrice = useMarketStore((s) => s.setBtcPrice)
+import type {
+  Ticker,
+} from "@/types/market"
 
-  useEffect(() => {
-    const ws = new WebSocket(
-      "wss://stream.binance.com:9443/ws/btcusdt@trade"
-    )
+export interface OrderBookLevel {
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
+  price: number
 
-      const price = parseFloat(data.p)
+  qty: number
 
-      setBtcPrice(price)
-    }
-
-    ws.onopen = () => {
-      console.log("Binance WS Connected")
-    }
-
-    ws.onclose = () => {
-      console.log("Binance WS Closed")
-    }
-
-    return () => {
-      ws.close()
-    }
-  }, [setBtcPrice])
 }
+
+interface MarketStore {
+
+  // ======================================================
+  // MARKET
+  // ======================================================
+
+  tickers: Record<
+    string,
+    Ticker
+  >
+
+  selectedSymbol: string
+
+  // ======================================================
+  // ORDERBOOK
+  // ======================================================
+
+  orderbook: {
+
+    bids: OrderBookLevel[]
+
+    asks: OrderBookLevel[]
+
+  } | null
+
+  // ======================================================
+  // ACTIONS
+  // ======================================================
+
+  updateTicker: (
+    ticker: Ticker
+  ) => void
+
+  updateBatch: (
+    tickers: Ticker[]
+  ) => void
+
+  setSelectedSymbol: (
+    symbol: string
+  ) => void
+
+  setOrderbook: (
+    orderbook: {
+      bids: OrderBookLevel[]
+
+      asks: OrderBookLevel[]
+    }
+  ) => void
+
+}
+
+export const useMarketStore =
+  create<MarketStore>(
+    (set) => ({
+
+      // ======================================================
+      // STATE
+      // ======================================================
+
+      tickers: {},
+
+      selectedSymbol:
+        "BTCUSDT",
+
+      orderbook: null,
+
+      // ======================================================
+      // ACTIONS
+      // ======================================================
+
+      updateTicker: (
+        ticker
+      ) =>
+
+        set((state) => ({
+
+          tickers: {
+
+            ...state.tickers,
+
+            [ticker.symbol]:
+              ticker,
+
+          },
+
+        })),
+
+      updateBatch: (
+        tickers
+      ) =>
+
+        set((state) => {
+
+          const updated = {
+            ...state.tickers,
+          }
+
+          tickers.forEach(
+            (ticker) => {
+
+              updated[
+                ticker.symbol
+              ] = ticker
+
+            }
+          )
+
+          return {
+            tickers: updated,
+          }
+
+        }),
+
+      setSelectedSymbol: (
+        symbol
+      ) =>
+
+        set({
+          selectedSymbol:
+            symbol,
+        }),
+
+      setOrderbook: (
+        orderbook
+      ) =>
+
+        set({
+          orderbook,
+        }),
+
+    })
+  )

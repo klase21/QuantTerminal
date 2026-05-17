@@ -1,3 +1,5 @@
+export {}
+
 let socket: WebSocket | null = null
 
 interface MarketPacket {
@@ -26,7 +28,7 @@ self.onmessage = (event) => {
   if (event.data.type === "connect") {
 
     socket = new WebSocket(
-      "wss://stream.binance.com:9443/ws/!ticker@arr"
+      "wss://fstream.binance.com/market/ws/!ticker@arr"
     )
 
     socket.onmessage = (msg) => {

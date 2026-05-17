@@ -1,22 +1,25 @@
+export {}
+
 let socket: WebSocket | null = null
 
 self.onmessage = (event) => {
 
-  if (event.data.type === "connect") {
+  const { symbol } = event.data
 
-    socket = new WebSocket(
-      "wss://stream.binance.com:9443/ws/btcusdt@depth20@100ms"
+  if (socket) {
+    socket.close()
+  }
+
+  socket = new WebSocket(
+    `wss://fstream.binance.com/public/ws/${symbol}@depth20@100ms`
+  )
+
+  socket.onmessage = (msg) => {
+
+    self.postMessage(
+      JSON.parse(msg.data)
     )
 
-    socket.onmessage = (msg) => {
-
-      const data = JSON.parse(msg.data)
-
-      postMessage({
-        type: "depth",
-        bids: data.b,
-        asks: data.a,
-      })
-    }
   }
+
 }

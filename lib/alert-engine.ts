@@ -27,41 +27,54 @@ export function evaluateRule(
 
   const now = Date.now()
 
+  const cooldown =
+    rule.cooldown ?? 0
+
   if (
+
     rule.lastTriggered &&
+
     now - rule.lastTriggered <
-      rule.cooldown * 1000
+      cooldown * 1000
+
   ) {
 
     return false
 
   }
 
-  switch (rule.condition) {
+  switch (rule.type) {
 
-    case "price_above":
-      return data.price > rule.value
+    case "PRICE_ABOVE":
 
-    case "price_below":
-      return data.price < rule.value
-
-    case "volume_spike":
       return (
-        (data.volume || 0) > rule.value
+        data.price >
+        rule.condition
       )
 
-    case "liquidation_spike":
+    case "PRICE_BELOW":
+
+      return (
+        data.price <
+        rule.condition
+      )
+
+    case "VOLUME_SPIKE":
+
+      return (
+        (data.volume || 0) >
+        rule.condition
+      )
+
+    case "LIQUIDATION":
+
       return (
         (data.liquidation || 0) >
-        rule.value
-      )
-
-    case "oi_spike":
-      return (
-        (data.oi || 0) > rule.value
+        rule.condition
       )
 
     default:
+
       return false
 
   }

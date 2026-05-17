@@ -1,6 +1,6 @@
-import { AlertSoundType } from "@/types/alert"
+import { AlertSound  } from "@/types/alert"
 
-const soundMap: Record<AlertSoundType, string> = {
+const soundMap: Record<AlertSound , string> = {
 
   default: "/sounds/alert.mp3",
 
@@ -10,7 +10,7 @@ const soundMap: Record<AlertSoundType, string> = {
 
 }
 
-export function playAlertSound(type: AlertSoundType) {
+export function playAlertSound(type: AlertSound ) {
 
   try {
 

@@ -25,4 +25,4 @@ export const useMarketStore = create<MarketState>((set) => ({
         [`${ticker.exchange}_${ticker.symbol}`]: ticker,
       },
     })),
-}))s
+}))

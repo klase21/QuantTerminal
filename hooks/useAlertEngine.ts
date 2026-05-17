@@ -159,7 +159,7 @@ export default function useAlertEngine({
 
         r.enabled &&
         r.type ===
-          "liquidation"
+          "LIQUIDATION"
 
       )
       .forEach((rule) => {
@@ -167,7 +167,7 @@ export default function useAlertEngine({
         if (
 
           latest.amount >=
-          rule.threshold
+          rule.condition
 
         ) {
 
@@ -205,7 +205,7 @@ export default function useAlertEngine({
 
         r.enabled &&
         r.type ===
-          "absorption"
+          "ABSORPTION"
 
       )
       .forEach((rule) => {
@@ -213,7 +213,7 @@ export default function useAlertEngine({
         if (
 
           latest.intensity >=
-          rule.threshold
+          rule.condition
 
         ) {
 
@@ -249,7 +249,7 @@ export default function useAlertEngine({
 
         r.enabled &&
         r.type ===
-          "liquidity"
+          "LIQUIDITY_SWEEP"
 
       )
       .forEach((rule) => {
@@ -257,7 +257,7 @@ export default function useAlertEngine({
         if (
 
           latest.strength >=
-          rule.threshold
+          rule.condition
 
         ) {
 

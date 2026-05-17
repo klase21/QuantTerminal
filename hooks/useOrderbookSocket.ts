@@ -1,61 +1,139 @@
+// ======================================================
+// hooks/useOrderbookSocket.ts
+// ======================================================
+
 "use client"
 
 import { useEffect } from "react"
-import { useMarketStore } from "@/stores/useMarketStore"
 
-export default function useOrderbookSocket(
-  symbol: string
-) {
-  const setOrderbook = useMarketStore(
-    (s) => s.setOrderbook
-  )
+import {
+  useMarketStore,
+} from "@/stores/useMarketStore"
 
-  useEffect(() => {
-    const ws = new WebSocket(
-      `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@depth20@100ms`
+export default function useOrderbookSocket() {
+
+  // ======================================================
+  // STORE
+  // ======================================================
+
+  const selectedSymbol =
+    useMarketStore(
+      (s) => s.selectedSymbol
     )
 
-    ws.onopen = () => {
-      console.log("ORDERBOOK CONNECTED")
+  const setOrderbook =
+    useMarketStore(
+      (s) => s.setOrderbook
+    )
+
+  // ======================================================
+  // SOCKET
+  // ======================================================
+
+  useEffect(() => {
+
+    if (!selectedSymbol) {
+      return
     }
 
+    const ws = new WebSocket(
+
+      `wss://fstream.binance.com/ws/${selectedSymbol.toLowerCase()}@depth20@100ms`
+
+    )
+
     ws.onmessage = (event) => {
+
       try {
-        const data = JSON.parse(event.data)
 
-        if (!data?.b || !data?.a) return
-
-        const bids = data.b.map(
-          (b: string[]) => ({
-            price: Number(b[0]),
-            qty: Number(b[1]),
-          })
+        const data = JSON.parse(
+          event.data
         )
 
-        const asks = data.a.map(
-          (a: string[]) => ({
-            price: Number(a[0]),
-            qty: Number(a[1]),
-          })
-        )
+        // ======================================================
+        // BIDS
+        // ======================================================
 
+        const bids =
 
+          data.b?.map(
+            (
+              [price, quantity]: string[]
+            ) => ({
 
-        setOrderbook(bids, asks)
+              price:
+                Number(price),
+
+              quantity:
+                Number(quantity),
+
+            })
+          ) || []
+
+        // ======================================================
+        // ASKS
+        // ======================================================
+
+        const asks =
+
+          data.a?.map(
+            (
+              [price, quantity]: string[]
+            ) => ({
+
+              price:
+                Number(price),
+
+              quantity:
+                Number(quantity),
+
+            })
+          ) || []
+
+        // ======================================================
+        // UPDATE STORE
+        // ======================================================
+
+        setOrderbook({
+
+          bids,
+
+          asks,
+
+        })
 
       } catch (err) {
-        console.error(err)
+
+        console.error(
+          "Orderbook parse error",
+          err
+        )
+
       }
+
     }
 
     ws.onerror = (err) => {
-      console.error("WS ERROR", err)
+
+      console.error(
+        "Orderbook WS Error",
+        err
+      )
+
     }
 
-    ws.onclose = () => {
-      console.log("ORDERBOOK CLOSED")
+    return () => {
+
+      ws.close()
+
     }
 
-    return () => ws.close()
-  }, [symbol, setOrderbook])
+  }, [
+
+    selectedSymbol,
+
+    setOrderbook,
+
+  ])
+
 }

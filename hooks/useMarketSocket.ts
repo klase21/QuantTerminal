@@ -20,9 +20,9 @@ export default function useMarketSocket() {
   // STORE
   // ======================================================
 
-  const setTicker =
+  const updateTicker  =
     useMarketStore(
-      (s) => s.setTicker
+      (s) => s.updateTicker 
     )
 
   // ======================================================
@@ -98,31 +98,24 @@ export default function useMarketSocket() {
               Date.now() -
               Number(data.E)
 
-            setTicker(
-              data.s,
-              {
+			updateTicker({
+			  symbol: data.s,
 
-                symbol:
-                  data.s,
+			  price: Number(data.c),
 
-                price:
-                  Number(data.c),
+			  change24h: Number(data.P),
 
-                change:
-                  Number(data.P),
+			  volume: Number(data.v),
 
-                // BASE VOLUME
-                volume:
-                  Number(data.v),
+			  quoteVolume: Number(data.q),
 
-                // USDT VOLUME
-                quoteVolume:
-                  Number(data.q),
+			  exchange: "BINANCE",
 
-                latency,
+			  timestamp: Date.now(),
 
-              }
-            )
+			  latency:
+				Date.now() - data.E,
+			})
 
           }
         )
@@ -183,6 +176,6 @@ export default function useMarketSocket() {
 
     }
 
-  }, [setTicker])
+  }, [updateTicker])
 
 }

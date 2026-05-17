@@ -6,6 +6,7 @@
 
 import {
   createChart,
+  CandlestickSeries,
 } from "lightweight-charts"
 
 import {
@@ -40,7 +41,7 @@ export default function LightweightChart() {
     )
 
     const series =
-      chart.addCandlestickSeries()
+      chart.addSeries(CandlestickSeries)
 
     series.setData([
       {

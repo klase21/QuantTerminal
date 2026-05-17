@@ -8,7 +8,10 @@ export class BinanceSocket extends BaseSocket {
     symbols: string[],
     onTicker: (data: TickerData) => void,
   ) {
-    super("wss://stream.binance.com:9443/ws", onTicker)
+    super(
+      "wss://fstream.binance.com/ws",
+      onTicker,
+    )
 
     this.symbols = symbols
   }
@@ -16,9 +19,12 @@ export class BinanceSocket extends BaseSocket {
   protected onOpen(): void {
     this.send({
       method: "SUBSCRIBE",
+
       params: this.symbols.map(
-        (s) => `${s.toLowerCase()}@ticker`,
+        (s) =>
+          `${s.toLowerCase()}@ticker`,
       ),
+
       id: 1,
     })
   }
@@ -28,10 +34,15 @@ export class BinanceSocket extends BaseSocket {
 
     const ticker: TickerData = {
       symbol: data.s,
+
       price: parseFloat(data.c),
+
       change24h: parseFloat(data.P),
+
       volume: parseFloat(data.v),
+
       exchange: "BINANCE",
+
       timestamp: Date.now(),
     }
 
@@ -39,6 +50,7 @@ export class BinanceSocket extends BaseSocket {
   }
 
   protected ping(): void {
-    this.send({ method: "PING" })
+    // Binance는 클라이언트 ping 필요 없음
+    // 브라우저 websocket이면 제거 추천
   }
 }

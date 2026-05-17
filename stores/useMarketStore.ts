@@ -1,283 +1,125 @@
-// ======================================================
-// stores/useMarketStore.ts
-// ======================================================
-
 "use client"
 
-import {
-  create,
-} from "zustand"
+import { create } from "zustand"
+import type { Ticker } from "@/types/market"
 
-// ======================================================
-// TICKER
-// ======================================================
-
-export interface Ticker {
-
-  symbol: string
+export interface OrderBookLevel {
 
   price: number
 
-  change: number
-
-  volume: number
-
-  // USDT 기준 거래량
-  quoteVolume: number
-
-  latency?: number
+  quantity: number
 
 }
 
-// ======================================================
-// ORDERBOOK
-// ======================================================
+export interface OrderBook {
 
-export interface OrderbookLevel {
+  bids: OrderBookLevel[]
 
-  price: number
-
-  qty: number
+  asks: OrderBookLevel[]
 
 }
-
-// ======================================================
-// TRADE
-// ======================================================
-
-interface Trade {
-
-  price: number
-
-  qty: number
-
-  side:
-    | "buy"
-    | "sell"
-
-  time: number
-
-}
-
-// ======================================================
-// LIQUIDATION
-// ======================================================
-
-interface Liquidation {
-
-  symbol: string
-
-  side: string
-
-  price: number
-
-  qty: number
-
-  time: number
-
-}
-
-// ======================================================
-// STORE
-// ======================================================
 
 interface MarketStore {
 
   // ======================================================
-  // TICKERS
+  // MARKET
   // ======================================================
 
   tickers:
-    Record<
-      string,
-      Ticker
-    >
+    Record<string, Ticker>
 
-  setTicker:
-    (
-      symbol: string,
-      ticker: Ticker
-    ) => void
+  selectedSymbol: string
+
+  orderbook: OrderBook | null
 
   // ======================================================
-  // ORDERBOOK
+  // ACTIONS
   // ======================================================
-
-  orderbook: {
-
-    bids:
-      OrderbookLevel[]
-
-    asks:
-      OrderbookLevel[]
-
-  }
-
-  setOrderbook:
-    (
-      bids:
-        OrderbookLevel[],
-      asks:
-        OrderbookLevel[]
-    ) => void
-
-  // ======================================================
-  // SELECTED SYMBOL
-  // ======================================================
-
-  selectedSymbol:
-    string
 
   setSelectedSymbol:
-    (
-      symbol: string
-    ) => void
+    (symbol: string) => void
 
-  // ======================================================
-  // TRADES
-  // ======================================================
+  updateTicker:
+    (ticker: Ticker) => void
 
-  trades: Trade[]
+  updateBatch:
+    (tickers: Ticker[]) => void
 
-  setTrades:
-    (
-      trades: Trade[]
-    ) => void
-
-  // ======================================================
-  // LIQUIDATIONS
-  // ======================================================
-
-  liquidations:
-    Liquidation[]
-
-  setLiquidations:
-    (
-      data:
-        Liquidation[]
-    ) => void
+  setOrderbook:
+    (orderbook: OrderBook) => void
 
 }
 
-// ======================================================
-// STORE
-// ======================================================
-
 export const useMarketStore =
-  create<MarketStore>(
-    (set) => ({
+  create<MarketStore>((set) => ({
 
-      // ======================================================
-      // TICKERS
-      // ======================================================
+    // ======================================================
+    // INITIAL STATE
+    // ======================================================
 
-      tickers: {},
+    tickers: {},
 
-      setTicker: (
-        symbol,
-        ticker
-      ) =>
+    selectedSymbol: "BTCUSDT",
 
-        set(
-          (state) => ({
+    orderbook: null,
 
-            tickers: {
+    // ======================================================
+    // ACTIONS
+    // ======================================================
 
-              ...state.tickers,
-
-              [symbol]:
-                ticker,
-
-            },
-
-          })
-        ),
-
-      // ======================================================
-      // ORDERBOOK
-      // ======================================================
-
-      orderbook: {
-
-        bids: [],
-
-        asks: [],
-
-      },
-
-      setOrderbook: (
-        bids,
-        asks
-      ) =>
+    setSelectedSymbol:
+      (symbol) =>
 
         set({
+          selectedSymbol: symbol,
+        }),
 
-          orderbook: {
+    updateTicker:
+      (ticker) =>
 
-            bids,
+        set((state) => ({
 
-            asks,
+          tickers: {
+
+            ...state.tickers,
+
+            [ticker.symbol]:
+              ticker,
 
           },
 
+        })),
+
+    updateBatch:
+      (tickers) =>
+
+        set((state) => {
+
+          const merged = {
+            ...state.tickers,
+          }
+
+          tickers.forEach(
+            (ticker) => {
+
+              merged[
+                ticker.symbol
+              ] = ticker
+
+            }
+          )
+
+          return {
+            tickers: merged,
+          }
+
         }),
 
-      // ======================================================
-      // SELECTED SYMBOL
-      // ======================================================
-
-      selectedSymbol:
-        "btcusdt",
-
-      setSelectedSymbol: (
-        symbol
-      ) =>
+    setOrderbook:
+      (orderbook) =>
 
         set({
-
-          selectedSymbol:
-
-            typeof symbol ===
-            "string"
-
-              ? symbol.toLowerCase()
-
-              : "btcusdt",
-
+          orderbook,
         }),
 
-      // ======================================================
-      // TRADES
-      // ======================================================
-
-      trades: [],
-
-      setTrades: (
-        trades
-      ) =>
-
-        set({
-
-          trades,
-
-        }),
-
-      // ======================================================
-      // LIQUIDATIONS
-      // ======================================================
-
-      liquidations: [],
-
-      setLiquidations: (
-        data
-      ) =>
-
-        set({
-
-          liquidations:
-            data,
-
-        }),
-
-    })
-  )
+  }))

@@ -1,9 +1,27 @@
-export interface MarketData {
-  btcPrice: number
-  ethPrice: number
-  fundingRate: number
-  openInterest: number
-  longShortRatio: number
-  sentimentScore: number
-  narrative: string
+// ======================================================
+// types/market.ts
+// ======================================================
+
+export interface Ticker {
+
+  symbol: string
+
+  price: number
+
+  change24h: number
+
+  volume: number
+
+  exchange: string
+
+  timestamp: number
+
+  // ======================================================
+  // OPTIONAL METRICS
+  // ======================================================
+
+  latency?: number
+
+  quoteVolume?: number
+
 }

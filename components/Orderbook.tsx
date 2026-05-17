@@ -1,6 +1,8 @@
-"use client"
+// ======================================================
+// components/Orderbook.tsx
+// ======================================================
 
-import { cn } from "@/lib/utils"
+"use client"
 
 interface Level {
   price: number
@@ -16,223 +18,156 @@ export default function Orderbook({
   bids,
   asks,
 }: Props) {
-  // =========================
-  // cumulative depth
-  // =========================
-
-  let cumulativeBid = 0
-
-  const cumulativeBids = bids.map((bid) => {
-    cumulativeBid += bid.qty
-
-    return {
-      ...bid,
-      total: cumulativeBid,
-    }
-  })
-
-  let cumulativeAsk = 0
-
-  const cumulativeAsks = asks.map((ask) => {
-    cumulativeAsk += ask.qty
-
-    return {
-      ...ask,
-      total: cumulativeAsk,
-    }
-  })
-
-  // =========================
-  // max depth
-  // =========================
-
-  const maxBidDepth = Math.max(
-    ...cumulativeBids.map((b) => b.total),
-    1
-  )
-
-  const maxAskDepth = Math.max(
-    ...cumulativeAsks.map((a) => a.total),
-    1
-  )
-
-  // =========================
-  // spread
-  // =========================
-
-  const spread =
-    asks[0] && bids[0]
-      ? asks[0].price - bids[0].price
-      : 0
-
-  // =========================
-  // render
-  // =========================
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 h-full">
-      {/* HEADER */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">
-          Orderbook
-        </h2>
 
-        <div className="text-xs text-zinc-500">
-          LIVE
+    <div
+      className="
+        grid
+        grid-cols-2
+        gap-4
+        text-sm
+      "
+    >
+
+      {/* ======================================================
+          BIDS
+      ====================================================== */}
+
+      <div>
+
+        <div
+          className="
+            mb-2
+            text-emerald-400
+            font-semibold
+          "
+        >
+          Bids
         </div>
-      </div>
 
-      {/* COLUMN HEADER */}
-      <div className="grid grid-cols-3 text-xs text-zinc-500 mb-2 px-2">
-        <div>Price</div>
-        <div className="text-right">
-          Size
-        </div>
-        <div className="text-right">
-          Total
-        </div>
-      </div>
+        <div
+          className="
+            space-y-1
+          "
+        >
 
-      {/* ASKS */}
-      <div className="space-y-[2px]">
-        {cumulativeAsks
-          .slice()
-          .reverse()
-          .map((ask, idx) => {
-            const width =
-              (ask.total / maxAskDepth) * 100
+          {bids.map(
+            (
+              bid,
+              index
+            ) => (
 
-            const isWhale =
-              ask.qty >
-              cumulativeAsks[0]?.qty * 3
-
-            return (
               <div
-                key={idx}
-                className="relative overflow-hidden rounded"
+
+                key={`${bid.price}-${index}`}
+
+                className="
+                  flex
+                  items-center
+                  justify-between
+                  rounded-lg
+                  bg-emerald-500/5
+                  px-2
+                  py-1
+                "
               >
-                {/* depth bg */}
-                <div
-                  className={cn(
-                    "absolute right-0 top-0 h-full transition-all duration-100",
-                    isWhale
-                      ? "bg-red-500/35"
-                      : "bg-red-500/15"
-                  )}
-                  style={{
-                    width: `${width}%`,
-                  }}
-                />
 
-                {/* whale glow */}
-                {isWhale && (
-                  <div className="absolute inset-0 bg-red-400/5 animate-pulse" />
-                )}
-
-                {/* row */}
-                <div className="relative z-10 grid grid-cols-3 px-2 py-1 text-sm">
-                  <div
-                    className={cn(
-                      "text-red-400",
-                      isWhale &&
-                        "font-bold text-red-300"
-                    )}
-                  >
-                    {ask.price.toLocaleString()}
-                  </div>
-
-                  <div className="text-right text-zinc-300">
-                    {ask.qty.toFixed(3)}
-                  </div>
-
-                  <div className="text-right text-zinc-500">
-                    {ask.total.toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-      </div>
-
-      {/* MID PRICE */}
-      <div className="my-4 rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-center">
-        <div className="text-xs text-zinc-500">
-          Spread
-        </div>
-
-        <div className="text-lg font-semibold">
-          {spread.toFixed(2)}
-        </div>
-
-        <div className="text-xs text-zinc-400 mt-1">
-          Mid Price:{" "}
-          {asks[0] && bids[0]
-            ? (
-                (asks[0].price +
-                  bids[0].price) /
-                2
-              ).toLocaleString()
-            : "-"}
-        </div>
-      </div>
-
-      {/* BIDS */}
-      <div className="space-y-[2px]">
-        {cumulativeBids.map((bid, idx) => {
-          const width =
-            (bid.total / maxBidDepth) * 100
-
-          const isWhale =
-            bid.qty >
-            cumulativeBids[0]?.qty * 3
-
-          return (
-            <div
-              key={idx}
-              className="relative overflow-hidden rounded"
-            >
-              {/* depth bg */}
-              <div
-                className={cn(
-                  "absolute left-0 top-0 h-full transition-all duration-100",
-                  isWhale
-                    ? "bg-green-500/35"
-                    : "bg-green-500/15"
-                )}
-                style={{
-                  width: `${width}%`,
-                }}
-              />
-
-              {/* whale glow */}
-              {isWhale && (
-                <div className="absolute inset-0 bg-green-400/5 animate-pulse" />
-              )}
-
-              {/* row */}
-              <div className="relative z-10 grid grid-cols-3 px-2 py-1 text-sm">
-                <div
-                  className={cn(
-                    "text-green-400",
-                    isWhale &&
-                      "font-bold text-green-300"
-                  )}
+                <span
+                  className="
+                    text-emerald-400
+                  "
                 >
                   {bid.price.toLocaleString()}
-                </div>
+                </span>
 
-                <div className="text-right text-zinc-300">
-                  {bid.qty.toFixed(3)}
-                </div>
+                <span
+                  className="
+                    text-zinc-400
+                  "
+                >
+                  {bid.qty.toLocaleString()}
+                </span>
 
-                <div className="text-right text-zinc-500">
-                  {bid.total.toFixed(2)}
-                </div>
               </div>
-            </div>
-          )
-        })}
+
+            )
+          )}
+
+        </div>
+
       </div>
+
+      {/* ======================================================
+          ASKS
+      ====================================================== */}
+
+      <div>
+
+        <div
+          className="
+            mb-2
+            text-red-400
+            font-semibold
+          "
+        >
+          Asks
+        </div>
+
+        <div
+          className="
+            space-y-1
+          "
+        >
+
+          {asks.map(
+            (
+              ask,
+              index
+            ) => (
+
+              <div
+
+                key={`${ask.price}-${index}`}
+
+                className="
+                  flex
+                  items-center
+                  justify-between
+                  rounded-lg
+                  bg-red-500/5
+                  px-2
+                  py-1
+                "
+              >
+
+                <span
+                  className="
+                    text-red-400
+                  "
+                >
+                  {ask.price.toLocaleString()}
+                </span>
+
+                <span
+                  className="
+                    text-zinc-400
+                  "
+                >
+                  {ask.qty.toLocaleString()}
+                </span>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+      </div>
+
     </div>
+
   )
+
 }
