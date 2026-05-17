@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #0a0a0a;
+  color: white;
+}
+
+@keyframes tickerScroll {
+
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+
+}
+
+.animate-ticker {
+
+  animation:
+    tickerScroll
+    20s linear infinite;
+
+}

@@ -1,3 +1,6 @@
+// ======================================================
+// app/page.tsx
+// ======================================================
 
 import DashboardLayout from "@/components/DashboardLayout"
 
