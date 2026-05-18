@@ -1,8 +1,6 @@
-// ======================================================
-// components/TickerBar.tsx
-// ======================================================
-
 "use client"
+
+import { useMemo } from "react"
 
 import Marquee
   from "react-fast-marquee"
@@ -30,8 +28,9 @@ export default function TickerBar() {
   // SORTED
   // ======================================================
 
-  const sorted =
-    Object.values(
+  const sorted = useMemo(() => {
+
+    return Object.values(
       tickers
     )
 
@@ -53,6 +52,8 @@ export default function TickerBar() {
 
       // TOP 40
       .slice(0, 40)
+
+  }, [tickers])
 
   // ======================================================
   // EMPTY

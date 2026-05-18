@@ -10,9 +10,7 @@ import {
   useMarketStore,
 } from "@/stores/useMarketStore"
 
-export default function useOrderbookSocket(
-     symbol : string
-  ) {
+export default function useOrderbookSocket() {
 
   // ======================================================
   // STORE
@@ -38,11 +36,25 @@ export default function useOrderbookSocket(
       return
     }
 
+    const stream =
+      `${selectedSymbol.toLowerCase()}@depth20@500ms`
+
     const ws = new WebSocket(
-
-      `wss://fstream.binance.com/ws/${selectedSymbol.toLowerCase()}@depth20@100ms`
-
+      `wss://fstream.binance.com/ws/${stream}`
     )
+
+    console.log(
+      "ORDERBOOK CONNECT:",
+      stream
+    )
+
+    ws.onopen = () => {
+
+      console.log(
+        "ORDERBOOK CONNECTED"
+      )
+
+    }
 
     ws.onmessage = (event) => {
 
@@ -124,11 +136,25 @@ export default function useOrderbookSocket(
 
     }
 
-    return () => {
+    ws.onclose = (event) => {
 
-      ws.close()
+      console.log(
+        "ORDERBOOK CLOSED",
+		event.code,
+		event.reason
+      )
 
     }
+
+    return () => {
+	  if (
+		ws.readyState === WebSocket.OPEN ||
+		ws.readyState === WebSocket.CONNECTING
+	  ) {
+		ws.close()
+	  }
+
+	}
 
   }, [
 
