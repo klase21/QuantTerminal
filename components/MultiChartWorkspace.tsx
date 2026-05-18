@@ -88,10 +88,11 @@ export default function MultiChartWorkspace() {
               removeChart(chart.id)
             }
             onTimeframeChange={(
-              timeframe
+              id,
+			  timeframe
             ) =>
               updateTimeframe(
-                chart.id,
+                id,
                 timeframe
               )
             }
