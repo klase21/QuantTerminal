@@ -90,11 +90,18 @@ export default function ChartTile({
       }
     >
 
-      <div className="h-[320px]">
-        <TradingChart
-          data={candles}
-        />
-      </div>
+	<div
+	  className="
+		h-[320px]
+		min-h-[320px]
+		overflow-hidden
+		relative
+	  "
+	>
+	  <TradingChart
+		data={candles}
+	  />
+	</div>
 
     </Panel>
   )

@@ -72,7 +72,8 @@ export default function MultiChartWorkspace() {
       <div
         className="
           grid
-          grid-cols-2
+          grid-cols-1
+		  xl:grid-cols-2
           gap-4
         "
       >

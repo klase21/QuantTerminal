@@ -60,7 +60,9 @@ export default function TradingChart({
           chartContainerRef.current
             .clientWidth,
 
-        height: 500,
+		height:
+		  chartContainerRef.current
+			.clientHeight,
 
         crosshair: {
           mode: 1,
@@ -93,15 +95,16 @@ export default function TradingChart({
 
     const formattedData: CandlestickData<Time>[] = data.map(
       (candle) => ({
-        time: (candle.time / 1000) as Time, // milliseconds → seconds
+        time: candle.time as Time, // milliseconds → seconds
         open: candle.open,
         high: candle.high,
         low: candle.low,
         close: candle.close,
       })
 	 )
-
+	
     candleSeries.setData(formattedData)
+	chart.timeScale().fitContent()
 
     const handleResize = () => {
       chart.applyOptions({
@@ -129,7 +132,7 @@ export default function TradingChart({
   return (
     <div
       ref={chartContainerRef}
-      className="w-full"
+      className="w-full h-full"
     />
   )
 }
