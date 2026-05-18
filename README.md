@@ -1,316 +1,342 @@
 # QuantTerminal
 
-Advanced multi-chart crypto trading dashboard built with **Next.js 14**, **TypeScript**, **Zustand**, and real-time Binance market data.
+## Geopolitical + Market Intelligence Terminal for Crypto Traders and Exchange Strategy Teams
+
+Realtime crypto intelligence platform focused on:
+
+- High performance market monitoring
+- Multi-chart trading workflows
+- Exchange-grade websocket infrastructure
+- Orderflow visualization
+- Geopolitical intelligence integration
+- AI-ready terminal architecture
 
 ---
 
-## Features
+# Live Demo
 
-### Multi-Chart Workspace
-
-* Open multiple charts simultaneously
-* Independent timeframe switching per chart
-* Responsive grid layout
-* Remove/add charts dynamically
-
-### Real-Time Market Data
-
-* Binance WebSocket integration
-* Live candlestick updates
-* Liquidation stream support
-* Orderbook tracking
-* Ticker monitoring
-
-### Trading UI Components
-
-* Lightweight Charts integration
-* Custom reusable panel system
-* Resizable dashboard layout
-* Dark trading-terminal aesthetic
-
-### State Management
-
-* Zustand-powered global stores
-* Modular workspace management
-* Real-time reactive UI updates
+🌐 https://quantterminalai.vercel.app/
 
 ---
 
-## Tech Stack
+# Vision
 
-| Category    | Stack                 |
-| ----------- | --------------------- |
-| Framework   | Next.js 14            |
-| Language    | TypeScript            |
-| State       | Zustand               |
-| Charts      | lightweight-charts    |
-| Styling     | TailwindCSS           |
-| Icons       | Lucide React          |
-| Data Source | Binance WebSocket API |
+QuantTerminal is designed as a next-generation crypto intelligence terminal combining:
+
+- Realtime market infrastructure
+- Exchange-grade data systems
+- Trader-focused UX
+- Geopolitical event monitoring
+- AI-assisted market intelligence
+
+The long-term goal is to build a Bloomberg-style intelligence terminal for digital assets.
 
 ---
 
-## Screenshots
+# Core Features
 
-> Add screenshots or GIF previews here.
+## Realtime Binance Futures Integration
 
-```md
-/assets/dashboard-preview.png
-/assets/multi-chart.gif
+- Binance Futures WebSocket streams
+- Low latency ticker updates
+- Realtime orderbook streaming
+- Live kline/candle aggregation
+- Auto reconnect architecture
+
+---
+
+## Advanced Trading UI
+
+- Multi-chart workspace
+- TradingView-style layouts
+- Dark terminal interface
+- Responsive dashboard system
+- Symbol switching
+- Timeframe switching
+
+---
+
+## Market Monitoring
+
+- Top movers
+- Volume ranking
+- Market heat monitoring
+- Realtime ticker tape
+- Latency display
+- Futures market tracking
+
+---
+
+## Orderflow Infrastructure
+
+- Realtime orderbook
+- Depth visualization
+- Footprint module foundation
+- Future DOM integration ready
+
+---
+
+## AI-Ready Architecture
+
+Planned AI modules:
+
+- News sentiment analysis
+- Geopolitical event scoring
+- Whale activity detection
+- Market anomaly detection
+- AI-generated trade briefings
+- Cross-market correlation engine
+
+---
+
+# Tech Stack
+
+## Frontend
+
+- Next.js 14
+- React
+- TypeScript
+- TailwindCSS
+
+---
+
+## Charts
+
+- lightweight-charts
+- TradingView-style rendering
+
+---
+
+## State Management
+
+- Zustand
+
+---
+
+## Data Infrastructure
+
+- Binance Futures WebSocket API
+- Realtime socket hooks
+- Streaming market updates
+
+---
+
+# Architecture
+
+```text
+Binance Futures Streams
+            ↓
+Realtime Socket Hooks
+            ↓
+Global Zustand Stores
+            ↓
+Trading Components
+            ↓
+Terminal Dashboard UI
 ```
 
 ---
 
-## Installation
+# Current Modules
+
+| Module | Status |
+|---|---|
+| Realtime Tickers | ✅ |
+| Trading Charts | ✅ |
+| Multi Chart Workspace | ✅ |
+| Orderbook Stream | ✅ |
+| Futures Websocket | ✅ |
+| Zustand Global Store | ✅ |
+| Responsive Dashboard | ✅ |
+| Trading Terminal UI | ✅ |
+| Footprint Foundation | 🚧 |
+| Heatmap | 🚧 |
+| AI Intelligence Layer | 🚧 |
+| Geopolitical Feed | 🚧 |
+
+---
+
+# Project Structure
+
+```bash
+app/
+components/
+hooks/
+stores/
+lib/
+public/
+```
+
+---
+
+# Key Components
+
+## Realtime Socket Hooks
+
+Custom websocket hooks handling:
+
+- ticker streams
+- orderbook streams
+- kline streams
+- reconnect handling
+- state synchronization
+
+---
+
+## TradingChart
+
+High performance realtime candlestick rendering using lightweight-charts.
+
+Features:
+
+- responsive resizing
+- realtime candle updates
+- multi-symbol support
+- multi-timeframe support
+
+---
+
+## MultiChartWorkspace
+
+Custom multi-chart environment supporting:
+
+- dynamic chart creation
+- independent timeframes
+- simultaneous market monitoring
+- scalable workspace layouts
+
+---
+
+# Performance Goals
+
+- Low latency realtime rendering
+- Efficient websocket management
+- Minimal rerenders
+- Modular architecture
+- Scalable market infrastructure
+
+---
+
+# Future Roadmap
+
+## Trading Infrastructure
+
+- Footprint chart
+- DOM ladder
+- Liquidation feed
+- Open interest tracking
+- Funding rate monitor
+
+---
+
+## Intelligence Layer
+
+- AI news parser
+- Geopolitical risk monitor
+- Whale wallet tracking
+- Smart money dashboard
+- Sentiment engine
+
+---
+
+## Professional Features
+
+- Multi-monitor layouts
+- Saved workspaces
+- Custom alerts
+- Exchange aggregation
+- Strategy dashboard
+
+---
+
+# Installation
+
+## Clone
 
 ```bash
 git clone https://github.com/klase21/QuantTerminal.git
+```
 
-cd QuantTerminal
+---
 
+## Install Dependencies
+
+```bash
 npm install
 ```
 
 ---
 
-## Development
+## Run Development Server
 
 ```bash
 npm run dev
 ```
 
-Open:
-
-```txt
-http://localhost:3000
-```
-
 ---
 
-## Production Build
+## Build Production
 
 ```bash
 npm run build
-npm start
 ```
 
 ---
 
-## Project Structure
+# Screenshots
 
-```txt
-+---app
-|       globals.css
-|       layout.tsx
-|       page.tsx
-|       
-+---components
-|   |   AbsorptionPanel.tsx
-|   |   AlertCenter.tsx
-|   |   AlertEngine.tsx
-|   |   AlertRuleBuilder.tsx
-|   |   AlertRuleList.tsx
-|   |   AlertRulePanel.tsx
-|   |   AlertSoundToggle.tsx
-|   |   AlertToast.tsx
-|   |   BTCPriceCard.tsx
-|   |   ChartTile.tsx
-|   |   CVDPanel.tsx
-|   |   DashboardLayout.tsx
-|   |   FloatingChartModal.tsx
-|   |   Footprint.tsx
-|   |   Heatmap.tsx
-|   |   HeatmapCanvas.tsx
-|   |   LatencyPanel.tsx
-|   |   LightweightChart.tsx
-|   |   LiquidationFeed.tsx
-|   |   LiquidationPanel.tsx
-|   |   LiveTicker.tsx
-|   |   MacroIntel.tsx
-|   |   MacroPanel.tsx
-|   |   MarketOverview.tsx
-|   |   MultiChartWorkspace.tsx
-|   |   NarrativeIntel.tsx
-|   |   NarrativePanel.tsx
-|   |   Orderbook.tsx
-|   |   OrderBookPanel.tsx
-|   |   orderbookWorker.tsx
-|   |   OrderflowPanel.tsx
-|   |   ResizablePanelGroup.tsx
-|   |   RightPanelTabs.tsx
-|   |   SentimentPanel.tsx
-|   |   SoundToggle.tsx
-|   |   SymbolSelector.tsx
-|   |   TickerBar.tsx
-|   |   Topbar.tsx
-|   |   TradeTape.tsx
-|   |   TradingChart.tsx
-|   |   TradingViewChart.tsx
-|   |   VolumeProfile.tsx
-|   |   
-|   \---ui
-|           button.tsx
-|           card.tsx
-|           input.tsx
-|           Panel.tsx
-|           select.tsx
-|           switch.tsx
-|           
-+---hooks
-|       AlertRulePanel.ts.bak
-|       AlertRulePanel.tsx
-|       useAbsorptionDetector.ts
-|       useAlertEngine.ts
-|       useAlertSound.ts
-|       useBinanceSocket.ts
-|       useDepthHeatmap.ts
-|       useFootprint.ts
-|       useHeatmapHistory.ts
-|       useKlineSocket.ts
-|       useLiquidationSocket.ts
-|       useLiquidityEvents.ts
-|       useMarketSocket.ts
-|       useMarketWorker.ts
-|       useOrderbook.ts
-|       useOrderbookSocket.ts
-|       useRealtimeFeed.ts
-|       useTickerSocket.ts
-|       useTradeFlowSocket.ts
-|       useTradeSocket.ts
-|       useVolumeProfile.ts
-|       useWorkerSocket.ts
-|       
-+---lib
-|   |   alert-engine.ts
-|   |   alert-sound.ts
-|   |   generate-id.ts
-|   |   store.ts
-|   |   utils.ts
-|   |   
-|   +---stores
-|   |       marketStore.ts
-|   |       
-|   \---websocket
-|       +---core
-|       |       BaseSocket.ts
-|       |       SocketManager.ts
-|       |       types.ts
-|       |       
-|       +---exchanges
-|       |       binance.ts
-|       |       bybit.ts
-|       |       upbit.ts
-|       |       
-|       \---hooks
-|               useTickerSocket.ts
-|               
-+---public
-|   |   ws-worker.js
-|   |   
-|   \---sounds
-|           absorption.mp3
-|           alert.mp3
-|           liquidation.mp3
-|           
-+---services
-|       mockFeed.ts
-|       
-+---stores
-|       useAlertRuleStore.ts
-|       useAlertStore.ts
-|       useExchangeStore.ts
-|       useLiquidationStore.ts
-|       useMarketStore.ts
-|       useMultiExchangeSocket.ts
-|       useNarrativeStore.ts
-|       useOrderbookStore.ts
-|       useTickerStore.ts
-|       useWorkspaceStore.ts
-|       
-+---types
-|       alert.ts
-|       market.ts
-|       orderbook.ts
-|       
-\---workers
-        marketWorker.ts
-        multiExchangeWorker.ts
-```
+## Dashboard
+
+<img width="1400" alt="dashboard" src="./public/screenshots/dashboard.png" />
 
 ---
 
-## Current Version
+## Multi Chart Workspace
 
-```txt
-v0.5.1
-```
-
-### Latest Changes
-
-* Added multi-chart timeframe switching
-* Improved Zustand workspace architecture
-* Fixed TypeScript typing issues
-* Fixed lightweight-charts Time typing
-* Improved orderbook store structure
-* Added rollback tagging support
+<img width="1400" alt="multichart" src="./public/screenshots/multichart.png" />
 
 ---
 
-## Roadmap
+## Orderbook
 
-### Planned Features
-
-* Drag & resize chart panels
-* TradingView-style layouts
-* Technical indicators
-* Drawing tools
-* Persistent workspace saving
-* Exchange selector
-* Futures positions panel
-* Heatmap integration
-* News & sentiment widgets
-* Alert engine improvements
+<img width="1400" alt="orderbook" src="./public/screenshots/orderbook.png" />
 
 ---
 
-## Git Workflow
+# Demo GIF
 
-### Create Rollback Point
-
-```bash
-git tag v0.5.1
-```
-
-### Restore Previous Version
-
-```bash
-git checkout v0.5.1
-```
+<img width="1400" alt="demo" src="./public/demo.gif" />
 
 ---
 
-## Author
+# Philosophy
 
-### Hyjeon
+Markets move faster than traditional news.
 
-* Crypto product strategist
-* Quant/trading UI builder
-* Exchange product & growth experience
+QuantTerminal aims to bridge:
+
+- market structure
+- realtime execution data
+- geopolitical intelligence
+- AI-assisted decision systems
+
+into one unified terminal.
+
+---
+
+# Author
+
+### Hyungchan Jeon
+
+Crypto product strategist, trading infrastructure builder, and market intelligence focused developer.
 
 LinkedIn:
-
-```txt
 https://www.linkedin.com/in/hyjeon/
-```
-
-GitHub:
-
-```txt
-https://github.com/klase21
-```
 
 ---
 
-## License
+# Disclaimer
 
-MIT License
+This project is for research, educational, and infrastructure development purposes only.
+
+Not financial advice.
