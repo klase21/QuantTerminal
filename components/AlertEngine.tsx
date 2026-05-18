@@ -2,6 +2,7 @@
 
 import useAlertSound from "@/hooks/useAlertSound"
 import { useAlertStore } from "@/stores/useAlertStore"
+import { useEffect } from "react"
 
 interface Props {
   liquidationValue?: number
@@ -18,7 +19,7 @@ export default function AlertEngine({
   breakout,
   volumeSpike,
 }: Props) {
-  const { play } = useAlertSound()
+  const { playSound } = useAlertSound()
 
   const soundEnabled = useAlertStore(
     (state) => state.soundEnabled
@@ -28,41 +29,41 @@ export default function AlertEngine({
     if (!soundEnabled) return
 
     if ((liquidationValue ?? 0) > 500000) {
-      play("liquidation")
+      playSound("liquidation")
     }
-  }, [liquidationValue, play, soundEnabled])
+  }, [liquidationValue, playSound, soundEnabled])
 
   useEffect(() => {
     if (!soundEnabled) return
 
     if ((absorptionStrength ?? 0) > 80) {
-      play("absorption")
+      playSound("absorption")
     }
-  }, [absorptionStrength, play, soundEnabled])
+  }, [absorptionStrength, playSound, soundEnabled])
 
   useEffect(() => {
     if (!soundEnabled) return
 
     if ((whaleSize ?? 0) > 1000000) {
-      play("whale")
+      playSound("whale")
     }
-  }, [whaleSize, play, soundEnabled])
+  }, [whaleSize, playSound, soundEnabled])
 
   useEffect(() => {
     if (!soundEnabled) return
 
     if (breakout) {
-      play("breakout")
+      playSound("breakout")
     }
-  }, [breakout, play, soundEnabled])
+  }, [breakout, playSound, soundEnabled])
 
   useEffect(() => {
     if (!soundEnabled) return
 
     if (volumeSpike) {
-      play("volume")
+      playSound("volume")
     }
-  }, [volumeSpike, play, soundEnabled])
+  }, [volumeSpike, playSound, soundEnabled])
 
   return null
 }

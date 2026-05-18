@@ -33,6 +33,8 @@ export interface AlertRule {
   type: AlertType
 
   symbol: string
+  
+  threshold?: number
 
   // ======================================================
   // CONDITIONS

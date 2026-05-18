@@ -1,12 +1,12 @@
 "use client"
 
-import useMarketStore from "@/store/useMarketStore"
+import { useMarketStore } from "@/stores/useMarketStore"
 
 export default function LatencyPanel() {
 
   const markets =
     useMarketStore(
-      (state) => state.markets
+      (state) => state.tickers
     )
 
   const rows =

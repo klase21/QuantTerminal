@@ -4,9 +4,7 @@
 
 "use client"
 
-import {
-  useOrderbookStore,
-} from "@/store/useOrderbookStore"
+import useOrderbookStore from "@/stores/useOrderbookStore"
 
 export default function OrderbookPanel() {
   const {
@@ -70,7 +68,7 @@ export default function OrderbookPanel() {
                   className="absolute left-0 top-0 h-full bg-green-500/20"
                   style={{
                     width: `${Math.min(
-                      bid.size * 2,
+                      bid.qty * 2,
                       100
                     )}%`,
                   }}
@@ -82,7 +80,7 @@ export default function OrderbookPanel() {
                   </span>
 
                   <span>
-                    {bid.size.toFixed(3)}
+                    {bid.qty.toFixed(3)}
                   </span>
                 </div>
               </div>
@@ -106,7 +104,7 @@ export default function OrderbookPanel() {
                   className="absolute right-0 top-0 h-full bg-red-500/20"
                   style={{
                     width: `${Math.min(
-                      ask.size * 2,
+                      ask.qty * 2,
                       100
                     )}%`,
                   }}
@@ -118,7 +116,7 @@ export default function OrderbookPanel() {
                   </span>
 
                   <span>
-                    {ask.size.toFixed(3)}
+                    {ask.qty.toFixed(3)}
                   </span>
                 </div>
               </div>

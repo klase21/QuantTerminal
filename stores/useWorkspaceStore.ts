@@ -24,6 +24,11 @@ interface WorkspaceState {
     id: string,
     data: Partial<ChartWindow>
   ) => void
+
+  updateTimeframe: (
+    id: string,
+    timeframe: string
+  ) => void
 }
 
 export const useWorkspaceStore =
@@ -71,6 +76,22 @@ export const useWorkspaceStore =
               ? {
                   ...chart,
                   ...data,
+                }
+              : chart
+          ),
+      })),
+
+    updateTimeframe: (
+      id,
+      timeframe
+    ) =>
+      set((state) => ({
+        charts:
+          state.charts.map((chart) =>
+            chart.id === id
+              ? {
+                  ...chart,
+                  timeframe,
                 }
               : chart
           ),

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 
-import useMarketStore from "@/store/useMarketStore"
+import { useMarketStore } from "@/stores/useMarketStore"
 
 export default function useMarketWorker() {
 

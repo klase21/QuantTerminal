@@ -10,7 +10,9 @@ import {
   useMarketStore,
 } from "@/stores/useMarketStore"
 
-export default function useOrderbookSocket() {
+export default function useOrderbookSocket(
+     symbol : string
+  ) {
 
   // ======================================================
   // STORE

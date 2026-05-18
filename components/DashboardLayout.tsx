@@ -119,11 +119,15 @@ export default function DashboardLayout() {
 
     )
 
-  const liquidityEvents =
-    useLiquidityEvents(
-      heatmap || []
-    )
-
+	const liquidityEvents =
+	  useLiquidityEvents(
+		heatmap?.flatMap(
+		  (frame) => [
+		  ...(frame.bids || []),
+		  ...(frame.asks || []),
+		]
+		) || []
+	  )
   const absorptionEvents =
     useAbsorptionDetector(
       trades || []

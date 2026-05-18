@@ -1,6 +1,6 @@
 "use client"
 
-import { useMarketStore } from "@/store/useMarketStore"
+import { useMarketStore } from "@/stores/useMarketStore"
 
 export default function BTCPriceCard() {
   const btcPrice = useMarketStore((s) => s.btcPrice)

@@ -26,7 +26,7 @@ export default function useLiquidationSocket() {
 
       if (!Array.isArray(data)) return
 
-      const parsed = data.map((liq: any) => {
+      const parsed: Liquidation[] = data.map((liq: any) => {
         const order = liq.o
 
         return {

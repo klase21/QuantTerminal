@@ -4,6 +4,9 @@ import {
   createChart,
   ColorType,
   CandlestickSeries,
+  UTCTimestamp,
+  CandlestickData,
+  Time,
 } from "lightweight-charts"
 
 import {
@@ -88,7 +91,17 @@ export default function TradingChart({
         }
       )
 
-    candleSeries.setData(data)
+    const formattedData: CandlestickData<Time>[] = data.map(
+      (candle) => ({
+        time: (candle.time / 1000) as Time, // milliseconds → seconds
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+      })
+	 )
+
+    candleSeries.setData(formattedData)
 
     const handleResize = () => {
       chart.applyOptions({

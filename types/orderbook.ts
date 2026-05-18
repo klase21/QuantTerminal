@@ -6,4 +6,5 @@ export interface OrderbookLevel {
 export interface OrderbookData {
   bids: OrderbookLevel[]
   asks: OrderbookLevel[]
+  imbalance: number
 }

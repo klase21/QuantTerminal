@@ -13,6 +13,11 @@ interface Props {
   timeframe: string
 
   onRemove: () => void
+
+  onTimeframeChange: (
+    id: string,
+    timeframe: string
+  ) => void
 }
 
 const timeframes = [
@@ -28,6 +33,7 @@ export default function ChartTile({
   symbol,
   timeframe,
   onRemove,
+  onTimeframeChange,
 }: Props) {
 
   const candles =
@@ -40,11 +46,16 @@ export default function ChartTile({
     <Panel
       title={`${symbol.toUpperCase()} ${timeframe}`}
       right={
-
         <div className="flex items-center gap-2">
 
           <select
             value={timeframe}
+            onChange={(e) =>
+              onTimeframeChange(
+                id,
+                e.target.value
+              )
+            }
             className="
               bg-black
               border
@@ -80,11 +91,9 @@ export default function ChartTile({
     >
 
       <div className="h-[320px]">
-
         <TradingChart
           data={candles}
         />
-
       </div>
 
     </Panel>

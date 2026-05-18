@@ -257,8 +257,8 @@ export default function AlertCenter() {
           ) {
 
             playAlertSound(
-              rule.soundFile ||
-                "/sounds/alert.mp3"
+              rule.sound ||
+                "default"
             )
 
           }
@@ -271,7 +271,7 @@ export default function AlertCenter() {
             "[ALERT]",
             {
               rule:
-                rule.name,
+                rule.id,
               type:
                 rule.type,
               severity,

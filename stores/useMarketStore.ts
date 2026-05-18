@@ -25,6 +25,9 @@ interface MarketStore {
   // MARKET
   // ======================================================
 
+  btcPrice:  number
+  setBtcPrice:
+		(price: number) => void
   tickers:
     Record<string, Ticker>
 
@@ -62,10 +65,17 @@ export const useMarketStore =
     selectedSymbol: "BTCUSDT",
 
     orderbook: null,
+	
+	btcPrice: 0,
 
     // ======================================================
     // ACTIONS
     // ======================================================
+
+	setBtcPrice: (price) =>
+		set ({
+			btcPrice: price,
+		}),
 
     setSelectedSymbol:
       (symbol) =>

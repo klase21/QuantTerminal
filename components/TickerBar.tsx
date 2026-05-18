@@ -107,7 +107,7 @@ export default function TickerBar() {
           (ticker) => {
 
             const positive =
-              ticker.change >= 0
+              ticker.change24h >= 0
 
             return (
 

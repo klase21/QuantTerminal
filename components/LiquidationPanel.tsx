@@ -5,7 +5,7 @@
 "use client"
 
 import { useLiquidationStore }
-  from "@/store/useLiquidationStore"
+  from "@/stores/useLiquidationStore"
 
 export default function LiquidationPanel() {
 

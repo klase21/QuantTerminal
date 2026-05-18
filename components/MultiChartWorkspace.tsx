@@ -19,6 +19,7 @@ export default function MultiChartWorkspace() {
     charts,
     addChart,
     removeChart,
+    updateTimeframe,
   } =
     useWorkspaceStore()
 
@@ -85,6 +86,14 @@ export default function MultiChartWorkspace() {
             timeframe={chart.timeframe}
             onRemove={() =>
               removeChart(chart.id)
+            }
+            onTimeframeChange={(
+              timeframe
+            ) =>
+              updateTimeframe(
+                chart.id,
+                timeframe
+              )
             }
           />
 

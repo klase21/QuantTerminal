@@ -11,6 +11,8 @@ export interface AlertItem {
   type: string
 
   message: string
+  
+  severity?: string
 
   timestamp: number
 
@@ -21,6 +23,8 @@ interface AlertStore {
   alerts: AlertItem[]
 
   soundEnabled: boolean
+
+  setSoundEnabled: (enabled: boolean) => void
 
   addAlert: (alert: AlertItem) => void
 
@@ -38,6 +42,13 @@ export const useAlertStore =
     alerts: [],
 
     soundEnabled: true,
+
+    setSoundEnabled: (
+      enabled
+    ) =>
+      set({
+        soundEnabled: enabled,
+      }),
 
     addAlert: (alert) =>
       set((state) => ({

@@ -3,6 +3,12 @@
 // ======================================================
 
 "use client"
+import React, { useState } from "react"
+
+import type {
+  ReactNode,
+} from "react"
+
 
 import {
   ChevronDown,
@@ -11,7 +17,7 @@ import {
 
 interface Props {
   title: string
-  right?: string
+  right?: React.ReactNode
   children: React.ReactNode
   collapsible?: boolean
   collapsed?: boolean

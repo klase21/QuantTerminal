@@ -53,9 +53,9 @@ export default function AlertRulePanel() {
               </div>
 
               <div className="text-xs text-zinc-500">
-                Min Size:
+                Condition:
                 {" "}
-                {rule.minSize?.toLocaleString()}
+                {rule.condition?.toLocaleString()}
               </div>
 
             </div>
