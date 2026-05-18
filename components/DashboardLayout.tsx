@@ -418,7 +418,7 @@ export default function DashboardLayout() {
               {/* MACRO */}
               <Panel
 
-                title="Macro Intel"
+                title="Macro"
 
                 collapsible
 
@@ -558,7 +558,7 @@ export default function DashboardLayout() {
               {/* FOOTPRINT */}
               <Panel
 
-                title="Footprint"
+                title="Footprint Heatmap"
 
                 right="ALT+3"
 

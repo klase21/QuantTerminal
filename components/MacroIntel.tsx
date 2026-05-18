@@ -10,7 +10,7 @@ export default function MacroIntel() {
   return (
     <Card className="bg-zinc-900 border-zinc-800">
       <CardHeader>
-        <CardTitle className="text-sm font-semibold text-zinc-100">
+        <CardTitle className="text-lg font-semibold text-zinc-500 mt-1">
           Macro Intel
         </CardTitle>
       </CardHeader>

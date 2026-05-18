@@ -35,8 +35,8 @@ export default function MultiChartWorkspace() {
         "
       >
 
-        <div className="text-sm font-semibold">
-          Multi-Chart Workspace
+        <div className="text-lg font-semibold text-zinc-500 mt-1">
+          Real-Time Multichart
         </div>
 
         <div className="flex gap-2">

@@ -73,8 +73,8 @@ export default function Orderbook({
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 h-full">
       {/* HEADER */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">
-          Orderbook
+        <h2 className="text-lg text-zinc-500 font-semibold mt-1">
+          Real-time Orderbook
         </h2>
 
         <div className="text-xs text-zinc-500">
