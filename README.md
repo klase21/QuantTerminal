@@ -297,9 +297,15 @@ npm run build
 
 ---
 
-## Orderbook
+## Orderflow & CVD
 
-<img width="1400" alt="orderbook" src="./public/screenshots/orderbook.png" />
+<img width="1400" alt="orderbook" src="./public/screenshots/orderflow&cvd.png" />
+
+---
+
+## Heatmap
+
+<img width="1400" alt="orderbook" src="./public/screenshots/heatmap.png" />
 
 ---
 
