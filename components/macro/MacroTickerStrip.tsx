@@ -6,22 +6,16 @@
 
 interface Props {
 
-  items: any[]
+  items?: any[]
 
 }
 
 export default function MacroTickerStrip({
-  items,
+  items = [],
 }: Props) {
 
-  // ======================================================
-  // INFINITE LOOP
-  // ======================================================
-
-  const looped = [
-    ...items,
-    ...items,
-  ]
+  const duplicated =
+    [...items, ...items]
 
   return (
 
@@ -33,70 +27,63 @@ export default function MacroTickerStrip({
         border-b
         border-zinc-800
 
-        bg-black
+        bg-zinc-950
       "
     >
 
-      {/* FADE LEFT */}
+      {/* fade edges */}
 
       <div
         className="
           pointer-events-none
-
           absolute
           left-0
           top-0
           z-10
-
           h-full
-          w-12
+          w-16
 
           bg-gradient-to-r
-          from-black
+          from-zinc-950
           to-transparent
         "
       />
-
-      {/* FADE RIGHT */}
 
       <div
         className="
           pointer-events-none
-
           absolute
           right-0
           top-0
           z-10
-
           h-full
-          w-12
+          w-16
 
           bg-gradient-to-l
-          from-black
+          from-zinc-950
           to-transparent
         "
       />
 
-      {/* STRIP */}
+      {/* ticker */}
 
       <div
         className="
           flex
           w-max
-          items-center
-          gap-6
+          animate-macroTicker
 
-          whitespace-nowrap
+          hover:[animation-play-state:paused]
 
-          px-4
-          py-2
-
-          animate-[macroTicker_35s_linear_infinite]
+          will-change-transform
         "
       >
 
-        {looped.map(
-          (item, idx) => {
+        {duplicated.map(
+          (
+            item,
+            idx
+          ) => {
 
             const positive =
               item.changePercent >= 0
@@ -110,27 +97,21 @@ export default function MacroTickerStrip({
                   items-center
                   gap-2
 
-                  rounded-lg
+                  px-5
+                  py-2
 
-                  border
-                  border-zinc-800
+                  text-xs
+                  whitespace-nowrap
 
-                  bg-zinc-950/80
-
-                  px-3
-                  py-1.5
-
-                  backdrop-blur
+                  border-r
+                  border-zinc-900/60
                 "
               >
 
-                {/* LABEL */}
-
                 <span
                   className="
-                    text-[11px]
-                    font-medium
                     text-zinc-500
+                    font-medium
                   "
                 >
 
@@ -138,51 +119,54 @@ export default function MacroTickerStrip({
 
                 </span>
 
-                {/* PRICE */}
-
                 <span
                   className="
-                    text-xs
-                    font-semibold
                     text-white
+                    font-semibold
                   "
                 >
 
                   {
-                    item.price?.toLocaleString(
-                      undefined,
-                      {
-                        maximumFractionDigits: 2,
-                      }
-                    )
+                    item.price?.toFixed(2)
                   }
 
                 </span>
 
-                {/* CHANGE */}
-
                 <span
-                  className={`
-                    text-xs
-                    font-bold
+                  className={
+                    positive
 
-                    ${
-                      positive
+                      ? "text-emerald-400"
 
-                        ? "text-emerald-400"
-
-                        : "text-red-400"
-                    }
-                  `}
+                      : "text-red-400"
+                  }
                 >
 
-                  {positive ? "+" : ""}
+                  {
+                    positive
+                      ? "+"
+                      : ""
+                  }
 
                   {
                     item.changePercent?.toFixed(2)
                   }%
 
                 </span>
+
+                <div
+                  className={`
+                    h-1.5
+                    w-1.5
+                    rounded-full
+
+                    ${
+                      positive
+                        ? "bg-emerald-400"
+                        : "bg-red-400"
+                    }
+                  `}
+                />
 
               </div>
 

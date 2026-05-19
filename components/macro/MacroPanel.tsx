@@ -17,8 +17,13 @@ import {
   detectRiskMode,
 } from "@/lib/macro/detectRiskMode"
 
-import MacroTickerStrip
-  from "./MacroTickerStrip"
+import {
+  buildMacroSignals,
+} from "@/lib/macro/buildMacroSignals"
+
+import {
+  detectMacroPressureAlerts,
+} from "@/lib/macro/detectMacroPressureAlerts"
 
 export default function MacroPanel() {
 
@@ -101,20 +106,30 @@ export default function MacroPanel() {
     }, [items])
 
   // ======================================================
-  // MARKET STATS
+  // SIGNALS
   // ======================================================
 
-  const gainers =
-    items.filter(
-      (i) =>
-        i.changePercent > 0
-    ).length
+  const signals =
+    useMemo(() => {
 
-  const losers =
-    items.filter(
-      (i) =>
-        i.changePercent < 0
-    ).length
+      return buildMacroSignals(
+        items
+      )
+
+    }, [items])
+
+  // ======================================================
+  // ALERTS
+  // ======================================================
+
+  const alerts =
+    useMemo(() => {
+
+      return detectMacroPressureAlerts(
+        items
+      )
+
+    }, [items])
 
   // ======================================================
   // UI
@@ -137,190 +152,398 @@ export default function MacroPanel() {
 
       <div
         className="
-          sticky
-          top-0
-          z-20
+          flex
+          items-center
+          justify-between
+
+          px-4
+          py-3
 
           border-b
           border-zinc-800
 
-          bg-black/90
+          bg-black/80
           backdrop-blur
         "
       >
 
-        {/* TOP */}
-
-        <div
-          className="
-            flex
-            items-center
-            justify-between
-
-            px-4
-            py-3
-          "
-        >
-
-          <div>
-
-            <div
-              className="
-                text-sm
-                font-bold
-                tracking-wide
-                text-white
-              "
-            >
-
-              MACRO INTEL
-
-            </div>
-
-            <div
-              className="
-                mt-1
-                text-[11px]
-                text-zinc-500
-              "
-            >
-
-              Yahoo Finance Realtime Feed
-
-            </div>
-
-          </div>
-
-          {/* RISK BADGE */}
-
-          <div
-            className={`
-              px-3
-              py-1.5
-              rounded-full
-
-              text-xs
-              font-bold
-              tracking-wide
-
-              border
-
-              ${
-                risk.mode === "RISK_ON"
-
-                  ? `
-                    border-emerald-500/30
-                    bg-emerald-500/15
-                    text-emerald-400
-                  `
-
-                  : risk.mode === "RISK_OFF"
-
-                  ? `
-                    border-red-500/30
-                    bg-red-500/15
-                    text-red-400
-                  `
-
-                  : `
-                    border-zinc-700
-                    bg-zinc-800
-                    text-zinc-400
-                  `
-              }
-            `}
-          >
-
-            {risk.mode}
-
-          </div>
-
-        </div>
-
-        {/* ======================================================
-            RISK SCORE BAR
-        ====================================================== */}
-
-        <div
-          className="
-            px-4
-            pb-3
-          "
-        >
+        <div>
 
           <div
             className="
-              flex
-              items-center
-              justify-between
+              text-sm
+              font-bold
+              text-white
+            "
+          >
 
-              mb-1
+            SENTIMENT OVERVIEW
 
-              text-[11px]
+          </div>
+
+          <div
+            className="
+              text-xs
               text-zinc-500
             "
           >
 
-            <span>
-              Macro Risk Score
-            </span>
-
-            <span>
-
-              {risk.score}
-
-            </span>
-
-          </div>
-
-          <div
-            className="
-              h-2
-              rounded-full
-              overflow-hidden
-              bg-zinc-800
-            "
-          >
-
-            <div
-              className={`
-                h-full
-                transition-all
-                duration-500
-
-                ${
-                  risk.mode === "RISK_ON"
-
-                    ? "bg-emerald-400"
-
-                    : risk.mode === "RISK_OFF"
-
-                    ? "bg-red-400"
-
-                    : "bg-zinc-500"
-                }
-              `}
-              style={{
-
-                width: `${Math.min(
-                  100,
-                  Math.abs(risk.score) * 10
-                )}%`,
-
-              }}
-            />
+            Cross-asset liquidity positioning
 
           </div>
 
         </div>
 
-        {/* ======================================================
-            TICKER STRIP
-        ====================================================== */}
+        <div
+          className={`
+            px-3
+            py-1
+            rounded-full
+            text-xs
+            font-bold
 
-        <MacroTickerStrip
-          items={items}
-        />
+            ${
+              risk.mode === "RISK_ON"
+
+                ? "bg-green-500/20 text-green-400"
+
+              : risk.mode === "RISK_OFF"
+
+                ? "bg-red-500/20 text-red-400"
+
+              : "bg-zinc-800 text-zinc-400"
+            }
+          `}
+        >
+
+          {risk.mode}
+
+        </div>
+
+      </div>
+
+      {/* ======================================================
+          SENTIMENT SCORE
+      ====================================================== */}
+
+      <div
+        className="
+          grid
+          grid-cols-3
+          gap-3
+
+          p-4
+
+          border-b
+          border-zinc-800
+        "
+      >
+
+        <div
+          className="
+            rounded-xl
+            border
+            border-zinc-800
+            bg-zinc-900
+            p-3
+          "
+        >
+
+          <div
+            className="
+              text-xs
+              text-zinc-500
+            "
+          >
+
+            Sentiment Score
+
+          </div>
+
+          <div
+            className={`
+              mt-1
+              text-2xl
+              font-bold
+
+              ${
+                risk.score > 0
+
+                  ? "text-green-400"
+
+                  : risk.score < 0
+
+                    ? "text-red-400"
+
+                    : "text-zinc-300"
+              }
+            `}
+          >
+
+            {risk.score}
+
+          </div>
+
+        </div>
+
+        <div
+          className="
+            rounded-xl
+            border
+            border-zinc-800
+            bg-zinc-900
+            p-3
+          "
+        >
+
+          <div
+            className="
+              text-xs
+              text-zinc-500
+            "
+          >
+
+            Bullish Signals
+
+          </div>
+
+          <div
+            className="
+              mt-1
+              text-2xl
+              font-bold
+              text-green-400
+            "
+          >
+
+            {signals.bullish.length}
+
+          </div>
+
+        </div>
+
+        <div
+          className="
+            rounded-xl
+            border
+            border-zinc-800
+            bg-zinc-900
+            p-3
+          "
+        >
+
+          <div
+            className="
+              text-xs
+              text-zinc-500
+            "
+          >
+
+            Bearish Signals
+
+          </div>
+
+          <div
+            className="
+              mt-1
+              text-2xl
+              font-bold
+              text-red-400
+            "
+          >
+
+            {signals.bearish.length}
+
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* ======================================================
+          SIGNAL BREAKDOWN
+      ====================================================== */}
+
+      <div
+        className="
+          p-4
+          border-b
+          border-zinc-800
+        "
+      >
+
+        <div
+          className="
+            mb-3
+            text-sm
+            font-semibold
+            text-white
+          "
+        >
+
+          Signal Breakdown
+
+        </div>
+
+        <div
+          className="
+            space-y-2
+          "
+        >
+
+          {signals.all.map(
+            (
+              signal: any,
+              idx: number
+            ) => (
+
+              <div
+                key={idx}
+                className="
+                  flex
+                  items-center
+                  justify-between
+
+                  rounded-lg
+                  border
+                  border-zinc-800
+
+                  bg-zinc-900/60
+
+                  px-3
+                  py-2
+                "
+              >
+
+                <div
+                  className="
+                    text-xs
+                    text-zinc-300
+                  "
+                >
+
+                  {signal.label}
+
+                </div>
+
+                <div
+                  className={`
+                    text-xs
+                    font-semibold
+
+                    ${
+                      signal.bias === "bullish"
+
+                        ? "text-green-400"
+
+                        : "text-red-400"
+                    }
+                  `}
+                >
+
+                  {signal.message}
+
+                </div>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+      </div>
+
+      {/* ======================================================
+          ALERTS
+      ====================================================== */}
+
+      <div
+        className="
+          p-4
+          border-b
+          border-zinc-800
+        "
+      >
+
+        <div
+          className="
+            mb-3
+            text-sm
+            font-semibold
+            text-white
+          "
+        >
+
+          Macro Pressure Alerts
+
+        </div>
+
+        <div
+          className="
+            space-y-2
+          "
+        >
+
+          {alerts.length === 0 && (
+
+            <div
+              className="
+                text-xs
+                text-zinc-500
+              "
+            >
+
+              No active pressure alerts
+
+            </div>
+
+          )}
+
+          {alerts.map(
+            (
+              alert: any,
+              idx: number
+            ) => (
+
+              <div
+                key={idx}
+                className={`
+                  rounded-lg
+                  border
+
+                  px-3
+                  py-2
+
+                  text-xs
+                  font-medium
+
+                  ${
+                    alert.type === "bearish"
+
+                      ? `
+                        border-red-500/30
+                        bg-red-500/10
+                        text-red-300
+                      `
+
+                      : `
+                        border-green-500/30
+                        bg-green-500/10
+                        text-green-300
+                      `
+                  }
+                `}
+              >
+
+                {alert.message}
+
+              </div>
+
+            )
+          )}
+
+        </div>
 
       </div>
 
@@ -333,11 +556,11 @@ export default function MacroPanel() {
           flex-1
           overflow-y-auto
 
-          p-4
-
           grid
           grid-cols-1
           gap-3
+
+          p-4
         "
       >
 
@@ -352,24 +575,6 @@ export default function MacroPanel() {
             >
 
               Loading macro data...
-
-            </div>
-
-          )
-        }
-
-        {
-          !loading &&
-          items.length === 0 && (
-
-            <div
-              className="
-                text-sm
-                text-red-400
-              "
-            >
-
-              Failed to load macro data
 
             </div>
 
@@ -395,67 +600,33 @@ export default function MacroPanel() {
 
       <div
         className="
+          px-4
+          py-2
+
           border-t
           border-zinc-800
 
-          px-4
-          py-3
-
-          bg-zinc-950
+          text-[11px]
+          text-zinc-500
         "
       >
 
-        <div
-          className="
-            flex
-            items-center
-            justify-between
+        {
+          updatedAt && (
 
-            text-[11px]
-            text-zinc-500
-          "
-        >
+            <div>
 
-          <div
-            className="
-              flex
-              items-center
-              gap-3
-            "
-          >
+              Updated: {
 
-            <span>
+                new Date(updatedAt)
+                  .toLocaleTimeString()
 
-              ↑ {gainers}
+              }
 
-            </span>
+            </div>
 
-            <span>
-
-              ↓ {losers}
-
-            </span>
-
-          </div>
-
-          {
-            updatedAt && (
-
-              <div>
-
-                Updated {
-
-                  new Date(updatedAt)
-                    .toLocaleTimeString()
-
-                }
-
-              </div>
-
-            )
-          }
-
-        </div>
+          )
+        }
 
       </div>
 

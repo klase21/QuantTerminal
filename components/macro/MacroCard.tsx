@@ -2,11 +2,16 @@
 // components/macro/MacroCard.tsx
 // ======================================================
 
+"use client"
+
 import {
   ArrowDown,
   ArrowUp,
   Minus,
 } from "lucide-react"
+
+import MiniSparkline
+  from "./MiniSparkline"
 
 interface Props {
 
@@ -44,7 +49,27 @@ export default function MacroCard({
       : "border-red-500/20"
 
   // ======================================================
-  // TREND
+  // 24H MINI CHART
+  // Yahoo realtime/intraday로 교체 예정
+  // ======================================================
+
+  const chart24h =
+    item.chart24h || [
+
+      item.price * 0.985,
+      item.price * 0.989,
+      item.price * 0.992,
+      item.price * 0.988,
+      item.price * 0.994,
+      item.price * 0.996,
+      item.price * 0.993,
+      item.price * 0.998,
+      item.price,
+
+    ]
+
+  // ======================================================
+  // TREND ICON
   // ======================================================
 
   function TrendIcon() {
@@ -93,7 +118,7 @@ export default function MacroCard({
   }
 
   // ======================================================
-  // MARKET INTERPRETATION
+  // MARKET SIGNAL
   // ======================================================
 
   function getMacroSignal() {
@@ -217,6 +242,16 @@ export default function MacroCard({
     getMacroSignal()
 
   // ======================================================
+  // PRESSURE SCORE
+  // ======================================================
+
+  const pressure =
+    Math.min(
+      Math.abs(change) * 18,
+      100
+    )
+
+  // ======================================================
   // UI
   // ======================================================
 
@@ -224,6 +259,7 @@ export default function MacroCard({
 
     <div
       className={`
+
         rounded-2xl
         border
 
@@ -234,17 +270,24 @@ export default function MacroCard({
         p-4
 
         transition-all
+        duration-200
+
         hover:border-zinc-700
+        hover:bg-zinc-900
+
       `}
     >
 
-      {/* TOP */}
+      {/* ======================================================
+          TOP
+      ====================================================== */}
 
       <div
         className="
           flex
           items-start
           justify-between
+          gap-3
         "
       >
 
@@ -278,6 +321,7 @@ export default function MacroCard({
 
         <div
           className={`
+
             flex
             items-center
             gap-1
@@ -287,6 +331,7 @@ export default function MacroCard({
             py-1
 
             ${bgColor}
+
           `}
         >
 
@@ -294,10 +339,12 @@ export default function MacroCard({
 
           <div
             className={`
+
               text-xs
               font-bold
 
               ${changeColor}
+
             `}
           >
 
@@ -311,28 +358,99 @@ export default function MacroCard({
 
       </div>
 
-      {/* PRICE */}
+      {/* ======================================================
+          PRICE + 24H CHART
+      ====================================================== */}
 
       <div
         className="
           mt-4
-          text-2xl
-          font-bold
-          text-white
+
+          flex
+          items-end
+          justify-between
+          gap-4
         "
       >
 
-        {
-          item.price?.toLocaleString()
-        }
+        <div>
+
+          <div
+            className="
+              text-2xl
+              font-bold
+              text-white
+            "
+          >
+
+            {
+              item.price?.toLocaleString()
+            }
+
+          </div>
+
+          <div
+            className="
+              mt-1
+              text-[11px]
+              text-zinc-500
+            "
+          >
+
+            24H realtime macro feed
+
+          </div>
+
+        </div>
+
+        {/* ======================================================
+            24H MINI CHART
+        ====================================================== */}
+
+        <div
+          className="
+            flex
+            flex-col
+            items-end
+          "
+        >
+
+          <div
+            className="
+              mb-1
+              text-[10px]
+              text-zinc-500
+            "
+          >
+
+            24H
+
+          </div>
+
+          <MiniSparkline
+
+            values={chart24h}
+
+            positive={positive}
+
+            width={120}
+
+            height={42}
+
+          />
+
+        </div>
 
       </div>
 
-      {/* SIGNAL */}
+      {/* ======================================================
+          SIGNAL
+      ====================================================== */}
 
       <div
         className="
-          mt-3
+          mt-4
+
           flex
           items-center
           justify-between
@@ -352,10 +470,12 @@ export default function MacroCard({
 
         <div
           className={`
+
             text-xs
-            font-medium
+            font-semibold
 
             ${signal.color}
+
           `}
         >
 
@@ -365,36 +485,69 @@ export default function MacroCard({
 
       </div>
 
-      {/* REALTIME BAR */}
+      {/* ======================================================
+          PRESSURE BAR
+      ====================================================== */}
 
       <div
         className="
           mt-3
-          h-1
-          overflow-hidden
-          rounded-full
-          bg-zinc-800
         "
       >
 
         <div
-          className={`
-            h-full
-            rounded-full
+          className="
+            mb-1
 
-            ${
-              positive
-                ? "bg-emerald-400"
-                : "bg-red-400"
-            }
-          `}
-          style={{
-            width: `${Math.min(
-              Math.abs(change) * 15,
-              100
-            )}%`,
-          }}
-        />
+            flex
+            items-center
+            justify-between
+
+            text-[10px]
+            text-zinc-500
+          "
+        >
+
+          <span>
+            Macro Pressure
+          </span>
+
+          <span>
+            {pressure.toFixed(0)}%
+          </span>
+
+        </div>
+
+        <div
+          className="
+            h-1.5
+            overflow-hidden
+            rounded-full
+            bg-zinc-800
+          "
+        >
+
+          <div
+            className={`
+
+              h-full
+              rounded-full
+              transition-all
+
+              ${
+                positive
+                  ? "bg-emerald-400"
+                  : "bg-red-400"
+              }
+
+            `}
+            style={{
+              width:
+                `${pressure}%`,
+            }}
+          />
+
+        </div>
 
       </div>
 

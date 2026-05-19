@@ -43,11 +43,14 @@ import AlertCenter from "@/components/AlertCenter"
 import useAlertEngine from "@/hooks/useAlertEngine"
 
 // ======================================================
-// REMOVE DUPLICATE NEWS/MACRO IMPORTS
+// MACRO IMPORTS
 // ======================================================
 
-// import MacroIntel from "@/components/MacroIntel"
-// import NewsFeed from "./news/NewsFeed"
+import MacroTickerStrip from "@/components/macro/MacroTickerStrip"
+import MacroPanel from "@/components/macro/MacroPanel"
+import MacroHeatmap from "@/components/macro/MacroHeatmap"
+import BTCvsDXYDivergence from "@/components/macro/BTCDXYDivergence"
+import MacroNewsCorrelation from "@/components/macro/MacroNewsCorrelation"
 
 export default function DashboardLayout() {
 
@@ -58,7 +61,7 @@ export default function DashboardLayout() {
   useMarketSocket()
 
   // ======================================================
-  // SELECTED SYMBOL
+  // SYMBOL
   // ======================================================
 
   const symbol =
@@ -84,36 +87,26 @@ export default function DashboardLayout() {
   // ======================================================
 
   const { trades } =
-    useTradeSocket(
-      symbol
-    )
+    useTradeSocket(symbol)
 
   const { liquidations } =
     useLiquidationSocket()
 
   const flow =
-    useTradeFlowSocket(
-      symbol
-    )
+    useTradeFlowSocket(symbol)
 
   // ======================================================
   // ANALYTICS
   // ======================================================
 
   const footprint =
-    useFootprint(
-      symbol
-    )
+    useFootprint(symbol)
 
   const heatmap =
-    useDepthHeatmap(
-      symbol
-    )
+    useDepthHeatmap(symbol)
 
   const volumeProfile =
-    useVolumeProfile(
-      symbol
-    )
+    useVolumeProfile(symbol)
 
   const frames =
     useHeatmapHistory(
@@ -178,6 +171,14 @@ export default function DashboardLayout() {
     volumeProfile: false,
 
     rightPanel: false,
+
+    macroPanel: false,
+
+    macroHeatmap: false,
+
+    divergence: false,
+
+    macroNews: false,
 
   })
 
@@ -352,11 +353,11 @@ export default function DashboardLayout() {
     <div
       className="
         flex
-        flex-col
         min-h-screen
+        flex-col
+        overflow-x-hidden
         bg-black
         text-white
-        overflow-x-hidden
       "
     >
 
@@ -366,16 +367,33 @@ export default function DashboardLayout() {
 
       <div
         className="
+          shrink-0
           border-b
           border-zinc-900
+          bg-zinc-950
           px-4
           py-3
-          shrink-0
-          bg-zinc-950
         "
       >
 
         <TickerBar />
+
+      </div>
+
+      {/* ======================================================
+          MACRO TICKER STRIP
+      ====================================================== */}
+
+      <div
+        className="
+          shrink-0
+          border-b
+          border-zinc-900
+          bg-zinc-950/80
+        "
+      >
+
+        <MacroTickerStrip />
 
       </div>
 
@@ -385,11 +403,11 @@ export default function DashboardLayout() {
 
       <div
         className="
+          shrink-0
           border-b
           border-zinc-900
           px-4
           py-3
-          shrink-0
         "
       >
 
@@ -406,8 +424,152 @@ export default function DashboardLayout() {
           flex-1
           overflow-y-auto
           p-4
+          space-y-4
         "
       >
+
+        {/* ======================================================
+            MACRO GRID
+        ====================================================== */}
+
+        <div
+          className="
+            grid
+            grid-cols-1
+            gap-4
+            2xl:grid-cols-12
+          "
+        >
+
+          {/* LEFT */}
+
+          <div
+            className="
+              space-y-4
+              2xl:col-span-4
+            "
+          >
+
+            <Panel
+              title="Macro Sentiment Engine"
+              collapsible
+              collapsed={
+                collapsed.macroPanel
+              }
+              onToggle={() =>
+                togglePanel(
+                  "macroPanel"
+                )
+              }
+            >
+
+              {!collapsed.macroPanel && (
+
+                <MacroPanel />
+
+              )}
+
+            </Panel>
+
+          </div>
+
+          {/* CENTER */}
+
+          <div
+            className="
+              space-y-4
+              2xl:col-span-5
+            "
+          >
+
+            <Panel
+              title="Macro / News Correlation"
+              collapsible
+              collapsed={
+                collapsed.macroNews
+              }
+              onToggle={() =>
+                togglePanel(
+                  "macroNews"
+                )
+              }
+            >
+
+              {!collapsed.macroNews && (
+
+                <MacroNewsCorrelation />
+
+              )}
+
+            </Panel>
+
+
+
+          </div>
+
+          {/* RIGHT */}
+
+          <div
+            className="
+              space-y-4
+              2xl:col-span-3
+            "
+          >
+
+            <Panel
+              title="Execution Workspace"
+              collapsible
+              collapsed={
+                collapsed.rightPanel
+              }
+              onToggle={() =>
+                togglePanel(
+                  "rightPanel"
+                )
+              }
+            >
+
+              {!collapsed.rightPanel && (
+
+                <RightPanelTabs
+
+                  trades={
+                    trades
+                  }
+
+                  liquidations={
+                    liquidations
+                  }
+
+                  frames={
+                    frames
+                  }
+
+                  absorptionEvents={
+                    absorptionEvents
+                  }
+
+                  liquidityEvents={
+                    liquidityEvents
+                  }
+
+                  flow={
+                    flow
+                  }
+
+                />
+
+              )}
+
+            </Panel>
+
+          </div>
+
+        </div>
+
+        {/* ======================================================
+            MAIN TRADING LAYOUT
+        ====================================================== */}
 
         <ResizablePanelGroup
 
@@ -420,6 +582,7 @@ export default function DashboardLayout() {
             <div className="space-y-4">
 
               {/* ORDERBOOK */}
+
               <Panel
                 title="Orderbook"
                 right="ALT+1"
@@ -450,6 +613,7 @@ export default function DashboardLayout() {
               </Panel>
 
               {/* HEATMAP */}
+
               <Panel
                 title="Heatmap"
                 right="ALT+2"
@@ -489,6 +653,7 @@ export default function DashboardLayout() {
             <div className="space-y-4">
 
               {/* MULTI CHART */}
+
               <Panel
                 title="Multi-Chart Workspace"
                 right="ALT+4"
@@ -504,12 +669,15 @@ export default function DashboardLayout() {
               >
 
                 {!collapsed.workspace && (
+
                   <MultiChartWorkspace />
+
                 )}
 
               </Panel>
 
               {/* FOOTPRINT */}
+
               <Panel
                 title="Footprint Heatmap"
                 right="ALT+3"
@@ -537,6 +705,7 @@ export default function DashboardLayout() {
               </Panel>
 
               {/* VOLUME PROFILE */}
+
               <Panel
                 title="Volume Profile"
                 collapsible
@@ -572,57 +741,22 @@ export default function DashboardLayout() {
 
           right={
 
-            <Panel
-
-              title="Right Workspace"
-
-              collapsible
-
-              collapsed={
-                collapsed.rightPanel
-              }
-
-              onToggle={() =>
-                togglePanel(
-                  "rightPanel"
-                )
-              }
-
+            <div
+              className="
+                rounded-xl
+                border
+                border-zinc-900
+                bg-zinc-950/30
+                p-4
+                text-sm
+                text-zinc-500
+              "
             >
 
-              {!collapsed.rightPanel && (
+              Right workspace moved
+              to Macro section above.
 
-                <RightPanelTabs
-
-                  trades={
-                    trades
-                  }
-
-                  liquidations={
-                    liquidations
-                  }
-
-                  frames={
-                    frames
-                  }
-
-                  absorptionEvents={
-                    absorptionEvents
-                  }
-
-                  liquidityEvents={
-                    liquidityEvents
-                  }
-
-                  flow={
-                    flow
-                  }
-
-                />
-
-              )}
-
-            </Panel>
+            </div>
 
           }
 

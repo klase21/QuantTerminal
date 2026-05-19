@@ -35,15 +35,26 @@ export async function fetchYahooChart(
   const meta =
     result.meta
 
-  const closes =
+  // ======================================================
+  // CLOSE DATA
+  // ======================================================
+
+  const closesRaw =
     result.indicators
       ?.quote?.[0]
       ?.close || []
 
+  // null 제거
+  const closes =
+    closesRaw.filter(
+      (
+        v: any
+      ) =>
+        typeof v === "number"
+    )
+
   const last =
-    closes
-      .filter(Boolean)
-      .at(-1)
+    closes.at(-1)
 
   const prevClose =
     meta.previousClose
@@ -69,6 +80,13 @@ export async function fetchYahooChart(
 
     marketState:
       meta.marketState,
+
+    // ======================================================
+    // ADD HISTORY
+    // ======================================================
+
+    history:
+      closes,
 
   }
 
