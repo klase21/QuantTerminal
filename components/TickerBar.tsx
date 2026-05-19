@@ -95,13 +95,10 @@ export default function TickerBar() {
     >
 
       <Marquee
-
-        speed={45}
-
+        speed={28}
         pauseOnHover
-
         gradient={false}
-
+        autoFill
       >
 
         {sorted.map(
@@ -126,7 +123,7 @@ export default function TickerBar() {
                   text-sm
                   cursor-pointer
                   hover:opacity-80
-                  transition-opacity
+                  transition-all duration-300 will-change-transform
                 "
               >
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { useMarketStore } from "@/stores/useMarketStore"
 import { cn } from "@/lib/utils"
 
 interface Level {
@@ -16,6 +17,24 @@ export default function Orderbook({
   bids,
   asks,
 }: Props) {
+
+  const selectedSymbol =
+    useMarketStore(
+      (s) => s.selectedSymbol
+    )
+
+  const setSelectedSymbol =
+    useMarketStore(
+      (s) => s.setSelectedSymbol
+    )
+
+  const symbols = [
+    "btcusdt",
+    "ethusdt",
+    "solusdt",
+    "bnbusdt",
+  ]
+
   // =========================
   // cumulative depth
   // =========================
@@ -80,6 +99,31 @@ export default function Orderbook({
         <div className="text-xs text-zinc-500">
           LIVE
         </div>
+      </div>
+
+      {/* SYMBOL SELECTOR */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {symbols.map((symbol) => {
+          const active =
+            selectedSymbol === symbol
+
+          return (
+            <button
+              key={symbol}
+              onClick={() =>
+                setSelectedSymbol(symbol)
+              }
+              className={cn(
+                "rounded-lg border px-3 py-1 text-xs font-semibold transition-all duration-200",
+                active
+                  ? "border-orange-500 bg-orange-500 text-black"
+                  : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800"
+              )}
+            >
+              {symbol.toUpperCase()}
+            </button>
+          )
+        })}
       </div>
 
       {/* COLUMN HEADER */}

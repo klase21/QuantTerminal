@@ -1,108 +1,33 @@
 "use client"
 
 import ChartTile from "@/components/ChartTile"
-
-import {
-  useWorkspaceStore,
-} from "@/stores/useWorkspaceStore"
-
-const symbols = [
-  "btcusdt",
-  "ethusdt",
-  "solusdt",
-  "xrpusdt",
-]
+import { useWorkspaceStore } from "@/stores/useWorkspaceStore"
 
 export default function MultiChartWorkspace() {
-
-  const {
-    charts,
-    addChart,
-    removeChart,
-    updateTimeframe,
-  } =
-    useWorkspaceStore()
+  const { charts, removeChart, updateTimeframe } = useWorkspaceStore()
 
   return (
     <div className="space-y-4">
-
-      {/* TOP BAR */}
-      <div
-        className="
-          flex
-          items-center
-          justify-between
-        "
-      >
-
-        <div className="text-lg font-semibold text-zinc-500 mt-1">
-          Real-Time Multichart
+      <div className="flex items-center justify-between">
+        <div className="mt-1 text-lg font-semibold text-zinc-500">
+          Multi-Chart Workspace
         </div>
-
-        <div className="flex gap-2">
-
-          {symbols.map((symbol) => (
-
-            <button
-              key={symbol}
-              onClick={() =>
-                addChart(symbol)
-              }
-              className="
-                px-3
-                py-1
-                rounded-lg
-                border
-                border-zinc-700
-                bg-zinc-900
-                text-xs
-                hover:bg-zinc-800
-              "
-            >
-              + {symbol.toUpperCase()}
-            </button>
-
-          ))}
-
-        </div>
-
       </div>
 
-      {/* GRID */}
-      <div
-        className="
-          grid
-          grid-cols-1
-		  xl:grid-cols-2
-          gap-4
-        "
-      >
-
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {charts.map((chart) => (
-
           <ChartTile
             key={chart.id}
             id={chart.id}
             symbol={chart.symbol}
             timeframe={chart.timeframe}
-            onRemove={() =>
-              removeChart(chart.id)
-            }
-            onTimeframeChange={(
-              id,
-			  timeframe
-            ) =>
-              updateTimeframe(
-                id,
-                timeframe
-              )
+            onRemove={() => removeChart(chart.id)}
+            onTimeframeChange={(id, timeframe) =>
+              updateTimeframe(id, timeframe)
             }
           />
-
         ))}
-
       </div>
-
     </div>
   )
 }
