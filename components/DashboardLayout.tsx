@@ -5,7 +5,6 @@ import Orderbook from "@/components/Orderbook";
 import Footprint from "@/components/Footprint";
 import Heatmap from "@/components/Heatmap";
 import VolumeProfile from "@/components/VolumeProfile";
-import SymbolSelector from "@/components/SymbolSelector";
 import Panel from "@/components/ui/Panel";
 import RightPanelTabs from "@/components/right-panel/RightPanelTabs";
 import ResizablePanelGroup from "@/components/ResizablePanelGroup";
@@ -96,9 +95,6 @@ export default function DashboardLayout() {
                     </TabsContent>
                     <TabsContent value="orderbook">
                       <div className="space-y-4">
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
-                          <SymbolSelector />
-                        </div>
                         <Orderbook
                           bids={orderbook?.bids || []}
                           asks={orderbook?.asks || []}
