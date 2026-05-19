@@ -1,39 +1,44 @@
 "use client"
 
-import {
-  useEffect,
-  useState,
-} from "react"
+import { useEffect, useState } from "react"
+
+import { NewsItem } from "@/lib/news/types"
 
 export function useNewsFeed() {
-  const [news, setNews] = useState([])
+  const [news, setNews] = useState<
+    NewsItem[]
+  >([])
 
   const [loading, setLoading] =
     useState(true)
 
-  async function loadNews() {
-    try {
-      const response = await fetch(
-        "/api/news"
-      )
-
-      const data = await response.json()
-
-      setNews(data)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    loadNews()
+    async function fetchNews() {
+      try {
+        const res = await fetch(
+          "/api/news"
+        )
+
+        const data =
+          await res.json()
+
+        setNews(data)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchNews()
 
     const interval = setInterval(
-      loadNews,
-      30000
+      fetchNews,
+      10000
     )
 
-    return () => clearInterval(interval)
+    return () =>
+      clearInterval(interval)
   }, [])
 
   return {

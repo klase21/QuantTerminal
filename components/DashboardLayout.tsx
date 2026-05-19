@@ -19,7 +19,7 @@ import SymbolSelector from "@/components/SymbolSelector"
 
 import Panel from "@/components/ui/Panel"
 
-import RightPanelTabs from "@/components/RightPanelTabs"
+import RightPanelTabs from "@/components/right-panel/RightPanelTabs"
 import ResizablePanelGroup from "@/components/ResizablePanelGroup"
 
 import useMarketSocket from "@/hooks/useMarketSocket"
@@ -43,13 +43,14 @@ import MultiChartWorkspace from "@/components/MultiChartWorkspace"
 import AlertCenter from "@/components/AlertCenter"
 import useAlertEngine from "@/hooks/useAlertEngine"
 
+import NewsFeed from "./news/NewsFeed"
+
 export default function DashboardLayout() {
 
   // ======================================================
   // SOCKETS
   // ======================================================
 
-  // ALL MARKET TICKERS
   useMarketSocket()
 
   // ======================================================
@@ -119,15 +120,16 @@ export default function DashboardLayout() {
 
     )
 
-	const liquidityEvents =
-	  useLiquidityEvents(
-		heatmap?.flatMap(
-		  (frame) => [
-		  ...(frame.bids || []),
-		  ...(frame.asks || []),
-		]
-		) || []
-	  )
+  const liquidityEvents =
+    useLiquidityEvents(
+      heatmap?.flatMap(
+        (frame) => [
+          ...(frame.bids || []),
+          ...(frame.asks || []),
+        ]
+      ) || []
+    )
+
   const absorptionEvents =
     useAbsorptionDetector(
       trades || []
@@ -417,64 +419,48 @@ export default function DashboardLayout() {
 
               {/* MACRO */}
               <Panel
-
                 title="Macro"
-
                 collapsible
-
                 collapsed={
                   collapsed.macro
                 }
-
                 onToggle={() =>
                   togglePanel(
                     "macro"
                   )
                 }
-
               >
 
                 {!collapsed.macro && (
-
                   <MacroIntel />
-
                 )}
 
               </Panel>
 
               {/* ORDERBOOK */}
               <Panel
-
                 title="Orderbook"
-
                 right="ALT+1"
-
                 collapsible
-
                 collapsed={
                   collapsed.orderbook
                 }
-
                 onToggle={() =>
                   togglePanel(
                     "orderbook"
                   )
                 }
-
               >
 
                 {!collapsed.orderbook && (
 
                   <Orderbook
-
                     bids={
                       orderbook?.bids || []
                     }
-
                     asks={
                       orderbook?.asks || []
                     }
-
                   />
 
                 )}
@@ -483,23 +469,17 @@ export default function DashboardLayout() {
 
               {/* HEATMAP */}
               <Panel
-
                 title="Heatmap"
-
                 right="ALT+2"
-
                 collapsible
-
                 collapsed={
                   collapsed.heatmap
                 }
-
                 onToggle={() =>
                   togglePanel(
                     "heatmap"
                   )
                 }
-
               >
 
                 {!collapsed.heatmap && (
@@ -528,52 +508,38 @@ export default function DashboardLayout() {
 
               {/* MULTI CHART */}
               <Panel
-
                 title="Multi-Chart Workspace"
-
                 right="ALT+4"
-
                 collapsible
-
                 collapsed={
                   collapsed.workspace
                 }
-
                 onToggle={() =>
                   togglePanel(
                     "workspace"
                   )
                 }
-
               >
 
                 {!collapsed.workspace && (
-
                   <MultiChartWorkspace />
-
                 )}
 
               </Panel>
 
               {/* FOOTPRINT */}
               <Panel
-
                 title="Footprint Heatmap"
-
                 right="ALT+3"
-
                 collapsible
-
                 collapsed={
                   collapsed.footprint
                 }
-
                 onToggle={() =>
                   togglePanel(
                     "footprint"
                   )
                 }
-
               >
 
                 {!collapsed.footprint && (
@@ -590,31 +556,24 @@ export default function DashboardLayout() {
 
               {/* VOLUME PROFILE */}
               <Panel
-
                 title="Volume Profile"
-
                 collapsible
-
                 collapsed={
                   collapsed.volumeProfile
                 }
-
                 onToggle={() =>
                   togglePanel(
                     "volumeProfile"
                   )
                 }
-
               >
 
                 {!collapsed.volumeProfile && (
 
                   <VolumeProfile
-
                     levels={
                       volumeProfile
                     }
-
                   />
 
                 )}
@@ -651,33 +610,43 @@ export default function DashboardLayout() {
 
               {!collapsed.rightPanel && (
 
-                <RightPanelTabs
+                <>
 
-                  trades={
-                    trades
-                  }
+                  <RightPanelTabs
 
-                  liquidations={
-                    liquidations
-                  }
+                    trades={
+                      trades
+                    }
 
-                  frames={
-                    frames
-                  }
+                    liquidations={
+                      liquidations
+                    }
 
-                  absorptionEvents={
-                    absorptionEvents
-                  }
+                    frames={
+                      frames
+                    }
 
-                  liquidityEvents={
-                    liquidityEvents
-                  }
+                    absorptionEvents={
+                      absorptionEvents
+                    }
 
-                  flow={
-                    flow
-                  }
+                    liquidityEvents={
+                      liquidityEvents
+                    }
 
-                />
+                    flow={
+                      flow
+                    }
+
+                  />
+
+                  <div className="mt-4">
+
+                    <NewsFeed />
+
+                  </div>
+
+                </>
 
               )}
 
