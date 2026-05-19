@@ -26,3 +26,19 @@ body {
     20s linear infinite;
 
 }
+
+/* ======================================================
+   MACRO TICKER
+====================================================== */
+
+@keyframes macroTicker {
+
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+
+}

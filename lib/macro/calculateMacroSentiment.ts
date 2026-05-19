@@ -1,23 +1,35 @@
 // ======================================================
-// lib/macro/detectRiskMode.ts
+// lib/macro/calculateMacroSentiment.ts
 // ======================================================
 
-export interface RiskResult {
+export interface MacroItem {
 
-  mode:
-    | "RISK_ON"
-    | "NEUTRAL"
-    | "RISK_OFF"
+  symbol: string
+
+  label: string
+
+  price: number
+
+  changePercent: number
+
+}
+
+export interface MacroSentiment {
 
   score: number
+
+  sentiment:
+    | "risk_on"
+    | "neutral"
+    | "risk_off"
 
   signals: string[]
 
 }
 
-export function detectRiskMode(
-  items: any[]
-): RiskResult {
+export function calculateMacroSentiment(
+  items: MacroItem[]
+): MacroSentiment {
 
   let score = 0
 
@@ -40,8 +52,14 @@ export function detectRiskMode(
   const nasdaq =
     find("^IXIC")
 
+  const spx =
+    find("^GSPC")
+
   const gold =
     find("GC=F")
+
+  const oil =
+    find("CL=F")
 
   // ======================================================
   // DXY
@@ -49,9 +67,7 @@ export function detectRiskMode(
 
   if (dxy) {
 
-    if (
-      dxy.changePercent < 0
-    ) {
+    if (dxy.changePercent < 0) {
 
       score += 2
 
@@ -64,7 +80,7 @@ export function detectRiskMode(
       score -= 2
 
       signals.push(
-        "Strong DXY pressures BTC"
+        "Strong DXY pressures risk assets"
       )
 
     }
@@ -84,19 +100,17 @@ export function detectRiskMode(
       score -= 2
 
       signals.push(
-        "Rising yields pressure tech"
+        "Rising yields pressure equities"
       )
 
-    }
-
-    if (
+    } else if (
       us10y.changePercent < -1
     ) {
 
       score += 2
 
       signals.push(
-        "Falling yields bullish risk"
+        "Falling yields support growth"
       )
 
     }
@@ -116,12 +130,10 @@ export function detectRiskMode(
       score += 2
 
       signals.push(
-        "NASDAQ strong"
+        "NASDAQ bullish"
       )
 
-    }
-
-    if (
+    } else if (
       nasdaq.changePercent < -1
     ) {
 
@@ -130,6 +142,28 @@ export function detectRiskMode(
       signals.push(
         "NASDAQ weak"
       )
+
+    }
+
+  }
+
+  // ======================================================
+  // SPX
+  // ======================================================
+
+  if (spx) {
+
+    if (
+      spx.changePercent > 0.5
+    ) {
+
+      score += 1
+
+    } else if (
+      spx.changePercent < -0.5
+    ) {
+
+      score -= 1
 
     }
 
@@ -156,32 +190,54 @@ export function detectRiskMode(
   }
 
   // ======================================================
+  // OIL
+  // ======================================================
+
+  if (oil) {
+
+    if (
+      oil.changePercent > 2
+    ) {
+
+      score -= 1
+
+      signals.push(
+        "Oil spike may trigger inflation fears"
+      )
+
+    }
+
+  }
+
+  // ======================================================
   // FINAL
   // ======================================================
 
-  let mode:
-    | "RISK_ON"
-    | "NEUTRAL"
-    | "RISK_OFF" =
-      "NEUTRAL"
+  let sentiment:
+    | "risk_on"
+    | "neutral"
+    | "risk_off" =
+      "neutral"
 
   if (score >= 3) {
 
-    mode = "RISK_ON"
+    sentiment =
+      "risk_on"
 
   } else if (
     score <= -3
   ) {
 
-    mode = "RISK_OFF"
+    sentiment =
+      "risk_off"
 
   }
 
   return {
 
-    mode,
-
     score,
+
+    sentiment,
 
     signals,
 
