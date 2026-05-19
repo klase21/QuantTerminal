@@ -11,7 +11,6 @@ import {
 
 import TickerBar from "@/components/TickerBar"
 import Orderbook from "@/components/Orderbook"
-import MacroIntel from "@/components/MacroIntel"
 import Footprint from "@/components/Footprint"
 import Heatmap from "@/components/Heatmap"
 import VolumeProfile from "@/components/VolumeProfile"
@@ -43,7 +42,12 @@ import MultiChartWorkspace from "@/components/MultiChartWorkspace"
 import AlertCenter from "@/components/AlertCenter"
 import useAlertEngine from "@/hooks/useAlertEngine"
 
-import NewsFeed from "./news/NewsFeed"
+// ======================================================
+// REMOVE DUPLICATE NEWS/MACRO IMPORTS
+// ======================================================
+
+// import MacroIntel from "@/components/MacroIntel"
+// import NewsFeed from "./news/NewsFeed"
 
 export default function DashboardLayout() {
 
@@ -162,8 +166,6 @@ export default function DashboardLayout() {
       boolean
     >
   >({
-
-    macro: false,
 
     orderbook: false,
 
@@ -417,26 +419,6 @@ export default function DashboardLayout() {
 
             <div className="space-y-4">
 
-              {/* MACRO */}
-              <Panel
-                title="Macro"
-                collapsible
-                collapsed={
-                  collapsed.macro
-                }
-                onToggle={() =>
-                  togglePanel(
-                    "macro"
-                  )
-                }
-              >
-
-                {!collapsed.macro && (
-                  <MacroIntel />
-                )}
-
-              </Panel>
-
               {/* ORDERBOOK */}
               <Panel
                 title="Orderbook"
@@ -610,43 +592,33 @@ export default function DashboardLayout() {
 
               {!collapsed.rightPanel && (
 
-                <>
+                <RightPanelTabs
 
-                  <RightPanelTabs
+                  trades={
+                    trades
+                  }
 
-                    trades={
-                      trades
-                    }
+                  liquidations={
+                    liquidations
+                  }
 
-                    liquidations={
-                      liquidations
-                    }
+                  frames={
+                    frames
+                  }
 
-                    frames={
-                      frames
-                    }
+                  absorptionEvents={
+                    absorptionEvents
+                  }
 
-                    absorptionEvents={
-                      absorptionEvents
-                    }
+                  liquidityEvents={
+                    liquidityEvents
+                  }
 
-                    liquidityEvents={
-                      liquidityEvents
-                    }
+                  flow={
+                    flow
+                  }
 
-                    flow={
-                      flow
-                    }
-
-                  />
-
-                  <div className="mt-4">
-
-                    <NewsFeed />
-
-                  </div>
-
-                </>
+                />
 
               )}
 

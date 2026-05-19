@@ -22,6 +22,9 @@ import AnalyticsPanel
 import AlertsPanel
   from "@/components/right-panel/AlertsPanel"
 
+import MacroPanel
+  from "@/components/macro/MacroPanel"
+
 // ======================================================
 // NEWS FEED
 // ======================================================
@@ -76,6 +79,7 @@ export default function RightPanelTabs({
     | "analytics"
     | "alerts"
     | "news"
+    | "macro"
 
   >("flow")
 
@@ -95,7 +99,7 @@ export default function RightPanelTabs({
       <div
         className="
           grid
-          grid-cols-5
+          grid-cols-6
           gap-2
           p-2
           border-b
@@ -109,6 +113,7 @@ export default function RightPanelTabs({
           "analytics",
           "alerts",
           "news",
+          "macro",
         ].map((t) => (
 
           <button
@@ -229,6 +234,23 @@ export default function RightPanelTabs({
             >
 
               <NewsFeed />
+
+            </div>
+
+          )
+        }
+
+        {
+          tab === "macro" && (
+
+            <div
+              className="
+                h-full
+                p-4
+              "
+            >
+
+              <MacroPanel />
 
             </div>
 
