@@ -45,8 +45,16 @@ export async function aggregateNews(
     })
 
   return merged.sort(
-    (a: any, b: any) =>
-      Number(b.timestamp || 0) -
-      Number(a.timestamp || 0)
+    (a: any, b: any) => {
+      const bTime =
+        Number(b.timestamp || 0) ||
+        new Date(b.publishedAt || 0).getTime()
+
+      const aTime =
+        Number(a.timestamp || 0) ||
+        new Date(a.publishedAt || 0).getTime()
+
+      return bTime - aTime
+    }
   )
 }

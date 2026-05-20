@@ -17,10 +17,14 @@ type NewsItem = {
   url?: string
   source: string
   sentiment:
+    | "strong_bullish"
     | "bullish"
-    | "bearish"
     | "neutral"
+    | "bearish"
+    | "strong_bearish"
   timestamp: string | number
+  narratives?: string[]
+  tags?: string[]
 }
 
 const REGIONS = [
@@ -464,6 +468,39 @@ export default function NewsFeed() {
                     "
                   >
                     Translation unavailable. Showing original.
+                  </div>
+                )}
+
+              {/* NARRATIVES */}
+
+              {item.narratives &&
+                item.narratives.length > 0 && (
+                  <div
+                    className="
+                      mt-3
+                      flex
+                      flex-wrap
+                      gap-1
+                    "
+                  >
+                    {item.narratives.map((narrative) => (
+                      <span
+                        key={narrative}
+                        className="
+                          rounded-full
+                          border
+                          border-cyan-500/20
+                          bg-cyan-500/10
+                          px-2
+                          py-1
+                          text-[10px]
+                          font-bold
+                          text-cyan-300
+                        "
+                      >
+                        {narrative}
+                      </span>
+                    ))}
                   </div>
                 )}
 

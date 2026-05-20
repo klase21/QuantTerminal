@@ -54,7 +54,7 @@ export default function NewsCard({
 
         <SentimentBadge
           sentiment={
-            item.sentiment
+            item.sentiment || "neutral"
           }
         />
 
@@ -84,6 +84,51 @@ export default function NewsCard({
       {/* ====================================================== */}
       {/* TAGS */}
       {/* ====================================================== */}
+
+      {
+        item.narratives &&
+        item.narratives.length > 0 && (
+
+          <div
+            className="
+              mb-2
+              flex
+              flex-wrap
+              gap-1
+            "
+          >
+
+            {
+              item.narratives.map(
+                (narrative) => (
+
+                  <div
+                    key={narrative}
+                    className="
+                      rounded-full
+                      border
+                      border-cyan-500/20
+                      bg-cyan-500/10
+                      px-2
+                      py-1
+                      text-[10px]
+                      font-bold
+                      text-cyan-300
+                    "
+                  >
+
+                    {narrative}
+
+                  </div>
+
+                )
+              )
+            }
+
+          </div>
+
+        )
+      }
 
       {
         item.tags &&

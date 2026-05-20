@@ -9,22 +9,23 @@ export type Sentiment =
   | "bearish"
   | "strong_bearish"
 
+export type NewsRegion =
+  | "kr"
+  | "cn"
+  | "en"
+
 export interface NewsItem {
-
   id: string
-
   title: string
-
   translatedTitle?: string
-
   url: string
-
   source: string
-
-  timestamp: number
-
-  sentiment: Sentiment
-
-  tags: string[]
-
+  timestamp?: number
+  publishedAt?: string
+  sentiment?: Sentiment
+  tags?: string[]
+  narratives?: string[]
+  importance?: number
+  sourceWeight?: number
+  region?: NewsRegion
 }

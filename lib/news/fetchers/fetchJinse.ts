@@ -89,6 +89,26 @@ Promise<NewsItem[]> {
                 ).toISOString()
               : new Date().toISOString(),
 
+          timestamp:
+            item.created_at
+              ? item.created_at * 1000
+              : Date.now(),
+
+          sentiment:
+            "neutral",
+
+          tags:
+            ["jinse"],
+
+          importance:
+            0,
+
+          sourceWeight:
+            1.5,
+
+          region:
+            "cn",
+
         })
       )
 

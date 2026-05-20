@@ -11,6 +11,7 @@ import { aggregateNews } from "@/lib/news/aggregateNews"
 import { detectSentiment } from "@/lib/news/detectSentiment"
 import { rankNews } from "@/lib/news/rankNews"
 import { translateNews } from "@/lib/news/translateNews"
+import { detectNarratives } from "@/lib/news/narrativeTags"
 
 type Region = "kr" | "en" | "cn"
 type TargetLang = "ko" | "en" | "zh"
@@ -201,7 +202,9 @@ export async function GET(req: Request) {
             item.source || "Unknown",
 
           timestamp:
-            item.timestamp || Date.now(),
+            Number(item.timestamp || 0) ||
+            new Date(item.publishedAt || 0).getTime() ||
+            Date.now(),
 
           sentiment:
             item.sentiment ||
@@ -209,6 +212,12 @@ export async function GET(req: Request) {
 
           tags:
             item.tags || [],
+
+          narratives:
+            detectNarratives(
+              title,
+              item.tags || []
+            ),
 
           importance:
             (item.importance || 0) * weight,

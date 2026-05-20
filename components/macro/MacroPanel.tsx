@@ -25,6 +25,12 @@ import {
   detectMacroPressureAlerts,
 } from "@/lib/macro/detectMacroPressureAlerts"
 
+import NarrativeHeatmap
+  from "./NarrativeHeatmap"
+
+import NarrativeDivergence
+  from "./NarrativeDivergence"
+
 export default function MacroPanel() {
 
   const [items, setItems] =
@@ -357,6 +363,30 @@ export default function MacroPanel() {
           </div>
 
         </div>
+
+      </div>
+
+      {/* ======================================================
+          NARRATIVE INTELLIGENCE
+      ====================================================== */}
+
+      <div
+        className="
+          grid
+          grid-cols-1
+          xl:grid-cols-2
+          gap-3
+
+          p-4
+
+          border-b
+          border-zinc-800
+        "
+      >
+
+        <NarrativeHeatmap />
+
+        <NarrativeDivergence />
 
       </div>
 
