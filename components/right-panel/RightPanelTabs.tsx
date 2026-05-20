@@ -7,6 +7,7 @@ import LiquidityPanel from "@/components/right-panel/LiquidityPanel"
 import AnalyticsPanel from "@/components/right-panel/AnalyticsPanel"
 import AlertsPanel from "@/components/right-panel/AlertsPanel"
 import LiquidityRotationPanel from "@/components/right-panel/LiquidityRotationPanel"
+import RotationSankeyGraph from "@/components/RotationSankeyGraph"
 
 import MacroPanel from "@/components/macro/MacroPanel"
 import MacroNewsCorrelation from "@/components/macro/MacroNewsCorrelation"
@@ -163,12 +164,16 @@ export default function RightPanelTabs({
 
           <div className="h-full min-h-0">
 
+            <div className="space-y-4 p-4">
+            <RotationSankeyGraph />
+            <LiquidityRotationPanel trades={trades} />
             <LiquidityPanel
               frames={frames}
               liquidityEvents={
                 liquidityEvents
               }
             />
+            </div>
 
           </div>
 

@@ -1,7 +1,7 @@
 
 "use client"
 
-import { ArrowUpRight, ArrowDownRight, Waves } from "lucide-react"
+import { ArrowUpRight, ArrowDownRight, Waves, BrainCircuit, ShieldCheck, Flame } from "lucide-react"
 
 const sectors = [
   { name: "AI", tickers: ["FET", "TAO", "RNDR"] },
@@ -63,6 +63,41 @@ export default function LiquidityRotationPanel({ trades }: Props) {
               <Waves size={14} />
               {strongest?.name}
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4">
+          <div className="flex items-center gap-2 text-fuchsia-400">
+            <BrainCircuit size={16} />
+            <span className="text-xs uppercase tracking-wide">AI Rotation</span>
+          </div>
+          <div className="mt-3 text-2xl font-bold text-white">91</div>
+          <div className="mt-1 text-xs text-zinc-500">
+            Momentum continuation likely
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <ShieldCheck size={16} />
+            <span className="text-xs uppercase tracking-wide">Smart Money</span>
+          </div>
+          <div className="mt-3 text-2xl font-bold text-white">84%</div>
+          <div className="mt-1 text-xs text-zinc-500">
+            Whale accumulation detected
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4">
+          <div className="flex items-center gap-2 text-yellow-400">
+            <Flame size={16} />
+            <span className="text-xs uppercase tracking-wide">Whale Confidence</span>
+          </div>
+          <div className="mt-3 text-2xl font-bold text-white">78%</div>
+          <div className="mt-1 text-xs text-zinc-500">
+            Large capital rotation active
           </div>
         </div>
       </div>
