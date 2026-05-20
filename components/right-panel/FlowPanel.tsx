@@ -1,7 +1,5 @@
 "use client"
 
-<<<<<<< HEAD
-=======
 import {
   Activity,
   ArrowDownRight,
@@ -9,7 +7,6 @@ import {
   Waves,
 } from "lucide-react"
 
->>>>>>> 41de28d (feat(flow): add flow summary cards, whale tracking, delta/cvd metrics, and trade intensity)
 type Props = {
   trades: any[]
   flow: any
@@ -20,13 +17,6 @@ export default function FlowPanel({
   flow,
 }: Props) {
 
-<<<<<<< HEAD
-  return (
-
-    <div className="p-4 text-sm text-zinc-400">
-
-      Flow Panel Coming Soon
-=======
   const safeTrades =
     trades || []
 
@@ -566,14 +556,9 @@ export default function FlowPanel({
         </div>
 
       </div>
->>>>>>> 41de28d (feat(flow): add flow summary cards, whale tracking, delta/cvd metrics, and trade intensity)
 
     </div>
 
   )
-<<<<<<< HEAD
-}
-=======
 
 }
->>>>>>> 41de28d (feat(flow): add flow summary cards, whale tracking, delta/cvd metrics, and trade intensity)
