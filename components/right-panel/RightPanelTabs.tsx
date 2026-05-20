@@ -6,6 +6,7 @@ import FlowPanel from "@/components/right-panel/FlowPanel"
 import LiquidityPanel from "@/components/right-panel/LiquidityPanel"
 import AnalyticsPanel from "@/components/right-panel/AnalyticsPanel"
 import AlertsPanel from "@/components/right-panel/AlertsPanel"
+import LiquidityRotationPanel from "@/components/right-panel/LiquidityRotationPanel"
 
 import MacroPanel from "@/components/macro/MacroPanel"
 import MacroNewsCorrelation from "@/components/macro/MacroNewsCorrelation"
