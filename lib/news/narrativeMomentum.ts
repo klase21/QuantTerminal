@@ -1,0 +1,1 @@
+export function calculateNarrativeMomentum(current:number, previous:number){ if(previous===0) return 100; return ((current-previous)/previous)*100 }

@@ -31,6 +31,9 @@ import NarrativeHeatmap
 import NarrativeDivergence
   from "./NarrativeDivergence"
 
+import NarrativeTimeline
+  from "./NarrativeTimeline"
+
 export default function MacroPanel() {
 
   const [items, setItems] =
@@ -387,6 +390,16 @@ export default function MacroPanel() {
         <NarrativeHeatmap />
 
         <NarrativeDivergence />
+
+        <div
+          className="
+            xl:col-span-2
+          "
+        >
+
+          <NarrativeTimeline />
+
+        </div>
 
       </div>
 

@@ -1,0 +1,1 @@
+export function combineNarrativeCapitalFlow(narrativeScore:number, whaleInflow:number, smartMoney:number){ return narrativeScore*0.5 + whaleInflow*0.2 + smartMoney*0.3 }
