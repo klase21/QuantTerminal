@@ -287,7 +287,7 @@ export default function MacroCard({
           flex
           items-start
           justify-between
-          gap-3
+          gap-2
         "
       >
 
@@ -295,7 +295,7 @@ export default function MacroCard({
 
           <div
             className="
-              text-sm
+              text-xs
               font-semibold
               text-white
             "
@@ -307,8 +307,8 @@ export default function MacroCard({
 
           <div
             className="
-              mt-1
-              text-xs
+              mt-0.5
+              text-[10px]
               text-zinc-500
             "
           >
@@ -327,8 +327,8 @@ export default function MacroCard({
             gap-1
 
             rounded-full
-            px-2
-            py-1
+            px-1.5
+            py-0.5
 
             ${bgColor}
 
@@ -377,7 +377,7 @@ export default function MacroCard({
 
           <div
             className="
-              text-2xl
+              text-base
               font-bold
               text-white
             "
@@ -491,7 +491,7 @@ export default function MacroCard({
 
       <div
         className="
-          mt-3
+          mt-2
         "
       >
 

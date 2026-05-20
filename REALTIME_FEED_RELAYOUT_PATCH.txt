@@ -1,0 +1,18 @@
+Realtime Intelligence Feed Relayout Patch
+
+Applied design direction:
+- Move Realtime Intelligence Feed directly below ticker bar
+- Convert feed into horizontal live strip
+- Reduce right panel congestion
+- Keep Narrative / Liquidity / Correlation in right panel
+- Improve terminal-style density
+
+Recommended insertion point:
+TickerBar
+-> Realtime Intelligence Feed
+-> Dashboard Grid
+
+Recommended UI behavior:
+- horizontal overflow scroll
+- live pulse indicator
+- compact intelligence badges

@@ -10,9 +10,6 @@ import {
   useState,
 } from "react"
 
-import MacroCard
-  from "./MacroCard"
-
 import {
   detectRiskMode,
 } from "@/lib/macro/detectRiskMode"
@@ -21,9 +18,6 @@ import {
   buildMacroSignals,
 } from "@/lib/macro/buildMacroSignals"
 
-import {
-  detectMacroPressureAlerts,
-} from "@/lib/macro/detectMacroPressureAlerts"
 
 import NarrativeHeatmap
   from "./NarrativeHeatmap"
@@ -31,16 +25,14 @@ import NarrativeHeatmap
 import NarrativeDivergence
   from "./NarrativeDivergence"
 
-import NarrativeTimeline
-  from "./NarrativeTimeline"
+
+import LiquidityIntelligencePanel
+  from "./LiquidityIntelligencePanel"
 
 export default function MacroPanel() {
 
   const [items, setItems] =
     useState<any[]>([])
-
-  const [loading, setLoading] =
-    useState(true)
 
   const [updatedAt, setUpdatedAt] =
     useState<number | null>(null)
@@ -73,11 +65,6 @@ export default function MacroPanel() {
         "MACRO LOAD ERROR:",
         err
       )
-
-    } finally {
-
-      setLoading(false)
-
     }
 
   }
@@ -122,19 +109,6 @@ export default function MacroPanel() {
     useMemo(() => {
 
       return buildMacroSignals(
-        items
-      )
-
-    }, [items])
-
-  // ======================================================
-  // ALERTS
-  // ======================================================
-
-  const alerts =
-    useMemo(() => {
-
-      return detectMacroPressureAlerts(
         items
       )
 
@@ -228,8 +202,7 @@ export default function MacroPanel() {
           {risk.mode}
 
         </div>
-
-      </div>
+</div>
 
       {/* ======================================================
           SENTIMENT SCORE
@@ -366,6 +339,23 @@ export default function MacroPanel() {
           </div>
 
         </div>
+</div>
+
+      {/* ======================================================
+          LIQUIDITY INTELLIGENCE
+      ====================================================== */}
+
+      <div
+        className="
+          p-4
+          border-b
+          border-zinc-800
+        "
+      >
+
+        <LiquidityIntelligencePanel
+          items={items}
+        />
 
       </div>
 
@@ -376,8 +366,7 @@ export default function MacroPanel() {
       <div
         className="
           grid
-          grid-cols-1
-          xl:grid-cols-2
+          grid-cols-2
           gap-3
 
           p-4
@@ -391,17 +380,7 @@ export default function MacroPanel() {
 
         <NarrativeDivergence />
 
-        <div
-          className="
-            xl:col-span-2
-          "
-        >
-
-          <NarrativeTimeline />
-
-        </div>
-
-      </div>
+</div>
 
       {/* ======================================================
           SIGNAL BREAKDOWN
@@ -494,148 +473,7 @@ export default function MacroPanel() {
           )}
 
         </div>
-
-      </div>
-
-      {/* ======================================================
-          ALERTS
-      ====================================================== */}
-
-      <div
-        className="
-          p-4
-          border-b
-          border-zinc-800
-        "
-      >
-
-        <div
-          className="
-            mb-3
-            text-sm
-            font-semibold
-            text-white
-          "
-        >
-
-          Macro Pressure Alerts
-
-        </div>
-
-        <div
-          className="
-            space-y-2
-          "
-        >
-
-          {alerts.length === 0 && (
-
-            <div
-              className="
-                text-xs
-                text-zinc-500
-              "
-            >
-
-              No active pressure alerts
-
-            </div>
-
-          )}
-
-          {alerts.map(
-            (
-              alert: any,
-              idx: number
-            ) => (
-
-              <div
-                key={idx}
-                className={`
-                  rounded-lg
-                  border
-
-                  px-3
-                  py-2
-
-                  text-xs
-                  font-medium
-
-                  ${
-                    alert.type === "bearish"
-
-                      ? `
-                        border-red-500/30
-                        bg-red-500/10
-                        text-red-300
-                      `
-
-                      : `
-                        border-green-500/30
-                        bg-green-500/10
-                        text-green-300
-                      `
-                  }
-                `}
-              >
-
-                {alert.message}
-
-              </div>
-
-            )
-          )}
-
-        </div>
-
-      </div>
-
-      {/* ======================================================
-          BODY
-      ====================================================== */}
-
-      <div
-        className="
-          flex-1
-          overflow-y-auto
-
-          grid
-          grid-cols-1
-          gap-3
-
-          p-4
-        "
-      >
-
-        {
-          loading && (
-
-            <div
-              className="
-                text-sm
-                text-zinc-500
-              "
-            >
-
-              Loading macro data...
-
-            </div>
-
-          )
-        }
-
-        {
-          items.map((item) => (
-
-            <MacroCard
-              key={item.symbol}
-              item={item}
-            />
-
-          ))
-        }
-
-      </div>
+</div>
 
       {/* ======================================================
           FOOTER

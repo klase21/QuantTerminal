@@ -1,16 +1,58 @@
+// ======================================================
+// components/MacroPanel.tsx
+// Compatibility wrapper for calculated liquidity panel
+// ======================================================
+
+"use client"
+
+import {
+  useEffect,
+  useState,
+} from "react"
+
+import LiquidityIntelligencePanel
+  from "@/components/macro/LiquidityIntelligencePanel"
 
 export default function MacroPanel() {
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-      <h2 className="text-lg font-semibold mb-3">Macro Liquidity</h2>
+  const [items, setItems] =
+    useState<any[]>([])
 
-      <div className="space-y-2 text-sm text-zinc-400">
-        <div>USDT Dominance: 6.2%</div>
-        <div>DXY: 103.8</div>
-        <div>US 10Y Yield: 4.31%</div>
-        <div>China Liquidity Pulse: Neutral</div>
-        <div>ETF Netflow: Positive</div>
-      </div>
-    </div>
+  async function load() {
+    try {
+      const res =
+        await fetch("/api/macro", {
+          cache: "no-store",
+        })
+
+      const json =
+        await res.json()
+
+      setItems(
+        Array.isArray(json)
+          ? json
+          : []
+      )
+    } catch (err) {
+      console.error(
+        "MACRO LIQUIDITY LOAD ERROR:",
+        err
+      )
+    }
+  }
+
+  useEffect(() => {
+    load()
+
+    const interval =
+      setInterval(load, 10000)
+
+    return () =>
+      clearInterval(interval)
+  }, [])
+
+  return (
+    <LiquidityIntelligencePanel
+      items={items}
+    />
   )
 }
