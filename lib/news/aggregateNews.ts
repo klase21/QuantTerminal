@@ -1,48 +1,39 @@
 // ======================================================
 // lib/news/aggregateNews.ts
+// REGION-AWARE AGGREGATOR
 // ======================================================
 
-import { fetchJinseNews }
-  from "@/lib/news/fetchers/fetchJinse"
+import { fetchJinseNews } from "@/lib/news/fetchers/fetchJinse"
+import { fetchCoinDeskNews } from "@/lib/news/fetchers/fetchCoinDesk"
+import { fetchCointelegraphNews } from "@/lib/news/fetchers/fetchCointelegraph"
+import { fetchDecryptNews } from "@/lib/news/fetchers/fetchDecrypt"
+import { fetchCoinnessNews } from "@/lib/news/fetchers/fetchCoinness"
 
-import { fetchCoinDeskNews }
-  from "@/lib/news/fetchers/fetchCoinDesk"
+export type NewsRegion = "kr" | "cn" | "en"
 
-import { fetchCointelegraphNews }
-  from "@/lib/news/fetchers/fetchCointelegraph"
-
-import { fetchDecryptNews }
-  from "@/lib/news/fetchers/fetchDecrypt"
-
-import { fetchCoinnessNews }
-  from "@/lib/news/fetchers/fetchCoinness"
-
-export async function aggregateNews() {
+export async function aggregateNews(
+  region: NewsRegion = "en"
+) {
+  const fetchers =
+    region === "cn"
+      ? [fetchJinseNews]
+      : region === "kr"
+        ? [fetchCoinnessNews]
+        : [
+            fetchCoinDeskNews,
+            fetchCointelegraphNews,
+            fetchDecryptNews,
+          ]
 
   const results =
-    await Promise.allSettled([
-
-      fetchJinseNews(),
-
-      fetchCoinDeskNews(),
-
-      fetchCointelegraphNews(),
-
-      fetchDecryptNews(),
-
-      fetchCoinnessNews(),
-
-    ])
+    await Promise.allSettled(
+      fetchers.map((fetcher) => fetcher())
+    )
 
   const merged =
     results.flatMap((r) => {
-
-      if (
-        r.status === "fulfilled"
-      ) {
-
+      if (r.status === "fulfilled") {
         return r.value
-
       }
 
       console.error(
@@ -51,23 +42,11 @@ export async function aggregateNews() {
       )
 
       return []
-
     })
 
   return merged.sort(
-
     (a: any, b: any) =>
-
-      new Date(
-        b.publishedAt || 0
-      ).getTime()
-
-      -
-
-      new Date(
-        a.publishedAt || 0
-      ).getTime()
-
+      Number(b.timestamp || 0) -
+      Number(a.timestamp || 0)
   )
-
 }

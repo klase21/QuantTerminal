@@ -2,113 +2,59 @@
 // lib/news/translateNews.ts
 // ======================================================
 
+export type TranslateTarget =
+  | "ko"
+  | "en"
+  | "zh"
+  | "zh-CN"
+
 export async function translateNews(
-
   text: string,
-
-  lang:
-    | "en"
-    | "kr"
-    | "cn"
-
+  targetLang: TranslateTarget = "ko"
 ): Promise<string> {
-
   try {
-
-    // ======================================================
-    // EMPTY
-    // ======================================================
-
-    if (!text) {
-
-      return ""
-
-    }
-
-    // ======================================================
-    // TARGET
-    // ======================================================
+    if (!text) return ""
 
     const target =
-
-      lang === "kr"
-        ? "ko"
-
-      : lang === "cn"
+      targetLang === "zh"
         ? "zh-CN"
-
-      : "en"
-
-    // ======================================================
-    // SKIP ENGLISH
-    // ======================================================
-
-    if (target === "en") {
-
-      return text
-
-    }
-
-    // ======================================================
-    // GOOGLE UNOFFICIAL
-    // ======================================================
+        : targetLang
 
     const url =
-
       `https://translate.googleapis.com/translate_a/single` +
-
       `?client=gtx` +
-
       `&sl=auto` +
-
       `&tl=${target}` +
-
       `&dt=t` +
-
       `&q=${encodeURIComponent(text)}`
 
-    const res =
-      await fetch(url, {
-        cache: "no-store",
-      })
+    const res = await fetch(url, {
+      cache: "no-store",
+    })
 
     if (!res.ok) {
-
       console.error(
         "GOOGLE TRANSLATE ERROR:",
         res.status
       )
 
       return text
-
     }
 
-    const data =
-      await res.json()
-
-    // ======================================================
-    // PARSE
-    // ======================================================
+    const data = await res.json()
 
     const translated =
       data?.[0]
         ?.map((t: any) => t[0])
         ?.join("")
 
-    return (
-      translated ||
-      text
-    )
-
+    return translated || text
   } catch (err) {
-
     console.error(
       "TRANSLATE FAILED:",
       err
     )
 
     return text
-
   }
-
 }
