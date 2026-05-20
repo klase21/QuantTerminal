@@ -37,11 +37,16 @@ export default function Panel({
 
     <div
       className="
+		flex
+		flex-col
+		h-full
+		min-h-0
+		overflow-hidden
+		
         rounded-2xl
         border
         border-zinc-800
         bg-zinc-950
-        overflow-hidden
       "
     >
 
@@ -114,7 +119,7 @@ export default function Panel({
       {/* BODY */}
       {!collapsed && (
 
-        <div className="p-4">
+        <div className="flex-1 min-h-0 overflow-hidden p-4">
 
           {children}
 

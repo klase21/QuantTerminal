@@ -169,6 +169,8 @@ export default function NewsFeed() {
         h-full
         flex
         flex-col
+		min-h-0
+		overflow-hidden
       "
     >
 
@@ -303,6 +305,7 @@ export default function NewsFeed() {
       <div
         className="
           flex-1
+		  min-h-0
           overflow-y-auto
           space-y-3
           pr-1
