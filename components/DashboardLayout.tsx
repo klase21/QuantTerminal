@@ -305,12 +305,8 @@ export default function DashboardLayout() {
                         Multi Charts
                       </TabsTrigger>
 
-                      <TabsTrigger value="orderbook">
-                        Orderbook
-                      </TabsTrigger>
-
-                      <TabsTrigger value="footprint">
-                        Footprint
+                      <TabsTrigger value="orderflow">
+                        Order Flow
                       </TabsTrigger>
 
                       <TabsTrigger value="volume">
@@ -348,26 +344,7 @@ export default function DashboardLayout() {
                       </TabsContent>
 
                       <TabsContent
-                        value="orderbook"
-                        className="
-                          m-0
-                          min-h-0
-                        "
-                      >
-
-                        <Orderbook
-                          bids={
-                            orderbook?.bids || []
-                          }
-                          asks={
-                            orderbook?.asks || []
-                          }
-                        />
-
-                      </TabsContent>
-
-                      <TabsContent
-                        value="footprint"
+                        value="orderflow"
                         className="
                           m-0
                           min-h-0
@@ -376,15 +353,56 @@ export default function DashboardLayout() {
 
                         <div
                           className="
+                            grid
                             h-full
                             min-h-0
-                            overflow-hidden
+                            gap-4
+                            xl:grid-cols-2
                           "
                         >
 
-                          <Footprint
-                            levels={footprint}
-                          />
+                          <div
+                            className="
+                              h-full
+                              min-h-0
+                              overflow-hidden
+                              rounded-2xl
+                              border
+                              border-zinc-900
+                              bg-zinc-950/40
+                              p-2
+                            "
+                          >
+
+                            <Orderbook
+                              bids={
+                                orderbook?.bids || []
+                              }
+                              asks={
+                                orderbook?.asks || []
+                              }
+                            />
+
+                          </div>
+
+                          <div
+                            className="
+                              h-full
+                              min-h-0
+                              overflow-hidden
+                              rounded-2xl
+                              border
+                              border-zinc-900
+                              bg-zinc-950/40
+                              p-2
+                            "
+                          >
+
+                            <Footprint
+                              levels={footprint}
+                            />
+
+                          </div>
 
                         </div>
 
