@@ -6,7 +6,7 @@ Narrative. Liquidity. Rotation. Intelligence.
 
 ---
 
-![QuantTerminal Preview](./public/preview.png)
+![QuantTerminal Preview](./public/screenshots/preview.png)
 
 > QuantTerminal is a realtime crypto market intelligence terminal focused on narrative acceleration, liquidity regimes, sector capital movement, and smart money flow.
 
