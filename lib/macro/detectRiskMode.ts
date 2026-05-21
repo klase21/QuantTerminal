@@ -1,3 +1,37 @@
+
+function matchesMacroSymbol(
+  item: any,
+  symbol: string
+) {
+  const candidates = [
+    item?.symbol,
+    item?.label,
+  ]
+
+  const aliases: Record<string, string[]> = {
+    "DX-Y.NYB": ["DXY", "TVC:DXY"],
+    "^TNX": ["US10Y", "TVC:US10Y"],
+    "^IXIC": ["NASDAQ", "NASDAQ:NDX"],
+    "^GSPC": ["SPX", "S&P500", "SP:SPX"],
+    "GC=F": ["GOLD", "COMEX:GC1!"],
+    "CL=F": ["OIL", "NYMEX:CL1!"],
+    "BTC-USD": ["BTC", "BINANCE:BTCUSDT"],
+    "ETH-USD": ["ETH", "BINANCE:ETHUSDT"],
+    "TOTAL3": ["CRYPTOCAP:TOTAL3"],
+  }
+
+  const targets = [
+    symbol,
+    ...(aliases[symbol] || []),
+  ]
+
+  return candidates.some(
+    (value) =>
+      targets.includes(value)
+  )
+}
+
+
 // ======================================================
 // lib/macro/detectRiskMode.ts
 // ======================================================
@@ -36,8 +70,10 @@ export function detectRiskMode(
   ) =>
     items.find(
       (i) =>
-        i.symbol === symbol ||
-        i.label === symbol
+        matchesMacroSymbol(
+          i,
+          symbol
+        )
     )
 
   const dxy =
