@@ -32,13 +32,14 @@ body {
 ====================================================== */
 
 @keyframes macroTicker {
-
   0% {
-    transform: translateX(0%);
+    transform: translateX(0);
   }
-
   100% {
-    transform: translateX(-50%);
+    transform: translateX(-33.333%);
   }
+}
 
+.animate-macroTicker {
+  animation: macroTicker 60s linear infinite;
 }

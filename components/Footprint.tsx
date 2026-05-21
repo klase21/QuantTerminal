@@ -1,6 +1,12 @@
 "use client"
 
-import { memo } from "react"
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 interface Level {
   price: number
@@ -14,6 +20,8 @@ interface Props {
   levels: Level[]
 }
 
+const ROW_HEIGHT = 30
+
 function Footprint({
   levels,
 }: Props) {
@@ -21,8 +29,81 @@ function Footprint({
   const safeLevels =
     levels || []
 
+  const containerRef =
+    useRef<HTMLDivElement>(null)
+
+  const [visibleRows, setVisibleRows] =
+    useState(18)
+
+  useEffect(() => {
+
+    const updateSize = () => {
+
+      if (!containerRef.current)
+        return
+
+      const height =
+        containerRef.current.clientHeight
+
+      const reserved =
+        84 // header
+        + 36 // columns
+        + 16 // padding
+
+      const rows =
+        Math.max(
+          6,
+          Math.floor(
+            (height - reserved)
+            / ROW_HEIGHT
+          )
+        )
+
+      setVisibleRows(rows)
+    }
+
+    updateSize()
+
+    const observer =
+      new ResizeObserver(
+        updateSize
+      )
+
+    if (containerRef.current) {
+      observer.observe(
+        containerRef.current
+      )
+    }
+
+    window.addEventListener(
+      "resize",
+      updateSize
+    )
+
+    return () => {
+      observer.disconnect()
+
+      window.removeEventListener(
+        "resize",
+        updateSize
+      )
+    }
+
+  }, [])
+
+  const dynamicLevels =
+    useMemo(() => {
+
+      return safeLevels
+        .slice(0, visibleRows)
+
+    }, [
+      safeLevels,
+      visibleRows,
+    ])
+
   const max = Math.max(
-    ...safeLevels.map(
+    ...dynamicLevels.map(
       (l) => l.total || 0
     ),
     1
@@ -31,16 +112,17 @@ function Footprint({
   return (
 
     <div
+      ref={containerRef}
       className="
         flex
-        flex-col
         h-full
         min-h-0
+        flex-col
+        overflow-hidden
         rounded-2xl
         border
         border-zinc-800
         bg-zinc-950
-        overflow-hidden
       "
     >
 
@@ -49,11 +131,11 @@ function Footprint({
       <div
         className="
           shrink-0
+          border-b
+          border-zinc-800
           px-4
           pt-4
           pb-3
-          border-b
-          border-zinc-800
         "
       >
 
@@ -80,12 +162,12 @@ function Footprint({
 
             <div
               className="
+                mt-1
                 text-xs
                 text-zinc-500
-                mt-1
               "
             >
-              Real-Time Volume Delta
+              Dynamic footprint aggregation
             </div>
 
           </div>
@@ -93,11 +175,11 @@ function Footprint({
           <div
             className="
               flex
+              shrink-0
               items-center
               gap-3
               text-[11px]
               text-zinc-400
-              shrink-0
             "
           >
 
@@ -105,8 +187,8 @@ function Footprint({
 
               <div
                 className="
-                  w-2
                   h-2
+                  w-2
                   rounded-full
                   bg-green-500
                 "
@@ -120,8 +202,8 @@ function Footprint({
 
               <div
                 className="
-                  w-2
                   h-2
+                  w-2
                   rounded-full
                   bg-red-500
                 "
@@ -143,8 +225,7 @@ function Footprint({
         className="
           flex-1
           min-h-0
-          overflow-y-auto
-          overflow-x-hidden
+          overflow-hidden
         "
       >
 
@@ -152,22 +233,18 @@ function Footprint({
 
         <div
           className="
-            sticky
-            top-0
-            z-20
             grid
             grid-cols-5
             gap-2
+            border-b
+            border-zinc-800
+            bg-zinc-950
             px-3
             py-2
             text-[10px]
             uppercase
             tracking-wider
             text-zinc-500
-            border-b
-            border-zinc-800
-            bg-zinc-950
-            backdrop-blur
           "
         >
 
@@ -202,7 +279,7 @@ function Footprint({
           "
         >
 
-          {safeLevels.map((level) => {
+          {dynamicLevels.map((level) => {
 
             const strength =
               (level.total / max) * 100
@@ -216,13 +293,13 @@ function Footprint({
                 key={level.price}
                 className="
                   relative
+                  h-[28px]
+                  shrink-0
                   overflow-hidden
                   rounded-md
                   border
                   border-zinc-900
                   bg-black
-                  h-8
-                  shrink-0
                 "
               >
 
@@ -253,10 +330,10 @@ function Footprint({
                     relative
                     z-10
                     grid
-                    grid-cols-5
-                    gap-2
                     h-full
+                    grid-cols-5
                     items-center
+                    gap-2
                     px-3
                     text-[11px]
                     font-mono
@@ -266,8 +343,8 @@ function Footprint({
 
                   <div
                     className="
-                      text-zinc-200
                       truncate
+                      text-zinc-200
                     "
                   >
                     {level.price.toFixed(1)}
@@ -275,9 +352,9 @@ function Footprint({
 
                   <div
                     className="
+                      truncate
                       text-right
                       text-green-400
-                      truncate
                     "
                   >
                     {level.buyVolume.toFixed(3)}
@@ -285,9 +362,9 @@ function Footprint({
 
                   <div
                     className="
+                      truncate
                       text-right
                       text-red-400
-                      truncate
                     "
                   >
                     {level.sellVolume.toFixed(3)}
@@ -295,9 +372,9 @@ function Footprint({
 
                   <div
                     className={`
+                      truncate
                       text-right
                       font-semibold
-                      truncate
                       ${
                         isBuy
                           ? "text-green-400"
@@ -311,9 +388,9 @@ function Footprint({
 
                   <div
                     className="
+                      truncate
                       text-right
                       text-zinc-300
-                      truncate
                     "
                   >
                     {level.total.toFixed(3)}
@@ -324,16 +401,17 @@ function Footprint({
               </div>
 
             )
+
           })}
 
-          {safeLevels.length === 0 && (
+          {dynamicLevels.length === 0 && (
 
             <div
               className="
                 flex
+                min-h-[240px]
                 items-center
                 justify-center
-                min-h-[240px]
                 text-sm
                 text-zinc-500
               "

@@ -378,6 +378,16 @@ export default function FlowPanel({
             {tradeIntensity}
           </div>
 
+          <div
+            className="
+              mt-1
+              text-xs
+              text-zinc-500
+            "
+          >
+            {recentTrades.length} trades
+          </div>
+
         </div>
 
       </div>

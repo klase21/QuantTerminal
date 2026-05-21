@@ -1,6 +1,6 @@
 // ======================================================
 // components/macro/RealtimeIntelligenceStrip.tsx
-// TOP ROLLING LIVE INTELLIGENCE FEED
+// VERTICAL LIVE INTELLIGENCE FEED
 // ======================================================
 
 "use client"
@@ -63,7 +63,7 @@ function buildStripEvents(payload: NarrativePayload): StripEvent[] {
   const events: StripEvent[] = []
 
   ;(payload.heatmap || [])
-    .slice(0, 6)
+    .slice(0, 8)
     .forEach((row, index) => {
       const region = hotRegion(row)
       const score = hotScore(row)
@@ -82,7 +82,7 @@ function buildStripEvents(payload: NarrativePayload): StripEvent[] {
     })
 
   ;(payload.topDivergence || [])
-    .slice(0, 4)
+    .slice(0, 5)
     .forEach((row, index) => {
       events.push({
         id: `top-div-${row.narrative}-${index}`,
@@ -113,7 +113,7 @@ function buildStripEvents(payload: NarrativePayload): StripEvent[] {
 
   return events
     .sort((a, b) => b.score - a.score)
-    .slice(0, 12)
+    .slice(0, 14)
 }
 
 function typeLabel(type: StripEvent["type"]) {
@@ -122,29 +122,40 @@ function typeLabel(type: StripEvent["type"]) {
   return "LEAD"
 }
 
-function EventPill({ event }: { event: StripEvent }) {
+function formatTime(ts: number) {
+  return new Date(ts).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function EventRow({ event }: { event: StripEvent }) {
   return (
     <div
       className="
-        flex
-        shrink-0
+        grid
+        grid-cols-[58px_52px_1fr_54px]
         items-center
-        gap-2
+        gap-3
         rounded-xl
         border
         border-zinc-800
         bg-zinc-950
         px-3
-        py-1.5
+        py-2
         text-xs
-        shadow-[0_0_18px_rgba(0,0,0,0.18)]
       "
     >
+      <div className="font-mono text-[10px] text-zinc-500">
+        {formatTime(event.timestamp)}
+      </div>
+
       <span
         className={`
           rounded-md
           px-1.5
           py-0.5
+          text-center
           text-[9px]
           font-black
           ${
@@ -159,13 +170,19 @@ function EventPill({ event }: { event: StripEvent }) {
         {typeLabel(event.type)}
       </span>
 
-      <span className="font-bold text-zinc-100">
-        {event.label}
-      </span>
+      <div className="min-w-0">
+        <div className="truncate font-bold text-zinc-100">
+          {event.label}
+        </div>
 
-      <span className="text-zinc-500">
-        {event.message}
-      </span>
+        <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+          {event.message}
+        </div>
+      </div>
+
+      <div className="text-right font-mono text-[11px] text-zinc-400">
+        {event.score}
+      </div>
     </div>
   )
 }
@@ -185,7 +202,7 @@ export default function RealtimeIntelligenceStrip() {
       const json = (await res.json()) as NarrativePayload
       setEvents(buildStripEvents(json))
     } catch (err) {
-      console.error("TOP INTELLIGENCE STRIP LOAD ERROR:", err)
+      console.error("REALTIME INTELLIGENCE LOAD ERROR:", err)
     } finally {
       setLoading(false)
     }
@@ -212,113 +229,87 @@ export default function RealtimeIntelligenceStrip() {
     return events.slice(0, activeIndex + 1)
   }, [events, replayMode, activeIndex])
 
-  const rollingEvents = useMemo(() => {
-    if (visibleEvents.length === 0) return []
-    return [...visibleEvents, ...visibleEvents]
-  }, [visibleEvents])
-
-  const animationDuration = Math.max(
-    18,
-    visibleEvents.length * 3
-  )
-
   return (
     <div
       className="
         flex
-        min-h-[42px]
-        items-center
-        gap-3
+        h-full
+        min-h-0
+        flex-col
         overflow-hidden
+        rounded-2xl
+        border
+        border-zinc-900
+        bg-black
       "
     >
-      <style jsx>{`
-        @keyframes intelligence-roll {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-50%);
-          }
-        }
-
-        .intelligence-marquee {
-          animation: intelligence-roll ${animationDuration}s linear infinite;
-          will-change: transform;
-        }
-
-        .intelligence-marquee:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
-
       <div
         className="
           flex
           shrink-0
           items-center
-          gap-2
-          border-r
+          justify-between
+          border-b
           border-zinc-800
-          pr-3
+          px-4
+          py-3
         "
       >
-        <span
-          className="
-            h-2
-            w-2
-            rounded-full
-            bg-emerald-400
-            shadow-[0_0_10px_rgba(52,211,153,0.75)]
-          "
-        />
+        <div className="flex items-center gap-2">
+          <span
+            className="
+              h-2
+              w-2
+              rounded-full
+              bg-emerald-400
+              shadow-[0_0_10px_rgba(52,211,153,0.75)]
+            "
+          />
 
-        <div>
-          <div className="text-[11px] font-black tracking-wide text-white">
-            REALTIME INTELLIGENCE
-          </div>
-          <div className="text-[10px] text-zinc-500">
-            rolling market pulse
+          <div>
+            <div className="text-[11px] font-black tracking-wide text-white">
+              REALTIME INTELLIGENCE
+            </div>
+
+            <div className="text-[10px] text-zinc-500">
+              live market pulse feed
+            </div>
           </div>
         </div>
+
+        <button
+          onClick={() => {
+            setActiveIndex(0)
+            toggleReplay()
+          }}
+          className={`
+            shrink-0
+            rounded-lg
+            border
+            px-3
+            py-1.5
+            text-[10px]
+            font-black
+            transition
+            ${
+              replayMode
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-white"
+            }
+          `}
+        >
+          {replayMode ? "PAUSE" : "REPLAY"}
+        </button>
       </div>
 
       <div
         className="
-          relative
-          min-w-0
           flex-1
+          min-h-0
           overflow-hidden
+          p-3
         "
       >
-        <div
-          className="
-            pointer-events-none
-            absolute
-            inset-y-0
-            left-0
-            z-10
-            w-8
-            bg-gradient-to-r
-            from-black
-            to-transparent
-          "
-        />
-
-        <div
-          className="
-            pointer-events-none
-            absolute
-            inset-y-0
-            right-0
-            z-10
-            w-8
-            bg-gradient-to-l
-            from-black
-            to-transparent
-          "
-        />
-
         {loading && (
           <div className="text-xs text-zinc-500">
             Loading intelligence events...
@@ -334,47 +325,20 @@ export default function RealtimeIntelligenceStrip() {
         {!loading && visibleEvents.length > 0 && (
           <div
             className="
-              intelligence-marquee
               flex
-              w-max
-              items-center
+              flex-col
               gap-2
-              pr-2
             "
           >
-            {rollingEvents.map((event, index) => (
-              <EventPill
-                key={`${event.id}-${index}`}
+            {visibleEvents.map((event) => (
+              <EventRow
+                key={event.id}
                 event={event}
               />
             ))}
           </div>
         )}
       </div>
-
-      <button
-        onClick={() => {
-          setActiveIndex(0)
-          toggleReplay()
-        }}
-        className={`
-          shrink-0
-          rounded-lg
-          border
-          px-3
-          py-1.5
-          text-[10px]
-          font-black
-          transition
-          ${
-            replayMode
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-              : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-white"
-          }
-        `}
-      >
-        {replayMode ? "PAUSE" : "REPLAY"}
-      </button>
     </div>
   )
 }

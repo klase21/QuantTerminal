@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import Marquee
   from "react-fast-marquee"
@@ -12,6 +12,70 @@ import {
 import {
   cn,
 } from "@/lib/utils"
+
+
+function FlashValue({
+  value,
+  className = "",
+}: {
+  value: string | number
+  className?: string
+}) {
+  const previous =
+    useRef(value)
+
+  const [flash, setFlash] =
+    useState<"up" | "down" | null>(null)
+
+  useEffect(() => {
+    if (previous.current === value) return
+
+    const prevNum =
+      Number(previous.current)
+
+    const nextNum =
+      Number(value)
+
+    if (
+      !Number.isNaN(prevNum) &&
+      !Number.isNaN(nextNum)
+    ) {
+      setFlash(
+        nextNum >= prevNum
+          ? "up"
+          : "down"
+      )
+    } else {
+      setFlash("up")
+    }
+
+    previous.current = value
+
+    const timeout =
+      window.setTimeout(
+        () => setFlash(null),
+        650
+      )
+
+    return () =>
+      window.clearTimeout(timeout)
+  }, [value])
+
+  return (
+    <span
+      className={cn(
+        className,
+        "rounded px-1 transition-colors duration-500",
+        flash === "up" &&
+          "bg-emerald-500/20",
+        flash === "down" &&
+          "bg-red-500/20"
+      )}
+    >
+      {value}
+    </span>
+  )
+}
 
 export default function TickerBar() {
 
@@ -95,7 +159,7 @@ export default function TickerBar() {
     >
 
       <Marquee
-        speed={28}
+        speed={12}
         pauseOnHover
         gradient={false}
         autoFill
@@ -145,8 +209,9 @@ export default function TickerBar() {
                     font-medium
                   "
                 >
-                  $
-                  {ticker.price.toLocaleString()}
+                  <FlashValue
+                    value={`$${ticker.price.toLocaleString()}`}
+                  />
                 </div>
 
                 {/* CHANGE */}
@@ -163,13 +228,9 @@ export default function TickerBar() {
                   )}
                 >
 
-                  {positive
-                    ? "+"
-                    : ""}
-
-                  {(ticker.change24h ?? 0).toFixed(2)}
-
-                  %
+                  <FlashValue
+                    value={`${positive ? "+" : ""}${(ticker.change24h ?? 0).toFixed(2)}%`}
+                  />
 
                 </div>
 

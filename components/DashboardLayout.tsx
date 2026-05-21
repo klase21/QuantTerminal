@@ -39,7 +39,6 @@ import useAlertEngine from "@/hooks/useAlertEngine";
 
 import MacroTickerStrip from "@/components/macro/MacroTickerStrip";
 import RealtimeIntelligenceStrip from "@/components/macro/RealtimeIntelligenceStrip";
-import MacroMiniCardsRow from "@/components/macro/MacroMiniCardsRow";
 
 import {
   Tabs,
@@ -201,42 +200,7 @@ export default function DashboardLayout() {
 
       </div>
 
-      {/* REALTIME INTELLIGENCE STRIP */}
-
-      <div
-        className="
-          shrink-0
-          border-b
-          border-emerald-500/10
-          bg-black
-          px-4
-          py-2
-        "
-      >
-
-        <RealtimeIntelligenceStrip />
-
-      </div>
-
-
-      {/* COMPACT MACRO ROW */}
-
-      <div
-        className="
-          shrink-0
-          border-b
-          border-zinc-900
-          bg-black
-          px-4
-          py-2
-        "
-      >
-
-        <MacroMiniCardsRow />
-
-      </div>
-
-      {/* MAIN */}
+{/* MAIN */}
 
       <main
         className="
@@ -310,6 +274,10 @@ export default function DashboardLayout() {
 
                       <TabsTrigger value="orderflow">
                         Order Flow
+                      </TabsTrigger>
+
+                      <TabsTrigger value="realtime">
+                        Realtime Intelligence
                       </TabsTrigger>
 
                       <TabsTrigger value="liquidity">
@@ -435,6 +403,33 @@ export default function DashboardLayout() {
                             </div>
 
                           </div>
+
+                        </div>
+
+                      </TabsContent>
+
+                      <TabsContent
+                        value="realtime"
+                        className="
+                          m-0
+                          min-h-0
+                        "
+                      >
+
+                        <div
+                          className="
+                            h-full
+                            min-h-0
+                            overflow-hidden
+                            rounded-2xl
+                            border
+                            border-zinc-900
+                            bg-black
+                            p-4
+                          "
+                        >
+
+                          <RealtimeIntelligenceStrip />
 
                         </div>
 
