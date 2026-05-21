@@ -205,13 +205,86 @@ export default function FlowPanel({
         className="
           grid
           shrink-0
-          grid-cols-3
+          grid-cols-4
           gap-2
           border-b
           border-zinc-800
           p-3
         "
       >
+
+
+        <div
+          className="
+            rounded-2xl
+            border
+            border-green-900/40
+            bg-green-500/10
+            p-3
+          "
+        >
+
+          <div className="flex items-center justify-between">
+
+            <div className="text-[11px] text-zinc-500">
+              Buy Volume
+            </div>
+
+            <ArrowUpRight
+              size={14}
+              className="text-green-400"
+            />
+
+          </div>
+
+          <div
+            className="
+              mt-2
+              text-lg
+              font-bold
+              text-green-400
+            "
+          >
+            {buyVolume.toFixed(2)}
+          </div>
+
+        </div>
+
+        <div
+          className="
+            rounded-2xl
+            border
+            border-red-900/40
+            bg-red-500/10
+            p-3
+          "
+        >
+
+          <div className="flex items-center justify-between">
+
+            <div className="text-[11px] text-zinc-500">
+              Sell Volume
+            </div>
+
+            <ArrowDownRight
+              size={14}
+              className="text-red-400"
+            />
+
+          </div>
+
+          <div
+            className="
+              mt-2
+              text-lg
+              font-bold
+              text-red-400
+            "
+          >
+            {sellVolume.toFixed(2)}
+          </div>
+
+        </div>
 
         <div
           className="
@@ -226,7 +299,7 @@ export default function FlowPanel({
           <div className="flex items-center justify-between">
 
             <div className="text-[11px] text-zinc-500">
-              Delta
+              Delta / CVD
             </div>
 
             <ArrowUpRight
@@ -253,44 +326,18 @@ export default function FlowPanel({
             ).toFixed(2)}
           </div>
 
-        </div>
-
-        <div
-          className="
-            rounded-2xl
-            border
-            border-zinc-800
-            bg-zinc-900
-            p-3
-          "
-        >
-
-          <div className="flex items-center justify-between">
-
-            <div className="text-[11px] text-zinc-500">
-              CVD
-            </div>
-
-            <Waves
-              size={14}
-              className="text-cyan-400"
-            />
-
-          </div>
-
           <div
             className={`
-              mt-2
-              text-lg
-              font-bold
+              mt-1
+              text-xs
               ${
                 (flow?.cvd || 0) >= 0
-                  ? "text-green-400"
-                  : "text-red-400"
+                  ? "text-green-300"
+                  : "text-red-300"
               }
             `}
           >
-            {Number(
+            CVD {Number(
               flow?.cvd || 0
             ).toFixed(2)}
           </div>
