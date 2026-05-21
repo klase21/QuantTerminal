@@ -120,11 +120,9 @@ async function fetchYahooItems() {
     )
 
   if (!res.ok) {
-    console.warn(
-      `Yahoo macro feed unavailable (${res.status}), using fallback`
+    throw new Error(
+      `Yahoo macro fetch failed: ${res.status}`
     )
-
-    return []
   }
 
   const json =
@@ -208,11 +206,9 @@ async function fetchTotal3() {
       )
 
     if (!res.ok) {
-      console.warn(
-        `CoinGecko unavailable (${res.status}), using fallback`
+      throw new Error(
+        `CoinGecko failed: ${res.status}`
       )
-
-      return null
     }
 
     const json =
@@ -282,31 +278,9 @@ export async function GET() {
   try {
     const yahooItems =
       await fetchYahooItems()
-        .catch((err) => {
-
-          console.warn(
-            "MACRO LIVE FEED ERROR:",
-            err instanceof Error
-              ? err.message
-              : err
-          )
-
-          return []
-        })
 
     const total3 =
       await fetchTotal3()
-        .catch((err) => {
-
-          console.warn(
-            "TOTAL3 FEED ERROR:",
-            err instanceof Error
-              ? err.message
-              : err
-          )
-
-          return null
-        })
 
     const liveItems =
       total3
@@ -328,11 +302,9 @@ export async function GET() {
       updatedAt: Date.now(),
     })
   } catch (err) {
-    console.warn(
-      "MACRO API FALLBACK:",
-      err instanceof Error
-        ? err.message
-        : err
+    console.error(
+      "MACRO API ERROR:",
+      err
     )
 
     return Response.json({
