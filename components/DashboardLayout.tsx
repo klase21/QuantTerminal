@@ -476,7 +476,9 @@ export default function DashboardLayout() {
                               "
                             >
 
-                              <RotationSankeyGraph />
+                              <RotationSankeyGraph
+                              trades={trades}
+                            />
 
                             </div>
 
