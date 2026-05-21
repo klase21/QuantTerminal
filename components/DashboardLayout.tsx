@@ -6,11 +6,14 @@ import TickerBar from "@/components/TickerBar";
 import Orderbook from "@/components/Orderbook";
 import Footprint from "@/components/Footprint";
 import Heatmap from "@/components/Heatmap";
-import VolumeProfile from "@/components/VolumeProfile";
 
 import Panel from "@/components/ui/Panel";
 
 import RightPanelTabs from "@/components/right-panel/RightPanelTabs";
+import FlowPanel from "@/components/right-panel/FlowPanel";
+import RotationSankeyGraph from "@/components/RotationSankeyGraph";
+import LiquidityRotationPanel from "@/components/right-panel/LiquidityRotationPanel";
+import LiquidityPanel from "@/components/right-panel/LiquidityPanel";
 import ResizablePanelGroup from "@/components/ResizablePanelGroup";
 
 import useMarketSocket from "@/hooks/useMarketSocket";
@@ -309,10 +312,6 @@ export default function DashboardLayout() {
                         Order Flow
                       </TabsTrigger>
 
-                      <TabsTrigger value="volume">
-                        Volume Profile
-                      </TabsTrigger>
-
                       <TabsTrigger value="liquidity">
                         Liquidity
                       </TabsTrigger>
@@ -357,9 +356,11 @@ export default function DashboardLayout() {
                             h-full
                             min-h-0
                             gap-4
-                            xl:grid-cols-2
+                            xl:grid-cols-[1fr_1.15fr]
                           "
                         >
+
+                          {/* ORDERBOOK */}
 
                           <div
                             className="
@@ -385,22 +386,53 @@ export default function DashboardLayout() {
 
                           </div>
 
+                          {/* ORDERFLOW */}
+
                           <div
                             className="
+                              flex
                               h-full
                               min-h-0
+                              flex-col
                               overflow-hidden
                               rounded-2xl
                               border
                               border-zinc-900
                               bg-zinc-950/40
-                              p-2
                             "
                           >
 
-                            <Footprint
-                              levels={footprint}
-                            />
+                            <div
+                              className="
+                                shrink-0
+                                min-h-0
+                                overflow-hidden
+                              "
+                            >
+
+                              <FlowPanel
+                                trades={trades}
+                                flow={flow}
+                              />
+
+                            </div>
+
+                            <div
+                              className="
+                                flex-1
+                                min-h-0
+                                overflow-hidden
+                                border-t
+                                border-zinc-900
+                                p-2
+                              "
+                            >
+
+                              <Footprint
+                                levels={footprint}
+                              />
+
+                            </div>
 
                           </div>
 
@@ -408,31 +440,9 @@ export default function DashboardLayout() {
 
                       </TabsContent>
 
-                      <TabsContent
-                        value="volume"
-                        className="
-                          m-0
-                          min-h-0
-                        "
-                      >
+                    </div>
 
-                        <div
-                          className="
-                            h-full
-                            min-h-0
-                            overflow-hidden
-                          "
-                        >
-
-                          <VolumeProfile
-                            levels={
-                              volumeProfile
-                            }
-                          />
-
-                        </div>
-
-                      </TabsContent>
+                  
 
                       <TabsContent
                         value="liquidity"
@@ -442,15 +452,79 @@ export default function DashboardLayout() {
                         "
                       >
 
-                        <Heatmap
-                          levels={heatmap}
-                        />
+                        <div
+                          className="
+                            grid
+                            h-full
+                            min-h-0
+                            gap-4
+                            xl:grid-cols-2
+                          "
+                        >
+
+                          {/* LEFT */}
+
+                          <div
+                            className="
+                              flex
+                              h-full
+                              min-h-0
+                              flex-col
+                              gap-4
+                            "
+                          >
+
+                            <div
+                              className="
+                                shrink-0
+                                overflow-hidden
+                              "
+                            >
+
+                              <RotationSankeyGraph />
+
+                            </div>
+
+                            <div
+                              className="
+                                flex-1
+                                min-h-0
+                                overflow-y-auto
+                              "
+                            >
+
+                              <LiquidityPanel
+                                frames={frames}
+                                liquidityEvents={
+                                  liquidityEvents
+                                }
+                              />
+
+                            </div>
+
+                          </div>
+
+                          {/* RIGHT */}
+
+                          <div
+                            className="
+                              h-full
+                              min-h-0
+                              overflow-y-auto
+                            "
+                          >
+
+                            <LiquidityRotationPanel
+                              trades={trades}
+                            />
+
+                          </div>
+
+                        </div>
 
                       </TabsContent>
 
-                    </div>
-
-                  </Tabs>
+                    </Tabs>
 
                 )}
 

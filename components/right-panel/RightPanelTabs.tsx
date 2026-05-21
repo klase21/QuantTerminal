@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 
-import FlowPanel from "@/components/right-panel/FlowPanel"
 import LiquidityPanel from "@/components/right-panel/LiquidityPanel"
 import AnalyticsPanel from "@/components/right-panel/AnalyticsPanel"
 import AlertsPanel from "@/components/right-panel/AlertsPanel"
@@ -33,8 +32,6 @@ export default function RightPanelTabs({
 }: Props) {
 
   const [tab, setTab] = useState<
-    | "flow"
-    | "liquidity"
     | "news"
     | "macro"
     | "correlation"
@@ -43,8 +40,6 @@ export default function RightPanelTabs({
   const tabs = [
     "macro",
     "correlation",
-    "flow",
-    "liquidity",
     "news",
   ]
 
@@ -142,38 +137,6 @@ export default function RightPanelTabs({
           <div className="p-4">
 
             <MacroNewsCorrelation />
-
-          </div>
-
-        )}
-
-        {tab === "flow" && (
-
-          <div className="h-full min-h-0">
-
-            <FlowPanel
-              trades={trades}
-              flow={flow}
-            />
-
-          </div>
-
-        )}
-
-        {tab === "liquidity" && (
-
-          <div className="h-full min-h-0">
-
-            <div className="space-y-4 p-4">
-            <RotationSankeyGraph />
-            <LiquidityRotationPanel trades={trades} />
-            <LiquidityPanel
-              frames={frames}
-              liquidityEvents={
-                liquidityEvents
-              }
-            />
-            </div>
 
           </div>
 
