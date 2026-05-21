@@ -1,2 +1,0 @@
-Applied EN/KR/CN translation target fix.
-Added target language parameter support and translation fallback handling.
