@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 
+import { MACRO_TICKER_FALLBACK } from "@/lib/macroTicker"
+
 type MacroItem = {
   symbol: string
   label: string
@@ -188,9 +190,25 @@ export default function MacroNewsCorrelation() {
 
         const json = await res.json()
 
-        if (alive && Array.isArray(json)) {
-          setItems(json.filter(Boolean))
-          setUpdatedAt(Date.now())
+        const nextItems =
+          Array.isArray(json)
+            ? json
+            : Array.isArray(json?.items)
+              ? json.items
+              : []
+
+        if (alive) {
+          const normalizedItems =
+            nextItems.length > 0
+              ? nextItems
+              : MACRO_TICKER_FALLBACK
+
+          setItems(
+            normalizedItems.filter(Boolean)
+          )
+          setUpdatedAt(
+            json?.updatedAt || Date.now()
+          )
         }
       } catch (err) {
         console.error("CORRELATION LOAD ERROR:", err)

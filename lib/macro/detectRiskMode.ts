@@ -16,8 +16,16 @@ export interface RiskResult {
 }
 
 export function detectRiskMode(
-  items: any[]
+  input: any
 ): RiskResult {
+
+  const items =
+    Array.isArray(input)
+      ? input
+      : Array.isArray(input?.items)
+        ? input.items
+        : []
+
 
   let score = 0
 
@@ -28,7 +36,8 @@ export function detectRiskMode(
   ) =>
     items.find(
       (i) =>
-        i.symbol === symbol
+        i.symbol === symbol ||
+        i.label === symbol
     )
 
   const dxy =

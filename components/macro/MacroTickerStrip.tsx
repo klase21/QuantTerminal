@@ -1,11 +1,21 @@
 // ======================================================
 // components/macro/MacroTickerStrip.tsx
+// Dynamic macro ticker
 // ======================================================
 
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 
+import useMacroTicker from "@/hooks/useMacroTicker"
+
+import {
+  MacroTickerItem,
+} from "@/lib/macroTicker"
 
 function FlashValue({
   value,
@@ -29,6 +39,7 @@ function FlashValue({
           .replace("%", "")
           .replace("+", "")
           .replace("B", "")
+          .replace(",", "")
       )
 
     const nextNum =
@@ -37,6 +48,7 @@ function FlashValue({
           .replace("%", "")
           .replace("+", "")
           .replace("B", "")
+          .replace(",", "")
       )
 
     if (
@@ -86,102 +98,9 @@ function FlashValue({
   )
 }
 
-interface MacroTickerItem {
-  symbol?: string
-  label?: string
-  price?: number
-  value?: string
-  changePercent?: number
-  change?: string
-  signal?: string
-}
-
-interface Props {
-  items?: MacroTickerItem[]
-}
-
-const defaultItems: MacroTickerItem[] = [
-  {
-    symbol: "DXY",
-    label: "DXY",
-    value: "99.44",
-    change: "+0.12%",
-    signal: "Dollar Pressure",
-  },
-  {
-    symbol: "US10Y",
-    label: "US10Y",
-    value: "4.65",
-    change: "-0.30%",
-    signal: "Yields Easing",
-  },
-  {
-    symbol: "NASDAQ",
-    label: "NASDAQ",
-    value: "26028",
-    change: "+0.81%",
-    signal: "Risk-On",
-  },
-  {
-    symbol: "SPX",
-    label: "S&P500",
-    value: "6624",
-    change: "+0.48%",
-    signal: "Equity Beta",
-  },
-  {
-    symbol: "VIX",
-    label: "VIX",
-    value: "14.80",
-    change: "-2.15%",
-    signal: "Vol Compression",
-  },
-  {
-    symbol: "GOLD",
-    label: "GOLD",
-    value: "2408",
-    change: "+0.22%",
-    signal: "Safe Haven",
-  },
-  {
-    symbol: "OIL",
-    label: "OIL",
-    value: "78.42",
-    change: "-0.64%",
-    signal: "Energy Pressure",
-  },
-  {
-    symbol: "US2Y",
-    label: "US2Y",
-    value: "4.28",
-    change: "-0.21%",
-    signal: "Fed Path",
-  },
-  {
-    symbol: "MOVE",
-    label: "MOVE",
-    value: "96.30",
-    change: "-1.04%",
-    signal: "Bond Vol",
-  },
-  {
-    symbol: "TOTAL3",
-    label: "TOTAL3",
-    value: "692B",
-    change: "+1.31%",
-    signal: "Alt Liquidity",
-  },
-]
-
 function parseChange(
   item: MacroTickerItem
 ) {
-  if (
-    typeof item.changePercent === "number"
-  ) {
-    return item.changePercent
-  }
-
   const raw =
     item.change || "0"
 
@@ -190,32 +109,20 @@ function parseChange(
   ) || 0
 }
 
-function displayValue(
-  item: MacroTickerItem
-) {
-  if (
-    typeof item.price === "number"
-  ) {
-    return item.price.toFixed(2)
-  }
+export default function MacroTickerStrip() {
+  const { items } =
+    useMacroTicker()
 
-  return item.value || "-"
-}
-
-export default function MacroTickerStrip({
-  items,
-}: Props) {
-
-  const sourceItems =
-    items && items.length > 0
-      ? items
-      : defaultItems
+  const visibleItems =
+    items.filter(
+      (item) => !item.hidden
+    )
 
   const duplicated =
     [
-      ...sourceItems,
-      ...sourceItems,
-      ...sourceItems,
+      ...visibleItems,
+      ...visibleItems,
+      ...visibleItems,
     ]
 
   return (
@@ -269,7 +176,7 @@ export default function MacroTickerStrip({
           will-change-transform
         "
         style={{
-          animationDuration: "180s",
+          animationDuration: "90s",
         }}
       >
 
@@ -288,7 +195,7 @@ export default function MacroTickerStrip({
             return (
 
               <div
-                key={`${item.symbol || item.label}-${idx}`}
+                key={`${item.symbol}-${idx}`}
                 className="
                   flex
                   items-center
@@ -318,7 +225,7 @@ export default function MacroTickerStrip({
                   "
                 >
                   <FlashValue
-                    value={displayValue(item)}
+                    value={item.value}
                   />
                 </span>
 
@@ -330,7 +237,7 @@ export default function MacroTickerStrip({
                   }
                 >
                   <FlashValue
-                    value={`${positive ? "+" : ""}${change.toFixed(2)}%`}
+                    value={item.change}
                   />
                 </span>
 

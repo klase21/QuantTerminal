@@ -58,8 +58,16 @@ function formatPercent(
 }
 
 export function calculateLiquidityIntelligence(
-  items: any[] = []
+  input: any
 ): LiquidityIntelligence {
+
+  const items =
+    Array.isArray(input)
+      ? input
+      : Array.isArray(input?.items)
+        ? input.items
+        : []
+
 
   const dxy =
     findMacroItem(items, "DX-Y.NYB") ||

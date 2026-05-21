@@ -28,8 +28,16 @@ export interface MacroSentiment {
 }
 
 export function calculateMacroSentiment(
-  items: MacroItem[]
+  input: any
 ): MacroSentiment {
+
+  const items =
+    Array.isArray(input)
+      ? input
+      : Array.isArray(input?.items)
+        ? input.items
+        : []
+
 
   let score = 0
 
@@ -40,7 +48,8 @@ export function calculateMacroSentiment(
   ) =>
     items.find(
       (i) =>
-        i.symbol === symbol
+        i.symbol === symbol ||
+        i.label === symbol
     )
 
   const dxy =

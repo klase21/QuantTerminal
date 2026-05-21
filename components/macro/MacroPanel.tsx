@@ -29,6 +29,10 @@ import NarrativeDivergence
 import LiquidityIntelligencePanel
   from "./LiquidityIntelligencePanel"
 
+import {
+  MACRO_TICKER_FALLBACK,
+} from "@/lib/macroTicker"
+
 export default function MacroPanel() {
 
   const [items, setItems] =
@@ -55,9 +59,22 @@ export default function MacroPanel() {
       const json =
         await res.json()
 
-      setItems(json)
+      const nextItems =
+        Array.isArray(json)
+          ? json
+          : Array.isArray(json?.items)
+            ? json.items
+            : []
 
-      setUpdatedAt(Date.now())
+      setItems(
+        nextItems.length > 0
+          ? nextItems
+          : MACRO_TICKER_FALLBACK
+      )
+
+      setUpdatedAt(
+        json?.updatedAt || Date.now()
+      )
 
     } catch (err) {
 

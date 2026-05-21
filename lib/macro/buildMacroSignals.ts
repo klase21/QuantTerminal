@@ -3,8 +3,16 @@
 // ======================================================
 
 export function buildMacroSignals(
-  items: any[]
+  input: any
 ) {
+
+  const items =
+    Array.isArray(input)
+      ? input
+      : Array.isArray(input?.items)
+        ? input.items
+        : []
+
 
   const bullish: any[] = []
 
@@ -16,7 +24,8 @@ export function buildMacroSignals(
 
     return items.find(
       (x) =>
-        x.symbol === symbol
+        x.symbol === symbol ||
+        x.label === symbol
     )
 
   }
