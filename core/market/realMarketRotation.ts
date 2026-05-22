@@ -84,12 +84,16 @@ function buildStory(sector: string, direction: RotationDirection, score: number,
 }
 
 function buildDataQuality(connectors: ConnectorQualityStatus[] | undefined, ok: boolean): RealMarketDataQuality {
-  const normalized = connectors?.length ? connectors : [
+  const fallbackConnectors: ConnectorQualityStatus[] = [
     { name: "binance", status: ok ? "connected" : "error" },
     { name: "upbit-markets", status: "idle" },
     { name: "upbit-ticker", status: "idle" },
     { name: "datalab", status: "idle" },
   ]
+
+  const normalized: ConnectorQualityStatus[] = connectors?.length
+    ? connectors
+    : fallbackConnectors
   const errorCount = normalized.filter((connector) => connector.status === "error").length
   const partialCount = normalized.filter((connector) => connector.status === "partial" || connector.status === "stale").length
   const connectedCount = normalized.filter((connector) => connector.status === "connected").length

@@ -2,7 +2,7 @@ import type { SectorAggregate } from "@/lib/rotationEngine"
 import type { SectorRotationScore } from "@/types/intelligence"
 
 function clamp(value: number, min = 0, max = 100) {
-  return Math.max(min, Math.min(max, value))
+  return Math.max(min, Math.min(max, Number.isFinite(value) ? value : 0))
 }
 
 function normalize(value: number, maxAbs: number) {
@@ -32,10 +32,10 @@ export function scoreSectorRotation(
 
   return sectors
     .map((sector) => {
-      const momentumScore = normalize(sector.delta, 12)
-      const volumeScore = clamp((sector.volume / maxVolume) * 100)
-      const breadthScore = clamp((sector.dominance / maxDominance) * 100)
-      const volatilityScore = clamp(Math.abs(sector.delta) * 8)
+      const momentumScore = normalize(sector.delta || 0, 12)
+      const volumeScore = clamp(((sector.volume || 0) / maxVolume) * 100)
+      const breadthScore = clamp(((sector.dominance || 0) / maxDominance) * 100)
+      const volatilityScore = clamp(Math.abs(sector.delta || 0) * 8)
 
       const rotationScore = clamp(
         momentumScore * 0.35 +
@@ -47,7 +47,7 @@ export function scoreSectorRotation(
       const confidence = clamp(
         40 +
           rotationScore * 0.45 +
-          Math.min(20, Math.abs(sector.delta) * 1.5)
+          Math.min(20, Math.abs(sector.delta || 0) * 1.5)
       )
 
       return {
