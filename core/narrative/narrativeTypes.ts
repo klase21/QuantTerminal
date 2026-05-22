@@ -1,6 +1,8 @@
 import type { RotationDirection, SectorRotationSnapshot } from "@/core/marketDataTypes"
 import type { NarrativeLifecycleItem } from "./lifecycleTypes"
 import type { GeoNarrativeSurface } from "@/core/geoNarrativeTypes"
+import type { OpportunitySurface } from "@/core/opportunity/opportunityTypes"
+import type { KRRetailReactionSurface } from "@/core/krRetail/krRetailTypes"
 
 export type NarrativeTone = "RISK_ON" | "RISK_OFF" | "MIXED" | "COMPRESSION" | "EUPHORIA"
 
@@ -96,6 +98,8 @@ export interface NarrativeSurface {
     sectors: string[]
   }
   geoNarrative?: GeoNarrativeSurface
+  opportunity?: OpportunitySurface
+  krRetail?: KRRetailReactionSurface
   sourceSectors: SectorRotationSnapshot[]
   newsFusion?: NewsFusionSurface
   notes: string[]

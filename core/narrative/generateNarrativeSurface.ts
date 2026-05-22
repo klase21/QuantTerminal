@@ -4,6 +4,8 @@ import type { NarrativeHeatItem, NarrativeStoryStep, NarrativeSurface, Narrative
 import { buildNewsFusionSurface, type NewsFusionInputItem } from "./newsFusion"
 import { deriveNarrativeLifecycle } from "./deriveNarrativeLifecycle"
 import { deriveGeoNarrativeSurface } from "@/core/deriveGeoNarrativeSurface"
+import { deriveOpportunitySurface } from "@/core/opportunity/deriveOpportunitySurface"
+import type { KRRetailReactionSurface } from "@/core/krRetail/krRetailTypes"
 
 function fmt(value: number | undefined, digits = 2) {
   if (!Number.isFinite(value)) return "--"
@@ -233,7 +235,7 @@ function buildCompression(sectors: SectorRotationSnapshot[]) {
   ]
 }
 
-export function generateNarrativeSurface(data: RealMarketRotationResponse | null | undefined, news: NewsFusionInputItem[] = []): NarrativeSurface {
+export function generateNarrativeSurface(data: RealMarketRotationResponse | null | undefined, news: NewsFusionInputItem[] = [], krRetail?: KRRetailReactionSurface | null): NarrativeSurface {
   const sectors = data?.sectors ?? []
   const regime = inferRegime(sectors)
   const tone = inferTone(regime, sectors)
@@ -244,7 +246,8 @@ export function generateNarrativeSurface(data: RealMarketRotationResponse | null
     newsSignals: newsFusion.signals,
     validation: newsFusion.validation,
   })
-  const geoNarrative = deriveGeoNarrativeSurface(sectors, newsFusion)
+  const geoNarrative = deriveGeoNarrativeSurface(sectors, newsFusion, krRetail ?? undefined)
+  const opportunity = deriveOpportunitySurface({ sectors, lifecycle, geoNarrative, newsFusion })
 
   return {
     ok: Boolean(data?.ok && sectors.length),
@@ -259,6 +262,8 @@ export function generateNarrativeSurface(data: RealMarketRotationResponse | null
     compression: buildCompression(sectors),
     regionalDivergence,
     geoNarrative,
+    opportunity,
+    krRetail: krRetail ?? undefined,
     sourceSectors: sectors,
     newsFusion,
     notes: data?.notes ?? [],

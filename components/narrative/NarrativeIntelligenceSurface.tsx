@@ -6,6 +6,7 @@ import { generateNarrativeSurface } from "@/core/narrative/generateNarrativeSurf
 import type { NarrativeSurface } from "@/core/narrative/narrativeTypes"
 import type { RealMarketRotationResponse } from "@/core/marketDataTypes"
 import { lifecyclePhaseLabel } from "@/core/narrative/deriveNarrativeLifecycle"
+import type { KRRetailReactionSurface } from "@/core/krRetail/krRetailTypes"
 
 const POLL_MS = 45000
 
@@ -126,6 +127,38 @@ function crowdingClass(state?: string) {
 }
 
 
+function krRetailClass(mood?: string) {
+  switch (mood) {
+    case "Euphoric":
+      return "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-200"
+    case "Constructive":
+      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+    case "Defensive":
+      return "border-red-500/25 bg-red-500/10 text-red-200"
+    case "Divided":
+      return "border-amber-500/25 bg-amber-500/10 text-amber-200"
+    default:
+      return "border-zinc-800 bg-zinc-900 text-zinc-400"
+  }
+}
+
+function opportunityClass(state?: string) {
+  switch (state) {
+    case "HIGH_OPPORTUNITY":
+      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+    case "EMERGING":
+      return "border-cyan-500/25 bg-cyan-500/10 text-cyan-200"
+    case "WATCHLIST":
+      return "border-amber-500/25 bg-amber-500/10 text-amber-200"
+    case "OVERCROWDED":
+      return "border-red-500/25 bg-red-500/10 text-red-200"
+    case "EXITING":
+      return "border-zinc-700 bg-zinc-900 text-zinc-300"
+    default:
+      return "border-zinc-800 bg-zinc-900 text-zinc-400"
+  }
+}
+
 function geoStateClass(state?: string) {
   switch (state) {
     case "Retail Speculation":
@@ -176,6 +209,7 @@ export default function NarrativeIntelligenceSurface() {
   const [fetchState, setFetchState] = useState<FetchState>("idle")
   const [newsState, setNewsState] = useState<FetchState>("idle")
   const [error, setError] = useState<string | null>(null)
+  const [krRetail, setKrRetail] = useState<KRRetailReactionSurface | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -243,7 +277,32 @@ export default function NarrativeIntelligenceSurface() {
     }
   }, [])
 
-  const narrative = useMemo<NarrativeSurface>(() => generateNarrativeSurface(rotationData, newsItems), [rotationData, newsItems])
+  useEffect(() => {
+    let alive = true
+    let timer: ReturnType<typeof setInterval> | null = null
+
+    const loadKRRetail = async () => {
+      try {
+        const response = await fetch("/api/kr-retail", { cache: "no-store" })
+        const payload = await response.json()
+        if (!alive) return
+        setKrRetail(payload?.surface ?? null)
+      } catch {
+        if (!alive) return
+        setKrRetail(null)
+      }
+    }
+
+    loadKRRetail()
+    timer = setInterval(loadKRRetail, 60000)
+
+    return () => {
+      alive = false
+      if (timer) clearInterval(timer)
+    }
+  }, [])
+
+  const narrative = useMemo<NarrativeSurface>(() => generateNarrativeSurface(rotationData, newsItems, krRetail), [rotationData, newsItems, krRetail])
   const topHeat = narrative.heatmap[0]
   const secondHeat = narrative.heatmap[1]
   const statusLabel = fetchState === "live" ? "LIVE" : fetchState.toUpperCase()
@@ -315,6 +374,54 @@ export default function NarrativeIntelligenceSurface() {
               </div>
             </div>
 
+
+            <div className="mt-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Opportunity Filter</div>
+                <div className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${opportunityClass(narrative.opportunity?.lead?.state)}`}>
+                  {narrative.opportunity?.lead?.label ?? "Scanning"}
+                </div>
+              </div>
+              <div className="mt-2 text-sm font-black uppercase tracking-[0.12em] text-white">
+                {narrative.opportunity?.lead?.headline ?? "No confirmed opportunity"}
+              </div>
+              <p className="mt-2 text-xs leading-5 text-zinc-400">
+                {narrative.opportunity?.lead?.operatorNote ?? "Low-quality signals stay hidden until liquidity, breadth, and participation confirm."}
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {(narrative.opportunity?.items ?? []).slice(0, 3).map((item) => (
+                  <div key={item.narrative} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-black uppercase text-zinc-100">{item.narrative}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${opportunityClass(item.state)}`}>
+                        {item.label}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                      Confidence <span className="font-bold text-emerald-200">{item.confidence}</span> · {item.conviction} Conviction
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-fuchsia-500/15 bg-fuchsia-500/[0.04] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">KR Retail Reaction</div>
+                <div className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${krRetailClass(narrative.krRetail?.mood)}`}>
+                  {narrative.krRetail?.label ?? "Scanning"}
+                </div>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-zinc-400">
+                {narrative.krRetail?.summary ?? "Waiting for Coinness / SaveTicker reaction data."}
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">Views<br /><span className="font-black text-zinc-200">{narrative.krRetail?.totalViews ?? "--"}</span></div>
+                <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">Votes<br /><span className="font-black text-fuchsia-200">{narrative.krRetail?.totalVotes ?? "--"}</span></div>
+                <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">Positive<br /><span className="font-black text-emerald-200">{narrative.krRetail ? formatMetric(narrative.krRetail.positiveRatio, 0) : "--"}%</span></div>
+              </div>
+            </div>
+
             {error ? (
               <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-200">
                 {error}
@@ -383,6 +490,26 @@ export default function NarrativeIntelligenceSurface() {
                 {narrative.geoNarrative.operatorNote}
               </div>
             ) : null}
+          </div>
+
+          <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">KR Reaction Leaders</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-fuchsia-200">Coinness + SaveTicker</div>
+            </div>
+            <div className="mt-3 space-y-2">
+              {(narrative.krRetail?.topSignals ?? []).slice(0, 3).map((signal) => (
+                <div key={signal.id} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2">
+                  <div className="line-clamp-1 text-[11px] font-bold text-zinc-200">{signal.title}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+                    <span>{signal.source}</span>
+                    <span className={`rounded-full border px-1.5 py-0.5 font-bold ${krRetailClass(signal.mood)}`}>{signal.mood}</span>
+                    <span>{formatMetric(signal.positiveRatio, 0)}% positive</span>
+                    <span>{formatMetric(signal.conviction, 0)} conviction</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

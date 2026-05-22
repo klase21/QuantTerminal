@@ -460,3 +460,45 @@ The goal is not to show every metric, but to answer a simple operator question:
 > How did this narrative move from formation to acceleration, crowding, or fading?
 
 Current implementation derives replay frames from live market and narrative state, while keeping the architecture ready for persisted historical snapshots later.
+
+## Phase 20 — Opportunity Filtering Engine
+
+QuantTerminal now adds an opportunity compression layer.
+
+The terminal should not promote every signal. It filters noisy market events and surfaces only the setups that have enough confirmation from liquidity, breadth, participation, crowding safety, regional confirmation, and large-flow proxies.
+
+Operator-facing states are intentionally simple:
+
+```txt
+High Opportunity
+Emerging Setup
+Watchlist
+Overcrowded
+Exiting
+Suppressed
+```
+
+The main surface shows the compressed state. The narrative workspace keeps the evidence stack for drill-down.
+
+This phase turns QuantTerminal from a signal display into an opportunity filtering system:
+
+```txt
+Raw market events → confirmation checks → operator-readable opportunity state
+```
+
+## KR Retail Reaction Layer
+
+QuantTerminal now treats SaveTicker as a Korean retail reaction source, not as a simple news feed. The integration uses views, positive/negative votes, total vote participation, top-story flags, and story timing to estimate Korean retail attention, conviction, and crowding pressure.
+
+The output is compressed into simple operator states such as `KR Retail Euphoric`, `KR Retail Constructive`, `KR Retail Divided`, `KR Retail Defensive`, or `KR Retail Quiet`. This gives the terminal a behavioral read on Korean retail reaction that can support geo narrative diffusion, crowding risk, and opportunity filtering.
+
+
+## KR Retail Intelligence Layer
+
+QuantTerminal now combines Coinness and SaveTicker as a Korean retail behavior layer, not as a generic news feed.
+
+- **Coinness** is treated as the fast reaction layer through bull/bear counts on breaking news.
+- **SaveTicker** is treated as the conviction layer through views, votes, top-story flags, and positive/negative ratios.
+- The combined KR Retail Intelligence surface compresses these inputs into participation, conviction, reaction velocity, and crowd-risk context.
+
+The goal is to detect whether Korean retail is quiet, constructive, euphoric, defensive, or divided, then feed that state into geo narrative, crowding, and opportunity filtering.

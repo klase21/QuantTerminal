@@ -1,6 +1,7 @@
 import type { SectorRotationSnapshot } from "@/core/marketDataTypes"
 import { clamp } from "@/core/shared/metrics"
 import type { NewsFusionSurface } from "@/core/narrative/narrativeTypes"
+import type { KRRetailReactionSurface } from "@/core/krRetail/krRetailTypes"
 import type { GeoDiffusionState, GeoNarrativeRegion, GeoNarrativeState, GeoNarrativeSurface } from "./geoNarrativeTypes"
 
 function metric(value: number | undefined, digits = 0) {
@@ -89,7 +90,8 @@ function diffusionLabel(diffusion: GeoDiffusionState) {
 
 export function deriveGeoNarrativeSurface(
   sectors: SectorRotationSnapshot[],
-  newsFusion?: NewsFusionSurface
+  newsFusion?: NewsFusionSurface,
+  krRetail?: KRRetailReactionSurface
 ): GeoNarrativeSurface {
   const lead = topSector(sectors)
   const koreaLead = topForKorea(sectors)
@@ -114,7 +116,8 @@ export function deriveGeoNarrativeSurface(
   }
 
   const globalIntensity = clamp(lead.volumePressure * 0.40 + lead.rotationScore * 0.35 + lead.confidence * 0.25)
-  const koreaIntensity = clamp((koreaLead?.premiumBoost ?? 0) * 0.42 + (koreaLead?.volumePressure ?? 0) * 0.26 + krNews * 2.1 + (koreaLead?.breadth ?? 0) * 0.16)
+  const krRetailBoost = krRetail?.ok ? krRetail.participationScore * 0.24 + krRetail.convictionScore * 0.22 : 0
+  const koreaIntensity = clamp((koreaLead?.premiumBoost ?? 0) * 0.34 + (koreaLead?.volumePressure ?? 0) * 0.22 + krNews * 1.7 + (koreaLead?.breadth ?? 0) * 0.12 + krRetailBoost)
   const usIntensity = clamp(lead.volumePressure * 0.28 + lead.confidence * 0.22 + usNews * 2.4 + (usTags.includes(lead.sector) ? 18 : 0))
   const cnIntensity = clamp(cnNews * 3.0 + (cnTags.includes(lead.sector) ? 22 : 0) + lead.volatility * 0.15)
 
@@ -177,7 +180,9 @@ export function deriveGeoNarrativeSurface(
             : "No clear regional propagation path is confirmed yet."
 
   const operatorNote = diffusion === "KOREA_OVERHEAT"
-    ? "Treat Korea-led heat as fast retail risk unless breadth and global liquidity confirm."
+    ? krRetail?.mood === "Euphoric"
+      ? "KR retail reaction is euphoric. Treat Korea-led heat as fast retail risk unless breadth and global liquidity confirm."
+      : "Treat Korea-led heat as fast retail risk unless breadth and global liquidity confirm."
     : diffusion === "GLOBAL_SYNC"
       ? "Global synchronization raises conviction, but also watch for crowding if funding or volatility expands."
       : diffusion === "US_TO_KR" || diffusion === "KR_TO_GLOBAL"

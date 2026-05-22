@@ -129,8 +129,11 @@ export function deriveHistoricalReplaySurface(
   const boundedIndex = Math.min(Math.max(0, activeIndex), Math.max(0, frames.length - 1))
   const current = frames[boundedIndex] ?? null
   const caseStudy = caseStudyFromFrames(frames)
+  const opportunityLead = narrative.opportunity?.lead
   const compressedSummary = current
-    ? `${current.leadNarrative} is replaying as ${current.replayState.toLowerCase()} with ${Math.round(current.confidence)} confidence.`
+    ? opportunityLead
+      ? `${current.leadNarrative} is replaying as ${current.replayState.toLowerCase()}; current opportunity state is ${opportunityLead.label.toLowerCase()} with ${opportunityLead.confidence} confidence.`
+      : `${current.leadNarrative} is replaying as ${current.replayState.toLowerCase()} with ${Math.round(current.confidence)} confidence.`
     : "Replay is waiting for narrative state."
 
   return {
