@@ -27,7 +27,9 @@ import {
 } from "lucide-react"
 
 import { calculateMarketRegime } from "@/lib/regime/calculateMarketRegime"
-import type { MarketRegimeSnapshot, UpbitDataLabSnapshot } from "@/lib/regime/calculateMarketRegime"
+import { getCoreMigrationStats, terminalCoreManifest } from "@/core/terminalCoreManifest"
+import type { DataLabHistoryMetric, MarketRegimeSnapshot, UpbitDataLabSnapshot } from "@/lib/regime/calculateMarketRegime"
+import type { RealMarketRotationResponse } from "@/core/marketDataTypes"
 import { useMarketStore } from "@/stores/useMarketStore"
 import type { Ticker } from "@/types/market"
 
@@ -59,6 +61,11 @@ function formatDataLabValue(value?: number | null, suffix = "") {
 function formatScore(value: number) {
   if (!Number.isFinite(value)) return "—"
   return value.toFixed(2)
+}
+
+function clamp(value: number, min = 0, max = 100) {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, value))
 }
 
 function getDataLabStatus(snapshot: UpbitDataLabSnapshot | null, loading: boolean): DataLabStatus {
@@ -163,6 +170,23 @@ function getLiquidityTone(direction: string) {
   if (direction === "OUTFLOW") return "border-red-400/30 bg-red-500/10 text-red-200"
   if (direction === "CHURN") return "border-amber-400/30 bg-amber-500/10 text-amber-200"
   return "border-zinc-700 bg-zinc-900 text-zinc-400"
+}
+
+function getQualityTone(status?: string) {
+  if (status === "healthy" || status === "connected" || status === "strong") return "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+  if (status === "partial" || status === "medium" || status === "idle") return "border-amber-400/30 bg-amber-500/10 text-amber-200"
+  if (status === "degraded" || status === "stale" || status === "thin") return "border-orange-400/30 bg-orange-500/10 text-orange-200"
+  if (status === "error") return "border-red-400/30 bg-red-500/10 text-red-200"
+  return "border-zinc-700 bg-zinc-900 text-zinc-400"
+}
+
+function getBreakdownEntries(breakdown?: object) {
+  if (!breakdown) return []
+  return Object.entries(breakdown as Record<string, number>).map(([key, value]) => ({
+    key,
+    label: key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()),
+    value,
+  }))
 }
 
 type VisualTimelineEvent = {
@@ -1069,16 +1093,489 @@ function buildRotationPhase3Summary(rows: RotationIntelligenceRow[], snapshot: M
   return "Rotation intelligence is scanning for a confirmed sector leader."
 }
 
+
+type Phase4Severity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+type Phase4Status = "FIRED" | "QUEUED" | "SUPPRESSED" | "WATCH"
+
+type Phase4Alert = {
+  id: string
+  type: "REGIME" | "ROTATION" | "LIQUIDITY" | "VOLATILITY"
+  title: string
+  sector: string
+  severity: Phase4Severity
+  status: Phase4Status
+  confidence: number
+  cooldown: string
+  route: string
+  reasons: string[]
+  payload: string
+}
+
+type Phase4Event = {
+  id: string
+  bus: "EVENT_BUS" | "ALERT_ENGINE" | "COOLDOWN" | "OPERATOR"
+  title: string
+  detail: string
+  status: Phase4Status
+  severity: Phase4Severity
+}
+
+type CooldownSlot = {
+  key: string
+  label: string
+  remaining: string
+  state: "open" | "cooling" | "locked"
+}
+
+function getPhase4SeverityTone(severity: Phase4Severity) {
+  if (severity === "CRITICAL") return "border-red-300/40 bg-red-500/15 text-red-100 shadow-red-500/20"
+  if (severity === "HIGH") return "border-orange-300/35 bg-orange-500/15 text-orange-100 shadow-orange-500/15"
+  if (severity === "MEDIUM") return "border-amber-300/35 bg-amber-500/12 text-amber-100 shadow-amber-500/10"
+  return "border-cyan-300/25 bg-cyan-500/10 text-cyan-100 shadow-cyan-500/10"
+}
+
+function getPhase4StatusTone(status: Phase4Status) {
+  if (status === "FIRED") return "border-emerald-300/40 bg-emerald-500/15 text-emerald-100"
+  if (status === "QUEUED") return "border-cyan-300/35 bg-cyan-500/12 text-cyan-100"
+  if (status === "SUPPRESSED") return "border-zinc-700 bg-zinc-950 text-zinc-500"
+  return "border-amber-300/35 bg-amber-500/12 text-amber-100"
+}
+
+function getCooldownTone(state: CooldownSlot["state"]) {
+  if (state === "open") return "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+  if (state === "cooling") return "border-amber-400/30 bg-amber-500/10 text-amber-100"
+  return "border-zinc-800 bg-zinc-950 text-zinc-500"
+}
+
+function mapPriorityToSeverity(priority: AlertSimulation["priority"], confidence: number, direction?: string): Phase4Severity {
+  if (direction === "OUTFLOW" && confidence >= 72) return "CRITICAL"
+  if (priority === "HIGH" || confidence >= 76) return "HIGH"
+  if (priority === "MEDIUM" || confidence >= 60) return "MEDIUM"
+  return "LOW"
+}
+
+function buildPhase4AlertOS(
+  snapshot: MarketRegimeSnapshot,
+  selected: MarketRegimeSnapshot["liquidityRotations"][number] | undefined,
+  alert: AlertSimulation,
+  rotations: RotationIntelligenceRow[]
+) {
+  const leader = rotations[0]
+  const expansion = rotations.find((row) => row.lifecycle === "EXPANSION")
+  const outflow = rotations.find((row) => row.lifecycle === "OUTFLOW")
+  const highMover = [...rotations].sort((a, b) => b.rankDelta - a.rankDelta)[0]
+  const primary = selected ?? leader
+  const severity = mapPriorityToSeverity(alert.priority, primary?.confidence ?? snapshot.confidence, primary?.direction)
+
+  const alerts: Phase4Alert[] = []
+
+  if (primary) {
+    const status: Phase4Status = alert.status === "READY" ? "FIRED" : alert.status === "WATCH" ? "QUEUED" : "WATCH"
+    alerts.push({
+      id: `liquidity-${primary.sector}-${primary.direction}`,
+      type: "LIQUIDITY",
+      title: `${primary.sector} ${primary.direction} promotion`,
+      sector: primary.sector,
+      severity,
+      status,
+      confidence: primary.confidence,
+      cooldown: alert.cooldown,
+      route: status === "FIRED" ? "Event Bus → Alert Center → Operator HUD" : "Event Bus → Watch Queue",
+      reasons: [
+        `Liquidity score ${formatScore(primary.score)}`,
+        `Trigger stack ${primary.triggerCount}`,
+        `Regime context ${snapshot.regime}`,
+      ],
+      payload: `{ type: "LIQUIDITY_${primary.direction}", sector: "${primary.sector}", severity: "${severity}", confidence: ${formatScore(primary.confidence)} }`,
+    })
+  }
+
+  if (expansion) {
+    alerts.push({
+      id: `rotation-expansion-${expansion.sector}`,
+      type: "ROTATION",
+      title: `${expansion.sector} EXPANSION detected`,
+      sector: expansion.sector,
+      severity: expansion.confidence >= 82 ? "CRITICAL" : "HIGH",
+      status: expansion.rank <= 2 ? "FIRED" : "QUEUED",
+      confidence: expansion.confidence,
+      cooldown: "20m",
+      route: "Rotation Engine → Priority Queue",
+      reasons: [
+        `Lifecycle ${expansion.lifecycle}`,
+        `Regime fit ${formatScore(expansion.regimeFit)}`,
+        `Premium boost ${formatScore(expansion.premiumBoost)}`,
+      ],
+      payload: `{ type: "ROTATION_EXPANSION", sector: "${expansion.sector}", lifecycle: "${expansion.lifecycle}" }`,
+    })
+  }
+
+  if (outflow) {
+    alerts.push({
+      id: `risk-outflow-${outflow.sector}`,
+      type: "ROTATION",
+      title: `${outflow.sector} OUTFLOW risk`,
+      sector: outflow.sector,
+      severity: "HIGH",
+      status: snapshot.regime === "RISK_OFF" ? "FIRED" : "QUEUED",
+      confidence: outflow.confidence,
+      cooldown: "15m",
+      route: "Risk Monitor → Operator HUD",
+      reasons: [
+        `Negative price pressure ${formatScore(outflow.priceChange)}`,
+        `Volatility ${formatScore(outflow.volatility)}`,
+        `Risk regime ${snapshot.regime}`,
+      ],
+      payload: `{ type: "ROTATION_OUTFLOW", sector: "${outflow.sector}", regime: "${snapshot.regime}" }`,
+    })
+  }
+
+  if (highMover && highMover.rankDelta > 0) {
+    alerts.push({
+      id: `rank-change-${highMover.sector}`,
+      type: "ROTATION",
+      title: `${highMover.sector} rank acceleration`,
+      sector: highMover.sector,
+      severity: highMover.rankDelta >= 3 ? "HIGH" : "MEDIUM",
+      status: "QUEUED",
+      confidence: Math.min(95, highMover.confidence + highMover.rankDelta * 4),
+      cooldown: "30m",
+      route: "Rank Tracker → Watch Queue",
+      reasons: [
+        `Rank delta ${getRankDeltaLabel(highMover.rankDelta)}`,
+        `Current rank #${highMover.rank}`,
+        `Lifecycle ${highMover.lifecycle}`,
+      ],
+      payload: `{ type: "RANK_ACCELERATION", sector: "${highMover.sector}", rankDelta: ${highMover.rankDelta} }`,
+    })
+  }
+
+  const vol = snapshot.dataLab?.volatility ?? 0
+  if (vol >= 60) {
+    alerts.push({
+      id: "market-volatility-expansion",
+      type: "VOLATILITY",
+      title: "Market volatility expansion",
+      sector: "MARKET",
+      severity: vol >= 80 ? "CRITICAL" : "HIGH",
+      status: "QUEUED",
+      confidence: Math.min(95, vol),
+      cooldown: "25m",
+      route: "Volatility → Event Bus",
+      reasons: [`Volatility ${formatScore(vol)}`, `Regime ${snapshot.regime}`, "Use as context filter for sector alerts"],
+      payload: `{ type: "VOLATILITY_EXPANSION", volatility: ${formatScore(vol)} }`,
+    })
+  }
+
+  if (!alerts.length) {
+    alerts.push({
+      id: "lab-watch-scan",
+      type: "REGIME",
+      title: "No production-grade alert",
+      sector: "MARKET",
+      severity: "LOW",
+      status: "WATCH",
+      confidence: snapshot.confidence,
+      cooldown: "—",
+      route: "Regime Lab",
+      reasons: ["No sector cleared promotion threshold", "Keep scanning for persistence"],
+      payload: `{ type: "LAB_WATCH", regime: "${snapshot.regime}" }`,
+    })
+  }
+
+  const sortedAlerts = [...alerts].sort((a, b) => {
+    const weight = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }
+    return weight[b.severity] - weight[a.severity] || b.confidence - a.confidence
+  })
+
+  const firedCount = sortedAlerts.filter((item) => item.status === "FIRED").length
+  const queuedCount = sortedAlerts.filter((item) => item.status === "QUEUED").length
+  const osStatus = firedCount > 0 ? "ARMED" : queuedCount > 0 ? "QUEUEING" : "WATCH"
+  const hudFlash = firedCount > 0 || sortedAlerts.some((item) => item.severity === "CRITICAL")
+
+  const eventBus: Phase4Event[] = sortedAlerts.slice(0, 5).map((item, index) => ({
+    id: `event-${item.id}`,
+    bus: item.status === "FIRED" ? "ALERT_ENGINE" : item.status === "QUEUED" ? "EVENT_BUS" : item.status === "SUPPRESSED" ? "COOLDOWN" : "OPERATOR",
+    title: item.title,
+    detail: `${item.route} · ${item.reasons[0] ?? "No reason"}`,
+    status: item.status,
+    severity: item.severity,
+  }))
+
+  const cooldownSlots: CooldownSlot[] = sortedAlerts.slice(0, 4).map((item, index) => ({
+    key: item.id,
+    label: `${item.sector} ${item.type}`,
+    remaining: item.status === "FIRED" ? item.cooldown : index === 0 ? "open" : `${10 + index * 5}m`,
+    state: item.status === "FIRED" ? "cooling" : item.status === "QUEUED" && index > 1 ? "locked" : "open",
+  }))
+
+  return {
+    alerts: sortedAlerts,
+    eventBus,
+    cooldownSlots,
+    osStatus,
+    hudFlash,
+    topAlert: sortedAlerts[0],
+  }
+}
+
+
+type ReplayWindow = "30D" | "90D" | "180D"
+
+type ReplaySnapshot = {
+  index: number
+  date: string
+  fearGreed: number | null
+  volatility: number | null
+  altSeason: number | null
+  btcDominance: number | null
+  tradeVolumeTrend: number | null
+  premium: number | null
+  regime: string
+  temperature: number
+  alertCount: number
+  headline: string
+}
+
+type BacktestAlert = {
+  id: string
+  date: string
+  type: "ALT_ROTATION" | "VOL_EXPANSION" | "BTC_DEFENSIVE" | "K_PREMIUM" | "CAPITULATION"
+  title: string
+  detail: string
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+  next7dScore: number | null
+}
+
+function replayLimit(window: ReplayWindow) {
+  if (window === "30D") return 30
+  if (window === "90D") return 90
+  return 180
+}
+
+function replayPoint(points: DataLabHistoryMetric["points"] | undefined, index: number) {
+  const point = points?.[index]
+  return typeof point?.value === "number" && Number.isFinite(point.value) ? point.value : null
+}
+
+function replayDate(points: DataLabHistoryMetric["points"] | undefined, index: number) {
+  return points?.[index]?.date?.slice(0, 10) ?? `T-${index}D`
+}
+
+function inferReplayRegime(frame: Omit<ReplaySnapshot, "regime" | "headline" | "alertCount">) {
+  const fear = frame.fearGreed ?? 50
+  const vol = frame.volatility ?? 50
+  const alt = frame.altSeason ?? 50
+  const btc = frame.btcDominance ?? 50
+  const volume = frame.tradeVolumeTrend ?? 0
+  const premium = frame.premium ?? 0
+
+  if (fear < 25 && vol > 65) return "CAPITULATION"
+  if (btc > 62 && alt < 35) return "BTC_DEFENSIVE"
+  if (alt > 65 && volume > 0) return "ALT_ROTATION"
+  if (fear > 70 && vol > 60) return "EUPHORIA"
+  if (vol < 35 && alt < 55) return "COMPRESSION"
+  if (Math.abs(premium) > 1.5 && volume > 0) return "K_PREMIUM"
+  return "MIXED"
+}
+
+function buildReplaySnapshots(snapshot: MarketRegimeSnapshot, window: ReplayWindow): ReplaySnapshot[] {
+  const history = snapshot.dataLab?.history ?? {}
+  const fear = history.fearGreed
+  const vol = history.volatility
+  const alt = history.altSeason
+  const btc = history.btcDominance
+  const volume = history.tradeVolumeTrend
+  const premium = history.premium
+  const limit = Math.min(
+    replayLimit(window),
+    Math.max(
+      fear?.points?.length ?? 0,
+      vol?.points?.length ?? 0,
+      alt?.points?.length ?? 0,
+      btc?.points?.length ?? 0,
+      volume?.points?.length ?? 0,
+      premium?.points?.length ?? 0
+    )
+  )
+
+  const frames: ReplaySnapshot[] = []
+  for (let index = limit - 1; index >= 0; index -= 1) {
+    const base = {
+      index,
+      date:
+        replayDate(fear?.points, index) !== `T-${index}D`
+          ? replayDate(fear?.points, index)
+          : replayDate(vol?.points, index),
+      fearGreed: replayPoint(fear?.points, index),
+      volatility: replayPoint(vol?.points, index),
+      altSeason: replayPoint(alt?.points, index),
+      btcDominance: replayPoint(btc?.points, index),
+      tradeVolumeTrend: replayPoint(volume?.points, index),
+      premium: replayPoint(premium?.points, index),
+      temperature: 0,
+    }
+    const temperature = clamp(
+      (base.fearGreed ?? 50) * 0.24 +
+        (base.altSeason ?? 50) * 0.26 +
+        (base.volatility ?? 50) * 0.24 +
+        clamp(50 + (base.tradeVolumeTrend ?? 0)) * 0.16 +
+        clamp(50 + (base.premium ?? 0) * 10) * 0.1
+    )
+    const regime = inferReplayRegime({ ...base, temperature })
+    const headline =
+      regime === "ALT_ROTATION"
+        ? "Alt breadth and volume were aligned"
+        : regime === "BTC_DEFENSIVE"
+          ? "BTC dominance controlled the tape"
+          : regime === "COMPRESSION"
+            ? "Volatility stayed compressed"
+            : regime === "EUPHORIA"
+              ? "Sentiment and volatility overheated"
+              : regime === "CAPITULATION"
+                ? "Fear and volatility flashed stress"
+                : regime === "K_PREMIUM"
+                  ? "Korea premium pressure expanded"
+                  : "Mixed historical tape"
+
+    frames.push({ ...base, temperature, regime, alertCount: 0, headline })
+  }
+
+  return frames
+}
+
+function frameDelta(frames: ReplaySnapshot[], frameIndex: number, key: keyof ReplaySnapshot, lookback = 7) {
+  const current = frames[frameIndex]?.[key]
+  const previous = frames[frameIndex - lookback]?.[key]
+  if (typeof current !== "number" || typeof previous !== "number") return null
+  return current - previous
+}
+
+function buildBacktestAlerts(frames: ReplaySnapshot[]): BacktestAlert[] {
+  const alerts: BacktestAlert[] = []
+
+  frames.forEach((frame, i) => {
+    const alt7 = frameDelta(frames, i, "altSeason", 7)
+    const btc7 = frameDelta(frames, i, "btcDominance", 7)
+    const vol7 = frameDelta(frames, i, "volatility", 7)
+    const fear7 = frameDelta(frames, i, "fearGreed", 7)
+    const premium7 = frameDelta(frames, i, "premium", 7)
+    const volume7 = frameDelta(frames, i, "tradeVolumeTrend", 7)
+    const next = frames[i + 7]
+    const next7dScore = next ? next.temperature - frame.temperature : null
+
+    if ((alt7 ?? 0) > 6 && (btc7 ?? 0) < 0) {
+      alerts.push({
+        id: `${frame.date}-alt`,
+        date: frame.date,
+        type: "ALT_ROTATION",
+        title: "ALT_ROTATION backtest fired",
+        detail: `Altseason +${metric2(alt7)} while BTC dominance ${metric2(btc7)} over 7D.`,
+        severity: "HIGH",
+        next7dScore,
+      })
+    }
+
+    if ((vol7 ?? 0) > 8 && (fear7 ?? 0) > 0) {
+      alerts.push({
+        id: `${frame.date}-vol`,
+        date: frame.date,
+        type: "VOL_EXPANSION",
+        title: "VOL_EXPANSION backtest fired",
+        detail: `Volatility +${metric2(vol7)} with Fear/Greed ${metric2(fear7)} over 7D.`,
+        severity: "MEDIUM",
+        next7dScore,
+      })
+    }
+
+    if ((btc7 ?? 0) > 2 && (alt7 ?? 0) < -3) {
+      alerts.push({
+        id: `${frame.date}-btc`,
+        date: frame.date,
+        type: "BTC_DEFENSIVE",
+        title: "BTC_DEFENSIVE backtest fired",
+        detail: `BTC dominance +${metric2(btc7)} while altseason ${metric2(alt7)} over 7D.`,
+        severity: "MEDIUM",
+        next7dScore,
+      })
+    }
+
+    if ((premium7 ?? 0) > 0.8 && (volume7 ?? 0) > 0) {
+      alerts.push({
+        id: `${frame.date}-premium`,
+        date: frame.date,
+        type: "K_PREMIUM",
+        title: "K_PREMIUM backtest fired",
+        detail: `Premium +${metric2(premium7)} with volume ${metric2(volume7)} over 7D.`,
+        severity: "LOW",
+        next7dScore,
+      })
+    }
+
+    if ((frame.fearGreed ?? 50) < 25 && (frame.volatility ?? 0) > 65) {
+      alerts.push({
+        id: `${frame.date}-capitulation`,
+        date: frame.date,
+        type: "CAPITULATION",
+        title: "CAPITULATION backtest fired",
+        detail: `Fear ${metric2(frame.fearGreed)} with volatility ${metric2(frame.volatility)}.`,
+        severity: "CRITICAL",
+        next7dScore,
+      })
+    }
+  })
+
+  const alertCountByDate = new Map<string, number>()
+  alerts.forEach((alert) => alertCountByDate.set(alert.date, (alertCountByDate.get(alert.date) ?? 0) + 1))
+  frames.forEach((frame) => {
+    frame.alertCount = alertCountByDate.get(frame.date) ?? 0
+  })
+
+  return alerts.slice(-16).reverse()
+}
+
+function getReplayRegimeTone(regime: string) {
+  if (regime === "ALT_ROTATION") return "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-100"
+  if (regime === "BTC_DEFENSIVE") return "border-amber-400/30 bg-amber-500/10 text-amber-100"
+  if (regime === "EUPHORIA") return "border-pink-400/30 bg-pink-500/10 text-pink-100"
+  if (regime === "CAPITULATION") return "border-red-400/30 bg-red-500/10 text-red-100"
+  if (regime === "COMPRESSION") return "border-cyan-400/20 bg-cyan-500/10 text-cyan-100"
+  if (regime === "K_PREMIUM") return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
+  return "border-zinc-700 bg-zinc-900 text-zinc-300"
+}
+
+function getBacktestSeverityTone(severity: BacktestAlert["severity"]) {
+  if (severity === "CRITICAL") return "border-red-400/40 bg-red-500/15 text-red-100"
+  if (severity === "HIGH") return "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-100"
+  if (severity === "MEDIUM") return "border-amber-400/30 bg-amber-500/10 text-amber-100"
+  return "border-cyan-400/20 bg-cyan-500/10 text-cyan-100"
+}
+
+function buildReplayCaseStudy(frames: ReplaySnapshot[], alerts: BacktestAlert[]) {
+  if (!frames.length) return "History feed pending. Replay engine will activate after DataLab candles are parsed."
+  const hottest = [...frames].sort((a, b) => b.temperature - a.temperature)[0]
+  const mostAlerted = [...frames].sort((a, b) => b.alertCount - a.alertCount)[0]
+  const highAlerts = alerts.filter((alert) => alert.severity === "HIGH" || alert.severity === "CRITICAL").length
+  return `Replay window found ${alerts.length} alert fire(s), ${highAlerts} high-priority event(s). Hottest frame was ${hottest.date} in ${hottest.regime} with temperature ${metric2(hottest.temperature)}. Most clustered alert day: ${mostAlerted.date} (${mostAlerted.alertCount} event(s)).`
+}
+
 export default function RegimeLab() {
   const liveTickers = useMarketStore((state) => state.tickers)
   const [scenario, setScenario] = useState<ScenarioId>("live")
   const [dataLab, setDataLab] = useState<UpbitDataLabSnapshot | null>(null)
   const [dataLabLoading, setDataLabLoading] = useState(false)
   const [dataLabError, setDataLabError] = useState<string | null>(null)
+  const [realRotation, setRealRotation] = useState<RealMarketRotationResponse | null>(null)
+  const [realRotationLoading, setRealRotationLoading] = useState(false)
+  const [realRotationError, setRealRotationError] = useState<string | null>(null)
+  const [rotationDataMode, setRotationDataMode] = useState<"real" | "simulated">("real")
   const [flowPlaying, setFlowPlaying] = useState(true)
   const [flowStep, setFlowStep] = useState(0)
   const [selectedLiquiditySector, setSelectedLiquiditySector] = useState<string | null>(null)
   const [previousSectorRanks, setPreviousSectorRanks] = useState<Record<string, number>>({})
+  const [replayWindow, setReplayWindow] = useState<ReplayWindow>("90D")
+  const [replayPlaying, setReplayPlaying] = useState(false)
+  const [replayCursor, setReplayCursor] = useState(0)
 
   async function refreshDataLab() {
     setDataLabLoading(true)
@@ -1100,9 +1597,35 @@ export default function RegimeLab() {
     }
   }
 
+  async function refreshRealRotation() {
+    setRealRotationLoading(true)
+    setRealRotationError(null)
+
+    try {
+      const response = await fetch("/api/market/sector-rotation", { cache: "no-store" })
+      const json = (await response.json()) as RealMarketRotationResponse
+      setRealRotation(json)
+
+      if (!json.ok) {
+        setRealRotationError(json.notes?.[0] ?? "Real market sector rotation returned no mapped sectors.")
+      }
+    } catch (error) {
+      setRealRotationError(error instanceof Error ? error.message : "Failed to fetch real sector rotation")
+      setRealRotation(null)
+    } finally {
+      setRealRotationLoading(false)
+    }
+  }
+
   useEffect(() => {
     refreshDataLab()
     const timer = window.setInterval(refreshDataLab, 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    refreshRealRotation()
+    const timer = window.setInterval(refreshRealRotation, 45_000)
     return () => window.clearInterval(timer)
   }, [])
 
@@ -1150,6 +1673,32 @@ export default function RegimeLab() {
   const phase3Leader = rotationIntelligence[0]
   const phase3Mover = [...rotationIntelligence].sort((a, b) => b.rankDelta - a.rankDelta)[0]
   const phase3Summary = buildRotationPhase3Summary(rotationIntelligence, snapshot)
+  const phase4AlertOS = buildPhase4AlertOS(snapshot, selectedLiquidity, alertSimulation, rotationIntelligence)
+  const replaySnapshots = useMemo(() => buildReplaySnapshots(snapshot, replayWindow), [snapshot, replayWindow])
+  const replayFrame = replaySnapshots[replayCursor] ?? replaySnapshots[replaySnapshots.length - 1]
+  const backtestAlerts = useMemo(() => buildBacktestAlerts(replaySnapshots), [replaySnapshots])
+  const replayCaseStudy = buildReplayCaseStudy(replaySnapshots, backtestAlerts)
+  const coreMigrationStats = getCoreMigrationStats()
+  const realRotationLeader = realRotation?.sectors?.[0]
+  const realRotationBySector = useMemo(() => {
+    return new Map((realRotation?.sectors ?? []).map((sector) => [sector.sector, sector]))
+  }, [realRotation])
+  const selectedRealSector = selectedLiquiditySector ? realRotationBySector.get(selectedLiquiditySector) : realRotationLeader
+  const realRotationStatus = realRotationLoading
+    ? "loading"
+    : realRotationError
+      ? "error"
+      : realRotation?.ok
+        ? realRotation.mode
+        : "idle"
+  const dataQuality = realRotation?.dataQuality
+  const coverageAudit = realRotation?.coverageAudit ?? []
+  const weakestCoverage = [...coverageAudit].sort((a, b) => a.coverageRatio - b.coverageRatio).slice(0, 3)
+  const selectedBreakdownEntries = getBreakdownEntries(selectedRealSector?.scoreBreakdown)
+  const simulatedLeader = snapshot.liquidityRotations[0]
+  const activeRotationLabel = rotationDataMode === "real"
+    ? selectedRealSector?.sector ?? realRotationLeader?.sector ?? "Waiting"
+    : simulatedLeader?.sector ?? "Waiting"
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -1157,6 +1706,20 @@ export default function RegimeLab() {
     }, 1800)
     return () => window.clearTimeout(id)
   }, [snapshot.regime, snapshot.liquidityRotations.map((item) => `${item.sector}:${item.rank}:${item.score}`).join("|")])
+
+
+
+  useEffect(() => {
+    setReplayCursor((current) => Math.min(current, Math.max(0, replaySnapshots.length - 1)))
+  }, [replaySnapshots.length])
+
+  useEffect(() => {
+    if (!replayPlaying || replaySnapshots.length <= 1) return
+    const timer = window.setInterval(() => {
+      setReplayCursor((current) => (current + 1) % replaySnapshots.length)
+    }, 900)
+    return () => window.clearInterval(timer)
+  }, [replayPlaying, replaySnapshots.length])
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pr-1">
@@ -1181,6 +1744,337 @@ export default function RegimeLab() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="rounded-3xl border border-cyan-400/20 bg-black/50 p-4 shadow-xl shadow-cyan-950/10">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">
+              <Layers3 className="h-4 w-4" /> Phase 6 / Terminal Core Refactor
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">
+              Regime Lab remains the visual sandbox, while reusable intelligence contracts are being extracted into /core.
+            </p>
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-center text-xs">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-3 py-2">
+              <div className="text-lg font-black text-white">{coreMigrationStats.total}</div>
+              <div className="uppercase tracking-widest text-zinc-600">Modules</div>
+            </div>
+            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
+              <div className="text-lg font-black text-emerald-200">{coreMigrationStats.extracted}</div>
+              <div className="uppercase tracking-widest text-emerald-500/80">Extracted</div>
+            </div>
+            <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2">
+              <div className="text-lg font-black text-amber-200">{coreMigrationStats.scaffold}</div>
+              <div className="uppercase tracking-widest text-amber-500/80">Scaffold</div>
+            </div>
+            <div className="rounded-2xl border border-zinc-700 bg-zinc-950 px-3 py-2">
+              <div className="text-lg font-black text-zinc-300">{coreMigrationStats.pending}</div>
+              <div className="uppercase tracking-widest text-zinc-600">Pending</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {terminalCoreManifest.map((module) => (
+            <div
+              key={module.key}
+              className={`rounded-2xl border p-3 ${
+                module.status === "extracted"
+                  ? "border-emerald-400/20 bg-emerald-500/10"
+                  : module.status === "scaffold"
+                    ? "border-amber-400/20 bg-amber-500/10"
+                    : "border-zinc-800 bg-zinc-950"
+              }`}
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="text-xs font-black uppercase tracking-widest text-zinc-200">{module.label}</div>
+                <span className="rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                  {module.status}
+                </span>
+              </div>
+              <div className="mb-2 font-mono text-[10px] text-cyan-300/80">{module.path}</div>
+              <p className="text-[11px] leading-5 text-zinc-500">{module.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-emerald-400/20 bg-black/50 p-4 shadow-xl shadow-emerald-950/10">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">
+              <RadioTower className="h-4 w-4" /> Phase 7 / Real Market Integration
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">
+              Binance global ticker aggregation + Upbit KRW overlay. This panel is live-data first and keeps the main dashboard untouched.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <button
+              onClick={refreshRealRotation}
+              className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 font-semibold uppercase tracking-widest text-emerald-200 hover:bg-emerald-400/20"
+            >
+              Refresh Real Rotation
+            </button>
+            <span className={`rounded-full border px-3 py-1.5 font-semibold uppercase tracking-widest ${
+              realRotationStatus === "real-market" || realRotationStatus === "partial"
+                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                : realRotationStatus === "loading"
+                  ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-200"
+                  : realRotationStatus === "error"
+                    ? "border-red-400/30 bg-red-500/10 text-red-200"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-400"
+            }`}>
+              {String(realRotationStatus).toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        {realRotationError && (
+          <div className="mb-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-3 text-xs text-red-200">
+            {realRotationError}
+          </div>
+        )}
+
+        <div className="mb-3 grid gap-2 md:grid-cols-4">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Mapped Assets</div>
+            <div className="mt-1 text-2xl font-black text-white">{realRotation?.coverage.mappedAssets ?? "—"}</div>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Sectors</div>
+            <div className="mt-1 text-2xl font-black text-white">{realRotation?.coverage.sectors ?? "—"}</div>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Binance Feed</div>
+            <div className="mt-1 text-2xl font-black text-white">{realRotation?.coverage.binanceSymbols ?? "—"}</div>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Upbit Overlay</div>
+            <div className="mt-1 text-2xl font-black text-white">{realRotation?.coverage.upbitSymbols ?? "—"}</div>
+          </div>
+        </div>
+
+        <div className="mb-3 grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-black uppercase tracking-widest text-cyan-200">Data Quality Panel</div>
+                <div className="mt-1 text-[11px] text-cyan-100/60">Connector health, stale/partial data, and response quality for live sector rotation.</div>
+              </div>
+              <span className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${getQualityTone(dataQuality?.status)}`}>
+                {dataQuality?.status ?? "idle"}
+              </span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-4">
+              {(dataQuality?.connectors ?? [
+                { name: "binance", status: "idle" },
+                { name: "upbit-markets", status: "idle" },
+                { name: "upbit-ticker", status: "idle" },
+                { name: "datalab", status: "idle" },
+              ]).map((connector) => (
+                <div key={connector.name} className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{connector.name}</div>
+                    <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase ${getQualityTone(connector.status)}`}>{connector.status}</span>
+                  </div>
+                  <div className="font-mono text-xs text-zinc-300">
+                    {typeof connector.records === "number" ? `${connector.records} records` : "records —"}
+                  </div>
+                  <div className="mt-1 truncate text-[10px] text-zinc-600">
+                    {typeof connector.latencyMs === "number" ? `${connector.latencyMs}ms` : "latency —"}
+                    {connector.message ? ` · ${connector.message}` : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-black uppercase tracking-widest text-amber-200">Real vs Simulated Toggle</div>
+                <div className="mt-1 text-[11px] text-amber-100/60">Compare live sector data against the sandbox liquidity model.</div>
+              </div>
+              <div className="flex rounded-full border border-white/10 bg-black/40 p-1 text-[10px] font-bold uppercase tracking-widest">
+                {["real", "simulated"].map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setRotationDataMode(mode as "real" | "simulated")}
+                    className={`rounded-full px-3 py-1 ${rotationDataMode === mode ? "bg-white text-black" : "text-zinc-500 hover:text-zinc-200"}`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                <div className="text-zinc-600">Active Focus</div>
+                <div className="mt-1 font-mono text-zinc-100">{activeRotationLabel}</div>
+              </div>
+              <div className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                <div className="text-zinc-600">Fallback Read</div>
+                <div className="mt-1 font-mono text-zinc-100">{simulatedLeader ? `${simulatedLeader.sector} / ${simulatedLeader.direction}` : "—"}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-3 grid gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+            <div className="mb-3 text-xs font-black uppercase tracking-widest text-zinc-300">Sector Coverage Audit</div>
+            <div className="space-y-2">
+              {coverageAudit.slice(0, 8).map((item) => (
+                <div key={item.sector} className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="text-xs font-bold text-zinc-200">{item.sector}</div>
+                    <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase ${getQualityTone(item.quality)}`}>{item.quality}</span>
+                  </div>
+                  <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-zinc-900">
+                    <div className="h-full rounded-full bg-cyan-300" style={{ width: getFlowWidth(item.coverageRatio) }} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 text-[10px] uppercase tracking-widest text-zinc-600">
+                    <div>{formatScore(item.coverageRatio)}%</div>
+                    <div>{item.activeAssets}/{item.registrySymbols}</div>
+                    <div>BN {item.binanceAssets}</div>
+                    <div>UP {item.upbitAssets}</div>
+                  </div>
+                </div>
+              ))}
+              {!coverageAudit.length && <div className="text-xs text-zinc-600">Waiting for coverage audit.</div>}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+            <div className="mb-3 text-xs font-black uppercase tracking-widest text-zinc-300">Score Explainability</div>
+            {selectedRealSector ? (
+              <div className="space-y-2">
+                <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300/80">Selected Sector</div>
+                  <div className="mt-1 text-xl font-black text-white">{selectedRealSector.sector}</div>
+                  <div className="text-xs text-emerald-100/70">Rotation Score {formatScore(selectedRealSector.rotationScore)}</div>
+                </div>
+                {selectedBreakdownEntries.map((entry) => (
+                  <div key={entry.key} className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                    <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-widest">
+                      <span className="text-zinc-500">{entry.label}</span>
+                      <span className="font-mono text-zinc-200">{formatScore(entry.value)}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-zinc-900">
+                      <div className="h-full rounded-full bg-emerald-300" style={{ width: getFlowWidth(entry.value) }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-zinc-600">Select a live sector to inspect score factors.</div>
+            )}
+          </div>
+        </div>
+
+        {weakestCoverage.length ? (
+          <div className="mb-3 rounded-2xl border border-orange-400/20 bg-orange-500/10 p-3 text-xs text-orange-100">
+            Weak coverage watch: {weakestCoverage.map((item) => `${item.sector} ${formatScore(item.coverageRatio)}%`).join(" · ")}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 xl:grid-cols-[1.4fr_0.8fr]">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-xs font-black uppercase tracking-widest text-zinc-300">Live Sector Rotation Ranking</div>
+              <div className="text-[10px] uppercase tracking-widest text-zinc-600">
+                {realRotation?.updatedAt ? new Date(realRotation.updatedAt).toLocaleTimeString() : "waiting"}
+              </div>
+            </div>
+            <div className="space-y-2">
+              {(realRotation?.sectors ?? []).slice(0, 8).map((sector) => (
+                <button
+                  key={sector.sector}
+                  onClick={() => setSelectedLiquiditySector(sector.sector)}
+                  className={`w-full rounded-2xl border p-3 text-left transition hover:border-emerald-400/40 ${
+                    selectedLiquiditySector === sector.sector
+                      ? "border-emerald-400/40 bg-emerald-500/10"
+                      : "border-zinc-800 bg-black/30"
+                  }`}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-black text-zinc-300">#{sector.rank}</span>
+                      <span className="text-sm font-black text-white">{sector.sector}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${getLiquidityTone(sector.direction)}`}>{sector.direction}</span>
+                    </div>
+                    <div className="font-mono text-xs text-emerald-200">{formatScore(sector.rotationScore)}</div>
+                  </div>
+                  <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-zinc-900">
+                    <div className="h-full rounded-full bg-emerald-300" style={{ width: getFlowWidth(sector.rotationScore) }} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
+                    <div>Vol {formatScore(sector.volumePressure)}</div>
+                    <div>Volty {formatScore(sector.volatility)}</div>
+                    <div>Price {formatScore(sector.avgPriceChange)}%</div>
+                    <div>Breadth {formatScore(sector.breadth)}</div>
+                  </div>
+                </button>
+              ))}
+              {!realRotation?.sectors?.length && (
+                <div className="rounded-2xl border border-zinc-800 bg-black/30 p-4 text-sm text-zinc-500">
+                  Waiting for live Binance/Upbit sector data. The sandbox scenario panels below still work independently.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+            <div className="mb-3 text-xs font-black uppercase tracking-widest text-zinc-300">Real Rotation Drilldown</div>
+            {selectedRealSector ? (
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/80">Command Focus</div>
+                  <div className="mt-1 text-2xl font-black text-white">{selectedRealSector.sector}</div>
+                  <div className="mt-1 text-xs text-emerald-100">{selectedRealSector.story}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                    <div className="text-zinc-600">Confidence</div>
+                    <div className="font-mono text-zinc-100">{formatScore(selectedRealSector.confidence)}</div>
+                  </div>
+                  <div className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                    <div className="text-zinc-600">Regime Fit</div>
+                    <div className="font-mono text-zinc-100">{formatScore(selectedRealSector.regimeFit)}</div>
+                  </div>
+                  <div className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                    <div className="text-zinc-600">Top Symbols</div>
+                    <div className="font-mono text-zinc-100">{selectedRealSector.topSymbols.join(", ") || "—"}</div>
+                  </div>
+                  <div className="rounded-xl border border-zinc-800 bg-black/30 p-2">
+                    <div className="text-zinc-600">Assets</div>
+                    <div className="font-mono text-zinc-100">{selectedRealSector.positiveCount}/{selectedRealSector.assetCount} positive</div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {selectedRealSector.evidence.map((item) => (
+                    <div key={item} className="rounded-xl border border-zinc-800 bg-black/30 px-3 py-2 text-xs text-zinc-300">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-zinc-800 bg-black/30 p-4 text-sm text-zinc-500">
+                Select a live sector candidate to inspect evidence.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {realRotation?.notes?.length ? (
+          <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-xs text-amber-100">
+            {realRotation.notes.join(" · ")}
+          </div>
+        ) : null}
       </div>
 
       <div className={`relative overflow-hidden rounded-3xl border bg-gradient-to-br ${accent} p-5 shadow-2xl shadow-black/40`}>
@@ -1742,6 +2636,128 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           <pre className="max-h-56 overflow-auto rounded-xl border border-zinc-900 bg-black/60 p-4 text-xs leading-5 text-cyan-100">
 {alertSimulation.payload}
           </pre>
+        </div>
+      </div>
+
+      <div className={`relative overflow-hidden rounded-3xl border p-4 shadow-2xl ${phase4AlertOS.hudFlash ? "border-red-300/30 bg-red-950/25 shadow-red-950/30" : "border-cyan-400/20 bg-black/75 shadow-cyan-950/20"}`}>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(34,211,238,0.16),transparent_30%),radial-gradient(circle_at_88%_25%,rgba(244,63,94,0.12),transparent_28%),radial-gradient(circle_at_50%_100%,rgba(16,185,129,0.10),transparent_35%)]" />
+        {phase4AlertOS.hudFlash && <div className="pointer-events-none absolute inset-x-0 top-0 h-px animate-pulse bg-red-300/70" />}
+
+        <div className="relative mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
+              <RadioTower className={`h-4 w-4 ${phase4AlertOS.hudFlash ? "animate-pulse text-red-200" : "text-cyan-200"}`} />
+              Phase 4 Alert Operating System
+            </div>
+            <div className="mt-1 text-xs text-zinc-500">
+              Real alert promotion layer: severity, cooldown, dedupe, event bus, priority queue, and operator sync. Sandbox only.
+            </div>
+          </div>
+          <div className={`rounded-full border px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.28em] ${phase4AlertOS.osStatus === "ARMED" ? "border-red-300/40 bg-red-500/15 text-red-100" : phase4AlertOS.osStatus === "QUEUEING" ? "border-cyan-300/35 bg-cyan-500/12 text-cyan-100" : "border-zinc-700 bg-zinc-950 text-zinc-400"}`}>
+            {phase4AlertOS.osStatus}
+          </div>
+        </div>
+
+        <div className="relative grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="grid gap-4">
+            <div className={`rounded-3xl border p-5 ${getPhase4SeverityTone(phase4AlertOS.topAlert.severity)}`}>
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.25em] opacity-70">Top Priority Alert</div>
+                  <div className="mt-2 text-3xl font-black text-white">{phase4AlertOS.topAlert.title}</div>
+                </div>
+                <div className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getPhase4StatusTone(phase4AlertOS.topAlert.status)}`}>
+                  {phase4AlertOS.topAlert.status}
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-4">
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                  <div className="text-2xl font-black text-white">{phase4AlertOS.topAlert.severity}</div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-60">Severity</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                  <div className="text-2xl font-black text-white">{formatScore(phase4AlertOS.topAlert.confidence)}</div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-60">Confidence</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                  <div className="text-2xl font-black text-white">{phase4AlertOS.topAlert.cooldown}</div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-60">Cooldown</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                  <div className="text-2xl font-black text-white">{phase4AlertOS.alerts.length}</div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-60">Queue</div>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-2">
+                {phase4AlertOS.topAlert.reasons.map((reason) => (
+                  <div key={reason} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs leading-5 text-white/80">
+                    ✓ {reason}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+              <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-600">
+                <Shield className="h-4 w-4" /> Cooldown / Deduplication Slots
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {phase4AlertOS.cooldownSlots.map((slot) => (
+                  <div key={slot.key} className={`rounded-2xl border p-3 ${getCooldownTone(slot.state)}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-black uppercase tracking-widest text-white">{slot.label}</div>
+                      <div className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest">{slot.state}</div>
+                    </div>
+                    <div className="mt-2 text-lg font-black text-white">{slot.remaining}</div>
+                    <div className="mt-1 text-[10px] uppercase tracking-widest opacity-60">duplicate suppression window</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+              <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-600">
+                <GitBranch className="h-4 w-4" /> Event Bus Stream
+              </div>
+              <div className="space-y-3">
+                {phase4AlertOS.eventBus.map((event, index) => (
+                  <div key={event.id} className={`grid gap-3 rounded-2xl border p-4 md:grid-cols-[36px_1fr_auto] md:items-center ${getPhase4SeverityTone(event.severity)}`}>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/30 text-xs font-black">{index + 1}</div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-black text-white">{event.title}</div>
+                        <span className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest">{event.bus}</span>
+                      </div>
+                      <div className="mt-1 text-xs leading-5 opacity-75">{event.detail}</div>
+                    </div>
+                    <div className={`rounded-xl border px-3 py-2 text-center text-[10px] font-black uppercase tracking-widest ${getPhase4StatusTone(event.status)}`}>
+                      {event.status}<br />
+                      <span className="opacity-60">{event.severity}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+              <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-600">
+                <Target className="h-4 w-4" /> Priority Queue Payloads
+              </div>
+              <div className="grid gap-2">
+                {phase4AlertOS.alerts.slice(0, 4).map((alertItem) => (
+                  <div key={alertItem.id} className={`rounded-2xl border p-3 ${getPhase4StatusTone(alertItem.status)}`}>
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs font-black uppercase tracking-widest text-white">{alertItem.type} · {alertItem.sector}</div>
+                      <div className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest ${getPhase4SeverityTone(alertItem.severity)}`}>{alertItem.severity}</div>
+                    </div>
+                    <code className="block rounded-xl border border-white/10 bg-black/35 p-2 text-[11px] leading-5 text-cyan-100">{alertItem.payload}</code>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2602,6 +3618,163 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
             <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-600">Phase 1 Output</div>
             <div className="text-sm leading-6 text-zinc-300">
               Use this pack to decide whether a signal stays in lab, moves to watch, or becomes an alert candidate. Redundant cards are intentional for now; cleanup can happen after the terminal language feels right.
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <div className="relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-black/75 p-4 shadow-2xl shadow-cyan-950/20">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_12%,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_82%_32%,rgba(168,85,247,0.12),transparent_30%),linear-gradient(90deg,rgba(34,211,238,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(168,85,247,0.04)_1px,transparent_1px)] bg-[length:auto,auto,44px_44px,44px_44px]" />
+        <div className="relative mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
+              <Play className="h-4 w-4" />
+              Phase 5 Replay & Backtest Intelligence
+            </div>
+            <div className="mt-1 max-w-4xl text-xs leading-5 text-zinc-500">
+              Historical DataLab candles are merged into replayable daily frames. Phase 4 alert rules are applied backward to preview regime transitions, alert clusters, and signal quality before any rule graduates from the lab.
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {(["30D", "90D", "180D"] as ReplayWindow[]).map((windowId) => (
+              <button
+                key={windowId}
+                onClick={() => {
+                  setReplayWindow(windowId)
+                  setReplayCursor(0)
+                }}
+                className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest transition ${
+                  replayWindow === windowId
+                    ? "border-cyan-300/60 bg-cyan-400/10 text-cyan-100"
+                    : "border-zinc-800 bg-black/40 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                }`}
+              >
+                {windowId}
+              </button>
+            ))}
+            <button
+              onClick={() => setReplayPlaying((value) => !value)}
+              className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-100"
+            >
+              {replayPlaying ? "Pause" : "Play"}
+            </button>
+            <button
+              onClick={() => setReplayCursor((current) => (current + 1) % Math.max(1, replaySnapshots.length))}
+              className="rounded-full border border-zinc-700 bg-zinc-950 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-zinc-300"
+            >
+              Step
+            </button>
+          </div>
+        </div>
+
+        <div className="relative grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-4">
+            <div className={`rounded-3xl border p-5 ${getReplayRegimeTone(replayFrame?.regime ?? "MIXED")}`}>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.28em] opacity-70">Replay Frame</div>
+                <div className="rounded-full border border-white/10 bg-black/30 px-2 py-1 text-[10px] font-black uppercase tracking-widest">
+                  {replayFrame?.date ?? "NO DATA"}
+                </div>
+              </div>
+              <div className="text-3xl font-black text-white">{replayFrame?.regime ?? "HISTORY PENDING"}</div>
+              <div className="mt-2 text-xs leading-5 opacity-80">{replayFrame?.headline ?? "DataLab history is not available yet."}</div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl border border-white/10 bg-black/25 p-2">
+                  <div className="text-[9px] uppercase tracking-widest opacity-60">Temp</div>
+                  <div className="mt-1 text-lg font-black text-white">{metric2(replayFrame?.temperature)}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/25 p-2">
+                  <div className="text-[9px] uppercase tracking-widest opacity-60">Alerts</div>
+                  <div className="mt-1 text-lg font-black text-white">{replayFrame?.alertCount ?? 0}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/25 p-2">
+                  <div className="text-[9px] uppercase tracking-widest opacity-60">Frame</div>
+                  <div className="mt-1 text-lg font-black text-white">{replaySnapshots.length ? replayCursor + 1 : 0}/{replaySnapshots.length}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+              <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-600">Replay Metrics</div>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                {[
+                  ["Fear", replayFrame?.fearGreed],
+                  ["Vol", replayFrame?.volatility],
+                  ["Alt", replayFrame?.altSeason],
+                  ["BTC Dom", replayFrame?.btcDominance],
+                  ["Volume", replayFrame?.tradeVolumeTrend],
+                  ["Premium", replayFrame?.premium],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-xl border border-zinc-900 bg-black/35 p-3">
+                    <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">{label}</div>
+                    <div className="mt-1 text-lg font-black text-white">{metric2(value as number | null)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4">
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-200">Case Study Generator</div>
+              <div className="text-sm leading-6 text-cyan-50/85">{replayCaseStudy}</div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-600">Replay Timeline</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{replayWindow}</div>
+              </div>
+              <div className="flex h-28 items-end gap-1 overflow-hidden rounded-2xl border border-zinc-900 bg-black/40 p-3">
+                {replaySnapshots.map((frame, index) => {
+                  const active = index === replayCursor
+                  const height = 12 + (frame.temperature / 100) * 76
+                  return (
+                    <button
+                      key={`${frame.date}-${index}`}
+                      onClick={() => setReplayCursor(index)}
+                      className={`relative flex-1 rounded-t transition ${active ? "bg-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.8)]" : frame.alertCount ? "bg-fuchsia-300/80" : "bg-zinc-600/80 hover:bg-zinc-400"}`}
+                      style={{ height }}
+                      title={`${frame.date} ${frame.regime}`}
+                    >
+                      {frame.alertCount > 0 && <span className="absolute -top-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-red-300 shadow-[0_0_10px_rgba(248,113,113,0.8)]" />}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-3 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-zinc-600">
+                <span>Oldest</span>
+                <span>Alert markers = pink bars / red dots</span>
+                <span>Latest</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-4">
+              <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-fuchsia-200">
+                <BellRing className="h-3.5 w-3.5" />
+                Alert Backtest Panel
+              </div>
+              <div className="space-y-2">
+                {backtestAlerts.slice(0, 6).map((alert) => (
+                  <div key={alert.id} className={`rounded-2xl border p-3 ${getBacktestSeverityTone(alert.severity)}`}>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <div className="text-xs font-black uppercase tracking-widest text-white">{alert.title}</div>
+                      <div className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{alert.severity}</div>
+                    </div>
+                    <div className="text-[11px] leading-5 opacity-80">{alert.date} · {alert.detail}</div>
+                    <div className="mt-2 text-[10px] font-bold uppercase tracking-widest opacity-70">
+                      Next 7D temp delta: {metric2(alert.next7dScore)}
+                    </div>
+                  </div>
+                ))}
+                {!backtestAlerts.length && (
+                  <div className="rounded-2xl border border-zinc-800 bg-black/35 p-4 text-xs leading-5 text-zinc-500">
+                    No backtest alerts fired in this window. Try 180D or wait for full DataLab history parsing.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

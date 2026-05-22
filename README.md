@@ -308,3 +308,87 @@ QuantTerminal is currently evolving rapidly as an experimental realtime intellig
 # License
 
 MIT
+## Phase 6 — Terminal Core Refactor
+
+Phase 6 starts the migration from a large experimental `RegimeLab.tsx` sandbox into a reusable terminal intelligence core.
+
+New core boundaries:
+
+- `core/shared/metrics.ts` — shared metric helpers such as clamp, percentile, compact formatting, and direction detection.
+- `core/registry/sectorRegistry.ts` — canonical sector registry with aliases, symbol mapping, weights, and descriptions.
+- `core/event-bus/*` — typed terminal event stream for regime, rotation, replay, DataLab, and alert events.
+- `core/alerts/*` — alert payload contracts and promotion evaluation boundary.
+- `core/regime/*` — regime IDs and transition rules for the state machine.
+- `core/rotation/*` — sector rotation state machine contracts and score decomposition.
+- `core/replay/*` — historical snapshot and replay frame contracts.
+- `core/workers/*` — message contracts for future WebWorker separation.
+
+The current UI remains in `components/experimental/RegimeLab.tsx` so the existing DashboardLayout is not disturbed. The next cleanup pass should move calculation-heavy Phase 1–5 logic from the component into these `/core` modules.
+
+## Phase 7 — Real Market Integration Pack
+
+Regime Lab now includes a sandbox-only real market integration layer. It does not modify the main dashboard layout.
+
+### Added
+
+- `app/api/market/sector-rotation/route.ts`
+  - Pulls Binance 24h tickers.
+  - Pulls Upbit KRW markets/tickers for Korean retail overlay.
+  - Pulls Upbit DataLab overview for premium context.
+- `core/market/realMarketRotation.ts`
+  - Builds live sector rotation ranking.
+  - Calculates volume pressure, breadth, volatility proxy, premium boost, regime fit, confidence, and direction.
+- `core/marketDataTypes.ts`
+  - Shared contracts for real market rotation responses.
+- Expanded `core/registry/sectorRegistry.ts`
+  - AI, MEME, RWA, GAMING, DEFI, L1, INFRA, DEPIN, EXCHANGE, PAYFI.
+- `components/experimental/RegimeLab.tsx`
+  - Adds Phase 7 Real Market Integration panel.
+  - Shows live sector ranking, coverage, leader, evidence, and top symbols.
+
+### Philosophy
+
+Phase 7 uses `Global rotation + Korean retail overlay` as the default architecture. Binance is treated as the global price-discovery feed, while Upbit KRW tickers and DataLab premium act as the Korea-specific sentiment overlay.
+
+## Phase 11 — Narrative Intelligence Pack
+
+Phase 11 adds a narrative interpretation layer on top of live sector rotation.
+
+### Added
+
+- `core/narrative/narrativeTypes.ts`
+  - Narrative surface contracts for heatmap, story timeline, event compression, regional divergence, and operator commentary.
+- `core/narrative/generateNarrativeSurface.ts`
+  - Compresses sector rotation events into market narratives.
+  - Infers narrative regime and tone from live sector rotation.
+  - Generates AI-style market summary, narrative heatmap, story timeline, and operator commentary.
+- `components/narrative/NarrativeIntelligenceSurface.tsx`
+  - Live narrative panel connected to `/api/market/sector-rotation`.
+  - Displays lead story, heat, tone, regional divergence, commentary, story timeline, and event compression.
+- `components/DashboardLayout.tsx`
+  - Adds Narrative Intelligence Surface under the Phase 10 Live Command Surface.
+
+### Goal
+
+Phase 11 moves the terminal from raw event visualization toward market interpretation:
+
+`Rotation data → Narrative compression → Operator summary → Story timeline`
+
+## Phase 13 - Signal Quality & False Positive Control
+
+Adds a signal-quality layer on top of the narrative/rotation system.
+
+- Scores each narrative signal using liquidity heat, news validation, sector breadth, premium confirmation, regime fit, and data quality.
+- Classifies signals into `PROMOTE`, `WATCH`, and `SUPPRESS`.
+- Adds false-positive risk flags and explanation reasons/penalties.
+- Keeps the logic in `core/signal-quality` so the UI can be refactored later without changing scoring behavior.
+
+## Phase 14 - Productization Surface
+
+Adds the first user-facing product layer for daily terminal use.
+
+- Signal Inbox for promoted/watch signals.
+- Saved Views such as Korea Retail, Alt Rotation, AI Narrative, and Risk-Off.
+- Watchlist mode previews for High Beta, Institutional Themes, and Korea Retail.
+- Settings preview for alert threshold, cooldown, and preferred sectors.
+- Explanation Drawer preview to prepare for a future detailed signal inspector.

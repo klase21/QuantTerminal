@@ -34,6 +34,8 @@ import { useMarketStore } from "@/stores/useMarketStore";
 
 import MultiChartWorkspace from "@/components/MultiChartWorkspace";
 import RegimeLab from "@/components/experimental/RegimeLab";
+import LiveCommandSurface from "@/components/command/LiveCommandSurface";
+import NarrativeIntelligenceSurface from "@/components/narrative/NarrativeIntelligenceSurface";
 
 import AlertCenter from "@/components/AlertCenter";
 import useAlertEngine from "@/hooks/useAlertEngine";
@@ -200,6 +202,14 @@ export default function DashboardLayout() {
         <MacroTickerStrip />
 
       </div>
+
+      {/* PHASE 10 LIVE COMMAND SURFACE */}
+
+      <LiveCommandSurface />
+
+      {/* PHASE 11 NARRATIVE INTELLIGENCE SURFACE */}
+
+      <NarrativeIntelligenceSurface />
 
 {/* MAIN */}
 
