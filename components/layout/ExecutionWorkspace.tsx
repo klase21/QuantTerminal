@@ -1,7 +1,6 @@
 "use client";
 
 import MultiChartWorkspace from "@/components/MultiChartWorkspace";
-import RegimeLab from "@/components/experimental/RegimeLab";
 import Orderbook from "@/components/Orderbook";
 import FlowPanel from "@/components/right-panel/FlowPanel";
 import Footprint from "@/components/Footprint";
@@ -9,6 +8,9 @@ import RotationSankeyGraph from "@/components/RotationSankeyGraph";
 import LiquidityPanel from "@/components/right-panel/LiquidityPanel";
 import LiquidityRotationPanel from "@/components/right-panel/LiquidityRotationPanel";
 import RealtimeIntelligenceStrip from "@/components/macro/RealtimeIntelligenceStrip";
+import ResearchReplayWorkspace from "@/components/research/ResearchReplayWorkspace";
+import SignalInboxWorkspace from "@/components/product/SignalInboxWorkspace";
+import SystemDiagnosticsWorkspace from "@/components/system/SystemDiagnosticsWorkspace";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ExecutionWorkspaceProps = {
@@ -34,7 +36,9 @@ export default function ExecutionWorkspace({
         <TabsTrigger value="charts">Charts</TabsTrigger>
         <TabsTrigger value="orderflow">Order Flow</TabsTrigger>
         <TabsTrigger value="intelligence">Realtime Intel</TabsTrigger>
-        <TabsTrigger value="regime-lab">Regime Lab</TabsTrigger>
+        <TabsTrigger value="signals">Signals</TabsTrigger>
+        <TabsTrigger value="research">Research</TabsTrigger>
+        <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         <TabsTrigger value="liquidity">Liquidity</TabsTrigger>
       </TabsList>
 
@@ -66,8 +70,16 @@ export default function ExecutionWorkspace({
         </div>
       </TabsContent>
 
-      <TabsContent value="regime-lab" className="m-0 min-h-0 overflow-y-auto pr-1">
-        <RegimeLab />
+      <TabsContent value="signals" className="m-0 min-h-0 overflow-y-auto pr-1">
+        <SignalInboxWorkspace />
+      </TabsContent>
+
+      <TabsContent value="research" className="m-0 min-h-0 overflow-y-auto pr-1">
+        <ResearchReplayWorkspace />
+      </TabsContent>
+
+      <TabsContent value="diagnostics" className="m-0 min-h-0 overflow-y-auto pr-1">
+        <SystemDiagnosticsWorkspace />
       </TabsContent>
 
       <TabsContent value="liquidity" className="m-0 min-h-0">

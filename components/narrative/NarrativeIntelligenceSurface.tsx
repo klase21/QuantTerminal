@@ -3,9 +3,6 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { generateNarrativeSurface } from "@/core/narrative/generateNarrativeSurface"
-import { evaluateSignalQuality } from "@/core/signal-quality/evaluateSignalQuality"
-import { buildProductizationSurface } from "@/core/productization/buildProductizationSurface"
-import SignalProductizationSurface from "@/components/product/SignalProductizationSurface"
 import type { NarrativeSurface } from "@/core/narrative/narrativeTypes"
 import type { RealMarketRotationResponse } from "@/core/marketDataTypes"
 
@@ -158,8 +155,6 @@ export default function NarrativeIntelligenceSurface() {
   }, [])
 
   const narrative = useMemo<NarrativeSurface>(() => generateNarrativeSurface(rotationData, newsItems), [rotationData, newsItems])
-  const signalQuality = useMemo(() => evaluateSignalQuality(narrative, rotationData), [narrative, rotationData])
-  const productSurface = useMemo(() => buildProductizationSurface(narrative, signalQuality), [narrative, signalQuality])
   const topHeat = narrative.heatmap[0]
   const secondHeat = narrative.heatmap[1]
   const statusLabel = fetchState === "live" ? "LIVE" : fetchState.toUpperCase()
@@ -402,8 +397,6 @@ export default function NarrativeIntelligenceSurface() {
           </div>
         </div>
       </div>
-
-      <SignalProductizationSurface quality={signalQuality} product={productSurface} />
 
     </section>
   )
