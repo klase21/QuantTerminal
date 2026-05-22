@@ -21,6 +21,133 @@ QuantTerminal focuses on:
 
 ---
 
+---
+
+## Research-Informed Product Thesis
+
+QuantTerminal is not intended to be a simple price-prediction dashboard. The research direction is based on a practical conclusion from recent crypto market, social sentiment, pump-and-dump, and noisy financial forecasting studies:
+
+> Raw bullish/bearish sentiment is weak on its own. What matters more is participation velocity, narrative propagation, liquidity confirmation, breadth expansion, regional divergence, crowding risk, and whether the market is in a tradeable opportunity regime.
+
+The core product hypothesis is:
+
+> QuantTerminal should detect when a narrative becomes tradable, crowded, fragile, or exhausted.
+
+This means the terminal should focus less on predicting every candle and more on filtering high-quality market states. Most market data is noisy; the system should promote only signals with enough confirmation and suppress weak, social-only, or duplicated signals.
+
+---
+
+## Research Lessons Applied to QuantTerminal
+
+### 1. Sentiment alone is not enough
+
+A simple positive/negative sentiment score is not treated as a standalone trading signal. QuantTerminal instead combines sentiment-like inputs with liquidity, breadth, rotation, and data-quality confirmation.
+
+Useful signal structure:
+
+```txt
+Narrative heat
++ Participation velocity
++ Liquidity confirmation
++ Sector breadth
++ Data quality
+= Operator-grade signal
+```
+
+### 2. Attention can be late liquidity
+
+Large social-media attention spikes may represent late retail participation rather than early alpha. The terminal should distinguish between:
+
+```txt
+Early accumulation
+Narrative expansion
+Retail FOMO
+Overcrowded consensus
+Exit-liquidity risk
+```
+
+This is why the system should track not only mention volume, but also timing, propagation path, and whether liquidity moved before or after attention increased.
+
+### 3. Extremity matters more than direction
+
+Bullish and bearish direction are less important than how extreme and crowded the market has become. Extreme fear and extreme greed can both represent higher uncertainty and liquidity risk.
+
+QuantTerminal should therefore monitor:
+
+- narrative conviction
+- crowding intensity
+- funding / OI pressure
+- volatility expansion
+- spread or liquidity deterioration
+- cross-region synchronization
+
+### 4. Region changes meaning
+
+The same crypto narrative can mean different things across regions. A bullish DeFi discussion in one country may represent institutional adoption, while in another it may represent inflation escape, speculation, or retail gambling behavior.
+
+QuantTerminal should treat region as context, not just a label:
+
+```txt
+US        → institutional / ETF / macro framing
+Korea     → retail rotation / premium / fast speculation
+China     → policy / liquidity proxy / offshore narrative
+Turkey    → inflation hedge / currency protection
+SEA       → retail adoption / high-beta speculation
+```
+
+### 5. Tradeable opportunities are sparse
+
+Financial markets have low signal-to-noise ratios. QuantTerminal should not try to turn every market tick into a signal. The better direction is opportunity filtering:
+
+```txt
+Suppress weak signals
+Watch partial confirmations
+Promote multi-confirmed opportunities
+Warn when narratives become overcrowded
+```
+
+---
+
+## Intelligence Framework
+
+QuantTerminal's long-term framework can be summarized as:
+
+```txt
+Market Data
+  → Rotation Pressure
+  → Breadth Confirmation
+  → Narrative Propagation
+  → Regional Divergence
+  → Liquidity Confirmation
+  → Signal Quality
+  → Operator Decision Support
+```
+
+The terminal should answer questions like:
+
+- Is this move broad or isolated?
+- Is liquidity confirming the narrative?
+- Is social attention early or late?
+- Which region is leading the narrative?
+- Is the market becoming overcrowded?
+- Should this be promoted, watched, or suppressed?
+
+---
+
+## Product Philosophy
+
+QuantTerminal is evolving toward a realtime behavioral market intelligence system. It is designed to interpret crowd behavior, liquidity movement, and narrative lifecycle rather than simply display prices.
+
+The ideal operator experience is:
+
+```txt
+Fewer signals.
+Higher trust.
+Clearer context.
+Better timing.
+```
+
+
 ## Current Stable Direction
 
 The current product direction is:
@@ -213,7 +340,7 @@ Build:
 npm run build
 ```
 
-The build-stabilization pass pinned TypeScript to a stable 5.x version and removed the unsupported `ignoreDeprecations: "6.0"` setting.
+If TypeScript 6.x is installed locally and reports `baseUrl` deprecation, keep `ignoreDeprecations: "6.0"` in `tsconfig.json` until a dedicated TS7 migration pass is done.
 
 ---
 
