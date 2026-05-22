@@ -2,20 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import TickerBar from "@/components/TickerBar";
-import Orderbook from "@/components/Orderbook";
-import Footprint from "@/components/Footprint";
-import Heatmap from "@/components/Heatmap";
-
-import Panel from "@/components/ui/Panel";
-
-import RightPanelTabs from "@/components/right-panel/RightPanelTabs";
-import FlowPanel from "@/components/right-panel/FlowPanel";
-import RotationSankeyGraph from "@/components/RotationSankeyGraph";
-import LiquidityRotationPanel from "@/components/right-panel/LiquidityRotationPanel";
-import LiquidityPanel from "@/components/right-panel/LiquidityPanel";
-import ResizablePanelGroup from "@/components/ResizablePanelGroup";
-
 import useMarketSocket from "@/hooks/useMarketSocket";
 import useOrderbookSocket from "@/hooks/useOrderbookSocket";
 import useTradeSocket from "@/hooks/useTradeSocket";
@@ -24,86 +10,53 @@ import useTradeFlowSocket from "@/hooks/useTradeFlowSocket";
 import useFootprint from "@/hooks/useFootprint";
 import useDepthHeatmap from "@/hooks/useDepthHeatmap";
 import useVolumeProfile from "@/hooks/useVolumeProfile";
-
 import { useHeatmapHistory } from "@/hooks/useHeatmapHistory";
-
 import useLiquidityEvents from "@/hooks/useLiquidityEvents";
 import useAbsorptionDetector from "@/hooks/useAbsorptionDetector";
+import useAlertEngine from "@/hooks/useAlertEngine";
 
 import { useMarketStore } from "@/stores/useMarketStore";
 
-import MultiChartWorkspace from "@/components/MultiChartWorkspace";
-import RegimeLab from "@/components/experimental/RegimeLab";
-import LiveCommandSurface from "@/components/command/LiveCommandSurface";
-import NarrativeIntelligenceSurface from "@/components/narrative/NarrativeIntelligenceSurface";
-
 import AlertCenter from "@/components/AlertCenter";
-import useAlertEngine from "@/hooks/useAlertEngine";
+import DashboardFrame from "@/components/layout/DashboardFrame";
+import ExecutionWorkspace from "@/components/layout/ExecutionWorkspace";
+import RightIntelligenceRail from "@/components/layout/RightIntelligenceRail";
+import TerminalSurfaceDeck from "@/components/layout/TerminalSurfaceDeck";
 
-import MacroTickerStrip from "@/components/macro/MacroTickerStrip";
-import RealtimeIntelligenceStrip from "@/components/macro/RealtimeIntelligenceStrip";
+const LAYOUT_STORAGE_KEY = "qt-layout-collapse";
 
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+type CollapsedState = {
+  workspace: boolean;
+  rightPanel: boolean;
+};
 
 export default function DashboardLayout() {
-
   useMarketSocket();
 
-  const symbol =
-    useMarketStore(
-      (s) => s.selectedSymbol
-    );
+  const symbol = useMarketStore((state) => state.selectedSymbol);
+  const orderbook = useMarketStore((state) => state.orderbook);
 
   useOrderbookSocket(symbol);
 
-  const orderbook =
-    useMarketStore(
-      (s) => s.orderbook
-    );
+  const { trades } = useTradeSocket(symbol);
+  const { liquidations } = useLiquidationSocket();
+  const flow = useTradeFlowSocket(symbol);
+  const footprint = useFootprint(symbol);
+  const heatmap = useDepthHeatmap(symbol);
 
-  const { trades } =
-    useTradeSocket(symbol);
+  // Keep the hook active for existing downstream stores and future panels.
+  useVolumeProfile(symbol);
 
-  const { liquidations } =
-    useLiquidationSocket();
+  const frames = useHeatmapHistory(orderbook?.bids || [], orderbook?.asks || []);
 
-  const flow =
-    useTradeFlowSocket(symbol);
+  const liquidityEvents = useLiquidityEvents(
+    heatmap?.flatMap((frame: any) => [
+      ...(frame?.bids || []),
+      ...(frame?.asks || []),
+    ]) || []
+  );
 
-  const footprint =
-    useFootprint(symbol);
-
-  const heatmap =
-    useDepthHeatmap(symbol);
-
-  const volumeProfile =
-    useVolumeProfile(symbol);
-
-  const frames =
-    useHeatmapHistory(
-      orderbook?.bids || [],
-      orderbook?.asks || []
-    );
-
-  const liquidityEvents =
-    useLiquidityEvents(
-      heatmap?.flatMap(
-        (f: any) => [
-          ...(f?.bids || []),
-          ...(f?.asks || []),
-        ]
-      ) || []
-    );
-
-  const absorptionEvents =
-    useAbsorptionDetector(
-      trades || []
-    );
+  const absorptionEvents = useAbsorptionDetector(trades || []);
 
   useAlertEngine({
     absorptionEvents,
@@ -111,510 +64,64 @@ export default function DashboardLayout() {
     liquidations,
   });
 
-  const [
-    collapsed,
-    setCollapsed,
-  ] = useState<
-    Record<string, boolean>
-  >({
+  const [collapsed, setCollapsed] = useState<CollapsedState>({
     workspace: false,
     rightPanel: false,
   });
 
   useEffect(() => {
-
-    const saved =
-      localStorage.getItem(
-        "qt-layout-collapse"
-      );
-
-    if (saved) {
-
-      setCollapsed(
-        JSON.parse(saved)
-      );
-
+    try {
+      const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (!saved) return;
+      setCollapsed(JSON.parse(saved));
+    } catch {
+      localStorage.removeItem(LAYOUT_STORAGE_KEY);
     }
-
   }, []);
 
   useEffect(() => {
-
-    localStorage.setItem(
-      "qt-layout-collapse",
-      JSON.stringify(collapsed)
-    );
-
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(collapsed));
   }, [collapsed]);
 
-  const togglePanel = (
-    key: string
-  ) => {
-
+  const togglePanel = (key: keyof CollapsedState) => {
     setCollapsed((prev) => ({
       ...prev,
       [key]: !prev[key],
     }));
-
   };
 
   return (
-
-    <div
-      className="
-        flex
-        min-h-screen
-        flex-col
-        overflow-hidden
-        bg-black
-        text-white
-      "
-    >
-
-      {/* TOP TICKER */}
-
-      <div
-        className="
-          shrink-0
-          border-b
-          border-zinc-900
-          bg-zinc-950
-          px-4
-          py-3
-        "
-      >
-
-        <TickerBar />
-
-      </div>
-
-      {/* MACRO TICKER */}
-
-      <div
-        className="
-          shrink-0
-          border-b
-          border-zinc-900
-          bg-zinc-950/80
-        "
-      >
-
-        <MacroTickerStrip />
-
-      </div>
-
-      {/* PHASE 10 LIVE COMMAND SURFACE */}
-
-      <LiveCommandSurface />
-
-      {/* PHASE 11 NARRATIVE INTELLIGENCE SURFACE */}
-
-      <NarrativeIntelligenceSurface />
-
-{/* MAIN */}
-
-      <main
-        className="
-          flex-1
-          min-h-0
-          overflow-hidden
-          p-4
-        "
-      >
-
-        <ResizablePanelGroup
-
-          left={
-
-            <div
-              className="
-                flex
-                h-full
-                min-h-0
-                flex-col
-                gap-4
-              "
-            >
-
-              <Panel
-                title="Execution Workspace"
-                collapsible
-                collapsed={
-                  collapsed.workspace
-                }
-                onToggle={() =>
-                  togglePanel(
-                    "workspace"
-                  )
-                }
-              >
-
-                {!collapsed.workspace && (
-
-                  <Tabs
-                    defaultValue="charts"
-                    className="
-                      flex
-                      h-full
-                      min-h-0
-                      flex-col
-                      gap-4
-                    "
-                  >
-
-                    {/* TABS */}
-
-                    <TabsList
-                      className="
-                        flex
-                        w-full
-                        shrink-0
-                        flex-wrap
-                        justify-start
-                        gap-2
-                        border-b
-                        border-zinc-800
-                        bg-transparent
-                        pb-2
-                      "
-                    >
-
-                      <TabsTrigger value="charts">
-                        Multi Charts
-                      </TabsTrigger>
-
-                      <TabsTrigger value="orderflow">
-                        Order Flow
-                      </TabsTrigger>
-
-                      <TabsTrigger value="realtime">
-                        Realtime Intelligence
-                      </TabsTrigger>
-
-                      <TabsTrigger value="regime-lab">
-                        Regime Lab
-                      </TabsTrigger>
-
-                      <TabsTrigger value="liquidity">
-                        Liquidity
-                      </TabsTrigger>
-
-                    </TabsList>
-
-                    {/* CONTENT */}
-
-                    <div
-                      className="
-                        flex
-                        flex-1
-                        min-h-0
-                        flex-col
-                        gap-4
-                      "
-                    >
-
-                      <TabsContent
-                        value="charts"
-                        className="
-                          m-0
-                          min-h-0
-                        "
-                      >
-
-                        <MultiChartWorkspace />
-
-                      </TabsContent>
-
-                      <TabsContent
-                        value="orderflow"
-                        className="
-                          m-0
-                          min-h-0
-                        "
-                      >
-
-                        <div
-                          className="
-                            grid
-                            h-full
-                            min-h-0
-                            gap-4
-                            xl:grid-cols-[1fr_1.15fr]
-                          "
-                        >
-
-                          {/* ORDERBOOK */}
-
-                          <div
-                            className="
-                              h-full
-                              min-h-0
-                              overflow-hidden
-                              rounded-2xl
-                              border
-                              border-zinc-900
-                              bg-zinc-950/40
-                              p-2
-                            "
-                          >
-
-                            <Orderbook
-                              bids={
-                                orderbook?.bids || []
-                              }
-                              asks={
-                                orderbook?.asks || []
-                              }
-                            />
-
-                          </div>
-
-                          {/* ORDERFLOW */}
-
-                          <div
-                            className="
-                              flex
-                              h-full
-                              min-h-0
-                              flex-col
-                              overflow-hidden
-                              rounded-2xl
-                              border
-                              border-zinc-900
-                              bg-zinc-950/40
-                            "
-                          >
-
-                            <div
-                              className="
-                                shrink-0
-                                min-h-0
-                                overflow-hidden
-                              "
-                            >
-
-                              <FlowPanel
-                                trades={trades}
-                                flow={flow}
-                              />
-
-                            </div>
-
-                            <div
-                              className="
-                                flex-1
-                                min-h-0
-                                overflow-hidden
-                                border-t
-                                border-zinc-900
-                                p-2
-                              "
-                            >
-
-                              <Footprint
-                                levels={footprint}
-                              />
-
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                      </TabsContent>
-
-                      <TabsContent
-                        value="realtime"
-                        className="
-                          m-0
-                          min-h-0
-                        "
-                      >
-
-                        <div
-                          className="
-                            h-full
-                            min-h-0
-                            overflow-hidden
-                            rounded-2xl
-                            border
-                            border-zinc-900
-                            bg-black
-                            p-4
-                          "
-                        >
-
-                          <RealtimeIntelligenceStrip />
-
-                        </div>
-
-                      </TabsContent>
-
-                      <TabsContent
-                        value="regime-lab"
-                        className="
-                          m-0
-                          min-h-0
-                        "
-                      >
-
-                        <RegimeLab />
-
-                      </TabsContent>
-
-                    </div>
-
-                  
-
-                      <TabsContent
-                        value="liquidity"
-                        className="
-                          m-0
-                          min-h-0
-                        "
-                      >
-
-                        <div
-                          className="
-                            grid
-                            h-full
-                            min-h-0
-                            gap-4
-                            xl:grid-cols-2
-                          "
-                        >
-
-                          {/* LEFT */}
-
-                          <div
-                            className="
-                              flex
-                              h-full
-                              min-h-0
-                              flex-col
-                              gap-4
-                            "
-                          >
-
-                            <div
-                              className="
-                                shrink-0
-                                overflow-hidden
-                              "
-                            >
-
-                              <RotationSankeyGraph
-                              trades={trades}
-                            />
-
-                            </div>
-
-                            <div
-                              className="
-                                flex-1
-                                min-h-0
-                                overflow-y-auto
-                              "
-                            >
-
-                              <LiquidityPanel
-                                frames={frames}
-                                liquidityEvents={
-                                  liquidityEvents
-                                }
-                              />
-
-                            </div>
-
-                          </div>
-
-                          {/* RIGHT */}
-
-                          <div
-                            className="
-                              h-full
-                              min-h-0
-                              overflow-y-auto
-                            "
-                          >
-
-                            <LiquidityRotationPanel
-                              trades={trades}
-                            />
-
-                          </div>
-
-                        </div>
-
-                      </TabsContent>
-
-                    </Tabs>
-
-                )}
-
-              </Panel>
-
-            </div>
-
-          }
-
-          center={
-            <div />
-          }
-
-          right={
-
-            <div
-              className="
-                h-full
-                min-h-0
-              "
-            >
-
-              <Panel
-                title="Macro Intelligence"
-                collapsible
-                collapsed={
-                  collapsed.rightPanel
-                }
-                onToggle={() =>
-                  togglePanel(
-                    "rightPanel"
-                  )
-                }
-              >
-
-                {!collapsed.rightPanel && (
-
-                  <RightPanelTabs
-                    trades={trades}
-                    liquidations={
-                      liquidations
-                    }
-                    frames={frames}
-                    absorptionEvents={
-                      absorptionEvents
-                    }
-                    liquidityEvents={
-                      liquidityEvents
-                    }
-                    flow={flow}
-                  />
-
-                )}
-
-              </Panel>
-
-            </div>
-
-          }
-
-        />
-
-      </main>
+    <div className="flex min-h-screen flex-col overflow-hidden bg-black text-white">
+      <TerminalSurfaceDeck />
+
+      <DashboardFrame
+        workspaceCollapsed={collapsed.workspace}
+        rightRailCollapsed={collapsed.rightPanel}
+        onToggleWorkspace={() => togglePanel("workspace")}
+        onToggleRightRail={() => togglePanel("rightPanel")}
+        workspace={
+          <ExecutionWorkspace
+            orderbook={orderbook}
+            trades={trades}
+            flow={flow}
+            footprint={footprint}
+            frames={frames}
+            liquidityEvents={liquidityEvents}
+          />
+        }
+        rightRail={
+          <RightIntelligenceRail
+            trades={trades}
+            liquidations={liquidations}
+            frames={frames}
+            absorptionEvents={absorptionEvents}
+            liquidityEvents={liquidityEvents}
+            flow={flow}
+          />
+        }
+      />
 
       <AlertCenter />
-
     </div>
   );
 }

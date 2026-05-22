@@ -50,6 +50,11 @@ Promise<NewsItem[]> {
           g?.lives || []
       )
 
+    console.log(
+      "JINSE LIVES:",
+      lives.length
+    )
+
     return lives
 
       // 빈 컨텐츠 제거
