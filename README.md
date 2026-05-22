@@ -392,3 +392,16 @@ Adds the first user-facing product layer for daily terminal use.
 - Watchlist mode previews for High Beta, Institutional Themes, and Korea Retail.
 - Settings preview for alert threshold, cooldown, and preferred sectors.
 - Explanation Drawer preview to prepare for a future detailed signal inspector.
+
+
+## Realtime Market Core
+
+The current stable realtime path uses a normalized sector rotation snapshot API:
+
+- Binance exchangeInfo validation with in-memory TTL cache
+- Chunked Binance 24h ticker fetches for active registry symbols only
+- Upbit KRW market overlay
+- Upbit DataLab overview context
+- Diagnostics panel for connector status, coverage, latency, and invalid symbol audit
+
+The Live Command Surface consumes this through `useSectorRotationFeed`, which handles polling, cancellation, hidden-tab suppression, and partial/error state display.

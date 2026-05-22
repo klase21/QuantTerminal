@@ -115,6 +115,22 @@ export default function SystemDiagnosticsWorkspace() {
             </div>
           </div>
 
+          <div className="mt-3 rounded-xl border border-zinc-800 bg-black/40 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-zinc-500">Binance Symbol Validation</div>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500 md:grid-cols-4">
+              <span>Requested {metric(data?.binanceValidation?.requestedSymbols)}</span>
+              <span>Valid {metric(data?.binanceValidation?.validSymbols)}</span>
+              <span>Chunks {metric(data?.binanceValidation?.chunkCount)}</span>
+              <span>Cache {data?.binanceValidation?.exchangeInfoCache ?? "--"}</span>
+            </div>
+            {data?.binanceValidation?.invalidSymbols?.length ? (
+              <div className="mt-2 text-[11px] leading-5 text-zinc-500">
+                Excluded inactive symbols: {data.binanceValidation.invalidSymbols.slice(0, 12).join(", ")}
+                {data.binanceValidation.invalidSymbols.length > 12 ? " …" : ""}
+              </div>
+            ) : null}
+          </div>
+
           <div className="mt-4 space-y-2">
             {connectors.map((connector) => (
               <div key={connector.name} className="rounded-xl border border-zinc-800 bg-black/40 p-3">

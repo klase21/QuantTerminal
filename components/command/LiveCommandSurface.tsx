@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import type {
-  RealMarketRotationResponse,
-  SectorRotationSnapshot,
-} from "@/core/marketDataTypes";
-
-const POLL_MS = 10000;
-
-type FetchState = "idle" | "loading" | "live" | "partial" | "error";
+import type { SectorRotationSnapshot } from "@/core/marketDataTypes";
+import { useSectorRotationFeed } from "@/hooks/useSectorRotationFeed";
 
 function formatMetric(value: unknown, digits = 2) {
   const number = typeof value === "number" ? value : Number(value);
@@ -88,56 +82,7 @@ function buildTemperature(sectors: SectorRotationSnapshot[]) {
 }
 
 export default function LiveCommandSurface() {
-  const [data, setData] = useState<RealMarketRotationResponse | null>(null);
-  const [fetchState, setFetchState] = useState<FetchState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [pulse, setPulse] = useState(0);
-
-  useEffect(() => {
-    let alive = true;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    let controller: AbortController | null = null;
-
-    const load = async () => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return;
-      }
-
-      controller?.abort();
-      controller = new AbortController();
-
-      try {
-        setFetchState((prev) => (prev === "idle" ? "loading" : prev));
-        const response = await fetch("/api/market/sector-rotation", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const payload = (await response.json()) as RealMarketRotationResponse;
-        if (!alive) return;
-        if (!response.ok || payload.ok === false) {
-          throw new Error(payload.notes?.[0] ?? `sector rotation returned ${response.status}`);
-        }
-        setData(payload);
-        setFetchState(payload.mode === "partial" ? "partial" : "live");
-        setError(null);
-        setPulse((value) => value + 1);
-      } catch (err) {
-        if (!alive) return;
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setFetchState("error");
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    };
-
-    load();
-    timer = setInterval(load, POLL_MS);
-
-    return () => {
-      alive = false;
-      controller?.abort();
-      if (timer) clearInterval(timer);
-    };
-  }, []);
+  const { data, status: fetchState, error, pulse } = useSectorRotationFeed();
 
   const sectors = data?.sectors ?? [];
   const topSector = sectors[0];

@@ -11,13 +11,12 @@
     "strict": false,
     "noEmit": true,
     "esModuleInterop": true,
-
     "baseUrl": ".",
-	"ignoreDeprecations": "6.0",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     },
-
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,

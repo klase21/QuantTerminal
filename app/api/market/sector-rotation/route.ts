@@ -11,7 +11,18 @@ const BINANCE_TICKER_BASE_URL = "https://api.binance.com/api/v3/ticker/24hr"
 const BINANCE_EXCHANGE_INFO_URL = "https://api.binance.com/api/v3/exchangeInfo"
 const UPBIT_MARKETS_URL = "https://api.upbit.com/v1/market/all?isDetails=false"
 const DATALAB_OVERVIEW_URL = "https://datalab-api.upbit.com/api/v1/indicator/overview"
-const BINANCE_TICKER_CHUNK_SIZE = 35
+const BINANCE_TICKER_CHUNK_SIZE = 30
+const EXCHANGE_INFO_TTL_MS = 1000 * 60 * 30
+const UPBIT_MARKETS_TTL_MS = 1000 * 60 * 10
+const FETCH_TIMEOUT_MS = 8500
+
+type TimedCache<T> = {
+  expiresAt: number
+  value: T
+}
+
+let exchangeInfoSymbolCache: TimedCache<Set<string>> | null = null
+let upbitMarketCache: TimedCache<Array<{ market: string }>> | null = null
 
 interface BinanceExchangeInfoSymbol {
   symbol: string
@@ -72,22 +83,30 @@ function extractNumberByKeys(value: unknown, keys: string[]): number | null {
   return null
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    // Keep this route fully dynamic. Large upstream payloads must never enter
-    // the Next.js data cache, otherwise dev/build can fail on cache item limits.
-    cache: "no-store",
-    headers: {
-      accept: "application/json",
-      "user-agent": "QuantTerminal/1.0",
-    },
-  })
+async function fetchJson<T>(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-  if (!response.ok) {
-    throw new Error(`${url} returned ${response.status}`)
+  try {
+    const response = await fetch(url, {
+      // Keep this route fully dynamic. Large upstream payloads must never enter
+      // the Next.js data cache, otherwise dev/build can fail on cache item limits.
+      cache: "no-store",
+      signal: controller.signal,
+      headers: {
+        accept: "application/json",
+        "user-agent": "QuantTerminal/1.0",
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`${url} returned ${response.status}`)
+    }
+
+    return response.json() as Promise<T>
+  } finally {
+    clearTimeout(timer)
   }
-
-  return response.json() as Promise<T>
 }
 
 async function timedFetchJson<T>(name: ConnectorQualityStatus["name"], url: string): Promise<{ data: T | null; quality: ConnectorQualityStatus }> {
@@ -117,6 +136,62 @@ async function timedFetchJson<T>(name: ConnectorQualityStatus["name"], url: stri
   }
 }
 
+async function getTradableBinanceUsdtSymbols(): Promise<{ symbols: Set<string>; cache: "hit" | "miss"; latencyMs: number }> {
+  const now = Date.now()
+  if (exchangeInfoSymbolCache && exchangeInfoSymbolCache.expiresAt > now) {
+    return { symbols: exchangeInfoSymbolCache.value, cache: "hit", latencyMs: 0 }
+  }
+
+  const started = Date.now()
+  const exchangeInfo = await fetchJson<BinanceExchangeInfoResponse>(BINANCE_EXCHANGE_INFO_URL)
+  const symbols = new Set(
+    (exchangeInfo.symbols ?? [])
+      .filter((symbol) =>
+        symbol.status === "TRADING" &&
+        symbol.quoteAsset === "USDT" &&
+        symbol.isSpotTradingAllowed !== false
+      )
+      .map((symbol) => symbol.symbol)
+  )
+
+  exchangeInfoSymbolCache = {
+    expiresAt: now + EXCHANGE_INFO_TTL_MS,
+    value: symbols,
+  }
+
+  return { symbols, cache: "miss", latencyMs: Date.now() - started }
+}
+
+async function getUpbitMarkets(): Promise<{ markets: Array<{ market: string }>; cache: "hit" | "miss"; quality: ConnectorQualityStatus }> {
+  const now = Date.now()
+  if (upbitMarketCache && upbitMarketCache.expiresAt > now) {
+    return {
+      markets: upbitMarketCache.value,
+      cache: "hit",
+      quality: {
+        name: "upbit-markets",
+        status: "connected",
+        latencyMs: 0,
+        records: upbitMarketCache.value.length,
+        message: "served from in-memory TTL cache",
+      },
+    }
+  }
+
+  const result = await timedFetchJson<Array<{ market: string }>>("upbit-markets", UPBIT_MARKETS_URL)
+  if (result.data) {
+    upbitMarketCache = {
+      expiresAt: now + UPBIT_MARKETS_TTL_MS,
+      value: result.data,
+    }
+  }
+  return {
+    markets: result.data ?? [],
+    cache: "miss",
+    quality: result.quality,
+  }
+}
+
 async function fetchValidatedBinanceTickers(): Promise<{
   tickers: BinanceTicker24h[]
   qualities: ConnectorQualityStatus[]
@@ -124,35 +199,29 @@ async function fetchValidatedBinanceTickers(): Promise<{
   requestedSymbols: number
   validSymbols: number
   chunkCount: number
+  exchangeInfoCache: "hit" | "miss"
+  failedChunks: number
 }> {
   const requestedSymbols = uniqueRegistryBinanceSymbols()
-  const exchangeInfoStarted = Date.now()
-
   let tradableUsdtSymbols = new Set<string>()
+  let exchangeInfoCache: "hit" | "miss" = "miss"
   const qualities: ConnectorQualityStatus[] = []
 
   try {
-    const exchangeInfo = await fetchJson<BinanceExchangeInfoResponse>(BINANCE_EXCHANGE_INFO_URL)
-    tradableUsdtSymbols = new Set(
-      (exchangeInfo.symbols ?? [])
-        .filter((symbol) =>
-          symbol.status === "TRADING" &&
-          symbol.quoteAsset === "USDT" &&
-          symbol.isSpotTradingAllowed !== false
-        )
-        .map((symbol) => symbol.symbol)
-    )
+    const exchangeInfoResult = await getTradableBinanceUsdtSymbols()
+    tradableUsdtSymbols = exchangeInfoResult.symbols
+    exchangeInfoCache = exchangeInfoResult.cache
     qualities.push({
       name: "binance-exchange-info",
       status: tradableUsdtSymbols.size ? "connected" : "partial",
-      latencyMs: Date.now() - exchangeInfoStarted,
+      latencyMs: exchangeInfoResult.latencyMs,
       records: tradableUsdtSymbols.size,
+      message: exchangeInfoResult.cache === "hit" ? "served from in-memory TTL cache" : undefined,
     })
   } catch (error) {
     qualities.push({
       name: "binance-exchange-info",
       status: "error",
-      latencyMs: Date.now() - exchangeInfoStarted,
       message: error instanceof Error ? error.message : String(error),
     })
 
@@ -163,6 +232,8 @@ async function fetchValidatedBinanceTickers(): Promise<{
       requestedSymbols: requestedSymbols.length,
       validSymbols: 0,
       chunkCount: 0,
+      exchangeInfoCache,
+      failedChunks: 0,
     }
   }
 
@@ -206,6 +277,8 @@ async function fetchValidatedBinanceTickers(): Promise<{
     requestedSymbols: requestedSymbols.length,
     validSymbols: validSymbols.length,
     chunkCount: chunks.length,
+    exchangeInfoCache,
+    failedChunks,
   }
 }
 
@@ -220,7 +293,7 @@ export async function GET() {
   try {
     const [binanceResult, upbitMarketsResult, dataLabResult] = await Promise.all([
       fetchValidatedBinanceTickers(),
-      timedFetchJson<Array<{ market: string }>>("upbit-markets", UPBIT_MARKETS_URL),
+      getUpbitMarkets(),
       timedFetchJson<unknown>("datalab", DATALAB_OVERVIEW_URL),
     ])
 
@@ -238,11 +311,9 @@ export async function GET() {
     }
 
     const registrySymbols = new Set(SECTOR_REGISTRY.flatMap((sector) => sector.symbols))
-    const krwMarkets = upbitMarketsResult.data
-      ? upbitMarketsResult.data
-          .map((item) => item.market)
-          .filter((market) => market.startsWith("KRW-") && registrySymbols.has(market.replace("KRW-", "")))
-      : []
+    const krwMarkets = upbitMarketsResult.markets
+      .map((item) => item.market)
+      .filter((market) => market.startsWith("KRW-") && registrySymbols.has(market.replace("KRW-", "")))
 
     if (upbitMarketsResult.quality.status === "error") notes.push(`Upbit market list failed: ${upbitMarketsResult.quality.message}`)
 
@@ -279,6 +350,8 @@ export async function GET() {
         invalidSymbols: binanceResult.invalidSymbols,
         chunkSize: BINANCE_TICKER_CHUNK_SIZE,
         chunkCount: binanceResult.chunkCount,
+        exchangeInfoCache: binanceResult.exchangeInfoCache,
+        failedChunks: binanceResult.failedChunks,
       },
     })
   } catch (error) {

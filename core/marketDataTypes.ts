@@ -90,5 +90,7 @@ export interface RealMarketRotationResponse {
     invalidSymbols: string[]
     chunkSize: number
     chunkCount: number
+    exchangeInfoCache?: "hit" | "miss"
+    failedChunks?: number
   }
 }
