@@ -449,3 +449,14 @@ The goal is not to show every regional datapoint. The goal is to answer one ques
 > Which region is leading the narrative, and is the move confirmed or only locally overheated?
 
 This supports the broader research thesis that crypto narratives are regionally contextualized: the same asset move can represent institutional adoption in one region, retail speculation in another, and policy-sensitive rotation elsewhere.
+
+
+## Phase 19 — Historical Replay Intelligence
+
+QuantTerminal now includes a Research Replay workspace that compresses narrative lifecycle, participation velocity, crowding risk, liquidity pressure, breadth, and geo-diffusion into a time-sequenced replay view.
+
+The goal is not to show every metric, but to answer a simple operator question:
+
+> How did this narrative move from formation to acceleration, crowding, or fading?
+
+Current implementation derives replay frames from live market and narrative state, while keeping the architecture ready for persisted historical snapshots later.
