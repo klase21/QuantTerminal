@@ -1,5 +1,6 @@
 import type { RotationDirection, SectorRotationSnapshot } from "@/core/marketDataTypes"
 import type { NarrativeLifecycleItem } from "./lifecycleTypes"
+import type { GeoNarrativeSurface } from "@/core/geoNarrativeTypes"
 
 export type NarrativeTone = "RISK_ON" | "RISK_OFF" | "MIXED" | "COMPRESSION" | "EUPHORIA"
 
@@ -94,6 +95,7 @@ export interface NarrativeSurface {
     summary: string
     sectors: string[]
   }
+  geoNarrative?: GeoNarrativeSurface
   sourceSectors: SectorRotationSnapshot[]
   newsFusion?: NewsFusionSurface
   notes: string[]

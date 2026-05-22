@@ -125,6 +125,38 @@ function crowdingClass(state?: string) {
   }
 }
 
+
+function geoStateClass(state?: string) {
+  switch (state) {
+    case "Retail Speculation":
+      return "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-200"
+    case "Institutional":
+      return "border-blue-500/25 bg-blue-500/10 text-blue-200"
+    case "Policy Watch":
+      return "border-amber-500/25 bg-amber-500/10 text-amber-200"
+    case "Global Liquidity":
+      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+    default:
+      return "border-zinc-800 bg-zinc-900 text-zinc-400"
+  }
+}
+
+function diffusionClass(diffusion?: string) {
+  switch (diffusion) {
+    case "GLOBAL_SYNC":
+      return "text-emerald-200"
+    case "KOREA_OVERHEAT":
+      return "text-fuchsia-200"
+    case "US_TO_KR":
+    case "KR_TO_GLOBAL":
+      return "text-cyan-200"
+    case "GLOBAL_LEADS":
+      return "text-blue-200"
+    default:
+      return "text-zinc-400"
+  }
+}
+
 function validationClass(status?: string) {
   switch (status) {
     case "VALIDATED":
@@ -319,9 +351,38 @@ export default function NarrativeIntelligenceSurface() {
           </div>
 
           <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-3">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Regional Divergence</div>
-            <div className="mt-1 text-xs font-bold uppercase text-cyan-200">{formatEnumLabel(narrative.regionalDivergence.status)}</div>
-            <p className="mt-1 text-xs leading-5 text-zinc-400">{narrative.regionalDivergence.summary}</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Geo Narrative</div>
+              <div className={`text-[10px] font-black uppercase tracking-[0.18em] ${diffusionClass(narrative.geoNarrative?.diffusion)}`}>
+                {narrative.geoNarrative?.diffusionLabel ?? formatEnumLabel(narrative.regionalDivergence.status)}
+              </div>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-400">
+              {narrative.geoNarrative?.summary ?? narrative.regionalDivergence.summary}
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {(narrative.geoNarrative?.regions ?? []).slice(0, 4).map((region) => (
+                <div key={region.region} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-zinc-200">{region.label}</span>
+                    <span className="text-[10px] font-black text-zinc-400">{formatMetric(region.intensity, 0)}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${geoStateClass(region.state)}`}>
+                      {region.state}
+                    </span>
+                    <span className="rounded-full border border-zinc-800 bg-black/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                      {region.leadNarrative}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {narrative.geoNarrative?.operatorNote ? (
+              <div className="mt-3 rounded-lg border border-zinc-800 bg-black/40 p-2 text-[11px] leading-5 text-zinc-500">
+                {narrative.geoNarrative.operatorNote}
+              </div>
+            ) : null}
           </div>
         </div>
 

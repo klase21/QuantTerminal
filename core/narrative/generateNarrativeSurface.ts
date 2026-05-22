@@ -3,6 +3,7 @@ import { clamp } from "@/core/shared/metrics"
 import type { NarrativeHeatItem, NarrativeStoryStep, NarrativeSurface, NarrativeTone, OperatorCommentary } from "./narrativeTypes"
 import { buildNewsFusionSurface, type NewsFusionInputItem } from "./newsFusion"
 import { deriveNarrativeLifecycle } from "./deriveNarrativeLifecycle"
+import { deriveGeoNarrativeSurface } from "@/core/deriveGeoNarrativeSurface"
 
 function fmt(value: number | undefined, digits = 2) {
   if (!Number.isFinite(value)) return "--"
@@ -243,6 +244,7 @@ export function generateNarrativeSurface(data: RealMarketRotationResponse | null
     newsSignals: newsFusion.signals,
     validation: newsFusion.validation,
   })
+  const geoNarrative = deriveGeoNarrativeSurface(sectors, newsFusion)
 
   return {
     ok: Boolean(data?.ok && sectors.length),
@@ -256,6 +258,7 @@ export function generateNarrativeSurface(data: RealMarketRotationResponse | null
     storyTimeline: buildStoryTimeline(regime, sectors),
     compression: buildCompression(sectors),
     regionalDivergence,
+    geoNarrative,
     sourceSectors: sectors,
     newsFusion,
     notes: data?.notes ?? [],

@@ -428,3 +428,24 @@ Moderate Crowding
 ```
 
 The deeper workspace retains the underlying velocity, acceleration, breadth support, and crowding diagnostics for drill-down analysis.
+
+## Phase 18 — Geo Narrative Intelligence
+
+QuantTerminal now treats region as market context rather than a simple label.
+
+The Geo Narrative layer compresses global, Korean, English/US, and Chinese news/flow overlays into a small operator surface:
+
+```txt
+Global Leads
+US → KR
+KR → Global
+Global Sync
+Korea Overheat
+No Clear Flow
+```
+
+The goal is not to show every regional datapoint. The goal is to answer one question quickly:
+
+> Which region is leading the narrative, and is the move confirmed or only locally overheated?
+
+This supports the broader research thesis that crypto narratives are regionally contextualized: the same asset move can represent institutional adoption in one region, retail speculation in another, and policy-sensitive rotation elsewhere.
