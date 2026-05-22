@@ -33,6 +33,7 @@ import useAbsorptionDetector from "@/hooks/useAbsorptionDetector";
 import { useMarketStore } from "@/stores/useMarketStore";
 
 import MultiChartWorkspace from "@/components/MultiChartWorkspace";
+import RegimeLab from "@/components/experimental/RegimeLab";
 
 import AlertCenter from "@/components/AlertCenter";
 import useAlertEngine from "@/hooks/useAlertEngine";
@@ -280,6 +281,10 @@ export default function DashboardLayout() {
                         Realtime Intelligence
                       </TabsTrigger>
 
+                      <TabsTrigger value="regime-lab">
+                        Regime Lab
+                      </TabsTrigger>
+
                       <TabsTrigger value="liquidity">
                         Liquidity
                       </TabsTrigger>
@@ -432,6 +437,18 @@ export default function DashboardLayout() {
                           <RealtimeIntelligenceStrip />
 
                         </div>
+
+                      </TabsContent>
+
+                      <TabsContent
+                        value="regime-lab"
+                        className="
+                          m-0
+                          min-h-0
+                        "
+                      >
+
+                        <RegimeLab />
 
                       </TabsContent>
 
