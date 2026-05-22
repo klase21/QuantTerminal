@@ -17,6 +17,7 @@
         "./*"
       ]
     },
+	"ignoreDeprecations": "6.0",
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,

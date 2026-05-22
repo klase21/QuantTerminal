@@ -2,406 +2,262 @@
 
 ## Realtime Crypto Market Intelligence Terminal
 
-Narrative. Liquidity. Rotation. Intelligence.
+QuantTerminal is a realtime crypto intelligence terminal for tracking market regime, liquidity rotation, narrative validation, and signal quality across global and Korean crypto markets.
+
+It is not designed to be another price dashboard. The core question is:
+
+> What is the market doing underneath the candles?
+
+QuantTerminal focuses on:
+
+- market regime detection
+- sector rotation intelligence
+- Upbit/Korean retail overlays
+- Binance global liquidity flow
+- narrative/news validation
+- alert trust and false-positive control
+- replay/backtest-style research surfaces
+- live command-surface UX
 
 ---
 
-![QuantTerminal Preview](./public/screenshots/preview.png)
+## Current Stable Direction
 
-> QuantTerminal is a realtime crypto market intelligence terminal focused on narrative acceleration, liquidity regimes, sector capital movement, and smart money flow.
-
-Unlike traditional crypto dashboards that primarily visualize price data, QuantTerminal aims to surface the underlying behavioral and capital flow dynamics driving the market.
-
----
-
-# Vision
-
-Traditional dashboards answer:
-
-- "What is the price doing?"
-
-QuantTerminal tries to answer:
-
-- Where is capital rotating?
-- Which narratives are accelerating?
-- What is smart money accumulating?
-- How is liquidity affecting market structure?
-- How do KR/CN/Global narratives diverge in realtime?
-
-The goal is to build a realtime market intelligence operating system for crypto markets.
-
----
-
-# Core Intelligence Systems
-
-## Realtime Intelligence Feed
-
-A rolling terminal-style intelligence stream that aggregates:
-
-- narrative acceleration
-- whale activity
-- macro pressure
-- sector rotation
-- liquidity signals
-- smart money flow
-
-The system continuously transforms realtime market activity into actionable intelligence events.
-
----
-
-## Narrative Intelligence
-
-Tracks realtime narrative momentum across:
-
-- KR retail narratives
-- CN retail narratives
-- Global macro/institutional narratives
-
-Features:
-
-- Narrative Heatmap
-- Regional Divergence Detection
-- Narrative Momentum
-- Replayable Narrative Timeline
-
----
-
-## Liquidity Intelligence
-
-Realtime liquidity regime analysis using:
-
-- DXY
-- US10Y
-- NASDAQ
-- BTC Momentum
-- Macro Pressure Signals
-
-Outputs:
-
-- Liquidity Score
-- Risk-On / Risk-Off Regime
-- Liquidity Drivers
-- Macro Pressure Detection
-
----
-
-## Sector Capital Movement
-
-Visualizes realtime sector rotation using:
-
-- relative performance
-- volume momentum
-- narrative acceleration
-- whale activity
-- smart money scoring
-
-The system attempts to identify where capital is flowing before broader market recognition.
-
----
-
-## Smart Money Intelligence
-
-Aggregates:
-
-- whale inflows
-- smart money confidence
-- rotation strength
-- sector momentum
-- narrative velocity
-
-to generate high-confidence market signals.
-
----
-
-# Regional Intelligence Layer
-
-One of QuantTerminal's core focuses is cross-region market intelligence.
-
-The system separates and analyzes:
-
-| Region | Intelligence Layer |
-|---|---|
-| KR | Retail Narrative / Upbit Flow |
-| CN | China Narrative / Jinse Flow |
-| Global | Institutional / Macro Narrative |
-
-This allows realtime detection of regional narrative divergence.
-
-Example:
-
-- KR → Meme acceleration
-- CN → RWA momentum
-- Global → AI institutional narrative
-
----
-
-# Taxonomy System
-
-QuantTerminal uses a hierarchical taxonomy system inspired by digital asset classification methodologies.
-
-Example:
+The current product direction is:
 
 ```txt
-AI
- └ Agent
- └ GPU
- └ AI Infra
-
-DeFi
- └ Lending
- └ Perp DEX
- └ Liquid Staking
-
-Infrastructure
- └ Oracle
- └ Bridge
- └ Modular
+Global Market Data
++ Korean Retail / Upbit DataLab
++ Narrative Intelligence
++ Signal Quality Control
+= Realtime Crypto Market Intelligence OS
 ```
 
-The taxonomy system powers:
+Recent work consolidated the earlier Regime Lab experiments into product surfaces:
 
-- sector intelligence
-- narrative classification
-- rotation analysis
-- capital flow mapping
+- Live Command Surface
+- Narrative Workspace
+- Signal Inbox
+- Research / Replay Workspace
+- System Diagnostics
+
+The old Regime Lab should remain archived/dev-only and should not be treated as the primary product UI.
 
 ---
 
-# Realtime Replay Engine
+## Core Surfaces
 
-QuantTerminal includes a replayable intelligence timeline.
+### Live Command Surface
 
-The replay engine reconstructs market flow events such as:
+Top-level operator surface showing:
+
+- current market state
+- top rotation sector
+- sector heat radar
+- live event rail
+- alert trust status
+- WebSocket / data health indicators
+
+### Narrative Intelligence
+
+Compresses market events and news flow into narrative stories:
+
+- narrative heat
+- regional divergence
+- news/flow validation
+- operator commentary
+- story timeline
+
+### Signal Inbox
+
+Productized view of signals that passed quality checks:
+
+- trusted signals only
+- signal quality score
+- false-positive penalties
+- explanation stack
+- operator action
+
+### Research / Replay
+
+Research surface for reviewing historical sequences:
+
+- replay windows
+- backtest-style alert markers
+- regime transition review
+- case-study generation
+
+### Diagnostics
+
+System health view:
+
+- Binance connector status
+- Upbit connector status
+- Upbit DataLab status
+- WebSocket freshness
+- invalid symbol audit
+- partial/degraded data state
+
+---
+
+## Architecture
 
 ```txt
-12:01 AI narrative spike
-12:03 Whale inflow detected
-12:06 BTC OI surge
-12:08 Sector breakout
+Market Connectors
+  ├─ Binance REST / WebSocket
+  ├─ Upbit REST / WebSocket
+  └─ Upbit DataLab
+        ↓
+Validation / Normalization
+        ↓
+Sector Aggregation
+        ↓
+Regime + Rotation Engines
+        ↓
+Narrative + Signal Quality Engines
+        ↓
+Live Command Surface / Signal Inbox / Research
 ```
 
-The goal is to replay how market narratives and liquidity evolved over time.
-
----
-
-# Architecture
+Important directories:
 
 ```txt
-WebSocket Streams
-        ↓
-Realtime Aggregation Engine
-        ↓
-Narrative Intelligence Layer
-        ↓
-Liquidity / Macro Layer
-        ↓
-Sector Rotation Engine
-        ↓
-Realtime Intelligence Feed
+core/
+  alerts/
+  event-bus/
+  market/
+  narrative/
+  productization/
+  regime/
+  registry/
+  replay/
+  rotation/
+  shared/
+  signal-quality/
+  stream/
+  upbit-datalab/
+
+components/
+  command/
+  narrative/
+  product/
+  research/
+  diagnostics/
+
+hooks/
+  useSectorRotationFeed.ts
+  useRealtimeFeed.ts
 ```
 
 ---
 
-# Current Features
+## Data Sources
 
-- Realtime Intelligence Feed
-- Narrative Heatmap
-- Regional Divergence Detection
-- Liquidity Intelligence
-- Sector Capital Movement
-- Whale Flow Alerts
-- Smart Money Confidence
-- Correlation Matrix
-- Rolling Intelligence Ticker
-- Replayable Narrative Timeline
-- Translation-based Regional News Feed
-- KR / CN / Global Narrative Separation
+See [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md).
+
+Primary sources:
+
+- Binance Spot market data
+- Binance WebSocket streams
+- Upbit KRW market data
+- Upbit WebSocket streams
+- Upbit DataLab indicators
+- News feeds / translation pipeline
 
 ---
 
-# Tech Stack
+## Terminal Glossary
 
-## Frontend
+See [`docs/TERMINAL_GLOSSARY.md`](./docs/TERMINAL_GLOSSARY.md).
 
-- Next.js
-- React
-- TailwindCSS
-- Zustand
+Core terms:
 
-## Data / Infrastructure
-
-- Binance WebSocket
-- Hyperliquid Rotation Data
-- Bybit Rotation Data
-- Realtime Aggregation Pipelines
-
-## Intelligence Layer
-
-- Narrative Classification
-- Liquidity Regime Detection
-- Smart Money Scoring
-- Regional Divergence Detection
-- Sector Rotation Intelligence
+- Regime
+- INFLOW
+- OUTFLOW
+- CHURN
+- EXPANSION
+- COMPRESSION
+- EUPHORIA
+- RISK_OFF
+- HIGH_TRUST
+- WATCH
+- LOW_QUALITY
 
 ---
 
-# Philosophy
+## Scoring
 
-QuantTerminal is not designed to be another crypto dashboard.
+See [`docs/SCORING_FORMULAS.md`](./docs/SCORING_FORMULAS.md).
 
-The objective is to build:
+Main scoring systems:
 
-- a realtime intelligence terminal
-- a behavioral market analysis system
-- a capital flow visualization engine
-- a crypto-native operational intelligence platform
-
----
-
-# Roadmap
-
-## Intelligence Systems
-
-- Confidence Engine
-- Intelligence Graph
-- Autonomous Market Analyst
-- Narrative Velocity Engine
-- Regional Retail Intelligence Map
-
-## Capital Flow
-
-- Advanced Sector Rotation Replay
-- Dynamic Capital Flow Mapping
-- Liquidity Flow Visualization
-- Smart Money Wallet Intelligence
-
-## Infrastructure
-
-- WebWorker Optimization
-- Realtime Aggregation Optimization
-- Replay Engine Persistence
-- Multi-source Intelligence Pipeline
+- Rotation Score
+- Signal Quality Score
+- Narrative Validation
+- Data Quality Penalty
+- False Positive Penalty
 
 ---
 
-# Inspiration
+## Running Locally
 
-QuantTerminal draws inspiration from:
+```bash
+npm install
+npm run dev
+```
 
-- Bloomberg Terminal
-- Nansen
-- Kaito
-- Palantir Foundry
-- Market Microstructure Systems
-- Realtime Operational Intelligence Platforms
+Build:
 
----
+```bash
+npm run build
+```
 
-# Status
-
-Active Development
-
-QuantTerminal is currently evolving rapidly as an experimental realtime intelligence platform for crypto markets.
+The build-stabilization pass pinned TypeScript to a stable 5.x version and removed the unsupported `ignoreDeprecations: "6.0"` setting.
 
 ---
 
-# License
+## Known Limitations
 
-MIT
-## Phase 6 — Terminal Core Refactor
+See [`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md).
 
-Phase 6 starts the migration from a large experimental `RegimeLab.tsx` sandbox into a reusable terminal intelligence core.
+Current known areas:
 
-New core boundaries:
+- WebSocket stream is implemented as the realtime direction, but polling still remains as fallback.
+- Some sector mappings require ongoing maintenance.
+- Upbit DataLab is public but not deeply documented; endpoint shape may change.
+- Signal quality weights are first-pass heuristics and should be tuned against real usage.
+- UI is now product-surface oriented, but further polish is still needed.
 
-- `core/shared/metrics.ts` — shared metric helpers such as clamp, percentile, compact formatting, and direction detection.
-- `core/registry/sectorRegistry.ts` — canonical sector registry with aliases, symbol mapping, weights, and descriptions.
-- `core/event-bus/*` — typed terminal event stream for regime, rotation, replay, DataLab, and alert events.
-- `core/alerts/*` — alert payload contracts and promotion evaluation boundary.
-- `core/regime/*` — regime IDs and transition rules for the state machine.
-- `core/rotation/*` — sector rotation state machine contracts and score decomposition.
-- `core/replay/*` — historical snapshot and replay frame contracts.
-- `core/workers/*` — message contracts for future WebWorker separation.
+---
 
-The current UI remains in `components/experimental/RegimeLab.tsx` so the existing DashboardLayout is not disturbed. The next cleanup pass should move calculation-heavy Phase 1–5 logic from the component into these `/core` modules.
+## Release Notes
 
-## Phase 7 — Real Market Integration Pack
+See [`docs/RELEASE_NOTES.md`](./docs/RELEASE_NOTES.md).
 
-Regime Lab now includes a sandbox-only real market integration layer. It does not modify the main dashboard layout.
+Current milestone:
 
-### Added
+```txt
+Realtime Intelligence Terminal Stabilization
+```
 
-- `app/api/market/sector-rotation/route.ts`
-  - Pulls Binance 24h tickers.
-  - Pulls Upbit KRW markets/tickers for Korean retail overlay.
-  - Pulls Upbit DataLab overview for premium context.
-- `core/market/realMarketRotation.ts`
-  - Builds live sector rotation ranking.
-  - Calculates volume pressure, breadth, volatility proxy, premium boost, regime fit, confidence, and direction.
-- `core/marketDataTypes.ts`
-  - Shared contracts for real market rotation responses.
-- Expanded `core/registry/sectorRegistry.ts`
-  - AI, MEME, RWA, GAMING, DEFI, L1, INFRA, DEPIN, EXCHANGE, PAYFI.
-- `components/experimental/RegimeLab.tsx`
-  - Adds Phase 7 Real Market Integration panel.
-  - Shows live sector ranking, coverage, leader, evidence, and top symbols.
+Key additions:
 
-### Philosophy
+- Live Command Surface
+- WebSocket realtime foundation
+- Binance symbol validation and chunked fetch
+- Upbit DataLab historical intelligence
+- Signal quality / false-positive control
+- Regime Lab decommission into product surfaces
+- Build stabilization
 
-Phase 7 uses `Global rotation + Korean retail overlay` as the default architecture. Binance is treated as the global price-discovery feed, while Upbit KRW tickers and DataLab premium act as the Korea-specific sentiment overlay.
+---
 
-## Phase 11 — Narrative Intelligence Pack
+## Suggested Next Work
 
-Phase 11 adds a narrative interpretation layer on top of live sector rotation.
-
-### Added
-
-- `core/narrative/narrativeTypes.ts`
-  - Narrative surface contracts for heatmap, story timeline, event compression, regional divergence, and operator commentary.
-- `core/narrative/generateNarrativeSurface.ts`
-  - Compresses sector rotation events into market narratives.
-  - Infers narrative regime and tone from live sector rotation.
-  - Generates AI-style market summary, narrative heatmap, story timeline, and operator commentary.
-- `components/narrative/NarrativeIntelligenceSurface.tsx`
-  - Live narrative panel connected to `/api/market/sector-rotation`.
-  - Displays lead story, heat, tone, regional divergence, commentary, story timeline, and event compression.
-- `components/DashboardLayout.tsx`
-  - Adds Narrative Intelligence Surface under the Phase 10 Live Command Surface.
-
-### Goal
-
-Phase 11 moves the terminal from raw event visualization toward market interpretation:
-
-`Rotation data → Narrative compression → Operator summary → Story timeline`
-
-## Phase 13 - Signal Quality & False Positive Control
-
-Adds a signal-quality layer on top of the narrative/rotation system.
-
-- Scores each narrative signal using liquidity heat, news validation, sector breadth, premium confirmation, regime fit, and data quality.
-- Classifies signals into `PROMOTE`, `WATCH`, and `SUPPRESS`.
-- Adds false-positive risk flags and explanation reasons/penalties.
-- Keeps the logic in `core/signal-quality` so the UI can be refactored later without changing scoring behavior.
-
-## Phase 14 - Productization Surface
-
-Adds the first user-facing product layer for daily terminal use.
-
-- Signal Inbox for promoted/watch signals.
-- Saved Views such as Korea Retail, Alt Rotation, AI Narrative, and Risk-Off.
-- Watchlist mode previews for High Beta, Institutional Themes, and Korea Retail.
-- Settings preview for alert threshold, cooldown, and preferred sectors.
-- Explanation Drawer preview to prepare for a future detailed signal inspector.
-
-
-## Realtime Market Core
-
-The current stable realtime path uses a normalized sector rotation snapshot API:
-
-- Binance exchangeInfo validation with in-memory TTL cache
-- Chunked Binance 24h ticker fetches for active registry symbols only
-- Upbit KRW market overlay
-- Upbit DataLab overview context
-- Diagnostics panel for connector status, coverage, latency, and invalid symbol audit
-
-The Live Command Surface consumes this through `useSectorRotationFeed`, which handles polling, cancellation, hidden-tab suppression, and partial/error state display.
+1. Continue WebSocket hardening and fallback handling.
+2. Tune signal quality weights using real usage.
+3. Reduce remaining UI redundancy.
+4. Add final responsive/mobile polish.
+5. Maintain sector registry and invalid symbol diagnostics.
+6. Move selected features into a production release branch.

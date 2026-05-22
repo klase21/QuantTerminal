@@ -19,11 +19,13 @@ export function buildProductizationSurface(
   narrative: NarrativeSurface,
   quality: SignalQualityReport
 ): ProductizationSurface {
-  const inboxSource = [...quality.promoted, ...quality.watch].slice(0, 6)
+  const inboxSource = [...quality.promoted, ...quality.watch]
+    .filter((item) => item.trustLabel !== "LOW_QUALITY" && item.falsePositiveRisk !== "HIGH")
+    .slice(0, 6)
   const signalInbox: SignalInboxItem[] = inboxSource.map((item) => ({
     ...item,
     title: `${item.narrative} ${item.validationStatus}`,
-    subtitle: item.reasons[0] ?? "Signal is waiting for additional confirmation.",
+    subtitle: item.operatorAction || item.reasons[0] || "Signal is waiting for additional confirmation.",
     priority: priority(item.qualityScore),
     savedView: savedViewForNarrative(item.narrative),
   }))
@@ -86,7 +88,7 @@ export function buildProductizationSurface(
     savedViews,
     watchlists,
     settingsHint: {
-      alertThreshold: 76,
+      alertThreshold: 78,
       cooldownMinutes: 15,
       preferredSectors: topNarratives.slice(0, 4),
     },

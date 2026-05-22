@@ -31,10 +31,14 @@ function connectorLabel(name: string) {
       return "UPBIT DATALAB"
     case "binance-exchange-info":
       return "BINANCE SYMBOL MAP"
+    case "binance-ws":
+      return "BINANCE WEBSOCKET"
     case "upbit-markets":
       return "UPBIT MARKETS"
     case "upbit-ticker":
       return "UPBIT TICKER"
+    case "upbit-ws":
+      return "UPBIT WEBSOCKET"
     default:
       return name.toUpperCase()
   }

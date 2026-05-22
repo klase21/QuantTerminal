@@ -1,7 +1,15 @@
 import type { RealMarketRotationResponse, SectorRotationSnapshot } from "@/core/marketDataTypes"
 import type { NarrativeHeatItem, NarrativeSurface, NarrativeValidationItem } from "@/core/narrative/narrativeTypes"
 import { average, clamp } from "@/core/shared/metrics"
-import type { FalsePositiveRisk, SignalQualityGrade, SignalQualityItem, SignalQualityReport, SignalReliability } from "./signalQualityTypes"
+import type {
+  FalsePositiveRisk,
+  SignalQualityBreakdown,
+  SignalQualityGrade,
+  SignalQualityItem,
+  SignalQualityReport,
+  SignalReliability,
+  SignalTrustLabel,
+} from "./signalQualityTypes"
 
 function gradeFromScore(score: number): SignalQualityGrade {
   if (score >= 82) return "A"
@@ -16,6 +24,12 @@ function reliabilityFromScore(score: number): SignalReliability {
   return "LOW"
 }
 
+function trustLabelFromScore(score: number, risk: FalsePositiveRisk): SignalTrustLabel {
+  if (score >= 78 && risk === "LOW") return "HIGH_TRUST"
+  if (score >= 58 && risk !== "HIGH") return "WATCH"
+  return "LOW_QUALITY"
+}
+
 function falsePositiveRiskFromScore(score: number, penalties: string[]): FalsePositiveRisk {
   if (score < 52 || penalties.length >= 3) return "HIGH"
   if (score < 70 || penalties.length >= 1) return "MEDIUM"
@@ -23,8 +37,8 @@ function falsePositiveRiskFromScore(score: number, penalties: string[]): FalsePo
 }
 
 function recommendationFromScore(score: number, risk: FalsePositiveRisk): SignalQualityItem["recommendation"] {
-  if (score >= 76 && risk !== "HIGH") return "PROMOTE"
-  if (score >= 52) return "WATCH"
+  if (score >= 78 && risk === "LOW") return "PROMOTE"
+  if (score >= 56 && risk !== "HIGH") return "WATCH"
   return "SUPPRESS"
 }
 
@@ -46,15 +60,64 @@ function validationForHeat(heat: NarrativeHeatItem, validations: NarrativeValida
 function scoreValidation(status?: NarrativeValidationItem["status"]) {
   switch (status) {
     case "VALIDATED":
-      return 24
+      return 100
     case "FLOW_ONLY":
-      return 10
+      return 62
     case "NEWS_ONLY":
-      return 4
+      return 40
     case "WEAK":
-      return -8
+      return 22
     default:
-      return 0
+      return 45
+  }
+}
+
+function scoreDataQuality(status?: string, stale?: boolean) {
+  if (stale) return 35
+  switch (status) {
+    case "healthy":
+      return 92
+    case "partial":
+      return 68
+    case "degraded":
+      return 44
+    case "error":
+      return 15
+    default:
+      return 55
+  }
+}
+
+function buildBreakdown(params: {
+  heat: NarrativeHeatItem
+  sector?: SectorRotationSnapshot
+  validation?: NarrativeValidationItem
+  dataQualityStatus?: string
+  stale?: boolean
+}): SignalQualityBreakdown {
+  const { heat, sector, validation, dataQualityStatus, stale } = params
+  const liquidity = clamp(sector?.rotationScore ?? heat.heat ?? 0)
+  const validationScore = clamp(validation?.validationScore ?? scoreValidation(validation?.status))
+  const breadth = clamp(sector?.breadth ?? 42)
+  const regimeFit = clamp(sector?.regimeFit ?? 50)
+  const dataQuality = scoreDataQuality(dataQualityStatus, stale)
+  const premiumConfirmation = clamp(sector?.premiumBoost ?? 45)
+  const noisePenalty = clamp(
+    (validation?.status === "NEWS_ONLY" ? 16 : 0)
+      + (validation?.status === "WEAK" ? 24 : 0)
+      + (sector && sector.breadth < 35 && sector.rotationScore >= 60 ? 18 : 0)
+      + (sector && sector.volumePressure < 35 && heat.heat >= 68 ? 14 : 0)
+      + (dataQuality < 50 ? 14 : 0)
+  )
+
+  return {
+    liquidity,
+    validation: validationScore,
+    breadth,
+    regimeFit,
+    dataQuality,
+    premiumConfirmation,
+    noisePenalty,
   }
 }
 
@@ -63,8 +126,9 @@ function buildReasons(params: {
   sector?: SectorRotationSnapshot
   validation?: NarrativeValidationItem
   dataQualityStatus?: string
+  stale?: boolean
 }) {
-  const { heat, sector, validation, dataQualityStatus } = params
+  const { heat, sector, validation, dataQualityStatus, stale } = params
   const reasons: string[] = []
   const penalties: string[] = []
 
@@ -75,15 +139,29 @@ function buildReasons(params: {
   if (sector?.breadth && sector.breadth >= 55) reasons.push("Sector breadth confirms participation")
   if (sector?.premiumBoost && sector.premiumBoost >= 60) reasons.push("Korean retail overlay is supportive")
   if (sector?.regimeFit && sector.regimeFit >= 65) reasons.push("Signal fits current regime")
+  if (dataQualityStatus === "healthy" && !stale) reasons.push("Connector health is clean")
 
   if (validation?.status === "NEWS_ONLY") penalties.push("News heat lacks liquidity confirmation")
   if (validation?.status === "WEAK") penalties.push("Narrative validation remains weak")
   if (sector && sector.breadth < 38 && sector.rotationScore >= 65) penalties.push("Leader-only move risk: weak breadth")
   if (sector && sector.premiumBoost < 35 && sector.volumePressure >= 65) penalties.push("Korean overlay does not confirm global flow")
+  if (sector && sector.volumePressure < 35 && heat.heat >= 68) penalties.push("Narrative heat is high but volume pressure is thin")
+  if (stale) penalties.push("Source feed is stale")
   if (dataQualityStatus && !["healthy", "partial"].includes(dataQualityStatus)) penalties.push(`Data quality is ${dataQualityStatus}`)
 
   if (!reasons.length) reasons.push("Signal is visible but not strongly confirmed")
   return { reasons, penalties }
+}
+
+function cooldownGroupFor(narrative: string, status?: string) {
+  return `${normalizeKey(narrative) || "UNKNOWN"}:${status ?? "ROTATION_ONLY"}`
+}
+
+function operatorAction(item: Pick<SignalQualityItem, "recommendation" | "falsePositiveRisk" | "reliability">) {
+  if (item.recommendation === "PROMOTE") return "Promote to signal inbox and keep monitoring confirmation."
+  if (item.falsePositiveRisk === "HIGH") return "Suppress from primary rail until liquidity or breadth confirms."
+  if (item.reliability === "MEDIUM") return "Keep on watchlist; wait for another confirming tick."
+  return "Keep visible as low-priority context only."
 }
 
 export function evaluateSignalQuality(
@@ -93,36 +171,48 @@ export function evaluateSignalQuality(
   const validations = narrative.newsFusion?.validation ?? []
   const sectors = rotationData?.sectors ?? narrative.sourceSectors ?? []
   const dataQualityStatus = rotationData?.dataQuality?.status
-  const heatItems = narrative.heatmap.slice(0, 8)
+  const stale = Boolean(rotationData?.dataQuality?.stale)
+  const heatItems = narrative.heatmap.slice(0, 10)
+  const seen = new Map<string, number>()
 
   const items: SignalQualityItem[] = heatItems.map((heat, index) => {
     const sector = matchSector(heat, sectors)
     const validation = validationForHeat(heat, validations)
-    const { reasons, penalties } = buildReasons({ heat, sector, validation, dataQualityStatus })
+    const { reasons, penalties } = buildReasons({ heat, sector, validation, dataQualityStatus, stale })
+    const breakdown = buildBreakdown({ heat, sector, validation, dataQualityStatus, stale })
+    const group = cooldownGroupFor(heat.narrative, validation?.status)
+    const duplicateCount = seen.get(group) ?? 0
+    seen.set(group, duplicateCount + 1)
 
-    const base = clamp(
-      heat.heat * 0.24
-      + (sector?.rotationScore ?? heat.heat) * 0.24
-      + (sector?.confidence ?? 50) * 0.14
-      + (sector?.breadth ?? 45) * 0.12
-      + (sector?.regimeFit ?? 50) * 0.10
-      + (validation?.validationScore ?? 45) * 0.16
-      + scoreValidation(validation?.status)
-      - penalties.length * 7
-      - index * 1.5
+    if (duplicateCount > 0) penalties.push("Duplicate narrative suppressed into existing cooldown group")
+
+    const score = clamp(
+      breakdown.liquidity * 0.24
+        + breakdown.validation * 0.20
+        + (sector?.confidence ?? 50) * 0.13
+        + breakdown.breadth * 0.13
+        + breakdown.regimeFit * 0.12
+        + breakdown.premiumConfirmation * 0.08
+        + breakdown.dataQuality * 0.10
+        - breakdown.noisePenalty * 0.55
+        - penalties.length * 4
+        - index * 1.2
+        - duplicateCount * 12
     )
 
-    const grade = gradeFromScore(base)
-    const reliability = reliabilityFromScore(base)
-    const falsePositiveRisk = falsePositiveRiskFromScore(base, penalties)
-    const recommendation = recommendationFromScore(base, falsePositiveRisk)
+    const grade = gradeFromScore(score)
+    const reliability = reliabilityFromScore(score)
+    const falsePositiveRisk = falsePositiveRiskFromScore(score, penalties)
+    const recommendation = recommendationFromScore(score, falsePositiveRisk)
+    const trustLabel = trustLabelFromScore(score, falsePositiveRisk)
 
-    return {
+    const item: SignalQualityItem = {
       id: `quality-${normalizeKey(heat.narrative) || index}`,
       narrative: heat.narrative,
-      qualityScore: base,
+      qualityScore: score,
       grade,
       reliability,
+      trustLabel,
       falsePositiveRisk,
       validationStatus: validation?.status ?? "ROTATION_ONLY",
       newsBuzz: validation?.newsBuzz ?? 0,
@@ -130,7 +220,13 @@ export function evaluateSignalQuality(
       reasons,
       penalties,
       recommendation,
+      breakdown,
+      cooldownGroup: group,
+      operatorAction: "",
     }
+
+    item.operatorAction = operatorAction(item)
+    return item
   })
 
   const sorted = items.sort((a, b) => b.qualityScore - a.qualityScore)
@@ -138,7 +234,8 @@ export function evaluateSignalQuality(
   const watch = sorted.filter((item) => item.recommendation === "WATCH")
   const suppressed = sorted.filter((item) => item.recommendation === "SUPPRESS")
   const overallScore = clamp(average(sorted.slice(0, 5).map((item) => item.qualityScore)))
-  const overallRisk = falsePositiveRiskFromScore(overallScore, sorted.flatMap((item) => item.penalties).slice(0, 3))
+  const allPenalties = sorted.flatMap((item) => item.penalties)
+  const overallRisk = falsePositiveRiskFromScore(overallScore, allPenalties.slice(0, 4))
 
   return {
     generatedAt: new Date().toISOString(),
@@ -148,9 +245,11 @@ export function evaluateSignalQuality(
     promoted,
     watch,
     suppressed,
+    noiseSuppressed: suppressed.length,
+    topPenalties: Array.from(new Set(allPenalties)).slice(0, 5),
     notes: [
-      "Signal quality blends liquidity, news validation, breadth, premium confirmation, regime fit, and data quality.",
-      "PROMOTE means the signal can graduate from lab visibility into the user-facing signal inbox.",
+      "Signal quality now applies noise penalties, duplicate suppression, breadth confirmation, data quality weighting, and regime fit.",
+      "PROMOTE requires strong confirmation. WATCH means visible but not alert-worthy. SUPPRESS keeps noisy signals out of primary surfaces.",
     ],
   }
 }
