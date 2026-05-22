@@ -44,7 +44,7 @@ export async function fetchYahooChart(
       ?.quote?.[0]
       ?.close || []
 
-  // null 제거
+  // Remove null values.
   const closes =
     closesRaw.filter(
       (

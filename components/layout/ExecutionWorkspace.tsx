@@ -11,6 +11,7 @@ import RealtimeIntelligenceStrip from "@/components/macro/RealtimeIntelligenceSt
 import ResearchReplayWorkspace from "@/components/research/ResearchReplayWorkspace";
 import SignalInboxWorkspace from "@/components/product/SignalInboxWorkspace";
 import SystemDiagnosticsWorkspace from "@/components/system/SystemDiagnosticsWorkspace";
+import NarrativeIntelligenceSurface from "@/components/narrative/NarrativeIntelligenceSurface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ExecutionWorkspaceProps = {
@@ -36,6 +37,7 @@ export default function ExecutionWorkspace({
         <TabsTrigger value="charts">Charts</TabsTrigger>
         <TabsTrigger value="orderflow">Order Flow</TabsTrigger>
         <TabsTrigger value="intelligence">Realtime Intel</TabsTrigger>
+        <TabsTrigger value="narrative">Narrative</TabsTrigger>
         <TabsTrigger value="signals">Signals</TabsTrigger>
         <TabsTrigger value="research">Research</TabsTrigger>
         <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
@@ -68,6 +70,10 @@ export default function ExecutionWorkspace({
         <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-zinc-900 bg-black p-4">
           <RealtimeIntelligenceStrip />
         </div>
+      </TabsContent>
+
+      <TabsContent value="narrative" className="m-0 min-h-0 overflow-y-auto pr-1">
+        <NarrativeIntelligenceSurface />
       </TabsContent>
 
       <TabsContent value="signals" className="m-0 min-h-0 overflow-y-auto pr-1">

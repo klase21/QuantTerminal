@@ -101,17 +101,17 @@ function pickRegime(args: {
 function regimeSummary(regime: MarketRegimeName) {
   switch (regime) {
     case "BTC_DEFENSIVE":
-      return "BTC 중심의 방어적 로테이션. 알트 확산보다 대형 자산 선호가 우세합니다."
+      return "BTC-led defensive rotation. Large-cap preference is stronger than broad alt participation."
     case "ALT_EXPANSION":
-      return "알트 참여율이 확장되는 구간. 섹터별 거래대금 이동을 추적할 가치가 큽니다."
+      return "Alt participation is expanding. Sector-level volume migration is worth tracking closely."
     case "ALT_EUPHORIA":
-      return "알트 과열 구간. 수익률은 강하지만 변동성 확대와 분배 리스크를 같이 봐야 합니다."
+      return "Alt market euphoria. Returns are strong, but volatility expansion and distribution risk need monitoring."
     case "KOREAN_RETAIL_FOMO":
-      return "한국 리테일 주도 FOMO 가능성. 업비트 거래대금과 프리미엄 급변을 우선 감시하세요."
+      return "Korean retail-led FOMO risk. Prioritize Upbit volume and premium expansion monitoring."
     case "RISK_OFF":
-      return "리스크오프 압력이 우세합니다. 스테이블/비트코인 선호와 거래량 위축을 확인하세요."
+      return "Risk-off pressure is dominant. Monitor stable/BTC preference and volume contraction."
     default:
-      return "뚜렷한 한쪽 방향보다 순환 장세가 우세합니다. 섹터별 상대강도 변화가 중요합니다."
+      return "Rotation remains mixed rather than one-directional. Sector relative strength changes matter most."
   }
 }
 

@@ -50,7 +50,7 @@ export default function MacroCard({
 
   // ======================================================
   // 24H MINI CHART
-  // Yahoo realtime/intraday로 교체 예정
+  // Replace with Yahoo realtime/intraday feed later.
   // ======================================================
 
   const chart24h =

@@ -75,7 +75,7 @@ export default function useMarketSocket() {
             event.data
           )
 
-        // 반드시 배열
+        // Always keep as an array.
         if (
           !Array.isArray(json)
         ) {
@@ -85,7 +85,7 @@ export default function useMarketSocket() {
         json.forEach(
           (data) => {
 
-            // USDT 페어만
+            // USDT pairs only.
             if (
               !data.s?.endsWith(
                 "USDT"

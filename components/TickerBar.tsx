@@ -106,7 +106,7 @@ export default function TickerBar() {
           )
       )
 
-      // 거래량 순
+      // Sort by volume.
       .sort(
         (a, b) =>
 

@@ -7,7 +7,7 @@ import type {
   SectorRotationSnapshot,
 } from "@/core/marketDataTypes";
 
-const POLL_MS = 30000;
+const POLL_MS = 10000;
 
 type FetchState = "idle" | "loading" | "live" | "partial" | "error";
 
@@ -96,12 +96,21 @@ export default function LiveCommandSurface() {
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let controller: AbortController | null = null;
 
     const load = async () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+
+      controller?.abort();
+      controller = new AbortController();
+
       try {
         setFetchState((prev) => (prev === "idle" ? "loading" : prev));
         const response = await fetch("/api/market/sector-rotation", {
           cache: "no-store",
+          signal: controller.signal,
         });
         const payload = (await response.json()) as RealMarketRotationResponse;
         if (!alive) return;
@@ -114,6 +123,7 @@ export default function LiveCommandSurface() {
         setPulse((value) => value + 1);
       } catch (err) {
         if (!alive) return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setFetchState("error");
         setError(err instanceof Error ? err.message : String(err));
       }
@@ -124,6 +134,7 @@ export default function LiveCommandSurface() {
 
     return () => {
       alive = false;
+      controller?.abort();
       if (timer) clearInterval(timer);
     };
   }, []);
@@ -160,9 +171,10 @@ export default function LiveCommandSurface() {
         "
       />
 
-      <div className="relative grid gap-3 px-4 py-3 xl:grid-cols-[1.25fr_1.1fr_0.9fr]">
+      <div className="relative grid items-stretch gap-3 px-4 py-3 xl:grid-cols-[1.25fr_1.1fr_0.9fr]">
         <div
           className="
+            h-full
             rounded-2xl
             border
             border-cyan-500/20
@@ -210,7 +222,7 @@ export default function LiveCommandSurface() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+        <div className="h-full rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
           <div className="flex items-center justify-between">
             <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
               Sector Heat Radar
@@ -250,7 +262,7 @@ export default function LiveCommandSurface() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+        <div className="h-full rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
           <div className="flex items-center justify-between">
             <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
               Live Event Rail

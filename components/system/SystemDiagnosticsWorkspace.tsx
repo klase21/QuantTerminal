@@ -29,6 +29,8 @@ function connectorLabel(name: string) {
   switch (name) {
     case "datalab":
       return "UPBIT DATALAB"
+    case "binance-exchange-info":
+      return "BINANCE SYMBOL MAP"
     case "upbit-markets":
       return "UPBIT MARKETS"
     case "upbit-ticker":

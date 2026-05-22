@@ -32,7 +32,7 @@ export interface SectorCoverageAudit {
 }
 
 export interface ConnectorQualityStatus {
-  name: "binance" | "upbit-markets" | "upbit-ticker" | "datalab"
+  name: "binance" | "binance-exchange-info" | "upbit-markets" | "upbit-ticker" | "datalab"
   status: "connected" | "partial" | "stale" | "error" | "idle"
   latencyMs?: number
   records?: number
@@ -84,4 +84,11 @@ export interface RealMarketRotationResponse {
   coverageAudit?: SectorCoverageAudit[]
   dataQuality?: RealMarketDataQuality
   notes: string[]
+  binanceValidation?: {
+    requestedSymbols: number
+    validSymbols: number
+    invalidSymbols: string[]
+    chunkSize: number
+    chunkCount: number
+  }
 }

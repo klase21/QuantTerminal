@@ -53,7 +53,7 @@ Promise<NewsItem[]> {
 
     return lives
 
-      // 빈 컨텐츠 제거
+      // Remove empty content items.
       .filter(
         (item: any) =>
           item?.content ||
