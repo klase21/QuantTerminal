@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from "react";
 
 import type { SectorRotationSnapshot } from "@/core/marketDataTypes";
 import { useSectorRotationFeed } from "@/hooks/useSectorRotationFeed";
+import { deriveNarrativeLifecycle, lifecyclePhaseLabel } from "@/core/narrative/deriveNarrativeLifecycle";
 
 function formatMetric(value: unknown, digits = 2) {
   const number = typeof value === "number" ? value : Number(value);
@@ -37,6 +38,24 @@ function directionTone(direction?: string) {
       return "border-amber-500/40 bg-amber-500/10 text-amber-300";
     default:
       return "border-zinc-800 bg-zinc-900/70 text-zinc-400";
+  }
+}
+
+
+function lifecycleTone(phase?: string) {
+  switch (phase) {
+    case "EARLY":
+      return "border-blue-500/30 bg-blue-500/10 text-blue-200";
+    case "EXPANDING":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+    case "VIRAL":
+      return "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-200";
+    case "OVERCROWDED":
+      return "border-red-500/30 bg-red-500/10 text-red-200";
+    case "EXITING":
+      return "border-zinc-700 bg-zinc-900 text-zinc-300";
+    default:
+      return "border-zinc-800 bg-zinc-900 text-zinc-400";
   }
 }
 
@@ -80,12 +99,19 @@ function stateFromSurface(topSector?: SectorRotationSnapshot) {
 }
 
 function buildEventRail(sectors: SectorRotationSnapshot[]) {
-  return sectors.slice(0, 4).map((sector) => ({
-    key: `${sector.rank}-${sector.sector}`,
-    label: `${sector.sector} ${sector.direction}`,
-    detail: `${formatMetric(sector.rotationScore)} score · ${formatMetric(sector.confidence)} conf`,
-    direction: sector.direction,
-  }));
+  const lifecycle = deriveNarrativeLifecycle(sectors);
+  return sectors.slice(0, 4).map((sector) => {
+    const phase = lifecycle.find((item) => item.narrative === sector.sector);
+    return {
+      key: `${sector.rank}-${sector.sector}`,
+      label: `${sector.sector} ${phase ? lifecyclePhaseLabel(phase.phase) : sector.direction}`,
+      detail: phase
+        ? `${formatMetric(phase.participation, 0)} participation · ${formatMetric(phase.confirmation, 0)} confirmation`
+        : `${formatMetric(sector.rotationScore)} score · ${formatMetric(sector.confidence)} conf`,
+      direction: sector.direction,
+      phase: phase?.phase,
+    };
+  });
 }
 
 function buildTemperature(sectors: SectorRotationSnapshot[]) {
@@ -110,6 +136,8 @@ export default function LiveCommandSurface() {
 
   const sectors = data?.sectors ?? [];
   const topSector = sectors[0];
+  const lifecycle = useMemo(() => deriveNarrativeLifecycle(sectors), [sectors]);
+  const topLifecycle = lifecycle[0];
   const state = stateFromSurface(topSector);
   const events = useMemo(() => buildEventRail(sectors), [sectors]);
   const temperature = useMemo(() => buildTemperature(sectors), [sectors]);
@@ -156,6 +184,9 @@ export default function LiveCommandSurface() {
                 <div className="mt-2 truncate text-2xl font-black uppercase tracking-[0.16em] text-white xl:text-3xl">
                   {state}
                 </div>
+                <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${lifecycleTone(topLifecycle?.phase)}`}>
+                  {topLifecycle ? lifecyclePhaseLabel(topLifecycle.phase) : "Scanning"}
+                </div>
                 <div className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">
                   <span className="font-bold text-zinc-200">{topSector?.sector ?? "--"}</span>
                   {topSector ? ` · ${topSector.story}` : " · scanning live market data"}
@@ -177,8 +208,8 @@ export default function LiveCommandSurface() {
                 <div className="mt-1 text-xl font-black text-fuchsia-200">{formatMetric(temperature)}%</div>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
-                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Alert</div>
-                <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-amber-200">{topAlert}</div>
+                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Lifecycle</div>
+                <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-amber-200">{topLifecycle?.headline ?? topAlert}</div>
               </div>
             </div>
           </SurfaceCard>

@@ -388,3 +388,23 @@ Key additions:
 4. Add final responsive/mobile polish.
 5. Maintain sector registry and invalid symbol diagnostics.
 6. Move selected features into a production release branch.
+
+## Phase 15 — Narrative Lifecycle Engine
+
+QuantTerminal now compresses live market structure into narrative lifecycle states:
+
+```txt
+Early → Expanding → Viral → Overcrowded → Exiting
+```
+
+The goal is not to show every metric on the main surface. The engine combines liquidity pressure, breadth, rotation strength, news heat, validation, premium overlay, and crowding risk, then exposes a simple operator-facing state such as:
+
+```txt
+AI — Expanding — High Participation
+```
+
+This follows the core product principle:
+
+```txt
+Complexity inside. Simplicity outside.
+```

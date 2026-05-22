@@ -2,6 +2,7 @@ import type { RealMarketRotationResponse, SectorRotationSnapshot } from "@/core/
 import { clamp } from "@/core/shared/metrics"
 import type { NarrativeHeatItem, NarrativeStoryStep, NarrativeSurface, NarrativeTone, OperatorCommentary } from "./narrativeTypes"
 import { buildNewsFusionSurface, type NewsFusionInputItem } from "./newsFusion"
+import { deriveNarrativeLifecycle } from "./deriveNarrativeLifecycle"
 
 function fmt(value: number | undefined, digits = 2) {
   if (!Number.isFinite(value)) return "--"
@@ -238,6 +239,10 @@ export function generateNarrativeSurface(data: RealMarketRotationResponse | null
   const heatmap = buildHeatmap(sectors)
   const regionalDivergence = buildRegionalDivergence(sectors)
   const newsFusion = buildNewsFusionSurface(news, heatmap)
+  const lifecycle = deriveNarrativeLifecycle(sectors, {
+    newsSignals: newsFusion.signals,
+    validation: newsFusion.validation,
+  })
 
   return {
     ok: Boolean(data?.ok && sectors.length),
@@ -247,6 +252,7 @@ export function generateNarrativeSurface(data: RealMarketRotationResponse | null
     marketSummary: buildMarketSummary(regime, tone, sectors),
     operatorCommentary: buildOperatorCommentary(tone, sectors),
     heatmap,
+    lifecycle,
     storyTimeline: buildStoryTimeline(regime, sectors),
     compression: buildCompression(sectors),
     regionalDivergence,

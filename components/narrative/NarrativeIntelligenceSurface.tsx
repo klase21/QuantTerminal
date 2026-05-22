@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { generateNarrativeSurface } from "@/core/narrative/generateNarrativeSurface"
 import type { NarrativeSurface } from "@/core/narrative/narrativeTypes"
 import type { RealMarketRotationResponse } from "@/core/marketDataTypes"
+import { lifecyclePhaseLabel } from "@/core/narrative/deriveNarrativeLifecycle"
 
 const POLL_MS = 45000
 
@@ -89,6 +90,24 @@ function formatValidationStatus(value?: string) {
       return "Weak Signal"
     default:
       return formatEnumLabel(value)
+  }
+}
+
+
+function lifecycleClass(phase?: string) {
+  switch (phase) {
+    case "EARLY":
+      return "border-blue-500/25 bg-blue-500/10 text-blue-200"
+    case "EXPANDING":
+      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+    case "VIRAL":
+      return "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-200"
+    case "OVERCROWDED":
+      return "border-red-500/25 bg-red-500/10 text-red-200"
+    case "EXITING":
+      return "border-zinc-700 bg-zinc-900 text-zinc-300"
+    default:
+      return "border-zinc-800 bg-zinc-900 text-zinc-400"
   }
 }
 
@@ -213,12 +232,32 @@ export default function NarrativeIntelligenceSurface() {
                 <div className="mt-1 truncate text-sm font-black text-violet-200">{topHeat?.narrative ?? "--"}</div>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Heat</div>
-                <div className="mt-1 text-sm font-black text-fuchsia-200">{formatMetric(topHeat?.heat)}%</div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Lifecycle</div>
+                <div className="mt-1 truncate text-sm font-black text-emerald-200">{narrative.lifecycle[0] ? lifecyclePhaseLabel(narrative.lifecycle[0].phase) : "--"}</div>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">News Fusion</div>
                 <div className="mt-1 text-sm font-black text-cyan-200">{newsState === "live" ? `${narrative.newsFusion?.totalNews ?? 0} ITEMS` : newsState.toUpperCase()}</div>
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-black/35 p-3">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Compressed Lifecycle</div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {narrative.lifecycle.slice(0, 3).map((item) => (
+                  <div key={item.narrative} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-black uppercase text-zinc-100">{item.narrative}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${lifecycleClass(item.phase)}`}>
+                        {lifecyclePhaseLabel(item.phase)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                      <span>Participation</span>
+                      <span className="ml-auto font-bold text-zinc-300">{formatMetric(item.participation, 0)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 

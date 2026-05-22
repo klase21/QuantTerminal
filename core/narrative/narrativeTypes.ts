@@ -1,4 +1,5 @@
 import type { RotationDirection, SectorRotationSnapshot } from "@/core/marketDataTypes"
+import type { NarrativeLifecycleItem } from "./lifecycleTypes"
 
 export type NarrativeTone = "RISK_ON" | "RISK_OFF" | "MIXED" | "COMPRESSION" | "EUPHORIA"
 
@@ -85,6 +86,7 @@ export interface NarrativeSurface {
   marketSummary: string
   operatorCommentary: OperatorCommentary[]
   heatmap: NarrativeHeatItem[]
+  lifecycle: NarrativeLifecycleItem[]
   storyTimeline: NarrativeStoryStep[]
   compression: NarrativeCompressionItem[]
   regionalDivergence: {
