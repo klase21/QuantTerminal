@@ -50,10 +50,6 @@ Promise<NewsItem[]> {
           g?.lives || []
       )
 
-    console.log(
-      "JINSE LIVES:",
-      lives.length
-    )
 
     return lives
 
@@ -114,10 +110,7 @@ Promise<NewsItem[]> {
 
   } catch (err) {
 
-    console.error(
-      "FETCH JINSE ERROR:",
-      err
-    )
+    void err
 
     return []
 

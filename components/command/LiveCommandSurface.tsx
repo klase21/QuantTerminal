@@ -70,7 +70,7 @@ function stateFromSurface(topSector?: SectorRotationSnapshot) {
 }
 
 function buildEventRail(sectors: SectorRotationSnapshot[]) {
-  return sectors.slice(0, 6).map((sector) => ({
+  return sectors.slice(0, 4).map((sector) => ({
     key: `${sector.rank}-${sector.sector}`,
     label: `${sector.sector} ${sector.direction}`,
     detail: `${formatMetric(sector.rotationScore)} score / ${formatMetric(sector.confidence)} conf`,
@@ -251,26 +251,32 @@ export default function LiveCommandSurface() {
         </div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
-            Live Event Rail
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+              Live Event Rail
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">
+              Top 4
+            </div>
           </div>
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 grid gap-2">
             {events.length ? events.map((event) => (
               <div
                 key={event.key}
                 className={`rounded-xl border px-3 py-2 ${directionTone(event.direction)}`}
               >
-                <div className="text-xs font-black uppercase tracking-[0.18em]">{event.label}</div>
-                <div className="mt-1 text-[11px] opacity-80">{event.detail}</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.14em]">{event.label}</div>
+                <div className="mt-1 text-[10px] opacity-80">{event.detail}</div>
               </div>
             )) : (
-              <div className="rounded-xl border border-zinc-800 bg-black/50 px-3 py-6 text-center text-xs text-zinc-500">
+              <div className="rounded-xl border border-zinc-800 bg-black/50 px-3 py-5 text-center text-xs text-zinc-500">
                 {fetchState === "error" ? error ?? "sector feed error" : "Loading live sector events..."}
               </div>
             )}
           </div>
         </div>
       </div>
+
     </section>
   );
 }
