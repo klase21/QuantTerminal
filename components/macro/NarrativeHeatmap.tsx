@@ -169,7 +169,7 @@ export default function NarrativeHeatmap() {
             text-zinc-300
           "
         >
-          DIV {data?.divergenceScore ?? 0}
+          DIVERGENCE {data?.divergenceScore ?? 0}
         </div>
       </div>
 

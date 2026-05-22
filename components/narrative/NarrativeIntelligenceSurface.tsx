@@ -27,6 +27,14 @@ function formatMetric(value: unknown, digits = 2) {
   return number.toFixed(digits)
 }
 
+function formatEnumLabel(value?: string) {
+  if (!value) return "--"
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 function toneClass(tone?: string) {
   switch (tone) {
     case "RISK_ON":
@@ -65,6 +73,22 @@ function severityClass(severity?: string) {
       return "text-amber-300"
     default:
       return "text-zinc-400"
+  }
+}
+
+
+function formatValidationStatus(value?: string) {
+  switch (value) {
+    case "VALIDATED":
+      return "Narrative Confirmed"
+    case "NEWS_ONLY":
+      return "News Momentum"
+    case "FLOW_ONLY":
+      return "Liquidity Expansion"
+    case "WEAK":
+      return "Weak Signal"
+    default:
+      return formatEnumLabel(value)
   }
 }
 
@@ -235,7 +259,7 @@ export default function NarrativeIntelligenceSurface() {
 
           <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-3">
             <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Regional Divergence</div>
-            <div className="mt-1 text-xs font-bold uppercase text-cyan-200">{narrative.regionalDivergence.status}</div>
+            <div className="mt-1 text-xs font-bold uppercase text-cyan-200">{formatEnumLabel(narrative.regionalDivergence.status)}</div>
             <p className="mt-1 text-xs leading-5 text-zinc-400">{narrative.regionalDivergence.summary}</p>
           </div>
         </div>
@@ -250,7 +274,7 @@ export default function NarrativeIntelligenceSurface() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs font-black uppercase text-zinc-200">{commentary.title}</div>
                   <div className={`text-[10px] font-bold uppercase tracking-[0.18em] ${severityClass(commentary.severity)}`}>
-                    {commentary.severity}
+                    {formatEnumLabel(commentary.severity)}
                   </div>
                 </div>
                 <p className="mt-1 text-xs leading-5 text-zinc-400">{commentary.body}</p>
@@ -304,7 +328,7 @@ export default function NarrativeIntelligenceSurface() {
               News Fusion Validation
             </div>
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">
-              {narrative.newsFusion?.divergence.status ?? "SCANNING"}
+              {formatEnumLabel(narrative.newsFusion?.divergence.status ?? "SCANNING")}
             </div>
           </div>
           <p className="mt-2 text-xs leading-5 text-zinc-400">
@@ -316,7 +340,7 @@ export default function NarrativeIntelligenceSurface() {
                 <div>
                   <div className="text-xs font-black uppercase text-zinc-100">{item.narrative}</div>
                   <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] ${validationClass(item.status)}`}>
-                    {item.status}
+                    {formatValidationStatus(item.status)}
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -380,15 +404,15 @@ export default function NarrativeIntelligenceSurface() {
           </div>
           <div className="mt-3 space-y-2">
             {(narrative.newsFusion?.regionalBuzz ?? []).map((region) => (
-              <div key={region.region} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div key={formatEnumLabel(region.region)} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-black uppercase text-zinc-100">{region.region}</div>
+                  <div className="text-xs font-black uppercase text-zinc-100">{formatEnumLabel(region.region)}</div>
                   <div className="text-sm font-black text-cyan-200">{region.count}</div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {(region.topNarratives.length ? region.topNarratives : ["NO TAG"]).map((tag) => (
-                    <span key={tag} className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase text-zinc-400">
-                      {tag}
+                    <span key={formatEnumLabel(tag)} className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase text-zinc-400">
+                      {formatEnumLabel(tag)}
                     </span>
                   ))}
                 </div>

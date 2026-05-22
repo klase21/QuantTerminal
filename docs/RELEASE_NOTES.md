@@ -57,3 +57,16 @@ This release consolidates the experimental Regime Lab work into a more productio
 - package lock updated
 
 ---
+
+## Suggested Commit
+
+```bash
+git add .
+git commit -m "docs: add release documentation for realtime intelligence terminal"
+```
+
+If combined with the stabilization work:
+
+```bash
+git commit -m "chore: finalize realtime terminal stabilization and docs"
+```

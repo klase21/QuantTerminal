@@ -8,6 +8,40 @@ function priority(score: number): SignalInboxItem["priority"] {
   return "P3"
 }
 
+
+function operatorSignalTitle(narrative: string, status?: string) {
+  const label = narrative.toUpperCase()
+  switch (status) {
+    case "VALIDATED":
+      return `${label} Narrative Confirmed`
+    case "FLOW_ONLY":
+      return `${label} Liquidity Expansion`
+    case "NEWS_ONLY":
+      return `${label} News Momentum Building`
+    case "WEAK":
+      return `${label} Weak Narrative Signal`
+    case "ROTATION_ONLY":
+    default:
+      return `${label} Rotation Detected`
+  }
+}
+
+function operatorSignalSubtitle(item: SignalQualityReport["promoted"][number]) {
+  if (item.recommendation === "PROMOTE") {
+    return item.reasons[0] ?? "Confirmed market signal with enough supporting evidence."
+  }
+  if (item.validationStatus === "FLOW_ONLY") {
+    return "Liquidity is moving before headlines confirm. Monitor for narrative follow-through."
+  }
+  if (item.validationStatus === "NEWS_ONLY") {
+    return "News momentum is visible, but liquidity confirmation remains limited."
+  }
+  if (item.penalties.some((penalty) => penalty.toLowerCase().includes("breadth"))) {
+    return "Participation remains narrow. Wait for broader sector confirmation."
+  }
+  return item.operatorAction || item.reasons[0] || "Monitor for another confirming tick before promotion."
+}
+
 function savedViewForNarrative(narrative: string) {
   const key = narrative.toUpperCase()
   if (["AI", "MEME", "RWA", "GAMING"].includes(key)) return `${key} Narrative`
@@ -24,8 +58,8 @@ export function buildProductizationSurface(
     .slice(0, 6)
   const signalInbox: SignalInboxItem[] = inboxSource.map((item) => ({
     ...item,
-    title: `${item.narrative} ${item.validationStatus}`,
-    subtitle: item.operatorAction || item.reasons[0] || "Signal is waiting for additional confirmation.",
+    title: operatorSignalTitle(item.narrative, item.validationStatus),
+    subtitle: operatorSignalSubtitle(item),
     priority: priority(item.qualityScore),
     savedView: savedViewForNarrative(item.narrative),
   }))

@@ -157,11 +157,20 @@ function cooldownGroupFor(narrative: string, status?: string) {
   return `${normalizeKey(narrative) || "UNKNOWN"}:${status ?? "ROTATION_ONLY"}`
 }
 
-function operatorAction(item: Pick<SignalQualityItem, "recommendation" | "falsePositiveRisk" | "reliability">) {
-  if (item.recommendation === "PROMOTE") return "Promote to signal inbox and keep monitoring confirmation."
-  if (item.falsePositiveRisk === "HIGH") return "Suppress from primary rail until liquidity or breadth confirms."
-  if (item.reliability === "MEDIUM") return "Keep on watchlist; wait for another confirming tick."
-  return "Keep visible as low-priority context only."
+function operatorAction(item: Pick<SignalQualityItem, "recommendation" | "falsePositiveRisk" | "reliability" | "validationStatus" | "penalties" | "reasons">) {
+  if (item.recommendation === "PROMOTE") {
+    return item.validationStatus === "VALIDATED"
+      ? "Narrative and liquidity are aligned. Promote to the primary signal rail."
+      : "Market flow is strong enough for active monitoring and inbox promotion."
+  }
+  if (item.falsePositiveRisk === "HIGH") return "Suppress until liquidity, breadth, or data quality improves."
+  if (item.penalties.some((penalty) => penalty.toLowerCase().includes("breadth"))) {
+    return "Participation remains narrow. Wait for broader sector confirmation."
+  }
+  if (item.validationStatus === "FLOW_ONLY") return "Liquidity is leading headlines. Watch for narrative confirmation."
+  if (item.validationStatus === "NEWS_ONLY") return "News momentum is visible, but flow confirmation is still weak."
+  if (item.reliability === "MEDIUM") return "Monitor for another confirming tick before promotion."
+  return item.reasons[0] ?? "Keep visible as low-priority context only."
 }
 
 export function evaluateSignalQuality(

@@ -8,6 +8,74 @@ function metric(value: number, digits = 0) {
   return value.toFixed(digits)
 }
 
+function formatEnumLabel(value?: string) {
+  if (!value) return "--"
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function formatPriority(value?: string) {
+  switch (value) {
+    case "P1":
+      return "High Conviction"
+    case "P2":
+      return "Medium Conviction"
+    case "P3":
+      return "Low Conviction"
+    default:
+      return formatEnumLabel(value)
+  }
+}
+
+function formatValidationStatus(value?: string) {
+  switch (value) {
+    case "VALIDATED":
+      return "Narrative Confirmed"
+    case "FLOW_ONLY":
+      return "Liquidity Expansion"
+    case "NEWS_ONLY":
+      return "News Momentum"
+    case "WEAK":
+      return "Weak Signal"
+    case "ROTATION_ONLY":
+      return "Rotation Detected"
+    default:
+      return formatEnumLabel(value)
+  }
+}
+
+function formatTrustLabel(value?: string) {
+  switch (value) {
+    case "HIGH_TRUST":
+      return "High Conviction"
+    case "WATCH":
+      return "Monitor"
+    case "LOW_QUALITY":
+      return "Weak Signal"
+    default:
+      return formatEnumLabel(value)
+  }
+}
+
+function formatRecommendation(value?: string) {
+  switch (value) {
+    case "PROMOTE":
+      return "Promote"
+    case "WATCH":
+      return "Monitor"
+    case "SUPPRESS":
+      return "Suppress"
+    default:
+      return formatEnumLabel(value)
+  }
+}
+
+function signalHeadline(item: SignalQualityItem) {
+  return `${item.narrative} ${formatValidationStatus(item.validationStatus)}`
+}
+
 function recommendationClass(value?: string) {
   switch (value) {
     case "PROMOTE":
@@ -79,17 +147,17 @@ function SignalRow({ item }: { item: SignalQualityItem }) {
     <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-xs font-black uppercase text-zinc-100">{item.narrative}</div>
+          <div className="truncate text-xs font-black uppercase text-zinc-100">{signalHeadline(item)}</div>
           <div className="mt-1 text-[11px] text-zinc-500">
-            {item.validationStatus} · Grade {item.grade} · {item.cooldownGroup}
+            {formatValidationStatus(item.validationStatus)} · Grade {item.grade}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <div className={`rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] ${trustClass(item.trustLabel)}`}>
-            {item.trustLabel.replace("_", " ")}
+            {formatTrustLabel(item.trustLabel)}
           </div>
           <div className={`rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] ${recommendationClass(item.recommendation)}`}>
-            {item.recommendation}
+            {formatRecommendation(item.recommendation)}
           </div>
         </div>
       </div>
@@ -155,7 +223,7 @@ export default function SignalProductizationSurface({
             </p>
           </div>
           <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-right">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-violet-300">Quality</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-violet-300">Confidence</div>
             <div className="text-xl font-black text-violet-100">{metric(quality.overallScore)}</div>
           </div>
         </div>
@@ -175,7 +243,7 @@ export default function SignalProductizationSurface({
           </div>
           <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">FP Risk</div>
-            <div className={`mt-1 text-lg font-black ${riskClass(quality.falsePositiveRisk)}`}>{quality.falsePositiveRisk}</div>
+            <div className={`mt-1 text-lg font-black ${riskClass(quality.falsePositiveRisk)}`}>{formatEnumLabel(quality.falsePositiveRisk)}</div>
           </div>
         </div>
 
@@ -195,7 +263,7 @@ export default function SignalProductizationSurface({
         <div className="mt-3 space-y-2">
           {visibleSignals.length ? visibleSignals.map((item) => <SignalRow key={item.id} item={item} />) : (
             <div className="rounded-xl border border-zinc-800 bg-black/40 p-4 text-sm text-zinc-500">
-              No signal is trusted enough for promotion yet.
+              No signal has enough confirmation for promotion yet.
             </div>
           )}
         </div>
@@ -206,7 +274,7 @@ export default function SignalProductizationSurface({
           <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
             Signal Inbox
           </div>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-600">Trusted Only</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-600">Confirmed Signals</div>
         </div>
         <div className="mt-3 space-y-2">
           {(product.signalInbox.length ? product.signalInbox : []).map((item) => (
@@ -216,11 +284,11 @@ export default function SignalProductizationSurface({
                   <div className="truncate text-xs font-black uppercase text-zinc-100">{item.title}</div>
                   <div className="mt-1 truncate text-[11px] text-zinc-500">{item.subtitle}</div>
                 </div>
-                <div className={`rounded-full border px-2 py-1 text-[9px] font-bold uppercase ${priorityClass(item.priority)}`}>{item.priority}</div>
+                <div className={`rounded-full border px-2 py-1 text-[9px] font-bold uppercase ${priorityClass(item.priority)}`}>{formatPriority(item.priority)}</div>
               </div>
               <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-zinc-600">
                 <span>{item.savedView}</span>
-                <span>{metric(item.qualityScore)} QS</span>
+                <span>Confidence {metric(item.qualityScore)}</span>
               </div>
             </div>
           ))}
@@ -232,7 +300,7 @@ export default function SignalProductizationSurface({
         </div>
 
         <div className="mt-3 rounded-xl border border-zinc-800 bg-black/40 p-3">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Settings Preview</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Signal Settings</div>
           <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
             <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-2">
               <div className="text-[9px] uppercase text-zinc-600">Threshold</div>
@@ -246,7 +314,7 @@ export default function SignalProductizationSurface({
         </div>
 
         <div className="mt-3 rounded-xl border border-zinc-800 bg-black/40 p-3">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Suppressed Noise</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Filtered Noise</div>
           <div className="mt-2 space-y-2">
             {suppressedSignals.length ? suppressedSignals.map((item) => (
               <div key={item.id} className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-2">
@@ -270,7 +338,7 @@ export default function SignalProductizationSurface({
             <div key={view.id} className={`rounded-xl border p-3 ${view.active ? "border-cyan-500/25 bg-cyan-500/10" : "border-zinc-800 bg-black/40"}`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs font-black uppercase text-zinc-100">{view.label}</div>
-                <div className={`text-[9px] font-bold uppercase tracking-[0.14em] ${view.active ? "text-cyan-200" : "text-zinc-600"}`}>{view.active ? "ACTIVE" : "IDLE"}</div>
+                <div className={`text-[9px] font-bold uppercase tracking-[0.14em] ${view.active ? "text-cyan-200" : "text-zinc-600"}`}>{view.active ? "Active" : "Idle"}</div>
               </div>
               <p className="mt-1 text-[11px] leading-4 text-zinc-500">{view.description}</p>
             </div>
@@ -282,7 +350,7 @@ export default function SignalProductizationSurface({
             <div key={watchlist.label} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-black uppercase text-zinc-100">{watchlist.label}</div>
-                <div className="text-[10px] font-bold uppercase text-zinc-500">{watchlist.status}</div>
+                <div className="text-[10px] font-bold uppercase text-zinc-500">{formatEnumLabel(watchlist.status)}</div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {watchlist.sectors.map((sector) => (
@@ -297,7 +365,7 @@ export default function SignalProductizationSurface({
 
         {topSignal ? (
           <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-violet-300">Explanation Drawer Preview</div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-violet-300">Signal Explanation</div>
             <div className="mt-1 text-xs font-black uppercase text-violet-100">{topSignal.narrative}</div>
             <p className="mt-1 text-[11px] leading-5 text-violet-100/70">
               {topSignal.operatorAction || topSignal.reasons[0] || "Open this signal to inspect reasons, penalties, validation, cooldown, and source coverage."}

@@ -118,7 +118,7 @@ function buildStripEvents(payload: NarrativePayload): StripEvent[] {
 
 function typeLabel(type: StripEvent["type"]) {
   if (type === "spike") return "SPIKE"
-  if (type === "divergence") return "DIV"
+  if (type === "divergence") return "DIVERGENCE"
   return "LEAD"
 }
 
