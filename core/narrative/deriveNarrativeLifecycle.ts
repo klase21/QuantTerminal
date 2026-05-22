@@ -2,6 +2,8 @@ import type { SectorRotationSnapshot } from "@/core/marketDataTypes"
 import { clamp } from "@/core/shared/metrics"
 import type { NewsNarrativeSignal, NarrativeValidationItem } from "./narrativeTypes"
 import type { NarrativeLifecycleItem, NarrativeLifecyclePhase } from "./lifecycleTypes"
+import { deriveParticipationVelocity } from "@/core/participation/deriveParticipationVelocity"
+import { deriveCrowdingRisk } from "@/core/crowding/deriveCrowdingRisk"
 
 function metric(value: number | undefined, digits = 0) {
   if (!Number.isFinite(value)) return "--"
@@ -126,18 +128,52 @@ export function deriveNarrativeLifecycle(
         Math.max(0, sector.rotationScore - sector.breadth) * 0.18 +
         Math.max(0, sector.confidence - 70) * 0.10
     )
-    const phase = inferPhase({ sector, participation, confirmation, crowding })
+    const participationSignal = deriveParticipationVelocity([
+      {
+        narrative: sector.sector,
+        rotationScore: sector.rotationScore,
+        volumePressure: sector.volumePressure,
+        breadth: sector.breadth,
+        premiumBoost: sector.premiumBoost,
+        newsBuzz,
+        confirmation,
+      },
+    ])[0]
+    const crowdingSignal = deriveCrowdingRisk([
+      {
+        narrative: sector.sector,
+        participationVelocity: participationSignal.velocity,
+        breadth: sector.breadth,
+        volatility: sector.volatility,
+        premiumBoost: sector.premiumBoost,
+        newsBuzz,
+        confidence: sector.confidence,
+      },
+    ])[0]
+    const phase = inferPhase({
+      sector,
+      participation,
+      confirmation,
+      crowding: Math.max(crowding, crowdingSignal.crowdRisk),
+    })
 
     return {
       narrative: sector.sector,
       phase,
       participation,
       confirmation,
-      crowding,
-      confidence: clamp(confirmation * 0.55 + participation * 0.30 + (100 - crowding) * 0.15),
+      crowding: Math.max(crowding, crowdingSignal.crowdRisk),
+      confidence: clamp(confirmation * 0.55 + participation * 0.30 + (100 - crowdingSignal.crowdRisk) * 0.15),
+      velocity: participationSignal.velocity,
+      acceleration: participationSignal.acceleration,
+      temperature: participationSignal.temperature,
+      participationLabel: participationSignal.participationLabel,
+      crowdRisk: crowdingSignal.crowdRisk,
+      crowdRiskState: crowdingSignal.state,
+      crowdRiskLabel: crowdingSignal.label,
       headline: headlineFor(sector, phase),
-      detail: detailFor(sector, phase, participation, confirmation, crowding),
-      drivers: driversFor(sector, newsBuzz, validationScore, crowding),
+      detail: detailFor(sector, phase, participation, confirmation, crowdingSignal.crowdRisk),
+      drivers: driversFor(sector, newsBuzz, validationScore, crowdingSignal.crowdRisk),
     }
   })
 }

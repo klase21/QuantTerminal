@@ -13,6 +13,13 @@ export interface NarrativeLifecycleItem {
   confirmation: number
   crowding: number
   confidence: number
+  velocity: number
+  acceleration: number
+  temperature: string
+  participationLabel: string
+  crowdRisk: number
+  crowdRiskState: string
+  crowdRiskLabel: string
   headline: string
   detail: string
   drivers: string[]

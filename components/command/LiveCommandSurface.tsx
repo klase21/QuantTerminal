@@ -59,6 +59,20 @@ function lifecycleTone(phase?: string) {
   }
 }
 
+
+function crowdingTone(state?: string) {
+  switch (state) {
+    case "Extreme":
+      return "border-red-500/35 bg-red-500/10 text-red-200";
+    case "Elevated":
+      return "border-orange-500/35 bg-orange-500/10 text-orange-200";
+    case "Moderate":
+      return "border-amber-500/35 bg-amber-500/10 text-amber-200";
+    default:
+      return "border-zinc-800 bg-zinc-900 text-zinc-400";
+  }
+}
+
 function healthTone(status?: string) {
   switch (status) {
     case "healthy":
@@ -106,7 +120,7 @@ function buildEventRail(sectors: SectorRotationSnapshot[]) {
       key: `${sector.rank}-${sector.sector}`,
       label: `${sector.sector} ${phase ? lifecyclePhaseLabel(phase.phase) : sector.direction}`,
       detail: phase
-        ? `${formatMetric(phase.participation, 0)} participation · ${formatMetric(phase.confirmation, 0)} confirmation`
+        ? `${phase.participationLabel} · ${phase.crowdRiskLabel}`
         : `${formatMetric(sector.rotationScore)} score · ${formatMetric(sector.confidence)} conf`,
       direction: sector.direction,
       phase: phase?.phase,
@@ -184,8 +198,13 @@ export default function LiveCommandSurface() {
                 <div className="mt-2 truncate text-2xl font-black uppercase tracking-[0.16em] text-white xl:text-3xl">
                   {state}
                 </div>
-                <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${lifecycleTone(topLifecycle?.phase)}`}>
-                  {topLifecycle ? lifecyclePhaseLabel(topLifecycle.phase) : "Scanning"}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${lifecycleTone(topLifecycle?.phase)}`}>
+                    {topLifecycle ? lifecyclePhaseLabel(topLifecycle.phase) : "Scanning"}
+                  </div>
+                  <div className="inline-flex rounded-full border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-300">
+                    {topLifecycle?.participationLabel ?? "Participation Scan"}
+                  </div>
                 </div>
                 <div className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">
                   <span className="font-bold text-zinc-200">{topSector?.sector ?? "--"}</span>
@@ -208,8 +227,10 @@ export default function LiveCommandSurface() {
                 <div className="mt-1 text-xl font-black text-fuchsia-200">{formatMetric(temperature)}%</div>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
-                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Lifecycle</div>
-                <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-amber-200">{topLifecycle?.headline ?? topAlert}</div>
+                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Crowding</div>
+                <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${crowdingTone(topLifecycle?.crowdRiskState)}`}>
+                  {topLifecycle?.crowdRiskState ?? "Low"}
+                </div>
               </div>
             </div>
           </SurfaceCard>

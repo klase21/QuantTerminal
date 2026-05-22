@@ -408,3 +408,23 @@ This follows the core product principle:
 ```txt
 Complexity inside. Simplicity outside.
 ```
+
+## Phase 16-17: Participation & Crowding Engine
+
+QuantTerminal now extends narrative lifecycle tracking with participation velocity and crowding risk detection.
+
+The system does not treat social activity or liquidity pressure as standalone signals. Instead, it compresses them into operator-readable market states:
+
+- **Participation Velocity** — whether a narrative is quiet, emerging, active, highly participated, or overheating.
+- **Crowding Risk** — whether participation is healthy or becoming one-sided, euphoric, and vulnerable to late-stage reversal.
+
+The main surface remains intentionally simple. Rather than exposing every internal factor, the terminal summarizes narrative state as compact operator language such as:
+
+```txt
+AI
+Expanding
+High Participation
+Moderate Crowding
+```
+
+The deeper workspace retains the underlying velocity, acceleration, breadth support, and crowding diagnostics for drill-down analysis.

@@ -111,6 +111,20 @@ function lifecycleClass(phase?: string) {
   }
 }
 
+
+function crowdingClass(state?: string) {
+  switch (state) {
+    case "Extreme":
+      return "border-red-500/25 bg-red-500/10 text-red-200"
+    case "Elevated":
+      return "border-orange-500/25 bg-orange-500/10 text-orange-200"
+    case "Moderate":
+      return "border-amber-500/25 bg-amber-500/10 text-amber-200"
+    default:
+      return "border-zinc-800 bg-zinc-900 text-zinc-400"
+  }
+}
+
 function validationClass(status?: string) {
   switch (status) {
     case "VALIDATED":
@@ -252,9 +266,17 @@ export default function NarrativeIntelligenceSurface() {
                         {lifecyclePhaseLabel(item.phase)}
                       </span>
                     </div>
-                    <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-                      <span>Participation</span>
-                      <span className="ml-auto font-bold text-zinc-300">{formatMetric(item.participation, 0)}</span>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className="rounded-full border border-zinc-800 bg-black/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-300">
+                        {item.participationLabel}
+                      </span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${crowdingClass(item.crowdRiskState)}`}>
+                        {item.crowdRiskLabel}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                      <div>Velocity <span className="font-bold text-zinc-300">{formatMetric(item.velocity, 0)}</span></div>
+                      <div className="text-right">Risk <span className="font-bold text-zinc-300">{formatMetric(item.crowdRisk, 0)}</span></div>
                     </div>
                   </div>
                 ))}
