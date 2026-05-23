@@ -11,6 +11,7 @@ import {
   type UpbitTickerMessage,
   upbitStreamToTicker,
 } from "@/core/stream/streamTickerAdapters"
+import { safeFetchJson } from "@/lib/runtime/safeFetch"
 
 export type SectorRotationFeedStatus = "idle" | "loading" | "live" | "partial" | "error"
 export type RealtimeTransportStatus = "idle" | "connecting" | "connected" | "stale" | "error"
@@ -179,16 +180,18 @@ export function useSectorRotationFeed(pollMs = DEFAULT_POLL_MS) {
       if (!seedRef.current) setStatus("loading")
 
       try {
-        const response = await fetch("/api/market/sector-rotation", {
-          cache: "no-store",
+        const result = await safeFetchJson<RealMarketRotationResponse>("/api/market/sector-rotation", {
           signal: controller.signal,
+          timeoutMs: 9000,
+          retries: 1,
+          label: "sector rotation",
         })
-        const payload = (await response.json()) as RealMarketRotationResponse
         if (!alive) return
 
-        if (!response.ok || payload.ok === false) {
-          throw new Error(payload.notes?.[0] ?? `sector rotation returned ${response.status}`)
+        if (!result.ok || !result.data || result.data.ok === false) {
+          throw new Error(result.error ?? result.data?.notes?.[0] ?? "sector rotation failed")
         }
+        const payload = result.data
 
         seedRef.current = payload
         const nextUpbitCodes = buildKrwCodesFromSeed(payload)

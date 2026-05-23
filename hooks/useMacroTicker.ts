@@ -9,6 +9,7 @@ import {
   MACRO_TICKER_FALLBACK,
   MacroTickerItem,
 } from "@/lib/macroTicker"
+import { safeFetchJson } from "@/lib/runtime/safeFetch"
 
 const REFRESH_MS = 30_000
 
@@ -23,19 +24,17 @@ export default function useMacroTicker() {
 
   async function load() {
     try {
-      const res =
-        await fetch("/api/macro", {
-          cache: "no-store",
-        })
+      const result = await safeFetchJson<{ items?: MacroTickerItem[] }>("/api/macro", {
+        timeoutMs: 7000,
+        retries: 1,
+        label: "macro ticker",
+      })
 
-      if (!res.ok) {
-        throw new Error(
-          `Macro ticker failed: ${res.status}`
-        )
+      if (!result.ok || !result.data) {
+        throw new Error(result.error ?? "Macro ticker failed")
       }
 
-      const json =
-        await res.json()
+      const json = result.data
 
       if (
         Array.isArray(json?.items) &&

@@ -148,76 +148,99 @@ function requestedSymbols() {
 }
 
 export async function GET() {
-  const requested = requestedSymbols()
-  const connectors: FuturesConnectorTelemetry[] = []
+  try {
+    const requested = requestedSymbols()
+    const connectors: FuturesConnectorTelemetry[] = []
 
-  const exchangeInfo = await timed(
-    "binance-futures-exchange-info",
-    getFuturesExchangeSymbols,
-    (value) => value.symbols.size
-  )
-  connectors.push(exchangeInfo.connector)
+    const exchangeInfo = await timed(
+      "binance-futures-exchange-info",
+      getFuturesExchangeSymbols,
+      (value) => value.symbols.size
+    )
+    connectors.push(exchangeInfo.connector)
 
-  const validSet = exchangeInfo.value?.symbols ?? new Set<string>()
-  const validSymbols = requested.filter((symbol) => validSet.has(symbol)).slice(0, MAX_FUTURES_SYMBOLS)
-  const invalidSymbols = requested.filter((symbol) => !validSet.has(symbol))
+    const validSet = exchangeInfo.value?.symbols ?? new Set<string>()
+    const validSymbols = requested.filter((symbol) => validSet.has(symbol)).slice(0, MAX_FUTURES_SYMBOLS)
+    const invalidSymbols = requested.filter((symbol) => !validSet.has(symbol))
 
-  const started = Date.now()
-  const symbols = await mapLimit(validSymbols, CONCURRENCY, async (symbol) => {
-    const mapped = mapFuturesSymbol(symbol)
-    if (!mapped) return null
-    try {
-      const [openInterest, premium] = await Promise.all([
-        fetchJson<OpenInterestPayload>(`${BINANCE_FAPI}/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`),
-        fetchJson<PremiumIndexPayload>(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`),
-      ])
-      const markPrice = num(premium.markPrice || premium.indexPrice)
-      const openInterestValue = num(openInterest.openInterest)
-      const oiNotional = openInterestValue * markPrice
-      if (!markPrice || !openInterestValue || !oiNotional) return null
-      return {
-        symbol,
-        baseAsset: mapped.baseAsset,
-        sector: mapped.sector,
-        openInterest: openInterestValue,
-        markPrice,
-        oiNotional,
-        fundingRate: num(premium.lastFundingRate),
-        nextFundingTime: premium.nextFundingTime,
-      } satisfies FuturesSymbolSnapshot
-    } catch {
-      return null
-    }
-  })
+    const started = Date.now()
+    const symbols = await mapLimit(validSymbols, CONCURRENCY, async (symbol) => {
+      const mapped = mapFuturesSymbol(symbol)
+      if (!mapped) return null
+      try {
+        const [openInterest, premium] = await Promise.all([
+          fetchJson<OpenInterestPayload>(`${BINANCE_FAPI}/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`),
+          fetchJson<PremiumIndexPayload>(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`),
+        ])
+        const markPrice = num(premium.markPrice || premium.indexPrice)
+        const openInterestValue = num(openInterest.openInterest)
+        const oiNotional = openInterestValue * markPrice
+        if (!markPrice || !openInterestValue || !oiNotional) return null
+        return {
+          symbol,
+          baseAsset: mapped.baseAsset,
+          sector: mapped.sector,
+          openInterest: openInterestValue,
+          markPrice,
+          oiNotional,
+          fundingRate: num(premium.lastFundingRate),
+          nextFundingTime: premium.nextFundingTime,
+        } satisfies FuturesSymbolSnapshot
+      } catch {
+        return null
+      }
+    })
 
-  connectors.push({
-    name: "binance-futures-open-interest",
-    status: symbols.length ? (symbols.length < validSymbols.length * 0.65 ? "partial" : "connected") : "error",
-    latencyMs: Date.now() - started,
-    records: symbols.length,
-    message: symbols.length ? undefined : "No futures OI records returned.",
-  })
-  connectors.push({
-    name: "binance-futures-funding",
-    status: symbols.length ? "connected" : "error",
-    latencyMs: Date.now() - started,
-    records: symbols.filter((item) => Number.isFinite(item.fundingRate)).length,
-  })
+    connectors.push({
+      name: "binance-futures-open-interest",
+      status: symbols.length ? (symbols.length < validSymbols.length * 0.65 ? "partial" : "connected") : "error",
+      latencyMs: Date.now() - started,
+      records: symbols.length,
+      message: symbols.length ? undefined : "No futures OI records returned.",
+    })
+    connectors.push({
+      name: "binance-futures-funding",
+      status: symbols.length ? "connected" : "error",
+      latencyMs: Date.now() - started,
+      records: symbols.filter((item) => Number.isFinite(item.fundingRate)).length,
+    })
 
-  const payload = buildFuturesIntelligence({
-    symbols,
-    requestedSymbols: requested.length,
-    validSymbols: validSymbols.length,
-    invalidSymbols,
-    connectors,
-    maxSymbols: MAX_FUTURES_SYMBOLS,
-    concurrency: CONCURRENCY,
-  })
+    const payload = buildFuturesIntelligence({
+      symbols,
+      requestedSymbols: requested.length,
+      validSymbols: validSymbols.length,
+      invalidSymbols,
+      connectors,
+      maxSymbols: MAX_FUTURES_SYMBOLS,
+      concurrency: CONCURRENCY,
+    })
 
-  return NextResponse.json(payload, {
-    status: payload.ok ? 200 : 502,
-    headers: {
-      "Cache-Control": "no-store, max-age=0",
-    },
-  })
+    return NextResponse.json(payload, {
+      status: payload.ok ? 200 : 502,
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
+    })
+  } catch (error) {
+    const fallback = buildFuturesIntelligence({
+      symbols: [],
+      requestedSymbols: 0,
+      validSymbols: 0,
+      invalidSymbols: [],
+      connectors: [{
+        name: "binance-futures-open-interest",
+        status: "error",
+        latencyMs: 0,
+        records: 0,
+        message: error instanceof Error ? error.message : String(error),
+      }],
+      maxSymbols: MAX_FUTURES_SYMBOLS,
+      concurrency: CONCURRENCY,
+    })
+    return NextResponse.json({
+      ...fallback,
+      ok: false,
+      notes: [...(fallback.notes ?? []), error instanceof Error ? error.message : "Unknown futures route error"],
+    }, { status: 500 })
+  }
 }
