@@ -28,6 +28,7 @@ export interface StressSectorRead {
   crowdingRisk: number
   withdrawalRisk: number
   operatorRead: string
+  [key: string]: unknown
 }
 
 export interface LiquidityStressSurface {
@@ -41,6 +42,7 @@ export interface LiquidityStressSurface {
   operatorRead: string
   drivers: LiquidityStressDriver[]
   sectors: StressSectorRead[]
+  [key: string]: unknown
 }
 
 function round(value: number, digits = 2) {

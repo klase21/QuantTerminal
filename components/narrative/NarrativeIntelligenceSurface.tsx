@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { generateNarrativeSurface } from "@/core/narrative/generateNarrativeSurface"
+import Phase31_35IntelligenceLayer from "@/components/narrative/Phase31_35IntelligenceLayer"
 import type { NarrativeSurface } from "@/core/narrative/narrativeTypes"
 import type { RealMarketRotationResponse } from "@/core/marketDataTypes"
 
@@ -422,6 +423,7 @@ export default function NarrativeIntelligenceSurface() {
         </div>
       </div>
 
+      <Phase31_35IntelligenceLayer narrative={narrative} />
     </section>
   )
 }

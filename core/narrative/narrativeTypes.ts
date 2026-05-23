@@ -82,6 +82,8 @@ export interface NarrativePropagationNode {
   sector?: string
   heat?: number
   confidence?: number
+  lifecycleCounts?: Partial<Record<NarrativeLifecyclePhase, number>>
+  operatorRead?: string
   [key: string]: unknown
 }
 
@@ -114,6 +116,8 @@ export interface NarrativePropagationSurface {
   links?: NarrativePropagationLink[]
   lagSectors?: string[]
   confidence?: number
+  lifecycleCounts?: Partial<Record<NarrativeLifecyclePhase, number>>
+  operatorRead?: string
   [key: string]: unknown
 }
 
@@ -210,6 +214,8 @@ export interface CrossMarketDependency {
   lag?: number
   correlation?: number
   confidence?: number
+  lifecycleCounts?: Partial<Record<NarrativeLifecyclePhase, number>>
+  operatorRead?: string
   [key: string]: unknown
 }
 
