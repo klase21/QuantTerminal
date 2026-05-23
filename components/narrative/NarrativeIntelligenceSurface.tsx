@@ -5,8 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { generateNarrativeSurface } from "@/core/narrative/generateNarrativeSurface"
 import type { NarrativeSurface } from "@/core/narrative/narrativeTypes"
 import type { RealMarketRotationResponse } from "@/core/marketDataTypes"
-import { lifecyclePhaseLabel } from "@/core/narrative/deriveNarrativeLifecycle"
-import type { KRRetailReactionSurface } from "@/core/krRetail/krRetailTypes"
+import type { FuturesIntelligenceResponse } from "@/core/futuresTypes"
 
 const POLL_MS = 45000
 
@@ -95,96 +94,103 @@ function formatValidationStatus(value?: string) {
 }
 
 
-function lifecycleClass(phase?: string) {
-  switch (phase) {
-    case "EARLY":
-      return "border-blue-500/25 bg-blue-500/10 text-blue-200"
-    case "EXPANDING":
-      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-    case "VIRAL":
-      return "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-200"
-    case "OVERCROWDED":
-      return "border-red-500/25 bg-red-500/10 text-red-200"
-    case "EXITING":
-      return "border-zinc-700 bg-zinc-900 text-zinc-300"
+function stressRegimeLabel(value?: string) {
+  switch (value) {
+    case "HEALTHY_EXPANSION":
+      return "Healthy Expansion"
+    case "SPECULATIVE_EXPANSION":
+      return "Speculative Expansion"
+    case "LIQUIDITY_STRESS":
+      return "Liquidity Stress"
+    case "DEFENSIVE_WITHDRAWAL":
+      return "Defensive Withdrawal"
+    case "COMPRESSION":
+      return "Compression"
+    case "FRAGILE_ROTATION":
+      return "Fragile Rotation"
+    case "MARKET_SCAN":
+      return "Market Scan"
     default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400"
+      return formatEnumLabel(value)
   }
 }
 
-
-function crowdingClass(state?: string) {
-  switch (state) {
-    case "Extreme":
-      return "border-red-500/25 bg-red-500/10 text-red-200"
-    case "Elevated":
+function stressRegimeClass(value?: string) {
+  switch (value) {
+    case "HEALTHY_EXPANSION":
+      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+    case "SPECULATIVE_EXPANSION":
+      return "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-200"
+    case "LIQUIDITY_STRESS":
       return "border-orange-500/25 bg-orange-500/10 text-orange-200"
-    case "Moderate":
-      return "border-amber-500/25 bg-amber-500/10 text-amber-200"
-    default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400"
-  }
-}
-
-
-function krRetailClass(mood?: string) {
-  switch (mood) {
-    case "Euphoric":
-      return "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-200"
-    case "Constructive":
-      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-    case "Defensive":
+    case "DEFENSIVE_WITHDRAWAL":
       return "border-red-500/25 bg-red-500/10 text-red-200"
-    case "Divided":
+    case "COMPRESSION":
       return "border-amber-500/25 bg-amber-500/10 text-amber-200"
+    case "FRAGILE_ROTATION":
+      return "border-sky-500/25 bg-sky-500/10 text-sky-200"
     default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400"
-  }
-}
-
-function opportunityClass(state?: string) {
-  switch (state) {
-    case "HIGH_OPPORTUNITY":
-      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-    case "EMERGING":
-      return "border-cyan-500/25 bg-cyan-500/10 text-cyan-200"
-    case "WATCHLIST":
-      return "border-amber-500/25 bg-amber-500/10 text-amber-200"
-    case "OVERCROWDED":
-      return "border-red-500/25 bg-red-500/10 text-red-200"
-    case "EXITING":
       return "border-zinc-700 bg-zinc-900 text-zinc-300"
-    default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400"
   }
 }
 
-function geoStateClass(state?: string) {
-  switch (state) {
-    case "Retail Speculation":
-      return "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-200"
-    case "Institutional":
-      return "border-blue-500/25 bg-blue-500/10 text-blue-200"
-    case "Policy Watch":
-      return "border-amber-500/25 bg-amber-500/10 text-amber-200"
-    case "Global Liquidity":
+function reflexivityRegimeLabel(value?: string) {
+  switch (value) {
+    case "SELF_REINFORCING_EXPANSION":
+      return "Self-Reinforcing Expansion"
+    case "REFLEXIVE_OVERHEAT":
+      return "Reflexive Overheat"
+    case "DEFENSIVE_FEEDBACK":
+      return "Defensive Feedback"
+    case "BETA_ROTATION":
+      return "Beta Rotation"
+    case "FRAGILE_FEEDBACK":
+      return "Fragile Feedback"
+    case "NEUTRAL_PROPAGATION":
+      return "Neutral Propagation"
+    default:
+      return formatEnumLabel(value)
+  }
+}
+
+function reflexivityClass(value?: string) {
+  switch (value) {
+    case "SELF_REINFORCING_EXPANSION":
       return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+    case "REFLEXIVE_OVERHEAT":
+      return "border-red-500/25 bg-red-500/10 text-red-200"
+    case "DEFENSIVE_FEEDBACK":
+      return "border-orange-500/25 bg-orange-500/10 text-orange-200"
+    case "BETA_ROTATION":
+      return "border-cyan-500/25 bg-cyan-500/10 text-cyan-200"
+    case "FRAGILE_FEEDBACK":
+      return "border-amber-500/25 bg-amber-500/10 text-amber-200"
     default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400"
+      return "border-zinc-700 bg-zinc-900 text-zinc-300"
   }
 }
 
-function diffusionClass(diffusion?: string) {
-  switch (diffusion) {
-    case "GLOBAL_SYNC":
-      return "text-emerald-200"
-    case "KOREA_OVERHEAT":
-      return "text-fuchsia-200"
-    case "US_TO_KR":
-    case "KR_TO_GLOBAL":
-      return "text-cyan-200"
-    case "GLOBAL_LEADS":
-      return "text-blue-200"
+function nodeStateClass(value?: string) {
+  switch (value) {
+    case "LEADING":
+      return "text-emerald-300"
+    case "EXPANDING":
+      return "text-cyan-300"
+    case "STRESSED":
+      return "text-orange-300"
+    case "WITHDRAWING":
+      return "text-red-300"
+    default:
+      return "text-zinc-400"
+  }
+}
+
+function driverClass(value?: string) {
+  switch (value) {
+    case "SUPPORT":
+      return "text-emerald-300"
+    case "RISK":
+      return "text-orange-300"
     default:
       return "text-zinc-400"
   }
@@ -205,11 +211,12 @@ function validationClass(status?: string) {
 
 export default function NarrativeIntelligenceSurface() {
   const [rotationData, setRotationData] = useState<RealMarketRotationResponse | null>(null)
+  const [futuresData, setFuturesData] = useState<FuturesIntelligenceResponse | null>(null)
   const [newsItems, setNewsItems] = useState<NewsItem[]>([])
   const [fetchState, setFetchState] = useState<FetchState>("idle")
   const [newsState, setNewsState] = useState<FetchState>("idle")
+  const [futuresState, setFuturesState] = useState<FetchState>("idle")
   const [error, setError] = useState<string | null>(null)
-  const [krRetail, setKrRetail] = useState<KRRetailReactionSurface | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -236,6 +243,37 @@ export default function NarrativeIntelligenceSurface() {
 
     load()
     timer = setInterval(load, POLL_MS)
+
+    return () => {
+      alive = false
+      if (timer) clearInterval(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    let timer: ReturnType<typeof setInterval> | null = null
+
+    const loadFutures = async () => {
+      try {
+        setFuturesState((prev) => (prev === "idle" ? "loading" : prev))
+        const response = await fetch("/api/market/futures-intelligence", { cache: "no-store" })
+        const payload = (await response.json()) as FuturesIntelligenceResponse
+        if (!alive) return
+        if (!response.ok || payload.ok === false) {
+          setFuturesState("partial")
+          return
+        }
+        setFuturesData(payload)
+        setFuturesState(payload.mode === "partial" ? "partial" : "live")
+      } catch (err) {
+        if (!alive) return
+        setFuturesState("error")
+      }
+    }
+
+    loadFutures()
+    timer = setInterval(loadFutures, POLL_MS)
 
     return () => {
       alive = false
@@ -277,32 +315,7 @@ export default function NarrativeIntelligenceSurface() {
     }
   }, [])
 
-  useEffect(() => {
-    let alive = true
-    let timer: ReturnType<typeof setInterval> | null = null
-
-    const loadKRRetail = async () => {
-      try {
-        const response = await fetch("/api/kr-retail", { cache: "no-store" })
-        const payload = await response.json()
-        if (!alive) return
-        setKrRetail(payload?.surface ?? null)
-      } catch {
-        if (!alive) return
-        setKrRetail(null)
-      }
-    }
-
-    loadKRRetail()
-    timer = setInterval(loadKRRetail, 60000)
-
-    return () => {
-      alive = false
-      if (timer) clearInterval(timer)
-    }
-  }, [])
-
-  const narrative = useMemo<NarrativeSurface>(() => generateNarrativeSurface(rotationData, newsItems, krRetail), [rotationData, newsItems, krRetail])
+  const narrative = useMemo<NarrativeSurface>(() => generateNarrativeSurface(rotationData, newsItems, futuresData), [rotationData, newsItems, futuresData])
   const topHeat = narrative.heatmap[0]
   const secondHeat = narrative.heatmap[1]
   const statusLabel = fetchState === "live" ? "LIVE" : fetchState.toUpperCase()
@@ -337,88 +350,12 @@ export default function NarrativeIntelligenceSurface() {
                 <div className="mt-1 truncate text-sm font-black text-violet-200">{topHeat?.narrative ?? "--"}</div>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Lifecycle</div>
-                <div className="mt-1 truncate text-sm font-black text-emerald-200">{narrative.lifecycle[0] ? lifecyclePhaseLabel(narrative.lifecycle[0].phase) : "--"}</div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Heat</div>
+                <div className="mt-1 text-sm font-black text-fuchsia-200">{formatMetric(topHeat?.heat)}%</div>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">News Fusion</div>
                 <div className="mt-1 text-sm font-black text-cyan-200">{newsState === "live" ? `${narrative.newsFusion?.totalNews ?? 0} ITEMS` : newsState.toUpperCase()}</div>
-              </div>
-            </div>
-
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-black/35 p-3">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Compressed Lifecycle</div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {narrative.lifecycle.slice(0, 3).map((item) => (
-                  <div key={item.narrative} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs font-black uppercase text-zinc-100">{item.narrative}</span>
-                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${lifecycleClass(item.phase)}`}>
-                        {lifecyclePhaseLabel(item.phase)}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <span className="rounded-full border border-zinc-800 bg-black/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-300">
-                        {item.participationLabel}
-                      </span>
-                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${crowdingClass(item.crowdRiskState)}`}>
-                        {item.crowdRiskLabel}
-                      </span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                      <div>Velocity <span className="font-bold text-zinc-300">{formatMetric(item.velocity, 0)}</span></div>
-                      <div className="text-right">Risk <span className="font-bold text-zinc-300">{formatMetric(item.crowdRisk, 0)}</span></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-
-            <div className="mt-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Opportunity Filter</div>
-                <div className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${opportunityClass(narrative.opportunity?.lead?.state)}`}>
-                  {narrative.opportunity?.lead?.label ?? "Scanning"}
-                </div>
-              </div>
-              <div className="mt-2 text-sm font-black uppercase tracking-[0.12em] text-white">
-                {narrative.opportunity?.lead?.headline ?? "No confirmed opportunity"}
-              </div>
-              <p className="mt-2 text-xs leading-5 text-zinc-400">
-                {narrative.opportunity?.lead?.operatorNote ?? "Low-quality signals stay hidden until liquidity, breadth, and participation confirm."}
-              </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {(narrative.opportunity?.items ?? []).slice(0, 3).map((item) => (
-                  <div key={item.narrative} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs font-black uppercase text-zinc-100">{item.narrative}</span>
-                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${opportunityClass(item.state)}`}>
-                        {item.label}
-                      </span>
-                    </div>
-                    <div className="mt-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                      Confidence <span className="font-bold text-emerald-200">{item.confidence}</span> · {item.conviction} Conviction
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-3 rounded-xl border border-fuchsia-500/15 bg-fuchsia-500/[0.04] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">KR Retail Reaction</div>
-                <div className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${krRetailClass(narrative.krRetail?.mood)}`}>
-                  {narrative.krRetail?.label ?? "Scanning"}
-                </div>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-zinc-400">
-                {narrative.krRetail?.summary ?? "Waiting for Coinness / SaveTicker reaction data."}
-              </p>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">Views<br /><span className="font-black text-zinc-200">{narrative.krRetail?.totalViews ?? "--"}</span></div>
-                <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">Votes<br /><span className="font-black text-fuchsia-200">{narrative.krRetail?.totalVotes ?? "--"}</span></div>
-                <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">Positive<br /><span className="font-black text-emerald-200">{narrative.krRetail ? formatMetric(narrative.krRetail.positiveRatio, 0) : "--"}%</span></div>
               </div>
             </div>
 
@@ -458,58 +395,9 @@ export default function NarrativeIntelligenceSurface() {
           </div>
 
           <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Geo Narrative</div>
-              <div className={`text-[10px] font-black uppercase tracking-[0.18em] ${diffusionClass(narrative.geoNarrative?.diffusion)}`}>
-                {narrative.geoNarrative?.diffusionLabel ?? formatEnumLabel(narrative.regionalDivergence.status)}
-              </div>
-            </div>
-            <p className="mt-2 text-xs leading-5 text-zinc-400">
-              {narrative.geoNarrative?.summary ?? narrative.regionalDivergence.summary}
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {(narrative.geoNarrative?.regions ?? []).slice(0, 4).map((region) => (
-                <div key={region.region} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-zinc-200">{region.label}</span>
-                    <span className="text-[10px] font-black text-zinc-400">{formatMetric(region.intensity, 0)}</span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${geoStateClass(region.state)}`}>
-                      {region.state}
-                    </span>
-                    <span className="rounded-full border border-zinc-800 bg-black/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-400">
-                      {region.leadNarrative}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {narrative.geoNarrative?.operatorNote ? (
-              <div className="mt-3 rounded-lg border border-zinc-800 bg-black/40 p-2 text-[11px] leading-5 text-zinc-500">
-                {narrative.geoNarrative.operatorNote}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">KR Reaction Leaders</div>
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-fuchsia-200">Coinness + SaveTicker</div>
-            </div>
-            <div className="mt-3 space-y-2">
-              {(narrative.krRetail?.topSignals ?? []).slice(0, 3).map((signal) => (
-                <div key={signal.id} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2">
-                  <div className="line-clamp-1 text-[11px] font-bold text-zinc-200">{signal.title}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
-                    <span>{signal.source}</span>
-                    <span className={`rounded-full border px-1.5 py-0.5 font-bold ${krRetailClass(signal.mood)}`}>{signal.mood}</span>
-                    <span>{formatMetric(signal.positiveRatio, 0)}% positive</span>
-                    <span>{formatMetric(signal.conviction, 0)} conviction</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Regional Divergence</div>
+            <div className="mt-1 text-xs font-bold uppercase text-cyan-200">{formatEnumLabel(narrative.regionalDivergence.status)}</div>
+            <p className="mt-1 text-xs leading-5 text-zinc-400">{narrative.regionalDivergence.summary}</p>
           </div>
         </div>
 
@@ -529,6 +417,241 @@ export default function NarrativeIntelligenceSurface() {
                 <p className="mt-1 text-xs leading-5 text-zinc-400">{commentary.body}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-2xl border border-violet-500/20 bg-zinc-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+                Narrative Propagation
+              </div>
+              <div className="mt-1 text-sm font-black uppercase tracking-[0.16em] text-violet-100">
+                {narrative.propagation?.leadNarrative ?? "Scanning"} · {formatEnumLabel(narrative.propagation?.leadPhase)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Velocity / Stress</div>
+              <div className="text-sm font-black text-cyan-200">
+                {formatMetric(narrative.propagation?.velocityScore, 0)} / {formatMetric(narrative.propagation?.stressScore, 0)}
+              </div>
+            </div>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-zinc-400">
+            {narrative.propagation?.operatorRead ?? "Waiting for narrative propagation data."}
+          </p>
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            {(narrative.propagation?.nodes ?? []).slice(0, 3).map((node) => (
+              <div key={node.narrative} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate text-xs font-black uppercase text-zinc-100">{node.narrative}</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-300">{formatEnumLabel(node.phase)}</div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                  <div>Velocity <span className="font-bold text-cyan-200">{formatMetric(node.velocity, 0)}</span></div>
+                  <div>Persist <span className="font-bold text-emerald-200">{formatMetric(node.persistence, 0)}</span></div>
+                  <div>Sync <span className="font-bold text-fuchsia-200">{formatMetric(node.synchronization, 0)}</span></div>
+                  <div>Stress <span className="font-bold text-amber-200">{formatMetric(node.stress, 0)}</span></div>
+                </div>
+                <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-zinc-500">{node.summary}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+              Propagation Graph
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">
+              {futuresState === "live" ? "Futures Coupled" : `Futures ${futuresState.toUpperCase()}`}
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            {(narrative.propagation?.links ?? []).slice(0, 4).map((link) => (
+              <div key={`${link.from}-${link.to}`} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-black uppercase text-zinc-100">{link.from} → {link.to}</div>
+                  <div className="text-xs font-black text-violet-200">{formatMetric(link.strength, 0)}</div>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-900">
+                  <div className="h-full rounded-full bg-violet-400/80" style={{ width: `${Math.min(100, Math.max(0, link.strength))}%` }} />
+                </div>
+                <p className="mt-2 text-[11px] leading-4 text-zinc-500">{link.reason}</p>
+              </div>
+            ))}
+            {!(narrative.propagation?.links.length) ? (
+              <div className="rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-500">
+                No confirmed propagation path yet.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+
+      <div className="mt-3 grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="rounded-2xl border border-orange-500/20 bg-zinc-950/70 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+                Stress / Liquidity Regime
+              </div>
+              <div className="mt-1 text-sm font-black uppercase tracking-[0.16em] text-orange-100">
+                {stressRegimeLabel(narrative.liquidityStress?.regime)}
+              </div>
+            </div>
+            <div className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${stressRegimeClass(narrative.liquidityStress?.regime)}`}>
+              Stress {formatMetric(narrative.liquidityStress?.stressScore, 0)}
+            </div>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-zinc-400">
+            {narrative.liquidityStress?.operatorRead ?? "Waiting for stress and liquidity inputs."}
+          </p>
+          <div className="mt-4 grid gap-2 md:grid-cols-4">
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Quality</div>
+              <div className="mt-1 text-sm font-black text-emerald-200">{formatMetric(narrative.liquidityStress?.liquidityQuality, 0)}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Crowding</div>
+              <div className="mt-1 text-sm font-black text-fuchsia-200">{formatMetric(narrative.liquidityStress?.crowdingRisk, 0)}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Withdrawal</div>
+              <div className="mt-1 text-sm font-black text-red-200">{formatMetric(narrative.liquidityStress?.withdrawalRisk, 0)}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Spread Risk</div>
+              <div className="mt-1 text-sm font-black text-amber-200">{formatMetric(narrative.liquidityStress?.spreadRiskProxy, 0)}</div>
+            </div>
+          </div>
+          <div className="mt-4 space-y-2">
+            {(narrative.liquidityStress?.drivers ?? []).map((driver) => (
+              <div key={driver.label} className="grid grid-cols-[118px_1fr_50px] items-center gap-2">
+                <div className={`truncate text-[10px] font-bold uppercase tracking-[0.12em] ${driverClass(driver.direction)}`}>{driver.label}</div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-zinc-900">
+                  <div className="h-full rounded-full bg-orange-400/80" style={{ width: `${Math.min(100, Math.max(0, driver.value))}%` }} />
+                </div>
+                <div className="text-right text-[10px] font-bold text-zinc-400">{formatMetric(driver.value, 0)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+              Sector Stress Desk
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">
+              Top 4
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            {(narrative.liquidityStress?.sectors ?? []).slice(0, 4).map((sector) => (
+              <div key={sector.sector} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-black uppercase text-zinc-100">{sector.sector}</div>
+                  <div className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${stressRegimeClass(sector.regime)}`}>
+                    {stressRegimeLabel(sector.regime)}
+                  </div>
+                </div>
+                <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-zinc-500">{sector.operatorRead}</p>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                  <div>Stress <span className="font-bold text-orange-200">{formatMetric(sector.stressScore, 0)}</span></div>
+                  <div>Quality <span className="font-bold text-emerald-200">{formatMetric(sector.liquidityQuality, 0)}</span></div>
+                  <div>Crowding <span className="font-bold text-fuchsia-200">{formatMetric(sector.crowdingRisk, 0)}</span></div>
+                </div>
+              </div>
+            ))}
+            {!(narrative.liquidityStress?.sectors.length) ? (
+              <div className="rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-500">
+                Waiting for sector stress data.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-2xl border border-cyan-500/20 bg-zinc-950/70 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+                Cross-Market Reflexivity
+              </div>
+              <div className="mt-1 text-sm font-black uppercase tracking-[0.16em] text-cyan-100">
+                {reflexivityRegimeLabel(narrative.crossMarketReflexivity?.regime)}
+              </div>
+            </div>
+            <div className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${reflexivityClass(narrative.crossMarketReflexivity?.regime)}`}>
+              Reflexivity {formatMetric(narrative.crossMarketReflexivity?.reflexivityScore, 0)}
+            </div>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-zinc-400">
+            {narrative.crossMarketReflexivity?.operatorRead ?? "Waiting for cross-market reflexivity inputs."}
+          </p>
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Instability</div>
+              <div className="mt-1 text-sm font-black text-orange-200">{formatMetric(narrative.crossMarketReflexivity?.instabilityScore, 0)}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3 md:col-span-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Beta Rotation Path</div>
+              <div className="mt-1 truncate text-sm font-black text-cyan-200">
+                {(narrative.crossMarketReflexivity?.betaRotationPath.length ? narrative.crossMarketReflexivity.betaRotationPath : ["BTC", "ETH", "ALT"]).join(" → ")}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
+            {(narrative.crossMarketReflexivity?.nodes ?? []).slice(0, 4).map((node) => (
+              <div key={node.id} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate text-xs font-black uppercase text-zinc-100">{node.label}</div>
+                  <div className={`text-[10px] font-bold uppercase tracking-[0.14em] ${nodeStateClass(node.state)}`}>{formatEnumLabel(node.state)}</div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                  <div>Score <span className="font-bold text-cyan-200">{formatMetric(node.score, 0)}</span></div>
+                  <div>Risk <span className="font-bold text-orange-200">{formatMetric(node.risk, 0)}</span></div>
+                </div>
+                <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-zinc-500">{node.operatorRead}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+              Dependency Graph
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">Top Links</div>
+          </div>
+          <div className="mt-3 space-y-2">
+            {(narrative.crossMarketReflexivity?.dependencies ?? []).slice(0, 5).map((link) => (
+              <div key={`${link.from}-${link.to}-${link.type}`} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate text-xs font-black uppercase text-zinc-100">{link.from} → {link.to}</div>
+                  <div className="text-xs font-black text-cyan-200">{formatMetric(link.strength, 0)}</div>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-900">
+                    <div className="h-full rounded-full bg-cyan-400/80" style={{ width: `${Math.min(100, Math.max(0, link.strength))}%` }} />
+                  </div>
+                  <div className="w-20 text-right text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-500">{formatEnumLabel(link.type)}</div>
+                </div>
+                <p className="mt-2 text-[11px] leading-4 text-zinc-500">{link.read}</p>
+              </div>
+            ))}
+            {!(narrative.crossMarketReflexivity?.dependencies.length) ? (
+              <div className="rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-500">
+                No confirmed cross-market dependency yet.
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

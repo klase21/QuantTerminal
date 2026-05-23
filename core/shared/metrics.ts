@@ -11,6 +11,13 @@ export function average(values: number[]) {
   return clean.reduce((sum, value) => sum + value, 0) / clean.length
 }
 
+
+export function round(value?: number | null, digits = 2) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0
+  const factor = 10 ** digits
+  return Math.round(value * factor) / factor
+}
+
 export function metric2(value?: number | null, fallback = "—") {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback
   return value.toFixed(2)

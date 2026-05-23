@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import type { SectorRotationSnapshot } from "@/core/marketDataTypes";
 import { useSectorRotationFeed } from "@/hooks/useSectorRotationFeed";
-import { deriveNarrativeLifecycle, lifecyclePhaseLabel } from "@/core/narrative/deriveNarrativeLifecycle";
-import { deriveOpportunitySurface } from "@/core/opportunity/deriveOpportunitySurface";
-import type { KRRetailReactionSurface } from "@/core/krRetail/krRetailTypes";
 
 function formatMetric(value: unknown, digits = 2) {
   const number = typeof value === "number" ? value : Number(value);
@@ -40,70 +37,6 @@ function directionTone(direction?: string) {
       return "border-amber-500/40 bg-amber-500/10 text-amber-300";
     default:
       return "border-zinc-800 bg-zinc-900/70 text-zinc-400";
-  }
-}
-
-
-function lifecycleTone(phase?: string) {
-  switch (phase) {
-    case "EARLY":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-200";
-    case "EXPANDING":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
-    case "VIRAL":
-      return "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-200";
-    case "OVERCROWDED":
-      return "border-red-500/30 bg-red-500/10 text-red-200";
-    case "EXITING":
-      return "border-zinc-700 bg-zinc-900 text-zinc-300";
-    default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400";
-  }
-}
-
-
-function opportunityTone(state?: string) {
-  switch (state) {
-    case "HIGH_OPPORTUNITY":
-      return "border-emerald-500/35 bg-emerald-500/10 text-emerald-200";
-    case "EMERGING":
-      return "border-cyan-500/35 bg-cyan-500/10 text-cyan-200";
-    case "WATCHLIST":
-      return "border-amber-500/35 bg-amber-500/10 text-amber-200";
-    case "OVERCROWDED":
-      return "border-red-500/35 bg-red-500/10 text-red-200";
-    case "EXITING":
-      return "border-zinc-700 bg-zinc-900 text-zinc-300";
-    default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400";
-  }
-}
-
-function crowdingTone(state?: string) {
-  switch (state) {
-    case "Extreme":
-      return "border-red-500/35 bg-red-500/10 text-red-200";
-    case "Elevated":
-      return "border-orange-500/35 bg-orange-500/10 text-orange-200";
-    case "Moderate":
-      return "border-amber-500/35 bg-amber-500/10 text-amber-200";
-    default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400";
-  }
-}
-
-function krRetailTone(mood?: string) {
-  switch (mood) {
-    case "Euphoric":
-      return "border-fuchsia-500/35 bg-fuchsia-500/10 text-fuchsia-200";
-    case "Constructive":
-      return "border-emerald-500/35 bg-emerald-500/10 text-emerald-200";
-    case "Defensive":
-      return "border-red-500/35 bg-red-500/10 text-red-200";
-    case "Divided":
-      return "border-amber-500/35 bg-amber-500/10 text-amber-200";
-    default:
-      return "border-zinc-800 bg-zinc-900 text-zinc-400";
   }
 }
 
@@ -147,19 +80,12 @@ function stateFromSurface(topSector?: SectorRotationSnapshot) {
 }
 
 function buildEventRail(sectors: SectorRotationSnapshot[]) {
-  const lifecycle = deriveNarrativeLifecycle(sectors);
-  return sectors.slice(0, 4).map((sector) => {
-    const phase = lifecycle.find((item) => item.narrative === sector.sector);
-    return {
-      key: `${sector.rank}-${sector.sector}`,
-      label: `${sector.sector} ${phase ? lifecyclePhaseLabel(phase.phase) : sector.direction}`,
-      detail: phase
-        ? `${phase.participationLabel} · ${phase.crowdRiskLabel}`
-        : `${formatMetric(sector.rotationScore)} score · ${formatMetric(sector.confidence)} conf`,
-      direction: sector.direction,
-      phase: phase?.phase,
-    };
-  });
+  return sectors.slice(0, 4).map((sector) => ({
+    key: `${sector.rank}-${sector.sector}`,
+    label: `${sector.sector} ${sector.direction}`,
+    detail: `${formatMetric(sector.rotationScore)} score · ${formatMetric(sector.confidence)} conf`,
+    direction: sector.direction,
+  }));
 }
 
 function buildTemperature(sectors: SectorRotationSnapshot[]) {
@@ -181,45 +107,17 @@ function SurfaceCard({ children, className = "" }: { children: ReactNode; classN
 
 export default function LiveCommandSurface() {
   const { data, status: fetchState, error, pulse, transport } = useSectorRotationFeed();
-  const [krRetail, setKrRetail] = useState<KRRetailReactionSurface | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const response = await fetch("/api/kr-retail", { cache: "no-store" });
-        const payload = await response.json();
-        if (!alive) return;
-        setKrRetail(payload?.surface ?? null);
-      } catch {
-        if (!alive) return;
-        setKrRetail(null);
-      }
-    };
-    load();
-    const timer = setInterval(load, 60000);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-  }, []);
 
   const sectors = data?.sectors ?? [];
   const topSector = sectors[0];
-  const lifecycle = useMemo(() => deriveNarrativeLifecycle(sectors), [sectors]);
-  const topLifecycle = lifecycle[0];
-  const opportunity = useMemo(() => deriveOpportunitySurface({ sectors, lifecycle }), [sectors, lifecycle]);
-  const leadOpportunity = opportunity.lead;
-  const state = leadOpportunity?.label?.toUpperCase() ?? stateFromSurface(topSector);
+  const state = stateFromSurface(topSector);
   const events = useMemo(() => buildEventRail(sectors), [sectors]);
   const temperature = useMemo(() => buildTemperature(sectors), [sectors]);
   const quality = data?.dataQuality?.status ?? fetchState;
   const degraded = fetchState === "error" || data?.dataQuality?.stale || quality === "partial" || quality === "degraded";
-  const topAlert = leadOpportunity
-    ? `${leadOpportunity.narrative} · ${leadOpportunity.label} · ${leadOpportunity.confidence}%`
-    : topSector
-      ? `${topSector.sector} ${topSector.direction} · ${formatMetric(topSector.confidence)}%`
-      : "Waiting for live rotation data";
+  const topAlert = topSector
+    ? `${topSector.sector} ${topSector.direction} · ${formatMetric(topSector.confidence)}%`
+    : "Waiting for live rotation data";
 
   return (
     <section className="relative shrink-0 overflow-hidden border-b border-zinc-900 bg-black">
@@ -258,17 +156,9 @@ export default function LiveCommandSurface() {
                 <div className="mt-2 truncate text-2xl font-black uppercase tracking-[0.16em] text-white xl:text-3xl">
                   {state}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${opportunityTone(leadOpportunity?.state)}`}>
-                    {leadOpportunity?.label ?? "Opportunity Scan"}
-                  </div>
-                  <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${lifecycleTone(topLifecycle?.phase)}`}>
-                    {topLifecycle ? lifecyclePhaseLabel(topLifecycle.phase) : "Scanning"}
-                  </div>
-                </div>
                 <div className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">
                   <span className="font-bold text-zinc-200">{topSector?.sector ?? "--"}</span>
-                  {leadOpportunity ? ` · ${leadOpportunity.operatorNote}` : topSector ? ` · ${topSector.story}` : " · scanning live market data"}
+                  {topSector ? ` · ${topSector.story}` : " · scanning live market data"}
                 </div>
               </div>
               <div className="shrink-0 text-right text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-500">
@@ -280,17 +170,15 @@ export default function LiveCommandSurface() {
             <div className="mt-auto grid grid-cols-3 gap-2 pt-4">
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
                 <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Confidence</div>
-                <div className="mt-1 text-xl font-black text-cyan-200">{leadOpportunity ? leadOpportunity.confidence : formatMetric(topSector?.confidence)}%</div>
+                <div className="mt-1 text-xl font-black text-cyan-200">{formatMetric(topSector?.confidence)}%</div>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
                 <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Temp</div>
                 <div className="mt-1 text-xl font-black text-fuchsia-200">{formatMetric(temperature)}%</div>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
-                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Action</div>
-                <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${opportunityTone(leadOpportunity?.state)}`}>
-                  {leadOpportunity?.conviction ?? "Scan"}
-                </div>
+                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Alert</div>
+                <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-amber-200">{topAlert}</div>
               </div>
             </div>
           </SurfaceCard>
@@ -321,29 +209,6 @@ export default function LiveCommandSurface() {
                   </div>
                 );
               })}
-            </div>
-
-            <div className="mt-4 rounded-xl border border-zinc-800 bg-black/35 p-3">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-zinc-500">Opportunity Filter</div>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                <div>Pass <span className="font-bold text-emerald-200">{opportunity.items.length}</span></div>
-                <div>Hidden <span className="font-bold text-zinc-300">{opportunity.suppressed.length}</span></div>
-                <div className="text-right">Lead <span className="font-bold text-cyan-200">{leadOpportunity?.narrative ?? "--"}</span></div>
-              </div>
-            </div>
-
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-black/35 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[9px] uppercase tracking-[0.18em] text-zinc-500">KR Retail Reaction</div>
-                <div className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${krRetailTone(krRetail?.mood)}`}>
-                  {krRetail?.mood ?? "Scanning"}
-                </div>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                <div>Conviction <span className="font-bold text-fuchsia-200">{krRetail ? formatMetric(krRetail.convictionScore, 0) : "--"}</span></div>
-                <div>Votes <span className="font-bold text-zinc-300">{krRetail?.totalVotes ?? "--"}</span></div>
-                <div className="text-right">Positive <span className="font-bold text-emerald-200">{krRetail ? formatMetric(krRetail.positiveRatio, 0) : "--"}%</span></div>
-              </div>
             </div>
 
             <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] uppercase tracking-[0.16em] text-zinc-500">

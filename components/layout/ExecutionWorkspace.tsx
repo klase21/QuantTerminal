@@ -12,6 +12,7 @@ import ResearchReplayWorkspace from "@/components/research/ResearchReplayWorkspa
 import SignalInboxWorkspace from "@/components/product/SignalInboxWorkspace";
 import SystemDiagnosticsWorkspace from "@/components/system/SystemDiagnosticsWorkspace";
 import NarrativeIntelligenceSurface from "@/components/narrative/NarrativeIntelligenceSurface";
+import FuturesIntelligenceSurface from "@/components/futures/FuturesIntelligenceSurface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ExecutionWorkspaceProps = {
@@ -39,6 +40,7 @@ export default function ExecutionWorkspace({
         <TabsTrigger value="intelligence">Realtime Intel</TabsTrigger>
         <TabsTrigger value="narrative">Narrative</TabsTrigger>
         <TabsTrigger value="signals">Signals</TabsTrigger>
+        <TabsTrigger value="futures">Futures</TabsTrigger>
         <TabsTrigger value="research">Research</TabsTrigger>
         <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         <TabsTrigger value="liquidity">Liquidity</TabsTrigger>
@@ -78,6 +80,10 @@ export default function ExecutionWorkspace({
 
       <TabsContent value="signals" className="m-0 min-h-0 overflow-y-auto pr-1">
         <SignalInboxWorkspace />
+      </TabsContent>
+
+      <TabsContent value="futures" className="m-0 min-h-0 overflow-y-auto pr-1">
+        <FuturesIntelligenceSurface />
       </TabsContent>
 
       <TabsContent value="research" className="m-0 min-h-0 overflow-y-auto pr-1">

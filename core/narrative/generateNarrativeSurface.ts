@@ -1,11 +1,11 @@
 import type { RealMarketRotationResponse, SectorRotationSnapshot } from "@/core/marketDataTypes"
+import type { FuturesIntelligenceResponse } from "@/core/futuresTypes"
 import { clamp } from "@/core/shared/metrics"
 import type { NarrativeHeatItem, NarrativeStoryStep, NarrativeSurface, NarrativeTone, OperatorCommentary } from "./narrativeTypes"
 import { buildNewsFusionSurface, type NewsFusionInputItem } from "./newsFusion"
-import { deriveNarrativeLifecycle } from "./deriveNarrativeLifecycle"
-import { deriveGeoNarrativeSurface } from "@/core/deriveGeoNarrativeSurface"
-import { deriveOpportunitySurface } from "@/core/opportunity/deriveOpportunitySurface"
-import type { KRRetailReactionSurface } from "@/core/krRetail/krRetailTypes"
+import { buildNarrativePropagationSurface } from "./propagationEngine"
+import { buildLiquidityStressSurface } from "./stressLiquidityRegime"
+import { buildCrossMarketReflexivitySurface } from "./reflexivityEngine"
 
 function fmt(value: number | undefined, digits = 2) {
   if (!Number.isFinite(value)) return "--"
@@ -235,19 +235,30 @@ function buildCompression(sectors: SectorRotationSnapshot[]) {
   ]
 }
 
-export function generateNarrativeSurface(data: RealMarketRotationResponse | null | undefined, news: NewsFusionInputItem[] = [], krRetail?: KRRetailReactionSurface | null): NarrativeSurface {
+export function generateNarrativeSurface(data: RealMarketRotationResponse | null | undefined, news: NewsFusionInputItem[] = [], futures?: FuturesIntelligenceResponse | null): NarrativeSurface {
   const sectors = data?.sectors ?? []
   const regime = inferRegime(sectors)
   const tone = inferTone(regime, sectors)
   const heatmap = buildHeatmap(sectors)
   const regionalDivergence = buildRegionalDivergence(sectors)
   const newsFusion = buildNewsFusionSurface(news, heatmap)
-  const lifecycle = deriveNarrativeLifecycle(sectors, {
-    newsSignals: newsFusion.signals,
-    validation: newsFusion.validation,
+  const propagation = buildNarrativePropagationSurface({
+    heatmap,
+    sectors,
+    newsFusion,
+    futures,
   })
-  const geoNarrative = deriveGeoNarrativeSurface(sectors, newsFusion, krRetail ?? undefined)
-  const opportunity = deriveOpportunitySurface({ sectors, lifecycle, geoNarrative, newsFusion })
+  const liquidityStress = buildLiquidityStressSurface({
+    rotation: data,
+    futures,
+    propagation,
+  })
+  const crossMarketReflexivity = buildCrossMarketReflexivitySurface({
+    rotation: data,
+    futures,
+    propagation,
+    liquidityStress,
+  })
 
   return {
     ok: Boolean(data?.ok && sectors.length),
@@ -257,15 +268,14 @@ export function generateNarrativeSurface(data: RealMarketRotationResponse | null
     marketSummary: buildMarketSummary(regime, tone, sectors),
     operatorCommentary: buildOperatorCommentary(tone, sectors),
     heatmap,
-    lifecycle,
     storyTimeline: buildStoryTimeline(regime, sectors),
     compression: buildCompression(sectors),
     regionalDivergence,
-    geoNarrative,
-    opportunity,
-    krRetail: krRetail ?? undefined,
     sourceSectors: sectors,
     newsFusion,
+    propagation,
+    liquidityStress,
+    crossMarketReflexivity,
     notes: data?.notes ?? [],
   }
 }

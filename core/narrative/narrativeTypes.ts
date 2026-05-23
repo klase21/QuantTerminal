@@ -1,8 +1,4 @@
 import type { RotationDirection, SectorRotationSnapshot } from "@/core/marketDataTypes"
-import type { NarrativeLifecycleItem } from "./lifecycleTypes"
-import type { GeoNarrativeSurface } from "@/core/geoNarrativeTypes"
-import type { OpportunitySurface } from "@/core/opportunity/opportunityTypes"
-import type { KRRetailReactionSurface } from "@/core/krRetail/krRetailTypes"
 
 export type NarrativeTone = "RISK_ON" | "RISK_OFF" | "MIXED" | "COMPRESSION" | "EUPHORIA"
 
@@ -81,6 +77,121 @@ export interface NewsFusionSurface {
   }[]
 }
 
+
+export type NarrativeLifecyclePhase = "DORMANT" | "IGNITION" | "EXPANSION" | "EUPHORIA" | "EXHAUSTION" | "COLLAPSE"
+
+export interface NarrativePropagationNode {
+  narrative: string
+  phase: NarrativeLifecyclePhase
+  velocity: number
+  acceleration: number
+  persistence: number
+  synchronization: number
+  stress: number
+  regions: string[]
+  sectors: string[]
+  summary: string
+}
+
+export interface NarrativePropagationLink {
+  from: string
+  to: string
+  strength: number
+  reason: string
+}
+
+export interface NarrativePropagationSurface {
+  ok: boolean
+  leadNarrative: string
+  leadPhase: NarrativeLifecyclePhase
+  velocityScore: number
+  stressScore: number
+  lifecycleCounts: Record<NarrativeLifecyclePhase, number>
+  nodes: NarrativePropagationNode[]
+  links: NarrativePropagationLink[]
+  operatorRead: string
+}
+
+
+export type LiquidityStressRegime =
+  | "HEALTHY_EXPANSION"
+  | "SPECULATIVE_EXPANSION"
+  | "LIQUIDITY_STRESS"
+  | "DEFENSIVE_WITHDRAWAL"
+  | "COMPRESSION"
+  | "FRAGILE_ROTATION"
+  | "MARKET_SCAN"
+
+export interface LiquidityStressDriver {
+  label: string
+  value: number
+  weight: number
+  contribution: number
+  direction: "SUPPORT" | "RISK" | "NEUTRAL"
+}
+
+export interface StressSectorRead {
+  sector: string
+  regime: LiquidityStressRegime
+  stressScore: number
+  liquidityQuality: number
+  crowdingRisk: number
+  withdrawalRisk: number
+  operatorRead: string
+}
+
+export interface LiquidityStressSurface {
+  ok: boolean
+  regime: LiquidityStressRegime
+  stressScore: number
+  liquidityQuality: number
+  crowdingRisk: number
+  withdrawalRisk: number
+  spreadRiskProxy: number
+  operatorRead: string
+  drivers: LiquidityStressDriver[]
+  sectors: StressSectorRead[]
+}
+
+
+
+export type CrossMarketReflexivityRegime =
+  | "SELF_REINFORCING_EXPANSION"
+  | "REFLEXIVE_OVERHEAT"
+  | "DEFENSIVE_FEEDBACK"
+  | "BETA_ROTATION"
+  | "FRAGILE_FEEDBACK"
+  | "NEUTRAL_PROPAGATION"
+
+export interface CrossMarketNode {
+  id: string
+  label: string
+  state: "LEADING" | "EXPANDING" | "STRESSED" | "WITHDRAWING" | "NEUTRAL"
+  score: number
+  risk: number
+  role: string
+  operatorRead: string
+}
+
+export interface CrossMarketDependency {
+  from: string
+  to: string
+  strength: number
+  type: "REINFORCING" | "LAGGING" | "STRESS" | "DIVERGENCE"
+  read: string
+}
+
+export interface CrossMarketReflexivitySurface {
+  ok: boolean
+  regime: CrossMarketReflexivityRegime
+  reflexivityScore: number
+  instabilityScore: number
+  betaRotationPath: string[]
+  nodes: CrossMarketNode[]
+  dependencies: CrossMarketDependency[]
+  operatorRead: string
+}
+
 export interface NarrativeSurface {
   ok: boolean
   generatedAt: string
@@ -89,7 +200,6 @@ export interface NarrativeSurface {
   marketSummary: string
   operatorCommentary: OperatorCommentary[]
   heatmap: NarrativeHeatItem[]
-  lifecycle: NarrativeLifecycleItem[]
   storyTimeline: NarrativeStoryStep[]
   compression: NarrativeCompressionItem[]
   regionalDivergence: {
@@ -97,10 +207,10 @@ export interface NarrativeSurface {
     summary: string
     sectors: string[]
   }
-  geoNarrative?: GeoNarrativeSurface
-  opportunity?: OpportunitySurface
-  krRetail?: KRRetailReactionSurface
   sourceSectors: SectorRotationSnapshot[]
   newsFusion?: NewsFusionSurface
+  propagation?: NarrativePropagationSurface
+  liquidityStress?: LiquidityStressSurface
+  crossMarketReflexivity?: CrossMarketReflexivitySurface
   notes: string[]
 }
