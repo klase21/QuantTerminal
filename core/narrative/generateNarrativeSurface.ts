@@ -1,11 +1,7 @@
 import type { RealMarketRotationResponse, SectorRotationSnapshot } from "@/core/marketDataTypes"
-import type { FuturesIntelligenceResponse } from "@/core/futuresTypes"
 import { clamp } from "@/core/shared/metrics"
 import type { NarrativeHeatItem, NarrativeStoryStep, NarrativeSurface, NarrativeTone, OperatorCommentary } from "./narrativeTypes"
 import { buildNewsFusionSurface, type NewsFusionInputItem } from "./newsFusion"
-import { buildNarrativePropagationSurface } from "./propagationEngine"
-import { buildLiquidityStressSurface } from "./stressLiquidityRegime"
-import { buildCrossMarketReflexivitySurface } from "./reflexivityEngine"
 
 function fmt(value: number | undefined, digits = 2) {
   if (!Number.isFinite(value)) return "--"
@@ -235,30 +231,13 @@ function buildCompression(sectors: SectorRotationSnapshot[]) {
   ]
 }
 
-export function generateNarrativeSurface(data: RealMarketRotationResponse | null | undefined, news: NewsFusionInputItem[] = [], futures?: FuturesIntelligenceResponse | null): NarrativeSurface {
+export function generateNarrativeSurface(data: RealMarketRotationResponse | null | undefined, news: NewsFusionInputItem[] = []): NarrativeSurface {
   const sectors = data?.sectors ?? []
   const regime = inferRegime(sectors)
   const tone = inferTone(regime, sectors)
   const heatmap = buildHeatmap(sectors)
   const regionalDivergence = buildRegionalDivergence(sectors)
   const newsFusion = buildNewsFusionSurface(news, heatmap)
-  const propagation = buildNarrativePropagationSurface({
-    heatmap,
-    sectors,
-    newsFusion,
-    futures,
-  })
-  const liquidityStress = buildLiquidityStressSurface({
-    rotation: data,
-    futures,
-    propagation,
-  })
-  const crossMarketReflexivity = buildCrossMarketReflexivitySurface({
-    rotation: data,
-    futures,
-    propagation,
-    liquidityStress,
-  })
 
   return {
     ok: Boolean(data?.ok && sectors.length),
@@ -273,9 +252,6 @@ export function generateNarrativeSurface(data: RealMarketRotationResponse | null
     regionalDivergence,
     sourceSectors: sectors,
     newsFusion,
-    propagation,
-    liquidityStress,
-    crossMarketReflexivity,
     notes: data?.notes ?? [],
   }
 }

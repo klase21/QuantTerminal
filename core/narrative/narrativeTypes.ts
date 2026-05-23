@@ -40,7 +40,6 @@ export interface NarrativeCompressionItem {
   compressedInto: string
 }
 
-
 export interface NewsNarrativeSignal {
   narrative: string
   buzz: number
@@ -57,6 +56,178 @@ export interface NarrativeValidationItem {
   validationScore: number
   status: "VALIDATED" | "NEWS_ONLY" | "FLOW_ONLY" | "WEAK"
   summary: string
+}
+
+export type NarrativeLifecyclePhase =
+  | "DORMANT"
+  | "IGNITION"
+  | "EXPANSION"
+  | "EUPHORIA"
+  | "EXHAUSTION"
+  | "COLLAPSE"
+
+export interface NarrativePropagationNode {
+  narrative: string
+  phase: NarrativeLifecyclePhase
+  velocity: number
+  acceleration: number
+  persistence: number
+  synchronization: number
+  stress: number
+  regions: string[]
+  sectors: string[]
+  summary: string
+  id?: string
+  label?: string
+  sector?: string
+  heat?: number
+  confidence?: number
+  [key: string]: unknown
+}
+
+export interface NarrativePropagationLink {
+  from?: string
+  to?: string
+  reason?: string
+  source?: string
+  target?: string
+  strength: number
+  velocity?: number
+  confidence?: number
+  summary?: string
+  [key: string]: unknown
+}
+
+export interface NarrativePropagationSurface {
+  ok?: boolean
+  leadNarrative?: string
+  leadPhase: NarrativeLifecyclePhase | string
+  velocityScore?: number
+  accelerationScore?: number
+  persistenceScore?: number
+  synchronizationScore?: number
+  stressScore?: number
+  phaseDistribution?: Partial<Record<NarrativeLifecyclePhase, number>>
+  summary?: string
+  leadSectors?: string[]
+  nodes?: NarrativePropagationNode[]
+  links?: NarrativePropagationLink[]
+  lagSectors?: string[]
+  confidence?: number
+  [key: string]: unknown
+}
+
+export type LiquidityStressRegime =
+  | "NORMAL"
+  | "COMPRESSION"
+  | "STRESS"
+  | "WITHDRAWAL"
+  | "FRAGILE"
+  | "DISLOCATION"
+  | string
+
+export interface LiquidityStressSector {
+  sector: string
+  stressScore: number
+  withdrawalRisk?: number
+  liquidityQuality?: number
+  crowdingRisk?: number
+  regime?: LiquidityStressRegime
+  summary?: string
+  [key: string]: unknown
+}
+
+export interface NarrativeLiquidityStressSurface {
+  ok?: boolean
+  stressScore?: number
+  liquidityQuality?: number
+  crowdingRisk?: number
+  withdrawalRisk?: number
+  regime?: LiquidityStressRegime
+  sectors?: LiquidityStressSector[]
+  summary?: string
+  status?: string
+  notes?: string[]
+  [key: string]: unknown
+}
+
+export type LiquidityStressSurface = NarrativeLiquidityStressSurface
+
+export interface NarrativeCrossMarketReflexivitySurface {
+  reflexivityScore?: number
+  instabilityScore?: number
+  summary?: string
+  status?: string
+}
+
+export type CrossMarketReflexivityRegime =
+  | "STABLE"
+  | "COUPLED"
+  | "REFLEXIVE"
+  | "FRAGILE"
+  | "STRESSED"
+  | "DISLOCATED"
+  | "CONTAGION"
+  | "DISLOCATION"
+  | "MIXED"
+  | "DEFENSIVE_FEEDBACK"
+  | "REFLEXIVE_OVERHEAT"
+  | "SELF_REINFORCING_EXPANSION"
+  | "BETA_ROTATION"
+  | string
+
+export interface CrossMarketNode {
+  id: string
+  label: string
+  score: number
+  risk: number
+  market?: string
+  sector?: string
+  narrative?: string
+  heat?: number
+  stress?: number
+  reflexivity?: number
+  influence?: number
+  sensitivity?: number
+  weight?: number
+  liquidity?: number
+  direction?: RotationDirection | "MIXED" | "CHURN" | "OUTFLOW" | string
+  summary?: string
+  [key: string]: unknown
+}
+
+export interface CrossMarketDependency {
+  from?: string
+  to?: string
+  source?: string
+  target?: string
+  strength: number
+  type?: string
+  direction?: string
+  reason?: string
+  read?: string
+  summary?: string
+  lag?: number
+  correlation?: number
+  confidence?: number
+  [key: string]: unknown
+}
+
+export interface CrossMarketReflexivitySurface extends NarrativeCrossMarketReflexivitySurface {
+  ok?: boolean
+  regime?: CrossMarketReflexivityRegime
+  reflexivityScore?: number
+  instabilityScore?: number
+  contagionRisk?: number
+  dependencyScore?: number
+  stressScore?: number
+  nodes?: CrossMarketNode[]
+  dependencies?: CrossMarketDependency[]
+  links?: CrossMarketDependency[]
+  summary?: string
+  status?: string
+  notes?: string[]
+  [key: string]: unknown
 }
 
 export interface NewsFusionSurface {
@@ -77,121 +248,6 @@ export interface NewsFusionSurface {
   }[]
 }
 
-
-export type NarrativeLifecyclePhase = "DORMANT" | "IGNITION" | "EXPANSION" | "EUPHORIA" | "EXHAUSTION" | "COLLAPSE"
-
-export interface NarrativePropagationNode {
-  narrative: string
-  phase: NarrativeLifecyclePhase
-  velocity: number
-  acceleration: number
-  persistence: number
-  synchronization: number
-  stress: number
-  regions: string[]
-  sectors: string[]
-  summary: string
-}
-
-export interface NarrativePropagationLink {
-  from: string
-  to: string
-  strength: number
-  reason: string
-}
-
-export interface NarrativePropagationSurface {
-  ok: boolean
-  leadNarrative: string
-  leadPhase: NarrativeLifecyclePhase
-  velocityScore: number
-  stressScore: number
-  lifecycleCounts: Record<NarrativeLifecyclePhase, number>
-  nodes: NarrativePropagationNode[]
-  links: NarrativePropagationLink[]
-  operatorRead: string
-}
-
-
-export type LiquidityStressRegime =
-  | "HEALTHY_EXPANSION"
-  | "SPECULATIVE_EXPANSION"
-  | "LIQUIDITY_STRESS"
-  | "DEFENSIVE_WITHDRAWAL"
-  | "COMPRESSION"
-  | "FRAGILE_ROTATION"
-  | "MARKET_SCAN"
-
-export interface LiquidityStressDriver {
-  label: string
-  value: number
-  weight: number
-  contribution: number
-  direction: "SUPPORT" | "RISK" | "NEUTRAL"
-}
-
-export interface StressSectorRead {
-  sector: string
-  regime: LiquidityStressRegime
-  stressScore: number
-  liquidityQuality: number
-  crowdingRisk: number
-  withdrawalRisk: number
-  operatorRead: string
-}
-
-export interface LiquidityStressSurface {
-  ok: boolean
-  regime: LiquidityStressRegime
-  stressScore: number
-  liquidityQuality: number
-  crowdingRisk: number
-  withdrawalRisk: number
-  spreadRiskProxy: number
-  operatorRead: string
-  drivers: LiquidityStressDriver[]
-  sectors: StressSectorRead[]
-}
-
-
-
-export type CrossMarketReflexivityRegime =
-  | "SELF_REINFORCING_EXPANSION"
-  | "REFLEXIVE_OVERHEAT"
-  | "DEFENSIVE_FEEDBACK"
-  | "BETA_ROTATION"
-  | "FRAGILE_FEEDBACK"
-  | "NEUTRAL_PROPAGATION"
-
-export interface CrossMarketNode {
-  id: string
-  label: string
-  state: "LEADING" | "EXPANDING" | "STRESSED" | "WITHDRAWING" | "NEUTRAL"
-  score: number
-  risk: number
-  role: string
-  operatorRead: string
-}
-
-export interface CrossMarketDependency {
-  from: string
-  to: string
-  strength: number
-  type: "REINFORCING" | "LAGGING" | "STRESS" | "DIVERGENCE"
-  read: string
-}
-
-export interface CrossMarketReflexivitySurface {
-  ok: boolean
-  regime: CrossMarketReflexivityRegime
-  reflexivityScore: number
-  instabilityScore: number
-  betaRotationPath: string[]
-  nodes: CrossMarketNode[]
-  dependencies: CrossMarketDependency[]
-  operatorRead: string
-}
-
 export interface NarrativeSurface {
   ok: boolean
   generatedAt: string
@@ -208,9 +264,9 @@ export interface NarrativeSurface {
     sectors: string[]
   }
   sourceSectors: SectorRotationSnapshot[]
-  newsFusion?: NewsFusionSurface
   propagation?: NarrativePropagationSurface
-  liquidityStress?: LiquidityStressSurface
-  crossMarketReflexivity?: CrossMarketReflexivitySurface
+  liquidityStress?: NarrativeLiquidityStressSurface
+  crossMarketReflexivity?: NarrativeCrossMarketReflexivitySurface | CrossMarketReflexivitySurface
+  newsFusion?: NewsFusionSurface
   notes: string[]
 }

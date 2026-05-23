@@ -32,7 +32,7 @@ export interface SectorCoverageAudit {
 }
 
 export interface ConnectorQualityStatus {
-  name: "binance" | "binance-exchange-info" | "binance-ws" | "binance-futures-exchange-info" | "binance-futures-open-interest" | "binance-futures-funding" | "upbit-markets" | "upbit-ticker" | "upbit-ws" | "datalab"
+  name: "binance" | "binance-exchange-info" | "binance-ws" | "upbit-markets" | "upbit-ticker" | "upbit-ws" | "datalab"
   status: "connected" | "partial" | "stale" | "error" | "idle"
   latencyMs?: number
   records?: number
