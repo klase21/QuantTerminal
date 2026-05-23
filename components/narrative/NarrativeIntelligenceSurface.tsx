@@ -3,11 +3,18 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { generateNarrativeSurface } from "@/core/narrative/generateNarrativeSurface"
+import {
+  appendHistoricalSnapshot,
+  buildHistoricalMemorySurface,
+  buildHistoricalSnapshot,
+} from "@/core/memory/historicalMemoryEngine"
+import type { HistoricalRegimeSnapshot } from "@/core/memory/historicalMemoryTypes"
 import type { NarrativeSurface } from "@/core/narrative/narrativeTypes"
 import type { RealMarketRotationResponse } from "@/core/marketDataTypes"
 import type { FuturesIntelligenceResponse } from "@/core/futuresTypes"
 
 const POLL_MS = 45000
+const MEMORY_STORAGE_KEY = "quantterminal.historical-memory.v1"
 
 type FetchState = "idle" | "loading" | "live" | "partial" | "error"
 
@@ -26,6 +33,46 @@ function formatMetric(value: unknown, digits = 2) {
   const number = typeof value === "number" ? value : Number(value)
   if (!Number.isFinite(number)) return "--"
   return number.toFixed(digits)
+}
+
+function formatShortTime(value?: string) {
+  if (!value) return "--"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "--"
+  return date.toLocaleString("en", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function memoryBiasLabel(value?: string) {
+  switch (value) {
+    case "MATCH":
+      return "Historical Match"
+    case "RHYME":
+      return "Market Rhyme"
+    case "DIVERGENT":
+      return "Regime Discovery"
+    case "INSUFFICIENT_HISTORY":
+      return "Memory Warming"
+    default:
+      return formatEnumLabel(value)
+  }
+}
+
+function memoryBiasClass(value?: string) {
+  switch (value) {
+    case "MATCH":
+      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+    case "RHYME":
+      return "border-cyan-500/25 bg-cyan-500/10 text-cyan-200"
+    case "DIVERGENT":
+      return "border-orange-500/25 bg-orange-500/10 text-orange-200"
+    default:
+      return "border-zinc-700 bg-zinc-900 text-zinc-300"
+  }
 }
 
 function formatEnumLabel(value?: string) {
@@ -217,6 +264,21 @@ export default function NarrativeIntelligenceSurface() {
   const [newsState, setNewsState] = useState<FetchState>("idle")
   const [futuresState, setFuturesState] = useState<FetchState>("idle")
   const [error, setError] = useState<string | null>(null)
+  const [memoryHistory, setMemoryHistory] = useState<HistoricalRegimeSnapshot[]>([])
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(MEMORY_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        setMemoryHistory(parsed.filter((item) => item && typeof item.timestamp === "string"))
+      }
+    } catch {
+      setMemoryHistory([])
+    }
+  }, [])
+
 
   useEffect(() => {
     let alive = true
@@ -316,6 +378,28 @@ export default function NarrativeIntelligenceSurface() {
   }, [])
 
   const narrative = useMemo<NarrativeSurface>(() => generateNarrativeSurface(rotationData, newsItems, futuresData), [rotationData, newsItems, futuresData])
+  const currentMemorySnapshot = useMemo(() => buildHistoricalSnapshot(narrative, futuresData), [narrative, futuresData])
+
+  useEffect(() => {
+    if (!narrative.ok) return
+    setMemoryHistory((prev) => {
+      const next = appendHistoricalSnapshot(prev, currentMemorySnapshot)
+      if (next !== prev) {
+        try {
+          window.localStorage.setItem(MEMORY_STORAGE_KEY, JSON.stringify(next))
+        } catch {
+          // Local memory is best effort; the terminal should keep running without persistence.
+        }
+      }
+      return next
+    })
+  }, [currentMemorySnapshot, narrative.ok])
+
+  const historicalMemory = useMemo(
+    () => buildHistoricalMemorySurface(currentMemorySnapshot, memoryHistory),
+    [currentMemorySnapshot, memoryHistory]
+  )
+
   const topHeat = narrative.heatmap[0]
   const secondHeat = narrative.heatmap[1]
   const statusLabel = fetchState === "live" ? "LIVE" : fetchState.toUpperCase()
@@ -650,6 +734,109 @@ export default function NarrativeIntelligenceSurface() {
             {!(narrative.crossMarketReflexivity?.dependencies.length) ? (
               <div className="rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-500">
                 No confirmed cross-market dependency yet.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-2xl border border-emerald-500/20 bg-zinc-950/70 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+                Historical Intelligence Memory
+              </div>
+              <div className="mt-1 text-sm font-black uppercase tracking-[0.16em] text-emerald-100">
+                {memoryBiasLabel(historicalMemory.bias)}
+              </div>
+            </div>
+            <div className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${memoryBiasClass(historicalMemory.bias)}`}>
+              Samples {historicalMemory.sampleSize}
+            </div>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-zinc-400">
+            {historicalMemory.operatorRead}
+          </p>
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Best Match</div>
+              <div className="mt-1 truncate text-sm font-black text-emerald-200">
+                {historicalMemory.bestMatch?.snapshot.leadNarrative ?? "Warming"}
+              </div>
+              <div className="mt-1 text-[10px] text-zinc-500">
+                {formatShortTime(historicalMemory.bestMatch?.snapshot.timestamp)}
+              </div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Similarity</div>
+              <div className="mt-1 text-sm font-black text-cyan-200">
+                {formatMetric(historicalMemory.bestMatch?.similarity, 0)}
+              </div>
+              <div className="mt-1 text-[10px] text-zinc-500">local memory score</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Persistent Narrative</div>
+              <div className="mt-1 truncate text-sm font-black text-violet-200">
+                {historicalMemory.persistence[0]?.narrative ?? "--"}
+              </div>
+              <div className="mt-1 text-[10px] text-zinc-500">
+                Score {formatMetric(historicalMemory.persistence[0]?.persistenceScore, 0)}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 space-y-2">
+            {historicalMemory.matches.slice(0, 3).map((match) => (
+              <div key={match.snapshot.id} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate text-xs font-black uppercase text-zinc-100">
+                    {match.snapshot.leadNarrative} · {match.snapshot.regime.replaceAll("_", " ")}
+                  </div>
+                  <div className="text-xs font-black text-emerald-200">{formatMetric(match.similarity, 0)}</div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {(match.matchedOn.length ? match.matchedOn : ["structure"]).slice(0, 4).map((tag) => (
+                    <span key={`${match.snapshot.id}-${tag}`} className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-zinc-500">{match.operatorRead}</p>
+              </div>
+            ))}
+            {!historicalMemory.matches.length ? (
+              <div className="rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-500">
+                Memory is collecting live snapshots. Historical rhymes will appear after a few regime observations.
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">
+              Regime Memory Tape
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">Transitions</div>
+          </div>
+          <div className="mt-3 space-y-2">
+            {historicalMemory.transitions.slice(0, 4).map((transition) => (
+              <div key={`${transition.from}-${transition.to}`} className="rounded-xl border border-zinc-800 bg-black/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate text-xs font-black uppercase text-zinc-100">
+                    {transition.from.replaceAll("_", " ")} → {transition.to.replaceAll("_", " ")}
+                  </div>
+                  <div className="text-xs font-black text-cyan-200">{formatMetric(transition.probability, 0)}%</div>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-900">
+                  <div className="h-full rounded-full bg-cyan-400/80" style={{ width: `${Math.min(100, Math.max(0, transition.probability))}%` }} />
+                </div>
+                <p className="mt-2 text-[11px] leading-4 text-zinc-500">{transition.operatorRead}</p>
+              </div>
+            ))}
+            {!historicalMemory.transitions.length ? (
+              <div className="rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-500">
+                Transition memory needs more regime changes before probability estimates are useful.
               </div>
             ) : null}
           </div>
