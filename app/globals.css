@@ -70,3 +70,31 @@ body {
 .qt-motion-node-ring { animation: qtMotionNodeRing 2.7s ease-out infinite; }
 .qt-motion-node-halo { animation: qtMotionThreatDot 2.8s ease-in-out infinite; }
 .qt-motion-scanline::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 120px; background: linear-gradient(180deg, transparent, rgba(8,145,178,.035), transparent); animation: qtMotionScanline 4.2s linear infinite; }
+
+
+/* Trade Flow dual-sided execution animation */
+@keyframes qtTradeFlowBuy {
+  0% { left: -10%; transform: translateY(-50%) scale(.72); opacity: 0; }
+  15% { opacity: .85; }
+  78% { opacity: .85; }
+  100% { left: 110%; transform: translateY(-50%) scale(1.18); opacity: 0; }
+}
+
+@keyframes qtTradeFlowSell {
+  0% { right: -10%; transform: translateY(-50%) scale(.72); opacity: 0; }
+  15% { opacity: .85; }
+  78% { opacity: .85; }
+  100% { right: 110%; transform: translateY(-50%) scale(1.18); opacity: 0; }
+}
+
+.qt-trade-flow-buy {
+  animation-name: qtTradeFlowBuy;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.qt-trade-flow-sell {
+  animation-name: qtTradeFlowSell;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}

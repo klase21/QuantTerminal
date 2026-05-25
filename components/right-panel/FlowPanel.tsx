@@ -4,12 +4,71 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
-  Waves,
+  Zap,
+  ShieldAlert,
+  Radio,
 } from "lucide-react"
 
 type Props = {
   trades: any[]
   flow: any
+}
+
+function FlowPulseLane({
+  side,
+  pressure,
+  trades,
+}: {
+  side: "buy" | "sell"
+  pressure: number
+  trades: any[]
+}) {
+  const isBuy = side === "buy"
+  const visiblePressure = Math.max(8, Math.min(100, pressure))
+  const activeTrades = trades.filter((trade) => trade?.side === side).slice(0, 18)
+  const pulseCount = Math.max(4, Math.min(12, Math.ceil(activeTrades.length / 2) || Math.round(visiblePressure / 10)))
+  const speed = Math.max(1.15, 3.2 - visiblePressure / 45)
+  const glow = Math.max(0.22, visiblePressure / 100)
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-black/80 p-3">
+      <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em]">
+        <span className={isBuy ? "text-green-300" : "text-red-300"}>{isBuy ? "Buy Flow" : "Sell Flow"}</span>
+        <span className="text-zinc-500">{pressure.toFixed(0)}%</span>
+      </div>
+
+      <div className="relative h-12 overflow-hidden rounded-xl bg-zinc-950">
+        <div
+          className={`absolute inset-y-0 ${isBuy ? "left-0 bg-green-500/10" : "right-0 bg-red-500/10"}`}
+          style={{ width: `${visiblePressure}%` }}
+        />
+
+        <div className="absolute inset-x-3 top-1/2 h-px bg-zinc-800" />
+
+        {Array.from({ length: pulseCount }).map((_, index) => {
+          const size = 4 + ((index % 3) * 2)
+          const opacity = Math.max(0.25, Math.min(0.95, glow + (index % 4) * 0.06))
+
+          return (
+            <span
+              key={`${side}-${index}`}
+              className={`absolute top-1/2 rounded-full ${isBuy ? "qt-trade-flow-buy bg-green-400 shadow-[0_0_14px_rgba(74,222,128,.65)]" : "qt-trade-flow-sell bg-red-400 shadow-[0_0_14px_rgba(248,113,113,.65)]"}`}
+              style={{
+                width: size,
+                height: size,
+                opacity,
+                animationDelay: `${index * 0.18}s`,
+                animationDuration: `${speed + (index % 4) * 0.2}s`,
+              }}
+            />
+          )
+        })}
+
+        <div className={`absolute inset-y-0 w-16 ${isBuy ? "left-0 bg-gradient-to-r from-black to-transparent" : "right-0 bg-gradient-to-l from-black to-transparent"}`} />
+        <div className={`absolute inset-y-0 w-16 ${isBuy ? "right-0 bg-gradient-to-l from-black to-transparent" : "left-0 bg-gradient-to-r from-black to-transparent"}`} />
+      </div>
+    </div>
+  )
 }
 
 export default function FlowPanel({
@@ -59,6 +118,77 @@ export default function FlowPanel({
       : tradeIntensity === "NORMAL"
       ? "text-cyan-400"
       : "text-zinc-500"
+
+  const delta = Number(flow?.delta || 0)
+  const cvd = Number(flow?.cvd || 0)
+  const pressureGap = Math.abs(buyPressure - sellPressure)
+  const dominantSide =
+    buyPressure >= 55
+      ? "buy"
+      : sellPressure >= 55
+      ? "sell"
+      : "neutral"
+
+  const isDeltaBullish = delta >= 0 && cvd >= 0
+  const isDeltaBearish = delta < 0 && cvd < 0
+  const hasAbsorption =
+    pressureGap >= 18 &&
+    ((dominantSide === "sell" && delta > -0.2) ||
+      (dominantSide === "buy" && delta < 0.2))
+
+  const executionScore = Math.max(0, Math.min(100, Math.round(
+    pressureGap * 0.72 +
+    (tradeIntensity === "EXTREME" ? 28 : tradeIntensity === "HIGH" ? 20 : tradeIntensity === "NORMAL" ? 12 : 5) +
+    (Math.abs(delta) * 7)
+  )))
+
+  const executionAction =
+    dominantSide === "buy" && isDeltaBullish && executionScore >= 55
+      ? "LONG SCALP SETUP"
+      : dominantSide === "sell" && isDeltaBearish && executionScore >= 55
+      ? "SHORT SCALP SETUP"
+      : hasAbsorption
+      ? "ABSORPTION WATCH"
+      : pressureGap < 12
+      ? "WAIT / NO EDGE"
+      : "WAIT FOR CONFIRM"
+
+  const actionColor =
+    executionAction.includes("LONG")
+      ? "text-green-300"
+      : executionAction.includes("SHORT")
+      ? "text-red-300"
+      : executionAction.includes("ABSORPTION")
+      ? "text-yellow-300"
+      : "text-zinc-300"
+
+  const tacticalTriggers = [
+    dominantSide === "sell"
+      ? "Sell pressure fading below 60%"
+      : dominantSide === "buy"
+      ? "Buy pressure holding above 55%"
+      : "Pressure expansion above 55%",
+    hasAbsorption
+      ? "Absorption already visible: watch reversal candle"
+      : "Absorption trigger: pressure high but delta stops extending",
+    cvd < 0
+      ? "CVD recovery through zero"
+      : "CVD continuation without divergence",
+  ]
+
+  const universeRead =
+    dominantSide === "sell"
+      ? "Universe rotation is under short-term execution pressure. Validate sector strength before chasing."
+      : dominantSide === "buy"
+      ? "Execution flow supports narrative continuation. Watch for rotation follow-through."
+      : "Flow is balanced. Universe signal needs cleaner directional confirmation."
+
+  const riskNote =
+    tradeIntensity === "EXTREME"
+      ? "High-speed tape: avoid late entries unless trigger is already confirmed."
+      : hasAbsorption
+      ? "Absorption risk: dominant side may be running into passive liquidity."
+      : "Normal execution risk. Let trigger confirm before sizing."
 
   return (
 
@@ -178,6 +308,7 @@ export default function FlowPanel({
 
         <div
           className="
+            flex
             h-2
             overflow-hidden
             rounded-full
@@ -195,6 +326,37 @@ export default function FlowPanel({
             }}
           />
 
+          <div
+            className="
+              h-full
+              bg-red-500
+            "
+            style={{
+              width: `${sellPressure}%`,
+            }}
+          />
+
+        </div>
+
+        <div
+          className="
+            mt-3
+            grid
+            gap-2
+            md:grid-cols-2
+          "
+        >
+          <FlowPulseLane
+            side="buy"
+            pressure={buyPressure}
+            trades={recentTrades}
+          />
+
+          <FlowPulseLane
+            side="sell"
+            pressure={sellPressure}
+            trades={recentTrades}
+          />
         </div>
 
       </div>
@@ -416,13 +578,19 @@ export default function FlowPanel({
           <div
             className="
               mb-3
+              flex
+              items-center
+              justify-between
               text-xs
               uppercase
               tracking-wide
               text-zinc-500
             "
           >
-            Execution Bias
+            <span>Execution Intelligence</span>
+            <span className="rounded-full border border-zinc-800 bg-black px-2 py-1 text-[10px] text-cyan-300">
+              Score {executionScore}
+            </span>
           </div>
 
           <div
@@ -447,6 +615,10 @@ export default function FlowPanel({
             }
           </div>
 
+          <div className={`mt-2 text-xl font-bold ${actionColor}`}>
+            {executionAction}
+          </div>
+
           <div
             className="
               mt-3
@@ -455,9 +627,56 @@ export default function FlowPanel({
             "
           >
             Aggressive execution pressure inferred from
-            recent market orders and delta imbalance.
+            recent market orders, CVD and delta imbalance.
           </div>
 
+        </div>
+
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+            <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
+              <Zap size={14} className="text-cyan-300" />
+              Trigger Stack
+            </div>
+
+            <div className="space-y-2">
+              {tacticalTriggers.map((trigger, index) => (
+                <div
+                  key={trigger}
+                  className="rounded-xl border border-zinc-800 bg-black/60 px-3 py-2 text-xs text-zinc-300"
+                >
+                  <span className="mr-2 text-cyan-400">0{index + 1}</span>
+                  {trigger}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+            <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
+              <Radio size={14} className="text-purple-300" />
+              Universe Link
+            </div>
+
+            <div className="text-sm leading-relaxed text-zinc-300">
+              {universeRead}
+            </div>
+
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-black/60 px-3 py-2 text-xs text-zinc-500">
+              Flow → Narrative → Rotation confirmation layer
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+          <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
+            <ShieldAlert size={14} className="text-yellow-300" />
+            Risk / Invalidation
+          </div>
+
+          <div className="text-sm text-zinc-300">
+            {riskNote}
+          </div>
         </div>
 
       </div>
