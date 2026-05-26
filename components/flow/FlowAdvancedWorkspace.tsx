@@ -11,6 +11,11 @@ import AdaptiveIntelligencePanel from "@/components/adaptive/AdaptiveIntelligenc
 import CorrelationRegimePanel from "@/components/correlation/CorrelationRegimePanel"
 import MacroAwareDecisionPanel from "@/components/correlation/MacroAwareDecisionPanel"
 import TacticalAIAgentPanel from "@/components/agent/TacticalAIAgentPanel"
+import TacticalAlertPanel from "@/components/alerts/TacticalAlertPanel"
+import AIDebatePanel from "@/components/debate/AIDebatePanel"
+import CrossAssetCorrelationMatrix from "@/components/correlation/CrossAssetCorrelationMatrix"
+import LiquidityMapPanel from "@/components/liquidity/LiquidityMapPanel"
+import ExecutionReplayPanel from "@/components/replay/ExecutionReplayPanel"
 import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore"
 
 type FlowAdvancedWorkspaceProps = {
@@ -55,6 +60,23 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
           <MacroAwareDecisionPanel flow={flow} />
         </div>
       </AdvancedFlowSection>
+
+
+      <AdvancedFlowSection
+        title="Tactical Intelligence Expansion"
+        subtitle="Alerts, debate system, liquidity map, replay scaffold"
+        badge="expansion"
+        defaultOpen={false}
+      >
+        <div className="space-y-3">
+          <TacticalAlertPanel />
+          <AIDebatePanel />
+          <CrossAssetCorrelationMatrix />
+          <LiquidityMapPanel />
+          <ExecutionReplayPanel />
+        </div>
+      </AdvancedFlowSection>
+
 
       {show("decision") ? (
         <AdvancedFlowSection
