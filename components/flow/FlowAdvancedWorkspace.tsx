@@ -12,11 +12,14 @@ import CorrelationRegimePanel from "@/components/correlation/CorrelationRegimePa
 import MacroAwareDecisionPanel from "@/components/correlation/MacroAwareDecisionPanel"
 import TacticalAIAgentPanel from "@/components/agent/TacticalAIAgentPanel"
 import TacticalAlertPanel from "@/components/alerts/TacticalAlertPanel"
+import StatefulTacticalAlertPanel from "@/components/alerts/StatefulTacticalAlertPanel"
 import AIDebatePanel from "@/components/debate/AIDebatePanel"
 import CrossAssetCorrelationMatrix from "@/components/correlation/CrossAssetCorrelationMatrix"
 import LiquidityMapPanel from "@/components/liquidity/LiquidityMapPanel"
 import ExecutionReplayPanel from "@/components/replay/ExecutionReplayPanel"
 import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore"
+import { buildCorrelationRegimeState } from "@/core/correlation/correlationRegimeEngine"
+import { buildDualMarketIntelligence, normalizeFlowSnapshot, emptyMarketFlow } from "@/core/dual-market/dualMarketEngine"
 
 type FlowAdvancedWorkspaceProps = {
   flow: any
@@ -26,6 +29,16 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
   const { preset, openAdvancedSections } = useTacticalWorkspaceStore()
 
   const show = (id: string) => openAdvancedSections.includes(id as any)
+
+  const macroState = buildCorrelationRegimeState()
+  const futuresSnapshot = normalizeFlowSnapshot(flow, "FUTURES", flow?.symbol || "BTCUSDT")
+  const spotSnapshot = emptyMarketFlow(flow?.symbol || "BTCUSDT", "SPOT")
+  const dualMarketState = buildDualMarketIntelligence({
+    symbol: flow?.symbol || "BTCUSDT",
+    mode: "HYBRID",
+    spot: spotSnapshot,
+    futures: futuresSnapshot,
+  })
 
   return (
     <div className="space-y-3">
@@ -69,11 +82,11 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
         defaultOpen={false}
       >
         <div className="space-y-3">
-          <TacticalAlertPanel />
-          <AIDebatePanel />
+          <StatefulTacticalAlertPanel flow={flow} dualMarket={dualMarketState} />
+          <AIDebatePanel flow={flow} dualMarket={dualMarketState} macro={macroState} />
           <CrossAssetCorrelationMatrix />
-          <LiquidityMapPanel />
-          <ExecutionReplayPanel />
+          <LiquidityMapPanel flow={flow} />
+          <ExecutionReplayPanel dualMarket={dualMarketState} />
         </div>
       </AdvancedFlowSection>
 

@@ -2,6 +2,7 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { normalizeTacticalSymbol } from "@/core/tactical/tacticalRoute"
 
 export type FocusScope =
   | "GLOBAL"
@@ -29,7 +30,7 @@ export const useFocusRoutingStore = create<FocusRoutingState>()(
       setActiveSymbol: (activeSymbol) =>
         set({
           previousSymbol: get().activeSymbol,
-          activeSymbol,
+          activeSymbol: normalizeTacticalSymbol(activeSymbol),
         }),
 
       setFocusScope: (focusScope) =>

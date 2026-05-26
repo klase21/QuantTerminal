@@ -5,6 +5,7 @@ export interface MarketFlowSnapshot {
   source: "SPOT" | "FUTURES"
   buyVolume: number
   sellVolume: number
+  delta: number
   cvd: number
   buyPressure: number
   sellPressure: number

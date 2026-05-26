@@ -3,8 +3,20 @@
 import { BellRing } from "lucide-react"
 import { buildTacticalAlerts } from "@/core/alerts/tacticalAlertEngine"
 
-export default function TacticalAlertPanel() {
-  const alerts = buildTacticalAlerts()
+export default function TacticalAlertPanel({
+  flow,
+  dualMarket,
+}: {
+  flow?: any
+  dualMarket?: any
+}) {
+  const alerts = buildTacticalAlerts({
+    buyPressure: Number(flow?.buyPressure ?? 38),
+    sellPressure: Number(flow?.sellPressure ?? 62),
+    fakeBreakoutRisk: Number(dualMarket?.fakeBreakoutRisk ?? 0),
+    realDemandConfirmation: Number(dualMarket?.realDemandConfirmation ?? 0),
+    divergenceScore: Number(dualMarket?.divergenceScore ?? 0),
+  })
 
   return (
     <section className="rounded-3xl border border-yellow-300/20 bg-yellow-400/5 p-4">
@@ -19,9 +31,7 @@ export default function TacticalAlertPanel() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-black text-white">{alert.title}</div>
-                <div className="mt-2 text-sm leading-6 text-zinc-400">
-                  {alert.reason}
-                </div>
+                <div className="mt-2 text-sm leading-6 text-zinc-400">{alert.reason}</div>
               </div>
 
               <div className="rounded-full border border-yellow-300/20 bg-yellow-400/10 px-3 py-1 text-xs font-black text-yellow-100">

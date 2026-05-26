@@ -27,19 +27,6 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
 }
 
-function directionTone(direction?: string) {
-  switch (direction) {
-    case "INFLOW":
-      return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
-    case "OUTFLOW":
-      return "border-red-500/40 bg-red-500/10 text-red-300";
-    case "CHURN":
-      return "border-amber-500/40 bg-amber-500/10 text-amber-300";
-    default:
-      return "border-zinc-800 bg-zinc-900/70 text-zinc-400";
-  }
-}
-
 function healthTone(status?: string) {
   switch (status) {
     case "healthy":
@@ -71,30 +58,94 @@ function transportTone(status?: string) {
   }
 }
 
-function stateFromSurface(topSector?: SectorRotationSnapshot) {
-  if (!topSector) return "SCANNING";
-  if (topSector.direction === "INFLOW" && topSector.confidence >= 72) return "ALT ROTATION";
-  if (topSector.direction === "OUTFLOW" && topSector.confidence >= 70) return "RISK OFF";
-  if (topSector.direction === "CHURN") return "CHURN PHASE";
-  return "MARKET SCAN";
+function verdictFromSurface(topSector?: SectorRotationSnapshot) {
+  if (!topSector) {
+    return {
+      label: "SCANNING MARKET",
+      detail: "Waiting for live rotation data before forming a tactical read.",
+      action: "Do not force trades until live context is available.",
+      tone: "border-zinc-700 bg-zinc-900/70 text-zinc-300",
+    };
+  }
+
+  if (topSector.direction === "INFLOW" && topSector.confidence >= 72) {
+    return {
+      label: "ALT ROTATION ACTIVE",
+      detail: `${topSector.sector} is attracting liquidity with confirmation quality above the active threshold.`,
+      action: "Selective longs favored. Focus on leaders, avoid chasing late movers.",
+      tone: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200",
+    };
+  }
+
+  if (topSector.direction === "OUTFLOW" && topSector.confidence >= 70) {
+    return {
+      label: "RISK-OFF PRESSURE",
+      detail: `${topSector.sector} shows defensive outflow pressure with elevated confirmation.`,
+      action: "Avoid aggressive entries. Wait for liquidity stabilization or failed breakdowns.",
+      tone: "border-red-400/30 bg-red-500/10 text-red-200",
+    };
+  }
+
+  if (topSector.direction === "CHURN") {
+    return {
+      label: "MIXED / CHURN CONDITIONS",
+      detail: `${topSector.sector} is active, but flow is rotating without clean directional commitment.`,
+      action: "Wait for confirmation. Use smaller size or avoid low-quality continuation trades.",
+      tone: "border-amber-400/30 bg-amber-500/10 text-amber-200",
+    };
+  }
+
+  return {
+    label: "SELECTIVE MARKET",
+    detail: `${topSector.sector} is the current focus, but the signal is not clean enough for broad aggression.`,
+    action: "Trade only the strongest setups. Let the router filter weak opportunities.",
+    tone: "border-cyan-400/25 bg-cyan-500/10 text-cyan-200",
+  };
 }
 
-function buildEventRail(sectors: SectorRotationSnapshot[]) {
-  return sectors.slice(0, 4).map((sector) => ({
-    key: `${sector.rank}-${sector.sector}`,
-    label: `${sector.sector} ${sector.direction}`,
-    detail: `${formatMetric(sector.rotationScore)} score · ${formatMetric(sector.confidence)} conf`,
-    direction: sector.direction,
+function buildTacticalAlerts(sectors: SectorRotationSnapshot[]) {
+  return sectors.slice(0, 4).map((sector) => {
+    const prefix = sector.direction === "INFLOW" ? "Watch" : sector.direction === "OUTFLOW" ? "Avoid" : "Wait";
+    const message =
+      sector.direction === "INFLOW"
+        ? `${sector.sector} liquidity is improving; check execution quality before entry.`
+        : sector.direction === "OUTFLOW"
+          ? `${sector.sector} is bleeding flow; avoid weak continuation longs.`
+          : `${sector.sector} is churning; wait for cleaner confirmation.`;
+
+    return {
+      key: `${sector.rank}-${sector.sector}`,
+      label: `${prefix} ${sector.sector}`,
+      message,
+      direction: sector.direction,
+    };
+  });
+}
+
+function buildWhereToFocus(sectors: SectorRotationSnapshot[]) {
+  return sectors.slice(0, 5).map((sector) => ({
+    ...sector,
+    width: clamp(sector.rotationScore),
+    label:
+      sector.direction === "INFLOW"
+        ? "Tradable leader"
+        : sector.direction === "OUTFLOW"
+          ? "Avoid weakness"
+          : "Needs confirmation",
   }));
 }
 
-function buildTemperature(sectors: SectorRotationSnapshot[]) {
-  if (!sectors.length) return 0;
-  const top = sectors.slice(0, 5);
-  const avgScore = top.reduce((sum, sector) => sum + sector.rotationScore, 0) / top.length;
-  const avgBreadth = top.reduce((sum, sector) => sum + sector.breadth, 0) / top.length;
-  const avgVol = top.reduce((sum, sector) => sum + sector.volatility, 0) / top.length;
-  return clamp(avgScore * 0.48 + avgBreadth * 0.24 + avgVol * 0.28);
+function alertTone(direction?: string) {
+  switch (direction) {
+    case "INFLOW":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+    case "OUTFLOW":
+      return "border-red-500/30 bg-red-500/10 text-red-200";
+    case "CHURN":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+    default:
+      return "border-zinc-800 bg-zinc-900/70 text-zinc-400";
+  }
 }
 
 function SurfaceCard({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -110,14 +161,11 @@ export default function LiveCommandSurface() {
 
   const sectors = data?.sectors ?? [];
   const topSector = sectors[0];
-  const state = stateFromSurface(topSector);
-  const events = useMemo(() => buildEventRail(sectors), [sectors]);
-  const temperature = useMemo(() => buildTemperature(sectors), [sectors]);
+  const verdict = useMemo(() => verdictFromSurface(topSector), [topSector]);
+  const alerts = useMemo(() => buildTacticalAlerts(sectors), [sectors]);
+  const focus = useMemo(() => buildWhereToFocus(sectors), [sectors]);
   const quality = data?.dataQuality?.status ?? fetchState;
   const degraded = fetchState === "error" || data?.dataQuality?.stale || quality === "partial" || quality === "degraded";
-  const topAlert = topSector
-    ? `${topSector.sector} ${topSector.direction} · ${formatMetric(topSector.confidence)}%`
-    : "Waiting for live rotation data";
 
   return (
     <section className="relative shrink-0 overflow-hidden border-b border-zinc-900 bg-black">
@@ -130,10 +178,10 @@ export default function LiveCommandSurface() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-cyan-400/80">
-              Live Intelligence Surface
+              Tactical Market Read
             </div>
             <div className="mt-1 text-xs text-zinc-500">
-              Regime, sector heat, and priority events. Detailed narrative stays inside the workspace.
+              Compressed regime verdict, focus areas, and actionable live alerts.
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -146,19 +194,18 @@ export default function LiveCommandSurface() {
           </div>
         </div>
 
-        <div className="grid items-stretch gap-3 lg:grid-cols-3">
-          <SurfaceCard className="border-cyan-500/20 bg-zinc-950/85">
+        <div className="grid items-stretch gap-3 lg:grid-cols-[1.08fr_1fr_1fr]">
+          <SurfaceCard className={`border-cyan-500/20 bg-zinc-950/85 ${verdict.tone}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-cyan-400/80">
-                  Market State
+                <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-cyan-300/80">
+                  Market Verdict
                 </div>
-                <div className="mt-2 truncate text-2xl font-black uppercase tracking-[0.16em] text-white xl:text-3xl">
-                  {state}
+                <div className="mt-2 text-2xl font-black uppercase tracking-[0.14em] text-white xl:text-3xl">
+                  {verdict.label}
                 </div>
-                <div className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">
-                  <span className="font-bold text-zinc-200">{topSector?.sector ?? "--"}</span>
-                  {topSector ? ` · ${topSector.story}` : " · scanning live market data"}
+                <div className="mt-3 max-w-2xl text-xs leading-5 text-zinc-300">
+                  {verdict.detail}
                 </div>
               </div>
               <div className="shrink-0 text-right text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-500">
@@ -167,85 +214,61 @@ export default function LiveCommandSurface() {
               </div>
             </div>
 
-            <div className="mt-auto grid grid-cols-3 gap-2 pt-4">
-              <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
-                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Confidence</div>
-                <div className="mt-1 text-xl font-black text-cyan-200">{formatMetric(topSector?.confidence)}%</div>
-              </div>
-              <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
-                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Temp</div>
-                <div className="mt-1 text-xl font-black text-fuchsia-200">{formatMetric(temperature)}%</div>
-              </div>
-              <div className="rounded-xl border border-zinc-800 bg-black/45 p-3">
-                <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">Alert</div>
-                <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-amber-200">{topAlert}</div>
-              </div>
+            <div className="mt-auto rounded-2xl border border-white/10 bg-black/45 p-3">
+              <div className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-500">Execution Guidance</div>
+              <div className="mt-1 text-sm font-black leading-5 text-white">{verdict.action}</div>
             </div>
           </SurfaceCard>
 
           <SurfaceCard>
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-zinc-500">
-                Sector Heat Radar
+              <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-cyan-300/80">
+                Where To Focus
               </div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">
-                Top 5
-              </div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">Top 5</div>
             </div>
 
             <div className="mt-3 flex-1 space-y-2.5">
-              {(sectors.slice(0, 5).length ? sectors.slice(0, 5) : [null, null, null, null, null]).map((sector, index) => {
-                const width = sector ? clamp(sector.rotationScore) : 8;
-                return (
-                  <div key={sector?.sector ?? `placeholder-${index}`} className="grid grid-cols-[56px_1fr_52px] items-center gap-2">
-                    <div className="truncate text-xs font-bold uppercase text-zinc-300">{sector?.sector ?? "--"}</div>
-                    <div className="h-2 overflow-hidden rounded-full bg-zinc-900">
-                      <div
-                        className="h-full rounded-full bg-cyan-400/80 transition-all duration-700"
-                        style={{ width: `${width}%` }}
-                      />
-                    </div>
-                    <div className="text-right text-xs font-bold text-zinc-400">{formatMetric(sector?.rotationScore)}</div>
+              {(focus.length ? focus : []).map((sector) => (
+                <div key={sector.sector} className="rounded-xl border border-zinc-800 bg-black/40 p-2.5">
+                  <div className="mb-1.5 flex items-center justify-between gap-3">
+                    <div className="truncate text-xs font-black uppercase text-zinc-200">{sector.sector}</div>
+                    <div className="text-[10px] font-bold text-zinc-500">{sector.label}</div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="grid grid-cols-[1fr_46px] items-center gap-2">
+                    <div className="h-2 overflow-hidden rounded-full bg-zinc-900">
+                      <div className="h-full rounded-full bg-cyan-400/80 transition-all duration-700" style={{ width: `${sector.width}%` }} />
+                    </div>
+                    <div className="text-right text-xs font-bold text-zinc-400">{formatMetric(sector.rotationScore)}</div>
+                  </div>
+                </div>
+              ))}
 
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-              <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">
-                Mapped<br />{data?.coverage.mappedAssets ?? "--"}
-              </div>
-              <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">
-                Sectors<br />{data?.coverage.sectors ?? "--"}
-              </div>
-              <div className="rounded-lg border border-zinc-800 bg-black/40 p-2">
-                Binance<br />{data?.coverage.binanceSymbols ?? "--"}
-              </div>
+              {!focus.length ? (
+                <div className="flex min-h-[150px] items-center justify-center rounded-xl border border-zinc-800 bg-black/50 px-3 py-5 text-center text-xs text-zinc-500">
+                  {fetchState === "error" ? error ?? "sector feed error" : "Loading focus candidates..."}
+                </div>
+              ) : null}
             </div>
           </SurfaceCard>
 
           <SurfaceCard>
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-zinc-500">
-                Live Event Rail
+              <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-cyan-300/80">
+                Tactical Alerts
               </div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">
-                Top 4
-              </div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">Actionable</div>
             </div>
 
             <div className="mt-3 grid flex-1 content-start gap-2">
-              {events.length ? events.map((event) => (
-                <div
-                  key={event.key}
-                  className={`rounded-xl border px-3 py-2.5 ${directionTone(event.direction)}`}
-                >
-                  <div className="truncate text-[11px] font-black uppercase tracking-[0.14em]">{event.label}</div>
-                  <div className="mt-1 truncate text-[10px] opacity-80">{event.detail}</div>
+              {alerts.length ? alerts.map((alert) => (
+                <div key={alert.key} className={`rounded-xl border px-3 py-2.5 ${alertTone(alert.direction)}`}>
+                  <div className="truncate text-[11px] font-black uppercase tracking-[0.14em]">{alert.label}</div>
+                  <div className="mt-1 text-[10px] leading-4 opacity-80">{alert.message}</div>
                 </div>
               )) : (
                 <div className="flex min-h-[148px] items-center justify-center rounded-xl border border-zinc-800 bg-black/50 px-3 py-5 text-center text-xs text-zinc-500">
-                  {fetchState === "error" ? error ?? "sector feed error" : "Loading live sector events..."}
+                  {fetchState === "error" ? error ?? "sector feed error" : "Loading tactical alerts..."}
                 </div>
               )}
             </div>

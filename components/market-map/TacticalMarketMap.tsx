@@ -12,13 +12,25 @@ import TacticalLaneBackground from "@/components/market-map/TacticalLaneBackgrou
 import TacticalLaneLegend from "@/components/market-map/TacticalLaneLegend"
 import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore"
 
-export default function TacticalMarketMap() {
+export default function TacticalMarketMap({
+  showSidePanel = true,
+  minHeightClass = "min-h-[760px]",
+  showChrome = true,
+}: {
+  showSidePanel?: boolean
+  minHeightClass?: string
+  showChrome?: boolean
+}) {
   const state = buildTacticalMarketMapState()
   const { focusTarget, attentionMode } = useTacticalWorkspaceStore()
 
+  const layoutClass = showSidePanel
+    ? `grid ${minHeightClass} gap-4 xl:grid-cols-[minmax(0,1fr)_340px]`
+    : `grid ${minHeightClass} gap-4`
+
   return (
-    <div className="grid min-h-[760px] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <section className="relative min-h-[760px] overflow-hidden rounded-[2rem] border border-zinc-800 bg-black">
+    <div className={layoutClass}>
+      <section className={`relative ${minHeightClass} overflow-hidden rounded-[2rem] border border-zinc-800 bg-black`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(34,211,238,.13),transparent_36%),radial-gradient(circle_at_20%_20%,rgba(168,85,247,.10),transparent_28%),radial-gradient(circle_at_80%_80%,rgba(16,185,129,.10),transparent_30%)]" />
 
         <div className="absolute inset-0 opacity-[0.12]">
@@ -37,35 +49,40 @@ export default function TacticalMarketMap() {
 
         <ThreatOverlay threats={state.threats} />
 
-        <div className="absolute left-5 top-5 z-40">
-          <div className="flex items-center gap-3 rounded-2xl border border-cyan-400/20 bg-black/55 px-4 py-2 backdrop-blur">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.32em] text-cyan-300">
-                Tactical Market Map
+        {showChrome ? (
+          <div className="absolute left-5 top-5 z-40">
+            <div className="flex items-center gap-3 rounded-2xl border border-cyan-400/20 bg-black/55 px-4 py-2 backdrop-blur">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.32em] text-cyan-300">
+                  Unified Tactical Market Map
+                </div>
+                <div className="text-xs text-zinc-500">Narrative · flow · liquidity · threat in one canvas</div>
+                {focusTarget !== "NONE" ? <div className="mt-1 text-[10px] font-black text-cyan-200">FOCUS {focusTarget}</div> : null}
               </div>
-              <div className="text-xs text-zinc-500">Lane-aligned Rotation Surface</div>
-              {focusTarget !== "NONE" ? <div className="mt-1 text-[10px] font-black text-cyan-200">FOCUS {focusTarget}</div> : null}
             </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="absolute bottom-3 left-3 right-3 z-40">
-          <div className="rounded-2xl border border-cyan-400/15 bg-black/45 px-4 py-2 backdrop-blur-xl">
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
-              <div className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300">
-                AI Tactical Narrator
+        {showChrome ? (
+          <div className="absolute bottom-3 left-3 right-3 z-40">
+            <div className="rounded-2xl border border-cyan-400/15 bg-black/45 px-4 py-2 backdrop-blur-xl">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+                <div className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300">
+                  AI Tactical Narrator
+                </div>
+              </div>
+              <div className="mt-1 text-xs leading-5 text-zinc-400">
+                {state.narrator}
               </div>
             </div>
-            <div className="mt-1 text-xs leading-5 text-zinc-400">
-              {state.narrator}
-            </div>
           </div>
-        </div>
+        ) : null}
       </section>
 
-      <aside className="space-y-3">
+      {showSidePanel ? (
+        <aside className="space-y-3">
         <TacticalLaneLegend />
         <RotationRadarPanel routes={state.radar} />
 
@@ -115,7 +132,8 @@ export default function TacticalMarketMap() {
             ))}
           </div>
         </div>
-      </aside>
+        </aside>
+      ) : null}
     </div>
   )
 }

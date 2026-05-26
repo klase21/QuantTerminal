@@ -3,8 +3,22 @@
 import { MessagesSquare } from "lucide-react"
 import { buildAIDebate } from "@/core/debate/aiDebateEngine"
 
-export default function AIDebatePanel() {
-  const debate = buildAIDebate()
+export default function AIDebatePanel({
+  flow,
+  dualMarket,
+  macro,
+}: {
+  flow?: any
+  dualMarket?: any
+  macro?: any
+}) {
+  const debate = buildAIDebate({
+    buyPressure: Number(flow?.buyPressure ?? 38),
+    sellPressure: Number(flow?.sellPressure ?? 62),
+    realDemandConfirmation: Number(dualMarket?.realDemandConfirmation ?? 0),
+    fakeBreakoutRisk: Number(dualMarket?.fakeBreakoutRisk ?? 0),
+    liquidityStress: Number(macro?.liquidityStress ?? 50),
+  })
 
   return (
     <section className="rounded-3xl border border-purple-300/20 bg-purple-400/5 p-4">
@@ -25,9 +39,7 @@ export default function AIDebatePanel() {
               {agent.stance}
             </div>
 
-            <div className="mt-3 text-sm leading-6 text-zinc-400">
-              {agent.argument}
-            </div>
+            <div className="mt-3 text-sm leading-6 text-zinc-400">{agent.argument}</div>
           </div>
         ))}
       </div>

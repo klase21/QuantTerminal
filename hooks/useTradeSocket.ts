@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { subscribeJsonStream } from "@/lib/realtime/sharedWsManager"
 
 export interface Trade {
   price: number
@@ -9,34 +10,22 @@ export interface Trade {
   time: number
 }
 
-export default function useTradeSocket(
-  symbol: string
-) {
+export default function useTradeSocket(symbol: string) {
   const [trades, setTrades] = useState<Trade[]>([])
 
   useEffect(() => {
-    const ws = new WebSocket(
-      `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@trade`
-    )
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-
+    if (!symbol) return
+    const url = `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@trade`
+    return subscribeJsonStream(url, (data) => {
       const trade: Trade = {
         price: Number(data.p),
         qty: Number(data.q),
         side: data.m ? "sell" : "buy",
         time: data.T,
       }
-
-      setTrades((prev) => {
-        const updated = [trade, ...prev]
-
-        return updated.slice(0, 40)
-      })
-    }
-
-    return () => ws.close()
+      if (!Number.isFinite(trade.price) || !Number.isFinite(trade.qty)) return
+      setTrades((prev) => [trade, ...prev].slice(0, 40))
+    })
   }, [symbol])
 
   return { trades }

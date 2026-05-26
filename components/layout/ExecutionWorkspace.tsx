@@ -17,7 +17,6 @@ import SignalInboxWorkspace from "@/components/product/SignalInboxWorkspace";
 import SystemDiagnosticsWorkspace from "@/components/system/SystemDiagnosticsWorkspace";
 import NarrativeIntelligenceSurface from "@/components/narrative/NarrativeIntelligenceSurface";
 import MarketStructureIntelligenceSurface from "@/components/market-structure/MarketStructureIntelligenceSurface";
-import TacticalMarketMap from "@/components/market-map/TacticalMarketMap";
 import TacticalWorkspaceBar from "@/components/workspace/TacticalWorkspaceBar";
 import TacticalHotkeys from "@/components/workspace/TacticalHotkeys";
 import HotkeyHelpCard from "@/components/workspace/HotkeyHelpCard";
@@ -25,6 +24,8 @@ import FocusRoutingBar from "@/components/workspace/FocusRoutingBar";
 import FocusLinkedStateCard from "@/components/workspace/FocusLinkedStateCard";
 import SymbolContextCard from "@/components/focus/SymbolContextCard";
 import LinkedRoutingStatus from "@/components/focus/LinkedRoutingStatus";
+import TacticalContextBar from "@/components/context/TacticalContextBar";
+import CompactRoutingStatus from "@/components/context/CompactRoutingStatus";
 import MarketModeToggle from "@/components/dual-market/MarketModeToggle";
 import DualMarketIntelligencePanel from "@/components/dual-market/DualMarketIntelligencePanel";
 import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore";
@@ -101,11 +102,10 @@ export default function ExecutionWorkspace({
       <TacticalHotkeys />
 
       <Tabs defaultValue="narrative" className="flex h-full min-h-0 flex-col gap-4">
-        <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 gap-2 rounded-2xl border border-zinc-900 bg-black/70 p-2 md:grid-cols-6">
+        <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 gap-2 rounded-2xl border border-zinc-900 bg-black/70 p-2 md:grid-cols-5">
           <TabsTrigger value="narrative" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-100">
             Narrative Command
           </TabsTrigger>
-          <TabsTrigger value="market-map">Market Map</TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
           <TabsTrigger value="flow">Flow</TabsTrigger>
           <TabsTrigger value="signals">Signals</TabsTrigger>
@@ -116,29 +116,21 @@ export default function ExecutionWorkspace({
           <NarrativeIntelligenceSurface />
         </TabsContent>
 
-        <TabsContent value="market-map" className="m-0 min-h-0 overflow-y-auto pr-1">
-          <TacticalMarketMap />
-        </TabsContent>
-
         <TabsContent value="charts" className="m-0 min-h-0">
           <MultiChartWorkspace />
         </TabsContent>
 
         <TabsContent value="flow" className="m-0 min-h-0">
           <div className="flex h-full min-h-0 flex-col gap-3">
-            <TacticalWorkspaceBar />
-            <FocusRoutingBar />
-            <MarketModeToggle />
+            <TacticalContextBar />
+            <CompactRoutingStatus />
             {spotFlow && futuresFlow ? (
-              <DualMarketIntelligencePanel symbol={symbol || flow?.symbol || "BTCUSDT"} spotFlow={spotFlow} futuresFlow={futuresFlow} />
+              <DualMarketIntelligencePanel symbol={symbol || "BTCUSDT"} spotFlow={spotFlow} futuresFlow={futuresFlow} />
             ) : null}
-            <SymbolContextCard />
-            <LinkedRoutingStatus />
-            <FocusLinkedStateCard />
 
             <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1fr_1.15fr]">
               <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/40 p-2">
-                <Orderbook bids={orderbook?.bids || []} asks={orderbook?.asks || []} />
+                <Orderbook symbol={symbol || "BTCUSDT"} bids={orderbook?.bids || []} asks={orderbook?.asks || []} />
               </div>
 
               <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/40">

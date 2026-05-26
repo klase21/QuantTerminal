@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { subscribeJsonStream } from "@/lib/realtime/sharedWsManager"
 
 export interface Liquidation {
   symbol: string
@@ -12,48 +13,30 @@ export interface Liquidation {
 }
 
 export default function useLiquidationSocket() {
-  const [liquidations, setLiquidations] = useState<
-    Liquidation[]
-  >([])
+  const [liquidations, setLiquidations] = useState<Liquidation[]>([])
 
   useEffect(() => {
-    const ws = new WebSocket(
-      "wss://fstream.binance.com/ws/!forceOrder@arr"
-    )
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-
-      if (!Array.isArray(data)) return
-
-      const parsed: Liquidation[] = data.map((liq: any) => {
-        const order = liq.o
-
-        return {
-          symbol: order.s,
-          side: order.S === "SELL"
-            ? "LONG"
-            : "SHORT",
-          price: Number(order.p),
-          qty: Number(order.q),
-          value:
-            Number(order.p) *
-            Number(order.q),
-          time: order.T,
-        }
-      })
-
-      setLiquidations((prev) => {
-        const merged = [
-          ...parsed,
-          ...prev,
-        ]
-
-        return merged.slice(0, 40)
-      })
-    }
-
-    return () => ws.close()
+    return subscribeJsonStream("wss://fstream.binance.com/market/ws/!forceOrder@arr", (data) => {
+      const rows = Array.isArray(data) ? data : [data]
+      const parsed: Liquidation[] = rows
+        .map((liq: any) => {
+          const order = liq?.o
+          if (!order) return null
+          const price = Number(order.p)
+          const qty = Number(order.q)
+          return {
+            symbol: order.s,
+            side: order.S === "SELL" ? "LONG" : "SHORT",
+            price,
+            qty,
+            value: price * qty,
+            time: Number(order.T || Date.now()),
+          }
+        })
+        .filter(Boolean) as Liquidation[]
+      if (!parsed.length) return
+      setLiquidations((prev) => [...parsed, ...prev].slice(0, 40))
+    })
   }, [])
 
   return { liquidations }

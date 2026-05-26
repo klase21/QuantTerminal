@@ -2,6 +2,7 @@
 
 import { create } from "zustand"
 import type { Ticker } from "@/types/market"
+import { normalizeTacticalSymbol } from "@/core/tactical/tacticalRoute"
 
 export interface OrderBookLevel {
 
@@ -81,7 +82,7 @@ export const useMarketStore =
       (symbol) =>
 
         set({
-          selectedSymbol: symbol,
+          selectedSymbol: normalizeTacticalSymbol(symbol),
         }),
 
     updateTicker:

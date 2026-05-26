@@ -3,8 +3,12 @@
 import { Waves } from "lucide-react"
 import { buildLiquidityMap } from "@/core/liquidity/liquidityMapEngine"
 
-export default function LiquidityMapPanel() {
-  const zones = buildLiquidityMap()
+export default function LiquidityMapPanel({ flow }: { flow?: any }) {
+  const zones = buildLiquidityMap({
+    buyPressure: Number(flow?.buyPressure ?? 38),
+    sellPressure: Number(flow?.sellPressure ?? 62),
+    cvd: Number(flow?.cvd ?? 0),
+  })
 
   return (
     <section className="rounded-3xl border border-emerald-300/20 bg-emerald-400/5 p-4">
@@ -21,10 +25,7 @@ export default function LiquidityMapPanel() {
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-black text-white">
-                  {zone.label}
-                </div>
-
+                <div className="text-sm font-black text-white">{zone.label}</div>
                 <div className="mt-1 text-xs text-zinc-500">
                   {zone.type} · {zone.direction}
                 </div>
@@ -38,9 +39,7 @@ export default function LiquidityMapPanel() {
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-900">
               <div
                 className="h-full rounded-full bg-emerald-300"
-                style={{
-                  width: `${zone.probability}%`,
-                }}
+                style={{ width: `${zone.probability}%` }}
               />
             </div>
           </div>

@@ -3,8 +3,12 @@
 import { History } from "lucide-react"
 import { buildReplayEvents } from "@/core/replay/executionReplayScaffold"
 
-export default function ExecutionReplayPanel() {
-  const events = buildReplayEvents()
+export default function ExecutionReplayPanel({ dualMarket }: { dualMarket?: any }) {
+  const events = buildReplayEvents({
+    fakeBreakoutRisk: Number(dualMarket?.fakeBreakoutRisk ?? 0),
+    absorptionScore: Number(dualMarket?.absorptionScore ?? 0),
+    realDemandConfirmation: Number(dualMarket?.realDemandConfirmation ?? 0),
+  })
 
   return (
     <section className="rounded-3xl border border-zinc-700 bg-zinc-950/70 p-4">
@@ -21,9 +25,7 @@ export default function ExecutionReplayPanel() {
               <div className="text-xs text-zinc-500">{event.time}</div>
             </div>
 
-            <div className="mt-2 text-sm leading-6 text-zinc-400">
-              {event.explanation}
-            </div>
+            <div className="mt-2 text-sm leading-6 text-zinc-400">{event.explanation}</div>
           </div>
         ))}
       </div>

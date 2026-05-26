@@ -12,6 +12,7 @@ import {
   upbitStreamToTicker,
 } from "@/core/stream/streamTickerAdapters"
 import { safeFetchJson } from "@/lib/runtime/safeFetch"
+import { subscribeJsonStream } from "@/lib/realtime/sharedWsManager"
 
 export type SectorRotationFeedStatus = "idle" | "loading" | "live" | "partial" | "error"
 export type RealtimeTransportStatus = "idle" | "connecting" | "connected" | "stale" | "error"
@@ -223,67 +224,41 @@ export function useSectorRotationFeed(pollMs = DEFAULT_POLL_MS) {
   }, [pollMs])
 
   useEffect(() => {
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let staleTimer: ReturnType<typeof setInterval> | null = null
-    let closedByCleanup = false
-    let attempts = 0
-    let ws: WebSocket | null = null
 
-    const connect = () => {
-      if (typeof window === "undefined") return
-      setBinanceTransportStatus("connecting")
-      ws = new WebSocket(BINANCE_MINI_TICKER_WS)
-
-      ws.onopen = () => {
-        attempts = 0
-        setBinanceTransportStatus("connected")
-      }
-
-      ws.onmessage = (event) => {
-        try {
-          const messages = JSON.parse(event.data) as BinanceMiniTickerMessage[]
-          if (!Array.isArray(messages)) return
-          let changed = false
-          for (const message of messages) {
-            if (!binanceSymbolSet.has(message.s)) continue
-            const ticker = miniTickerToBinance24h(message)
-            if (!ticker) continue
-            binanceMapRef.current.set(ticker.symbol, ticker)
-            changed = true
-          }
-          if (changed) {
-            lastBinanceMessageAtRef.current = Date.now()
-            setBinanceTransportStatus("connected")
-            scheduleStreamRebuild()
-          }
-        } catch {
-          // Ignore malformed websocket frames and keep the stream alive.
+    setBinanceTransportStatus("connecting")
+    const unsubscribe = subscribeJsonStream(
+      BINANCE_MINI_TICKER_WS,
+      (messages) => {
+        if (!Array.isArray(messages)) return
+        let changed = false
+        for (const message of messages as BinanceMiniTickerMessage[]) {
+          if (!binanceSymbolSet.has(message.s)) continue
+          const ticker = miniTickerToBinance24h(message)
+          if (!ticker) continue
+          binanceMapRef.current.set(ticker.symbol, ticker)
+          changed = true
         }
-      }
+        if (changed) {
+          lastBinanceMessageAtRef.current = Date.now()
+          setBinanceTransportStatus("connected")
+          scheduleStreamRebuild()
+        }
+      },
+      (status) => {
+        if (status === "open") setBinanceTransportStatus("connected")
+        if (status === "error") setBinanceTransportStatus("error")
+        if (status === "closed") setBinanceTransportStatus("stale")
+      },
+    )
 
-      ws.onerror = () => {
-        setBinanceTransportStatus("error")
-      }
-
-      ws.onclose = () => {
-        if (closedByCleanup) return
-        setBinanceTransportStatus("stale")
-        const delay = Math.min(30000, 1000 * 2 ** attempts)
-        attempts += 1
-        reconnectTimer = setTimeout(connect, delay)
-      }
-    }
-
-    connect()
     staleTimer = setInterval(() => {
       const last = lastBinanceMessageAtRef.current
       if (last && Date.now() - last > STALE_AFTER_MS) setBinanceTransportStatus("stale")
     }, 5000)
 
     return () => {
-      closedByCleanup = true
-      ws?.close()
-      if (reconnectTimer) clearTimeout(reconnectTimer)
+      unsubscribe()
       if (staleTimer) clearInterval(staleTimer)
     }
   }, [binanceSymbolSet, scheduleStreamRebuild, setBinanceTransportStatus])

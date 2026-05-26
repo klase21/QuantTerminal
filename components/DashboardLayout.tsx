@@ -17,6 +17,8 @@ import useAbsorptionDetector from "@/hooks/useAbsorptionDetector";
 import useAlertEngine from "@/hooks/useAlertEngine";
 
 import { useMarketStore } from "@/stores/useMarketStore";
+import { useTacticalRoute } from "@/hooks/tactical/useTacticalRoute";
+import GlobalTacticalContextBridge from "@/components/context/GlobalTacticalContextBridge";
 import { useMarketModeStore } from "@/stores/useMarketModeStore";
 
 import AlertCenter from "@/components/AlertCenter";
@@ -35,8 +37,9 @@ type CollapsedState = {
 export default function DashboardLayout() {
   useMarketSocket();
 
-  const symbol = useMarketStore((state) => state.selectedSymbol);
-  const marketMode = useMarketModeStore((state) => state.marketMode);
+  const route = useTacticalRoute();
+  const symbol = route.symbol;
+  const marketMode = route.marketMode;
   const orderbook = useMarketStore((state) => state.orderbook);
 
   useOrderbookSocket(symbol);
@@ -98,6 +101,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex min-h-screen flex-col overflow-hidden bg-black text-white">
+      <GlobalTacticalContextBridge />
       <TerminalSurfaceDeck />
 
       <DashboardFrame

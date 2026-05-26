@@ -76,18 +76,31 @@ export default function FlowPanel({
 }: Props) {
 
   const safeTrades =
-    trades || []
+    flow?.trades?.length
+      ? flow.trades
+      : trades || []
 
   const recentTrades =
     [...safeTrades]
-      .reverse()
       .slice(0, 120)
 
+  const rollingBuyVolume = recentTrades
+    .filter((trade) => trade?.side === "buy")
+    .reduce((sum, trade) => sum + Number(trade?.qty || 0), 0)
+
+  const rollingSellVolume = recentTrades
+    .filter((trade) => trade?.side === "sell")
+    .reduce((sum, trade) => sum + Number(trade?.qty || 0), 0)
+
   const buyVolume =
-    Number(flow?.buyVolume || 0)
+    Number.isFinite(Number(flow?.buyVolume)) && Number(flow?.buyVolume) > 0
+      ? Number(flow?.buyVolume)
+      : rollingBuyVolume
 
   const sellVolume =
-    Number(flow?.sellVolume || 0)
+    Number.isFinite(Number(flow?.sellVolume)) && Number(flow?.sellVolume) > 0
+      ? Number(flow?.sellVolume)
+      : rollingSellVolume
 
   const totalVolume =
     buyVolume + sellVolume
@@ -118,7 +131,9 @@ export default function FlowPanel({
       ? "text-cyan-400"
       : "text-zinc-500"
 
-  const delta = Number(flow?.delta || 0)
+  const delta = Number.isFinite(Number(flow?.delta))
+    ? Number(flow?.delta)
+    : buyVolume - sellVolume
   const cvd = Number(flow?.cvd || 0)
   const pressureGap = Math.abs(buyPressure - sellPressure)
   const dominantSide =
@@ -474,14 +489,14 @@ export default function FlowPanel({
               text-lg
               font-bold
               ${
-                (flow?.delta || 0) >= 0
+                delta >= 0
                   ? "text-green-400"
                   : "text-red-400"
               }
             `}
           >
             Δ {Number(
-              flow?.delta || 0
+              delta
             ).toFixed(2)}
           </div>
 
@@ -490,14 +505,14 @@ export default function FlowPanel({
               mt-1
               text-xs
               ${
-                (flow?.cvd || 0) >= 0
+                cvd >= 0
                   ? "text-green-300"
                   : "text-red-300"
               }
             `}
           >
             CVD {Number(
-              flow?.cvd || 0
+              cvd
             ).toFixed(2)}
           </div>
 
