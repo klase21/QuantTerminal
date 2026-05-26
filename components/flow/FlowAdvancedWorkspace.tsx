@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import AdvancedFlowSection from "@/components/flow/AdvancedFlowSection"
 import TacticalAICopilotPanel from "@/components/copilot/TacticalAICopilotPanel"
 import ProbabilisticTacticalEnginePanel from "@/components/scenario/ProbabilisticTacticalEnginePanel"
@@ -9,53 +8,31 @@ import ExecutionPlaybookPanel from "@/components/playbook/ExecutionPlaybookPanel
 import TacticalSignalInspector from "@/components/inspector/TacticalSignalInspector"
 import PredictiveTradeIntelligencePanel from "@/components/predictive/PredictiveTradeIntelligencePanel"
 import AdaptiveIntelligencePanel from "@/components/adaptive/AdaptiveIntelligencePanel"
+import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore"
 
 type FlowAdvancedWorkspaceProps = {
   flow: any
 }
 
-type Preset = "trading" | "analysis" | "full"
-
-const presets: Record<Preset, string[]> = {
-  trading: ["decision", "playbook", "inspector"],
-  analysis: ["copilot", "scenario", "predictive"],
-  full: ["copilot", "scenario", "decision", "playbook", "inspector", "predictive", "adaptive"],
-}
 
 export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspaceProps) {
-  const [preset, setPreset] = useState<Preset>("trading")
-  const visible = presets[preset]
+  const {
+    preset,
+    openAdvancedSections,
+    toggleAdvancedSection,
+  } = useTacticalWorkspaceStore()
 
-  const show = (id: string) => visible.includes(id)
+  const show = (id: string) => openAdvancedSections.includes(id as any)
 
   return (
     <div className="space-y-3">
       <div className="sticky top-0 z-20 rounded-3xl border border-zinc-900 bg-black/85 p-3 backdrop-blur-xl">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300">
-              Advanced Flow Workspace
-            </div>
-            <div className="mt-1 text-sm text-zinc-500">
-              Toggle only what you need during live trading.
-            </div>
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300">
+            Advanced Flow Workspace
           </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {(["trading", "analysis", "full"] as Preset[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setPreset(item)}
-                className={`rounded-2xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition ${
-                  preset === item
-                    ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-100"
-                    : "border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-200"
-                }`}
-              >
-                {item}
-              </button>
-            ))}
+          <div className="mt-1 text-sm text-zinc-500">
+            Active preset: {preset.replace("_", " ")} · section visibility is saved automatically.
           </div>
         </div>
       </div>
@@ -98,7 +75,7 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
           title="AI Co-Pilot"
           subtitle="Live reasoning, debate, attention routing"
           badge="AI"
-          defaultOpen={preset === "analysis"}
+          defaultOpen={false}
         >
           <TacticalAICopilotPanel flow={flow} />
         </AdvancedFlowSection>
@@ -109,7 +86,7 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
           title="Probabilistic Scenarios"
           subtitle="Scenario tree, probability surface, risk cascade"
           badge="sim"
-          defaultOpen={preset === "analysis"}
+          defaultOpen={false}
         >
           <ProbabilisticTacticalEnginePanel flow={flow} />
         </AdvancedFlowSection>

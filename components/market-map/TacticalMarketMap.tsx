@@ -10,9 +10,11 @@ import RotationRadarPanel from "@/components/market-map/RotationRadarPanel"
 import TacticalNarratorCard from "@/components/market-map/TacticalNarratorCard"
 import TacticalLaneBackground from "@/components/market-map/TacticalLaneBackground"
 import TacticalLaneLegend from "@/components/market-map/TacticalLaneLegend"
+import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore"
 
 export default function TacticalMarketMap() {
   const state = buildTacticalMarketMapState()
+  const { focusTarget, attentionMode } = useTacticalWorkspaceStore()
 
   return (
     <div className="grid min-h-[760px] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -43,6 +45,7 @@ export default function TacticalMarketMap() {
                 Tactical Market Map
               </div>
               <div className="text-xs text-zinc-500">Lane-aligned Rotation Surface</div>
+              {focusTarget !== "NONE" ? <div className="mt-1 text-[10px] font-black text-cyan-200">FOCUS {focusTarget}</div> : null}
             </div>
           </div>
         </div>

@@ -1,11 +1,14 @@
 "use client"
 
+import { useFocusRoutingStore } from "@/stores/useFocusRoutingStore"
+
 import { formatChartCrosshairTime, formatChartTimeTick } from "@/lib/chartTimeFormatter";
 import ChartTile from "@/components/ChartTile"
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore"
 import MiniTimeAxis from "@/components/charts/MiniTimeAxis";
 
 export default function MultiChartWorkspace() {
+  const { activeSymbol, focusScope } = useFocusRoutingStore()
 
   const {
     charts,
