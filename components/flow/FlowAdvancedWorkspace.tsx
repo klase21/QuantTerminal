@@ -8,19 +8,17 @@ import ExecutionPlaybookPanel from "@/components/playbook/ExecutionPlaybookPanel
 import TacticalSignalInspector from "@/components/inspector/TacticalSignalInspector"
 import PredictiveTradeIntelligencePanel from "@/components/predictive/PredictiveTradeIntelligencePanel"
 import AdaptiveIntelligencePanel from "@/components/adaptive/AdaptiveIntelligencePanel"
+import CorrelationRegimePanel from "@/components/correlation/CorrelationRegimePanel"
+import MacroAwareDecisionPanel from "@/components/correlation/MacroAwareDecisionPanel"
+import TacticalAIAgentPanel from "@/components/agent/TacticalAIAgentPanel"
 import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore"
 
 type FlowAdvancedWorkspaceProps = {
   flow: any
 }
 
-
 export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspaceProps) {
-  const {
-    preset,
-    openAdvancedSections,
-    toggleAdvancedSection,
-  } = useTacticalWorkspaceStore()
+  const { preset, openAdvancedSections } = useTacticalWorkspaceStore()
 
   const show = (id: string) => openAdvancedSections.includes(id as any)
 
@@ -36,6 +34,27 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
           </div>
         </div>
       </div>
+
+      <AdvancedFlowSection
+        title="Tactical AI Agent"
+        subtitle="Context builder, decision engine, confidence tree, risk recommendation"
+        badge="agent"
+        defaultOpen
+      >
+        <TacticalAIAgentPanel flow={flow} />
+      </AdvancedFlowSection>
+
+      <AdvancedFlowSection
+        title="Correlation Regime"
+        subtitle="Macro-aware risk-on/risk-off state machine"
+        badge="macro"
+        defaultOpen={false}
+      >
+        <CorrelationRegimePanel />
+        <div className="mt-3">
+          <MacroAwareDecisionPanel flow={flow} />
+        </div>
+      </AdvancedFlowSection>
 
       {show("decision") ? (
         <AdvancedFlowSection

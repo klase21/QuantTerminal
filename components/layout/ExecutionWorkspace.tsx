@@ -25,6 +25,8 @@ import FocusRoutingBar from "@/components/workspace/FocusRoutingBar";
 import FocusLinkedStateCard from "@/components/workspace/FocusLinkedStateCard";
 import SymbolContextCard from "@/components/focus/SymbolContextCard";
 import LinkedRoutingStatus from "@/components/focus/LinkedRoutingStatus";
+import MarketModeToggle from "@/components/dual-market/MarketModeToggle";
+import DualMarketIntelligencePanel from "@/components/dual-market/DualMarketIntelligencePanel";
 import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -32,6 +34,10 @@ type ExecutionWorkspaceProps = {
   orderbook: any;
   trades: any[];
   flow: any;
+  spotFlow?: any;
+  futuresFlow?: any;
+  marketMode?: string;
+  symbol?: string;
   footprint: any;
   frames: any[];
   liquidityEvents: any[];
@@ -78,6 +84,10 @@ export default function ExecutionWorkspace({
   orderbook,
   trades,
   flow,
+  spotFlow,
+  futuresFlow,
+  marketMode,
+  symbol,
   footprint,
   frames,
   liquidityEvents,
@@ -118,6 +128,10 @@ export default function ExecutionWorkspace({
           <div className="flex h-full min-h-0 flex-col gap-3">
             <TacticalWorkspaceBar />
             <FocusRoutingBar />
+            <MarketModeToggle />
+            {spotFlow && futuresFlow ? (
+              <DualMarketIntelligencePanel symbol={symbol || flow?.symbol || "BTCUSDT"} spotFlow={spotFlow} futuresFlow={futuresFlow} />
+            ) : null}
             <SymbolContextCard />
             <LinkedRoutingStatus />
             <FocusLinkedStateCard />

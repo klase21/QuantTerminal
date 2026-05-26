@@ -7,6 +7,7 @@ import useOrderbookSocket from "@/hooks/useOrderbookSocket";
 import useTradeSocket from "@/hooks/useTradeSocket";
 import useLiquidationSocket from "@/hooks/useLiquidationSocket";
 import useTradeFlowSocket from "@/hooks/useTradeFlowSocket";
+import useMarketTradeFlowSocket from "@/hooks/useMarketTradeFlowSocket";
 import useFootprint from "@/hooks/useFootprint";
 import useDepthHeatmap from "@/hooks/useDepthHeatmap";
 import useVolumeProfile from "@/hooks/useVolumeProfile";
@@ -16,6 +17,7 @@ import useAbsorptionDetector from "@/hooks/useAbsorptionDetector";
 import useAlertEngine from "@/hooks/useAlertEngine";
 
 import { useMarketStore } from "@/stores/useMarketStore";
+import { useMarketModeStore } from "@/stores/useMarketModeStore";
 
 import AlertCenter from "@/components/AlertCenter";
 import DashboardFrame from "@/components/layout/DashboardFrame";
@@ -34,13 +36,17 @@ export default function DashboardLayout() {
   useMarketSocket();
 
   const symbol = useMarketStore((state) => state.selectedSymbol);
+  const marketMode = useMarketModeStore((state) => state.marketMode);
   const orderbook = useMarketStore((state) => state.orderbook);
 
   useOrderbookSocket(symbol);
 
   const { trades } = useTradeSocket(symbol);
   const { liquidations } = useLiquidationSocket();
-  const flow = useTradeFlowSocket(symbol);
+  const legacyFlow = useTradeFlowSocket(symbol);
+  const spotFlow = useMarketTradeFlowSocket(symbol, "SPOT");
+  const futuresFlow = useMarketTradeFlowSocket(symbol, "FUTURES");
+  const flow = marketMode === "SPOT" ? spotFlow : futuresFlow;
   const footprint = useFootprint(symbol);
   const heatmap = useDepthHeatmap(symbol);
 
@@ -104,6 +110,10 @@ export default function DashboardLayout() {
             orderbook={orderbook}
             trades={trades}
             flow={flow}
+            spotFlow={spotFlow}
+            futuresFlow={futuresFlow}
+            marketMode={marketMode}
+            symbol={symbol}
             footprint={footprint}
             frames={frames}
             liquidityEvents={liquidityEvents}
