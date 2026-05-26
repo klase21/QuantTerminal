@@ -162,3 +162,13 @@ body {
   animation: qtLiquidityBand 2.8s ease-in-out infinite;
   transform-origin: center;
 }
+
+
+@keyframes routeDash {
+  from {
+    stroke-dashoffset: 28;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}

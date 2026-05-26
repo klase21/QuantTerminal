@@ -18,6 +18,7 @@ import ResearchReplayWorkspace from "@/components/research/ResearchReplayWorkspa
 import SignalInboxWorkspace from "@/components/product/SignalInboxWorkspace";
 import SystemDiagnosticsWorkspace from "@/components/system/SystemDiagnosticsWorkspace";
 import NarrativeIntelligenceSurface from "@/components/narrative/NarrativeIntelligenceSurface";
+import TacticalMarketMap from "@/components/market-map/TacticalMarketMap";
 import MarketStructureIntelligenceSurface from "@/components/market-structure/MarketStructureIntelligenceSurface";
 import { HelpCircle, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -72,8 +73,9 @@ export default function ExecutionWorkspace({
 
   return (
     <Tabs defaultValue="narrative" className="flex h-full min-h-0 flex-col gap-4">
-      <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 gap-2 rounded-2xl border border-zinc-900 bg-black/70 p-2 md:grid-cols-5">
+      <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 gap-2 rounded-2xl border border-zinc-900 bg-black/70 p-2 md:grid-cols-6">
         <TabsTrigger value="narrative" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-100">Narrative Command</TabsTrigger>
+        <TabsTrigger value="market-map">Market Map</TabsTrigger>
         <TabsTrigger value="charts">Charts</TabsTrigger>
         <TabsTrigger value="flow">Flow</TabsTrigger>
         <TabsTrigger value="signals">Signals</TabsTrigger>
@@ -82,6 +84,10 @@ export default function ExecutionWorkspace({
 
       <TabsContent value="narrative" className="m-0 min-h-0 overflow-y-auto pr-1">
         <NarrativeIntelligenceSurface />
+      </TabsContent>
+
+      <TabsContent value="market-map" className="m-0 min-h-0 overflow-y-auto pr-1">
+        <TacticalMarketMap />
       </TabsContent>
 
       <TabsContent value="charts" className="m-0 min-h-0">
