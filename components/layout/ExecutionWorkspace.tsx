@@ -9,6 +9,7 @@ import Footprint from "@/components/Footprint";
 import PredictiveTradeIntelligencePanel from "@/components/predictive/PredictiveTradeIntelligencePanel";
 import TacticalSignalInspector from "@/components/inspector/TacticalSignalInspector";
 import ExecutionPlaybookPanel from "@/components/playbook/ExecutionPlaybookPanel";
+import TacticalDecisionCompressionPanel from "@/components/decision/TacticalDecisionCompressionPanel";
 import AdaptiveIntelligencePanel from "@/components/adaptive/AdaptiveIntelligencePanel";
 import RotationSankeyGraph from "@/components/RotationSankeyGraph";
 import LiquidityPanel from "@/components/right-panel/LiquidityPanel";
@@ -134,7 +135,8 @@ export default function ExecutionWorkspace({
             {flowAdvanced ? (
               <div className="flex-1 min-h-0 overflow-y-auto p-2">
                 <div className="space-y-4">
-                  <ExecutionPlaybookPanel flow={flow} />
+                  <TacticalDecisionCompressionPanel flow={flow} />
+                <ExecutionPlaybookPanel flow={flow} />
                 <TacticalSignalInspector flow={flow} />
                 <PredictiveTradeIntelligencePanel flow={flow} />
 
