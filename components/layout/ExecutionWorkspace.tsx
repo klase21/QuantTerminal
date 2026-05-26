@@ -5,12 +5,14 @@ import { useState } from "react";
 import MultiChartWorkspace from "@/components/MultiChartWorkspace";
 import Orderbook from "@/components/Orderbook";
 import FlowPanel from "@/components/right-panel/FlowPanel";
+import FlowAdvancedWorkspace from "@/components/flow/FlowAdvancedWorkspace";
 import Footprint from "@/components/Footprint";
 import PredictiveTradeIntelligencePanel from "@/components/predictive/PredictiveTradeIntelligencePanel";
 import TacticalSignalInspector from "@/components/inspector/TacticalSignalInspector";
 import ExecutionPlaybookPanel from "@/components/playbook/ExecutionPlaybookPanel";
 import TacticalDecisionCompressionPanel from "@/components/decision/TacticalDecisionCompressionPanel";
 import TacticalAICopilotPanel from "@/components/copilot/TacticalAICopilotPanel";
+import ProbabilisticTacticalEnginePanel from "@/components/scenario/ProbabilisticTacticalEnginePanel";
 import AdaptiveIntelligencePanel from "@/components/adaptive/AdaptiveIntelligencePanel";
 import RotationSankeyGraph from "@/components/RotationSankeyGraph";
 import LiquidityPanel from "@/components/right-panel/LiquidityPanel";
@@ -135,29 +137,9 @@ export default function ExecutionWorkspace({
 
             {flowAdvanced ? (
               <div className="flex-1 min-h-0 overflow-y-auto p-2">
-                <div className="space-y-4">
-                  <TacticalAICopilotPanel flow={flow} />
-                <TacticalDecisionCompressionPanel flow={flow} />
-                <ExecutionPlaybookPanel flow={flow} />
-                <TacticalSignalInspector flow={flow} />
-                <PredictiveTradeIntelligencePanel flow={flow} />
-
-                  <div className="rounded-3xl border border-cyan-400/20 bg-black/40 p-3">
-                    <div className="mb-3 px-1">
-                      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300">
-                        Adaptive Intelligence
-                      </div>
-                      <div className="mt-1 text-xs text-zinc-500">
-                        Hover cards for enlarged tactical preview. Use Focus Mode for deep reading.
-                      </div>
-                    </div>
-
-                    <AdaptiveIntelligencePanel />
-                  </div>
-                </div>
+                <FlowAdvancedWorkspace flow={flow} />
               </div>
-            ) : (
-              <div className="grid flex-1 min-h-0 grid-rows-[auto_minmax(0,1fr)]">
+            ) : (              <div className="grid flex-1 min-h-0 grid-rows-[auto_minmax(0,1fr)]">
                 <div className="shrink-0 overflow-hidden">
                   <FlowPanel trades={trades} flow={flow} />
                 </div>

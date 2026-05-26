@@ -20,8 +20,8 @@ export default function TacticalDecisionStrip({ flow }: { flow?: any }) {
     : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
 
   return (
-    <section className={`rounded-[2rem] border p-4 ${actionTone}`}>
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+    <section className={`min-w-0 overflow-hidden rounded-[2rem] border p-4 ${actionTone}`}>
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-start gap-3">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-current/30 bg-black/30">
             <Crosshair size={21} />
@@ -35,7 +35,7 @@ export default function TacticalDecisionStrip({ flow }: { flow?: any }) {
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-4 xl:min-w-[620px]">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 2xl:grid-cols-4 2xl:min-w-[560px]">
           <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
             <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase text-zinc-500">
               <Gauge size={12} /> Readiness
@@ -54,14 +54,14 @@ export default function TacticalDecisionStrip({ flow }: { flow?: any }) {
             <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase text-zinc-500">
               <Shield size={12} /> Size
             </div>
-            <div className="text-sm font-black text-white">{decision.suggestedSize}</div>
+            <div className="truncate text-sm font-black text-white" title={decision.suggestedSize}>{decision.suggestedSize}</div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
             <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase text-zinc-500">
               <Timer size={12} /> Timing
             </div>
-            <div className="text-sm font-black text-white">{decision.timingWindow}</div>
+            <div className="truncate text-sm font-black text-white" title={decision.timingWindow}>{decision.timingWindow}</div>
           </div>
         </div>
       </div>

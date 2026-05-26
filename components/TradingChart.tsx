@@ -13,6 +13,7 @@ import {
   useEffect,
   useRef,
 } from "react"
+import { formatSmartAxisTime } from "@/lib/chartTimeFormatter";
 
 interface Candle {
   time: number
@@ -73,6 +74,7 @@ export default function TradingChart({
         },
 
         timeScale: {
+        tickMarkFormatter: (time: unknown) => formatSmartAxisTime(time, "1m"),
           borderColor: "#27272a",
         },
       }

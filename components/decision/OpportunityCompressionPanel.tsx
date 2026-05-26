@@ -39,17 +39,17 @@ export default function OpportunityCompressionPanel() {
         </div>
       }
     >
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         {opportunities.map((item, index) => (
           <div key={item.id} className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] uppercase tracking-wide text-zinc-600">#{index + 1}</div>
-                <div className="text-sm font-black text-white">{item.title}</div>
+                <div className="truncate text-sm font-black text-white" title={item.title}>{item.title}</div>
               </div>
-              <div className="text-sm font-black text-cyan-300">{item.score}</div>
+              <div className="shrink-0 text-sm font-black text-cyan-300">{item.score}</div>
             </div>
-            <div className="mt-1 text-xs text-zinc-500">{item.action}</div>
+            <div className="mt-1 truncate text-xs text-zinc-500" title={item.action}>{item.action}</div>
           </div>
         ))}
       </div>

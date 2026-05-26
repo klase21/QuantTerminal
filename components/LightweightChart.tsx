@@ -14,6 +14,7 @@ import {
   useEffect,
   useRef,
 } from "react"
+import { formatSmartAxisTime } from "@/lib/chartTimeFormatter";
 
 export default function LightweightChart() {
 
