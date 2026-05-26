@@ -2,6 +2,7 @@
 
 import { Link2 } from "lucide-react"
 import { useFocusRoutingStore } from "@/stores/useFocusRoutingStore"
+import { shouldRouteWidget } from "@/core/focus/symbolContextEngine"
 
 export default function FocusLinkedStateCard() {
   const { activeSymbol, focusScope } = useFocusRoutingStore()
@@ -19,7 +20,7 @@ export default function FocusLinkedStateCard() {
             Orderbook
           </div>
           <div className="mt-1 text-sm font-black text-white">
-            {focusScope === "GLOBAL" || focusScope === "ORDERBOOK"
+            {shouldRouteWidget({ scope: focusScope, widget: "ORDERBOOK" })
               ? activeSymbol
               : "Independent"}
           </div>
@@ -30,7 +31,7 @@ export default function FocusLinkedStateCard() {
             Flow
           </div>
           <div className="mt-1 text-sm font-black text-white">
-            {focusScope === "GLOBAL" || focusScope === "FLOW"
+            {shouldRouteWidget({ scope: focusScope, widget: "FLOW" })
               ? activeSymbol
               : "Independent"}
           </div>
@@ -41,7 +42,7 @@ export default function FocusLinkedStateCard() {
             Charts
           </div>
           <div className="mt-1 text-sm font-black text-white">
-            {focusScope === "GLOBAL" || focusScope === "CHARTS"
+            {shouldRouteWidget({ scope: focusScope, widget: "CHARTS" })
               ? activeSymbol
               : "Independent"}
           </div>
@@ -52,7 +53,7 @@ export default function FocusLinkedStateCard() {
             Alerts
           </div>
           <div className="mt-1 text-sm font-black text-white">
-            {focusScope === "GLOBAL" || focusScope === "ALERTS"
+            {shouldRouteWidget({ scope: focusScope, widget: "ALERTS" })
               ? activeSymbol
               : "Independent"}
           </div>

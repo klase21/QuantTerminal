@@ -23,6 +23,8 @@ import TacticalHotkeys from "@/components/workspace/TacticalHotkeys";
 import HotkeyHelpCard from "@/components/workspace/HotkeyHelpCard";
 import FocusRoutingBar from "@/components/workspace/FocusRoutingBar";
 import FocusLinkedStateCard from "@/components/workspace/FocusLinkedStateCard";
+import SymbolContextCard from "@/components/focus/SymbolContextCard";
+import LinkedRoutingStatus from "@/components/focus/LinkedRoutingStatus";
 import { useTacticalWorkspaceStore } from "@/stores/useTacticalWorkspaceStore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -116,6 +118,8 @@ export default function ExecutionWorkspace({
           <div className="flex h-full min-h-0 flex-col gap-3">
             <TacticalWorkspaceBar />
             <FocusRoutingBar />
+            <SymbolContextCard />
+            <LinkedRoutingStatus />
             <FocusLinkedStateCard />
 
             <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1fr_1.15fr]">
