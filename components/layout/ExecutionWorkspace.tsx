@@ -6,6 +6,9 @@ import MultiChartWorkspace from "@/components/MultiChartWorkspace";
 import Orderbook from "@/components/Orderbook";
 import FlowPanel from "@/components/right-panel/FlowPanel";
 import Footprint from "@/components/Footprint";
+import PredictiveTradeIntelligencePanel from "@/components/predictive/PredictiveTradeIntelligencePanel";
+import TacticalSignalInspector from "@/components/inspector/TacticalSignalInspector";
+import AdaptiveIntelligencePanel from "@/components/adaptive/AdaptiveIntelligencePanel";
 import RotationSankeyGraph from "@/components/RotationSankeyGraph";
 import LiquidityPanel from "@/components/right-panel/LiquidityPanel";
 import LiquidityRotationPanel from "@/components/right-panel/LiquidityRotationPanel";
@@ -15,6 +18,7 @@ import SignalInboxWorkspace from "@/components/product/SignalInboxWorkspace";
 import SystemDiagnosticsWorkspace from "@/components/system/SystemDiagnosticsWorkspace";
 import NarrativeIntelligenceSurface from "@/components/narrative/NarrativeIntelligenceSurface";
 import MarketStructureIntelligenceSurface from "@/components/market-structure/MarketStructureIntelligenceSurface";
+import { HelpCircle, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ExecutionWorkspaceProps = {
@@ -62,6 +66,8 @@ export default function ExecutionWorkspace({
   liquidityEvents,
 }: ExecutionWorkspaceProps) {
   const [toolMode, setToolMode] = useState<ToolMode>("intel");
+  const [flowAdvanced, setFlowAdvanced] = useState(false);
+  const [flowHelpOpen, setFlowHelpOpen] = useState(false);
 
   return (
     <Tabs defaultValue="narrative" className="flex h-full min-h-0 flex-col gap-4">
@@ -87,14 +93,107 @@ export default function ExecutionWorkspace({
             <Orderbook bids={orderbook?.bids || []} asks={orderbook?.asks || []} />
           </div>
 
-          <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/40">
-            <div className="shrink-0 min-h-0 overflow-hidden">
-              <FlowPanel trades={trades} flow={flow} />
+          <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/40">
+            <div className="flex shrink-0 items-center justify-between border-b border-zinc-900 bg-black/70 px-3 py-2">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">Flow Workspace</div>
+                <div className="text-xs font-black text-white">{flowAdvanced ? "Advanced Predictive Mode" : "Live Execution Flow"}</div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFlowHelpOpen(true)}
+                  className="grid h-8 w-8 place-items-center rounded-full border border-zinc-800 bg-zinc-950 text-zinc-400 transition hover:border-cyan-300/40 hover:text-cyan-100"
+                  aria-label="Open Flow help"
+                >
+                  <HelpCircle size={15} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFlowAdvanced((value) => !value)}
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] transition ${
+                    flowAdvanced
+                      ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,.18)]"
+                      : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-cyan-300/40 hover:text-cyan-100"
+                  }`}
+                >
+                  {flowAdvanced ? "Basic Mode" : "Advanced Mode"}
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-hidden border-t border-zinc-900 p-2">
-              <Footprint levels={footprint} />
-            </div>
+            {flowAdvanced ? (
+              <div className="flex-1 min-h-0 overflow-y-auto p-2">
+                <div className="space-y-4">
+                  <TacticalSignalInspector flow={flow} />
+                <PredictiveTradeIntelligencePanel flow={flow} />
+
+                  <div className="rounded-3xl border border-cyan-400/20 bg-black/40 p-3">
+                    <div className="mb-3 px-1">
+                      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300">
+                        Adaptive Intelligence
+                      </div>
+                      <div className="mt-1 text-xs text-zinc-500">
+                        Hover cards for enlarged tactical preview. Use Focus Mode for deep reading.
+                      </div>
+                    </div>
+
+                    <AdaptiveIntelligencePanel />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid flex-1 min-h-0 grid-rows-[auto_minmax(0,1fr)]">
+                <div className="shrink-0 overflow-hidden">
+                  <FlowPanel trades={trades} flow={flow} />
+                </div>
+
+                <div className="min-h-0 overflow-hidden border-t border-zinc-900 p-2">
+                  <Footprint levels={footprint} />
+                </div>
+              </div>
+            )}
+
+            {flowHelpOpen ? (
+              <div className="absolute inset-0 z-30 flex items-start justify-end bg-black/65 p-4 backdrop-blur-sm">
+                <div className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl shadow-black/60">
+                  <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300">Flow Help</div>
+                      <div className="mt-1 text-lg font-black text-white">Execution Intelligence Guide</div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setFlowHelpOpen(false)}
+                      className="grid h-8 w-8 place-items-center rounded-full border border-zinc-800 bg-black text-zinc-400 hover:text-white"
+                      aria-label="Close Flow help"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-sm text-zinc-300">
+                    <div className="rounded-2xl border border-zinc-800 bg-black/60 p-3">
+                      <div className="mb-1 text-xs font-black uppercase tracking-wide text-cyan-300">Trigger Stack</div>
+                      <div className="text-zinc-400">Use this as a checklist: pressure fade, absorption, and CVD recovery are confirmation triggers, not separate panels that need to occupy live trading space.</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-black/60 p-3">
+                      <div className="mb-1 text-xs font-black uppercase tracking-wide text-purple-300">Universe Link</div>
+                      <div className="text-zinc-400">Flow validates or invalidates the Universe rotation read. Strong rotation with weak execution flow means wait for confirmation.</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-black/60 p-3">
+                      <div className="mb-1 text-xs font-black uppercase tracking-wide text-yellow-300">Risk / Invalidation</div>
+                      <div className="text-zinc-400">If tape speed is extreme or absorption appears, reduce chasing. Let the next trigger candle confirm before sizing.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </TabsContent>

@@ -98,3 +98,67 @@ body {
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
+
+/* Predictive tactical visualization layer */
+@keyframes qtPredictiveScan {
+  0% { transform: translateY(-120%); opacity: 0; }
+  18% { opacity: .5; }
+  100% { transform: translateY(120%); opacity: 0; }
+}
+
+@keyframes qtPredictiveParticle {
+  0% { left: -8%; transform: translateY(-50%) scale(.72); opacity: 0; }
+  15% { opacity: .95; }
+  82% { opacity: .95; }
+  100% { left: 94%; transform: translateY(-50%) scale(1.2); opacity: 0; }
+}
+
+@keyframes qtConfidenceBreath {
+  0%, 100% { transform: scale(.96); opacity: .58; box-shadow: 0 0 12px rgba(34, 211, 238, .14); }
+  50% { transform: scale(1.04); opacity: 1; box-shadow: 0 0 28px rgba(34, 211, 238, .26); }
+}
+
+@keyframes qtTargetGlow {
+  0%, 100% { box-shadow: 0 0 25px rgba(34, 211, 238, .12); }
+  50% { box-shadow: 0 0 52px rgba(34, 211, 238, .28); }
+}
+
+@keyframes qtNodeBreathe {
+  0%, 100% { transform: scale(.985); opacity: .86; }
+  50% { transform: scale(1.015); opacity: 1; }
+}
+
+@keyframes qtLiquidityBand {
+  0%, 100% { opacity: .28; transform: scaleX(.96); }
+  50% { opacity: .7; transform: scaleX(1.02); }
+}
+
+.qt-predictive-scan::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  height: 96px;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, .08), transparent);
+  animation: qtPredictiveScan 4.6s linear infinite;
+}
+
+.qt-predictive-particle {
+  animation: qtPredictiveParticle 2.35s linear infinite;
+}
+
+.qt-confidence-breath {
+  animation: qtConfidenceBreath 2.6s ease-in-out infinite;
+}
+
+.qt-target-glow {
+  animation: qtTargetGlow 2.8s ease-in-out infinite;
+}
+
+.qt-node-breathe {
+  animation: qtNodeBreathe 3s ease-in-out infinite;
+}
+
+.qt-liquidity-band {
+  animation: qtLiquidityBand 2.8s ease-in-out infinite;
+  transform-origin: center;
+}

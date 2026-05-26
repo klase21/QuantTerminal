@@ -4,9 +4,6 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
-  Zap,
-  ShieldAlert,
-  Radio,
 } from "lucide-react"
 
 type Props = {
@@ -195,8 +192,6 @@ export default function FlowPanel({
     <div
       className="
         flex
-        h-full
-        min-h-0
         flex-col
         overflow-hidden
       "
@@ -558,9 +553,7 @@ export default function FlowPanel({
 
       <div
         className="
-          flex-1
-          min-h-0
-          overflow-y-auto
+          shrink-0
           p-4
         "
       >
@@ -632,45 +625,9 @@ export default function FlowPanel({
 
         </div>
 
-        <div className="mt-3 grid gap-3 lg:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
-            <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
-              <Zap size={14} className="text-cyan-300" />
-              Trigger Stack
-            </div>
-
-            <div className="space-y-2">
-              {tacticalTriggers.map((trigger, index) => (
-                <div
-                  key={trigger}
-                  className="rounded-xl border border-zinc-800 bg-black/60 px-3 py-2 text-xs text-zinc-300"
-                >
-                  <span className="mr-2 text-cyan-400">0{index + 1}</span>
-                  {trigger}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
-            <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
-              <Radio size={14} className="text-purple-300" />
-              Universe Link
-            </div>
-
-            <div className="text-sm leading-relaxed text-zinc-300">
-              {universeRead}
-            </div>
-
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-black/60 px-3 py-2 text-xs text-zinc-500">
-              Flow → Narrative → Rotation confirmation layer
-            </div>
-          </div>
-        </div>
 
         <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
-          <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
-            <ShieldAlert size={14} className="text-yellow-300" />
+          <div className="mb-2 text-xs uppercase tracking-wide text-zinc-500">
             Risk / Invalidation
           </div>
 
