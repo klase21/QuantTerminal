@@ -144,7 +144,7 @@ export default function MarketStructureIntelligenceSurface() {
       <div className="rounded-2xl border border-zinc-900 bg-black p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-fuchsia-400/80">Phase 27–30 Intelligence Expansion</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-fuchsia-400/80">Intelligence</div>
             <h2 className="mt-2 text-xl font-black uppercase tracking-[0.16em] text-white">Market Structure Intelligence</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
               Derivatives positioning, participation velocity, narrative propagation, and historical memory in one operator surface.

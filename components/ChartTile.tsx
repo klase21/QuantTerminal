@@ -5,7 +5,7 @@ import TradingChart from "@/components/TradingChart"
 
 import useKlineSocket from "@/hooks/useKlineSocket"
 
-import { X } from "lucide-react"
+import { Maximize2, X } from "lucide-react"
 
 interface Props {
   id: string
@@ -18,6 +18,7 @@ interface Props {
     id: string,
     timeframe: string
   ) => void
+  onOpen?: () => void
 }
 
 const timeframes = [
@@ -34,6 +35,7 @@ export default function ChartTile({
   timeframe,
   onRemove,
   onTimeframeChange,
+  onOpen,
 }: Props) {
 
   const candles =
@@ -77,11 +79,23 @@ export default function ChartTile({
           </select>
 
           <button
+            onClick={onOpen}
+            className="
+              text-zinc-400
+              hover:text-white
+            "
+            aria-label="Open advanced chart"
+          >
+            <Maximize2 size={14} />
+          </button>
+
+          <button
             onClick={onRemove}
             className="
               text-zinc-400
               hover:text-red-400
             "
+            aria-label="Remove chart"
           >
             <X size={14} />
           </button>
@@ -92,15 +106,26 @@ export default function ChartTile({
 
 	<div
 	  className="
+		group
+		relative
 		h-[320px]
 		min-h-[320px]
+		w-full
 		overflow-hidden
-		relative
+		text-left
 	  "
 	>
 	  <TradingChart
 		data={candles}
 	  />
+	  <button
+		type="button"
+		onClick={onOpen}
+		className="absolute inset-0 z-20 hidden items-center justify-center bg-black/35 text-xs font-semibold text-white group-hover:flex"
+		aria-label={`Open ${symbol.toUpperCase()} ${timeframe} advanced chart`}
+	  >
+		Open advanced chart
+	  </button>
 	</div>
 
     </Panel>

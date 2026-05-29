@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { HelpCircle, X } from "lucide-react";
 
 import MultiChartWorkspace from "@/components/MultiChartWorkspace";
@@ -16,7 +16,11 @@ import ResearchReplayWorkspace from "@/components/research/ResearchReplayWorkspa
 import SignalInboxWorkspace from "@/components/product/SignalInboxWorkspace";
 import SystemDiagnosticsWorkspace from "@/components/system/SystemDiagnosticsWorkspace";
 import NarrativeIntelligenceSurface from "@/components/narrative/NarrativeIntelligenceSurface";
+import TacticalDecisionCompressionPanel from "@/components/decision/TacticalDecisionCompressionPanel";
 import MarketStructureIntelligenceSurface from "@/components/market-structure/MarketStructureIntelligenceSurface";
+import FeatureHelpGuide from "@/components/help/FeatureHelpGuide";
+import AdvancedIntelligenceArchive from "@/components/execution/AdvancedIntelligenceArchive";
+import MarketMoverPlanningPanel from "@/components/market-movers/MarketMoverPlanningPanel";
 import TacticalWorkspaceBar from "@/components/workspace/TacticalWorkspaceBar";
 import TacticalHotkeys from "@/components/workspace/TacticalHotkeys";
 import HotkeyHelpCard from "@/components/workspace/HotkeyHelpCard";
@@ -44,14 +48,18 @@ type ExecutionWorkspaceProps = {
   liquidityEvents: any[];
 };
 
-type ToolMode = "intel" | "liquidity" | "structure" | "research" | "diagnostics";
+type ToolMode = "intel" | "macro" | "liquidity" | "structure" | "research" | "diagnostics";
+
+type WorkspaceMode = "default" | "advanced" | "help";
+
 
 const toolModes: { id: ToolMode; label: string; hint: string }[] = [
-  { id: "intel", label: "Realtime Intel", hint: "macro/news pulse" },
-  { id: "liquidity", label: "Liquidity", hint: "rotation + events" },
-  { id: "structure", label: "Structure", hint: "market regime" },
-  { id: "research", label: "Research", hint: "replay + memory" },
-  { id: "diagnostics", label: "Diagnostics", hint: "runtime health" },
+  { id: "intel", label: "Live Intelligence", hint: "compact market pulse" },
+  { id: "macro", label: "Research Archive", hint: "macro + news context" },
+  { id: "liquidity", label: "Liquidity Tools", hint: "rotation + events" },
+  { id: "structure", label: "Market Structure", hint: "regime + structure" },
+  { id: "research", label: "Replay", hint: "review + memory" },
+  { id: "diagnostics", label: "System Health", hint: "runtime status" },
 ];
 
 function ToolModeButton({
@@ -94,6 +102,7 @@ export default function ExecutionWorkspace({
   liquidityEvents,
 }: ExecutionWorkspaceProps) {
   const [toolMode, setToolMode] = useState<ToolMode>("intel");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("default");
   const [flowHelpOpen, setFlowHelpOpen] = useState(false);
   const { flowAdvanced, setFlowAdvanced } = useTacticalWorkspaceStore();
 
@@ -101,26 +110,70 @@ export default function ExecutionWorkspace({
     <>
       <TacticalHotkeys />
 
+      <div className="mb-4 flex items-center gap-2">
+        {(["default","advanced","help"] as WorkspaceMode[]).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setWorkspaceMode(mode)}
+            className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition ${
+              workspaceMode === mode
+                ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-100"
+                : "border-zinc-800 bg-zinc-950 text-zinc-500"
+            }`}
+          >
+            {mode}
+          </button>
+        ))}
+      </div>
+
       <Tabs defaultValue="narrative" className="flex h-full min-h-0 flex-col gap-4">
-        <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 gap-2 rounded-2xl border border-zinc-900 bg-black/70 p-2 md:grid-cols-5">
+        <TabsList className={`grid h-auto w-full shrink-0 gap-2 rounded-2xl border border-zinc-900 bg-black/70 p-2 ${workspaceMode === "default" ? "grid-cols-2" : "grid-cols-2 md:grid-cols-5"}`}>
           <TabsTrigger value="narrative" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-100">
-            Narrative Command
+            Execution
           </TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
-          <TabsTrigger value="flow">Flow</TabsTrigger>
-          <TabsTrigger value="signals">Signals</TabsTrigger>
-          <TabsTrigger value="tools">More Tools</TabsTrigger>
+          {workspaceMode !== "default" ? <TabsTrigger value="flow">Flow</TabsTrigger> : null}
+          {workspaceMode !== "default" ? <TabsTrigger value="signals">Signals</TabsTrigger> : null}
+          {workspaceMode !== "default" ? <TabsTrigger value="tools">More Tools</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="narrative" className="m-0 min-h-0 overflow-y-auto pr-1">
-          <NarrativeIntelligenceSurface />
+          {workspaceMode === "default" ? (
+            <div className="space-y-3">
+              <TacticalDecisionCompressionPanel flow={flow} />
+            </div>
+          ) : null}
+
+          {workspaceMode === "advanced" ? (
+            <div className="space-y-3">
+              <MarketMoverPlanningPanel />
+
+              <details className="group rounded-3xl border border-zinc-900 bg-black/60" open={false}>
+                <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-black text-white">
+                  <span>Narrative Context</span>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 group-open:text-cyan-300">Open</span>
+                </summary>
+                <div className="border-t border-zinc-900 p-3">
+                  <NarrativeIntelligenceSurface />
+                </div>
+              </details>
+            </div>
+          ) : null}
+
+          {workspaceMode === "help" ? <FeatureHelpGuide section="overview" /> : null}
         </TabsContent>
 
-        <TabsContent value="charts" className="m-0 min-h-0">
-          <MultiChartWorkspace />
+        <TabsContent value="charts" className="m-0 min-h-0 overflow-y-auto pr-1">
+          {workspaceMode === "help" ? <FeatureHelpGuide section="charts" /> : <MultiChartWorkspace />}
         </TabsContent>
 
         <TabsContent value="flow" className="m-0 min-h-0">
+          {workspaceMode === "help" ? (
+            <div className="h-full overflow-y-auto pr-1">
+              <FeatureHelpGuide section="flow" />
+            </div>
+          ) : (
           <div className="flex h-full min-h-0 flex-col gap-3">
             <TacticalContextBar />
             <CompactRoutingStatus />
@@ -243,17 +296,21 @@ export default function ExecutionWorkspace({
               </div>
             </div>
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="signals" className="m-0 min-h-0 overflow-y-auto pr-1">
-          <SignalInboxWorkspace />
+          {workspaceMode === "help" ? <FeatureHelpGuide section="signals" /> : <SignalInboxWorkspace />}
         </TabsContent>
 
         <TabsContent value="tools" className="m-0 min-h-0 overflow-y-auto pr-1">
+          {workspaceMode === "help" ? (
+            <FeatureHelpGuide section="tools" />
+          ) : (
           <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="rounded-3xl border border-zinc-900 bg-zinc-950/70 p-3">
               <div className="px-2 pb-3 text-[10px] font-black uppercase tracking-[0.32em] text-zinc-500">
-                Secondary Layer
+                Tools
               </div>
               <div className="grid gap-2">
                 {toolModes.map((mode) => (
@@ -269,10 +326,23 @@ export default function ExecutionWorkspace({
             </aside>
 
             <section className="min-h-[720px] overflow-hidden rounded-3xl border border-zinc-900 bg-black p-4">
-              {toolMode === "intel" ? <RealtimeIntelligenceStrip /> : null}
+              {toolMode === "intel" ? (
+                <div className="mx-auto max-w-5xl">
+                  <RealtimeIntelligenceStrip />
+                </div>
+              ) : null}
+              {toolMode === "macro" ? (
+                <div className="max-h-[760px] overflow-y-auto pr-1">
+                  <AdvancedIntelligenceArchive />
+                </div>
+              ) : null}
               {toolMode === "research" ? <ResearchReplayWorkspace /> : null}
               {toolMode === "diagnostics" ? <SystemDiagnosticsWorkspace /> : null}
-              {toolMode === "structure" ? <MarketStructureIntelligenceSurface /> : null}
+              {toolMode === "structure" ? (
+                <div className="max-h-[760px] overflow-y-auto pr-1">
+                  <MarketStructureIntelligenceSurface />
+                </div>
+              ) : null}
               {toolMode === "liquidity" ? (
                 <div className="grid h-full min-h-0 gap-4 xl:grid-cols-2">
                   <div className="flex h-full min-h-0 flex-col gap-4">
@@ -292,6 +362,7 @@ export default function ExecutionWorkspace({
               ) : null}
             </section>
           </div>
+          )}
         </TabsContent>
       </Tabs>
     </>

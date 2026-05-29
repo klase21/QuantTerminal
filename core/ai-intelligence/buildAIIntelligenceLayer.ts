@@ -229,6 +229,6 @@ export function buildAIIntelligenceLayer(input: MarketStructureIntelligenceRespo
       sectors: sectors.length,
       topSector: input?.topSector,
     },
-    notes: sectors.length ? ["Phase 36-40 derived from market structure, derivatives, participation, narrative, and memory layers."] : ["No market structure sectors available."],
+    notes: sectors.length ? ["AI Intelligence derived from market structure, derivatives, participation, narrative, and memory layers."] : ["No market structure sectors available."],
   }
 }

@@ -1,159 +1,39 @@
 "use client"
 
-import { useState } from "react"
+import { ArrowLeftRight, Crosshair, Newspaper } from "lucide-react"
 
-import LiquidityPanel from "@/components/right-panel/LiquidityPanel"
-import AnalyticsPanel from "@/components/right-panel/AnalyticsPanel"
-import AlertsPanel from "@/components/right-panel/AlertsPanel"
-import LiquidityRotationPanel from "@/components/right-panel/LiquidityRotationPanel"
-import RotationSankeyGraph from "@/components/RotationSankeyGraph"
-
-import MacroPanel from "@/components/macro/MacroPanel"
-import MacroNewsCorrelation from "@/components/macro/MacroNewsCorrelation"
-
-import NewsFeed from "@/components/news/NewsFeed"
-
-type Props = {
-  trades: any[]
-  liquidations: any[]
-  frames: any[]
-  absorptionEvents: any[]
-  liquidityEvents: any[]
-  flow: any
-}
-
-export default function RightPanelTabs({
-  trades,
-  liquidations,
-  frames,
-  absorptionEvents,
-  liquidityEvents,
-  flow,
-}: Props) {
-
-  const [tab, setTab] = useState<
-    | "news"
-    | "macro"
-    | "correlation"
-  >("macro")
-
-  const tabs = [
-    "macro",
-    "correlation",
-    "news",
-  ]
-
+export default function RightPanelTabs(_props: any) {
   return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950/40 p-4">
+      <div className="rounded-3xl border border-cyan-300/20 bg-cyan-400/10 p-4">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
+          <Crosshair className="h-3.5 w-3.5" /> Intelligence Relocated
+        </div>
+        <div className="mt-2 text-lg font-black text-white">Use Execution Workspace first</div>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">
+          Long macro and news reads no longer live as a separate default rail. They are compressed into execution catalysts and macro pulse inside Execution.
+        </p>
+      </div>
 
-    <div
-      className="
-        flex
-        h-full
-        min-h-0
-        flex-col
-        overflow-hidden
-        rounded-2xl
-        border
-        border-zinc-900
-        bg-zinc-950/40
-      "
-    >
-
-      {/* TAB HEADER */}
-
-      <div
-        className="
-          shrink-0
-          overflow-x-auto
-          border-b
-          border-zinc-800
-          p-2
-        "
-      >
-
-        <div
-          className="
-            flex
-            min-w-max
-            gap-2
-          "
-        >
-
-          {tabs.map((t) => (
-
-            <button
-              key={t}
-              onClick={() =>
-                setTab(t as any)
-              }
-              className={`
-                rounded-xl
-                px-3
-                py-2
-                text-xs
-                font-semibold
-                whitespace-nowrap
-                transition-all
-                ${
-                  tab === t
-                    ? "bg-zinc-800 text-white"
-                    : "text-zinc-500 hover:text-white"
-                }
-              `}
-            >
-              {t.toUpperCase()}
-            </button>
-
-          ))}
-
+      <div className="mt-4 grid gap-3">
+        <div className="rounded-2xl border border-zinc-800 bg-black/45 p-3">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-violet-300">
+            <ArrowLeftRight className="h-3.5 w-3.5" /> More Tools
+          </div>
+          <div className="mt-2 text-sm leading-6 text-zinc-400">
+            Full Macro Deep Dive, Macro / News Correlation, and Full News Feed now live only in Execution Workspace → More Tools → Macro / News Archive.
+          </div>
         </div>
 
+        <div className="rounded-2xl border border-zinc-800 bg-black/45 p-3">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+            <Newspaper className="h-3.5 w-3.5" /> Default Mode
+          </div>
+          <div className="mt-2 text-sm leading-6 text-zinc-400">
+            Execution Advanced stays focused on live analysis. Static macro/news research stays in More Tools so it does not compete with trade decisions.
+          </div>
+        </div>
       </div>
-
-      {/* CONTENT */}
-
-      <div
-        className="
-          flex-1
-          min-h-0
-          overflow-y-auto
-          scrollbar-thin
-          scrollbar-thumb-zinc-800
-        "
-      >
-
-        {tab === "macro" && (
-
-          <div className="p-4">
-
-            <MacroPanel />
-
-          </div>
-
-        )}
-
-        {tab === "correlation" && (
-
-          <div className="p-4">
-
-            <MacroNewsCorrelation />
-
-          </div>
-
-        )}
-
-        {tab === "news" && (
-
-          <div className="p-4">
-
-            <NewsFeed />
-
-          </div>
-
-        )}
-
-      </div>
-
     </div>
   )
 }

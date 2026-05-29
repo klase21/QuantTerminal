@@ -154,7 +154,7 @@ function NarrativeUniverse({ nodes, links }: { nodes: NarrativeUniverseNode[]; l
       <div className="absolute left-6 top-6 rounded-2xl border border-cyan-400/20 bg-black/55 p-4 backdrop-blur-xl">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200"><Orbit className="h-3.5 w-3.5" /> Narrative Universe</div>
         <div className="mt-2 text-3xl font-black text-white">LIVE ORBIT</div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Phase 46A · gravity / contagion / pulse</div>
+        <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Narrative Universe · gravity / contagion / pulse</div>
       </div>
       <div className="absolute bottom-5 right-5 grid grid-cols-3 gap-2 text-center text-[10px] uppercase tracking-[0.14em] text-zinc-500">
         <div className="rounded-xl border border-zinc-800 bg-black/55 p-2"><div className="text-cyan-200">{nodes.length}</div><div>nodes</div></div>
@@ -251,7 +251,7 @@ export default function Phase46_48WarRoomIntelligenceLayer() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(34,211,238,0.13),transparent_30%),radial-gradient(circle_at_85%_20%,rgba(52,211,153,0.10),transparent_28%),radial-gradient(circle_at_70%_85%,rgba(168,85,247,0.10),transparent_30%)]" />
       <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.36em] text-cyan-300/80"><Sparkles className="h-3.5 w-3.5" /> Phase 46A-48A Visual Impact Pack</div>
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.36em] text-cyan-300/80"><Sparkles className="h-3.5 w-3.5" /> War Room Visuals</div>
           <h2 className="mt-2 text-3xl font-black uppercase tracking-tight text-white md:text-4xl">War Room Visual Layer</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
             Cinematic narrative universe, live AI operator overlay, and autonomous hunter UI. This section includes demo fallback visuals so the war-room remains visible even before live signals arrive.
@@ -270,7 +270,7 @@ export default function Phase46_48WarRoomIntelligenceLayer() {
         <div className="rounded-[2rem] border border-zinc-800 bg-zinc-950/75 p-4 backdrop-blur-xl">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500"><Radar className="h-3.5 w-3.5" /> Phase 46A</div>
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500"><Radar className="h-3.5 w-3.5" /> Narrative Universe</div>
               <div className="mt-1 text-sm font-black uppercase text-zinc-100">3D Narrative Universe Visual</div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-right text-[10px] uppercase tracking-[0.12em] text-zinc-500">
@@ -286,7 +286,7 @@ export default function Phase46_48WarRoomIntelligenceLayer() {
           <div className="rounded-[2rem] border border-cyan-400/20 bg-black/50 p-4 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500"><RadioTower className="h-3.5 w-3.5" /> Phase 47A</div>
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500"><RadioTower className="h-3.5 w-3.5" /> Operator Overlay</div>
                 <div className="mt-1 text-sm font-black uppercase text-zinc-100">AI Operator Live Overlay</div>
               </div>
               <div className="text-right text-2xl font-black text-cyan-200">{metric(data?.liveOperator.urgencyScore ?? 76)}</div>
@@ -304,7 +304,7 @@ export default function Phase46_48WarRoomIntelligenceLayer() {
           <div className="rounded-[2rem] border border-emerald-400/20 bg-black/50 p-4 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500"><Crosshair className="h-3.5 w-3.5" /> Phase 48A</div>
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500"><Crosshair className="h-3.5 w-3.5" /> Signal Hunter</div>
                 <div className="mt-1 text-sm font-black uppercase text-zinc-100">Autonomous Signal Hunter UI</div>
               </div>
               <div className="text-right text-2xl font-black text-emerald-200">{metric(data?.signalHunter.huntScore ?? 70)}</div>
@@ -342,7 +342,7 @@ export default function Phase46_48WarRoomIntelligenceLayer() {
         </div>
         <div className="rounded-2xl border border-zinc-800 bg-black/45 p-3">
           <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-zinc-500">Notes</div>
-          <div className="mt-3 line-clamp-4 text-xs leading-5 text-zinc-400">{(data?.notes.length ? data.notes : ["Phase 46A-48A visual pack installed", "Fallback cinematic mode active", "Connect institutional layer for live data"]).join(" · ")}</div>
+          <div className="mt-3 line-clamp-4 text-xs leading-5 text-zinc-400">{(data?.notes.length ? data.notes : ["War room visuals installed", "Fallback cinematic mode active", "Connect institutional layer for live data"]).join(" · ")}</div>
         </div>
       </div>
     </section>

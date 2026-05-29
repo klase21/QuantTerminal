@@ -84,7 +84,7 @@ function RegimePanel({ item }: { item?: RegimeTransitionSignal }) {
   if (!item) return null
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-      <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 38</div>
+      <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Regime Forecast</div>
       <div className="mt-1 text-sm font-black uppercase text-zinc-100">Regime Transition Probability</div>
       <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-4">
         <div className="flex items-center justify-between gap-3">
@@ -106,7 +106,7 @@ function RegimePanel({ item }: { item?: RegimeTransitionSignal }) {
 function SignalTape({ signals }: { signals: AutonomousSignal[] }) {
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-      <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 40</div>
+      <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Signal Ranking</div>
       <div className="mt-1 text-sm font-black uppercase text-zinc-100">Autonomous Intelligence Layer</div>
       <div className="mt-4 space-y-2">
         {signals.slice(0, 8).map((signal) => (
@@ -134,7 +134,7 @@ export default function Phase36_40AIIntelligenceLayer() {
     <section className="rounded-3xl border border-violet-500/20 bg-zinc-950/80 p-5 shadow-[0_0_60px_rgba(139,92,246,0.08)]">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.36em] text-violet-300/80">Phase 36-40</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.36em] text-violet-300/80">AI Intelligence</div>
           <h2 className="mt-2 text-2xl font-black uppercase tracking-tight text-white">AI Intelligence Layer</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
             Forecasting, liquidity fracture detection, regime transition probability, operator copilot, and autonomous signal ranking derived from the market structure stack.
@@ -151,7 +151,7 @@ export default function Phase36_40AIIntelligenceLayer() {
       <div className="mt-5 rounded-2xl border border-zinc-800 bg-black/40 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 39</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Operator Copilot</div>
             <div className="mt-1 text-sm font-black uppercase text-zinc-100">AI Operator Copilot</div>
           </div>
           <Pill value={data?.copilot.priority}>{data?.copilot.title ?? "Waiting"}</Pill>
@@ -166,7 +166,7 @@ export default function Phase36_40AIIntelligenceLayer() {
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 36</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Narrative Forecast</div>
           <div className="mt-1 text-sm font-black uppercase text-zinc-100">Narrative Forecast Engine</div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {topForecasts.map((item) => <ForecastCard key={item.sector} item={item} />)}
@@ -174,7 +174,7 @@ export default function Phase36_40AIIntelligenceLayer() {
         </div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 37</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Liquidity Fracture</div>
           <div className="mt-1 text-sm font-black uppercase text-zinc-100">Liquidity Fracture Detection</div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {topFractures.map((item) => <FractureRow key={item.sector} item={item} />)}

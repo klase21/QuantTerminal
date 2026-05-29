@@ -40,7 +40,7 @@ export const terminalCoreManifest: TerminalCoreModule[] = [
     label: "Replay Engine",
     status: "scaffold",
     path: "core/replay/*",
-    description: "Historical snapshot and replay frame contracts for Phase 5 extraction.",
+    description: "Historical snapshot and replay frame contracts for replay extraction.",
   },
   {
     key: "regime-core",

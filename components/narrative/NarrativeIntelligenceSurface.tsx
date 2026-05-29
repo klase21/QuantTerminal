@@ -1,12 +1,21 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { AlertTriangle, CheckCircle2, Eye, Layers3, Map, ShieldAlert, Sparkles, X, Zap } from "lucide-react"
+import { CheckCircle2, Eye, Layers3, Map, ShieldAlert, Sparkles, X, Zap } from "lucide-react"
 
 import TacticalMarketMap from "@/components/market-map/TacticalMarketMap"
 import RotationRadarPanel from "@/components/market-map/RotationRadarPanel"
 import TacticalLaneLegend from "@/components/market-map/TacticalLaneLegend"
+import TacticalLiveBindingProvider from "@/components/tactical/TacticalLiveBindingProvider"
 import { buildTacticalMarketMapState } from "@/core/market-map/tacticalMarketMapEngine"
+import { buildTacticalIntelligenceBrain } from "@/lib/tactical/tacticalVerdictEngine"
+import { buildMacroReasoning } from "@/lib/tactical/macroReasoningEngine"
+import { buildFlowIntelligence } from "@/lib/tactical/flowIntelligenceEngine"
+import { buildNarrativeMacroFusionV2 } from "@/lib/tactical/narrativeMacroFusionV2"
+import { buildTacticalInsightV3 } from "@/lib/tactical/tacticalInsightEngineV3"
+import { buildExecutionIntelligenceV3 } from "@/lib/tactical/executionIntelligenceV3"
+import { buildTacticalStrategyOS } from "@/lib/tactical/tacticalStrategyPlaybookEngine"
+import { useTacticalSnapshotStore } from "@/stores/useTacticalSnapshotStore"
 
 type OverlayKey = "lanes" | "rotation" | "pressure" | "threats"
 
@@ -16,24 +25,6 @@ const overlayLabels: Record<OverlayKey, string> = {
   pressure: "Sector Pressure",
   threats: "Threat Overlay",
 }
-
-const tacticalAlerts = [
-  {
-    title: "RWA liquidity is improving",
-    detail: "Focus on RWA leaders first. Avoid chasing late AI continuation until flow confirms.",
-    tone: "cyan",
-  },
-  {
-    title: "AI participation is cooling",
-    detail: "AI is still hot, but exhaustion risk is rising. Treat breakouts as confirmation-required.",
-    tone: "amber",
-  },
-  {
-    title: "ETH/BTC remains a risk filter",
-    detail: "Alt rotation is active, but broad beta confirmation is not clean yet.",
-    tone: "rose",
-  },
-]
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-3xl border border-white/10 bg-black/45 p-4 ${className}`}>{children}</div>
@@ -48,15 +39,7 @@ function SectionLabel({ icon, children }: { icon?: ReactNode; children: ReactNod
   )
 }
 
-function ReasoningBlock({
-  label,
-  children,
-  tone = "zinc",
-}: {
-  label: string
-  children: ReactNode
-  tone?: "cyan" | "emerald" | "amber" | "rose" | "zinc"
-}) {
+function ContextPill({ label, value, tone = "zinc" }: { label: string; value: ReactNode; tone?: "cyan" | "emerald" | "amber" | "rose" | "zinc" }) {
   const toneMap = {
     cyan: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
     emerald: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
@@ -67,8 +50,8 @@ function ReasoningBlock({
 
   return (
     <div className={`rounded-2xl border p-3 ${toneMap}`}>
-      <div className="text-[9px] font-black uppercase tracking-[0.24em] opacity-60">{label}</div>
-      <div className="mt-2 text-sm font-bold leading-5">{children}</div>
+      <div className="text-[9px] font-black uppercase tracking-[0.22em] opacity-60">{label}</div>
+      <div className="mt-2 text-sm font-black leading-5">{value}</div>
     </div>
   )
 }
@@ -120,20 +103,19 @@ function AdvancedMapModal({
                 On-demand layer
               </span>
             </div>
-            <p className="mt-2 text-xs text-zinc-500">Narrative, flow, liquidity and threat overlays appear above the Tactical Verdict only when advanced mode is opened.</p>
+            <p className="mt-2 text-xs text-zinc-500">
+              Open this only when you want to inspect the map behind the compressed execution context.
+            </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden text-[10px] uppercase tracking-[0.18em] text-zinc-500 sm:block">Press ESC or click X to close</div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/30 bg-black/70 text-cyan-100 transition hover:border-cyan-200/60 hover:bg-cyan-400/10"
-              aria-label="Close advanced market map"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/30 bg-black/70 text-cyan-100 transition hover:border-cyan-200/60 hover:bg-cyan-400/10"
+            aria-label="Close advanced market map"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="grid min-h-0 flex-1 items-stretch gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -196,99 +178,153 @@ function AdvancedMapModal({
   )
 }
 
-export default function NarrativeIntelligenceSurface() {
+function NarrativeIntelligenceSurfaceInner() {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [activeOverlays, setActiveOverlays] = useState<OverlayKey[]>(["lanes", "rotation", "pressure", "threats"])
+  const tacticalSnapshot = useTacticalSnapshotStore((state) => state.snapshot)
+
+  const tacticalBrain = useMemo(() => buildTacticalIntelligenceBrain(tacticalSnapshot.input), [tacticalSnapshot])
+  const macroReasoning = useMemo(() => buildMacroReasoning(tacticalSnapshot.macroInput), [tacticalSnapshot])
+  const flowIntelligence = useMemo(() => buildFlowIntelligence(tacticalSnapshot.flowInput), [tacticalSnapshot])
+  const narrativeMacroFusion = useMemo(
+    () => buildNarrativeMacroFusionV2({ tactical: tacticalBrain, macro: macroReasoning, flow: flowIntelligence }),
+    [flowIntelligence, macroReasoning, tacticalBrain],
+  )
+  const tacticalInsightV3 = useMemo(() => buildTacticalInsightV3(tacticalSnapshot), [tacticalSnapshot])
+  const executionIntelligenceV3 = useMemo(
+    () => buildExecutionIntelligenceV3({ snapshot: tacticalSnapshot, insight: tacticalInsightV3 }),
+    [tacticalSnapshot, tacticalInsightV3],
+  )
+  const tacticalStrategyOS = useMemo(
+    () => buildTacticalStrategyOS({ snapshot: tacticalSnapshot, insight: tacticalInsightV3, execution: executionIntelligenceV3 }),
+    [executionIntelligenceV3, tacticalInsightV3, tacticalSnapshot],
+  )
+
+  const topPlaybook = tacticalStrategyOS.playbooks?.[0]
+  const narrativeDriver = tacticalBrain.narrative.possibleDrivers?.[0] ?? "No dominant narrative driver detected."
+  const marketImpact = tacticalBrain.narrative.executionImpact || narrativeMacroFusion.executionImpact || "Narrative is context only until flow confirms."
+  const primaryRisk = tacticalBrain.riskFactors?.[0] ?? tacticalBrain.liquidation.executionImpact ?? "No major narrative-specific risk detected."
+  const whyNow = topPlaybook?.catalyst?.[0] ?? narrativeDriver
+  const supportState = tacticalBrain.directionalBias === "NO EDGE" ? "FILTER ONLY" : tacticalBrain.directionalBias
 
   function toggleOverlay(id: OverlayKey) {
     setActiveOverlays((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
   }
 
   return (
-    <div className="min-h-[760px] space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <main className="space-y-4">
-          <Card className="border-cyan-300/20 bg-[radial-gradient(circle_at_10%_10%,rgba(34,211,238,.12),transparent_34%),rgba(0,0,0,.46)] shadow-[0_0_45px_rgba(34,211,238,.08)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Tactical Verdict</SectionLabel>
-                <h2 className="mt-4 text-3xl font-black leading-tight text-white md:text-4xl">Wait for confirmation before aggressive entries.</h2>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-                  Alt rotation is active, but the clean trade is selective. RWA is improving while AI looks late-stage. Use the market as a filter, not as a chase signal.
-                </p>
-              </div>
-
-              <div className="grid min-w-[210px] gap-2">
-                <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-3">
-                  <div className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-200/70">Tradeability</div>
-                  <div className="mt-1 text-lg font-black text-amber-100">CONFIRMATION NEEDED</div>
-                </div>
-                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3">
-                  <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-200/70">Best Action</div>
-                  <div className="mt-1 text-lg font-black text-emerald-100">SELECTIVE LONGS</div>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <ReasoningBlock label="Execution Guidance" tone="emerald">Focus on RWA leaders only after lower-timeframe bid support confirms.</ReasoningBlock>
-            <ReasoningBlock label="Possible Drivers" tone="cyan">Capital appears to be rotating from overheated AI participation into RWA strength.</ReasoningBlock>
-            <ReasoningBlock label="Risk Filter" tone="amber">ETH/BTC weakness can cap broad alt follow-through even during rotation.</ReasoningBlock>
-            <ReasoningBlock label="Invalidation" tone="rose">Downgrade to observe-only if L1 strength fades or RWA inflow fails to hold.</ReasoningBlock>
+    <div className="min-h-[520px] space-y-4">
+      <Card className="border-cyan-300/20 bg-[radial-gradient(circle_at_10%_10%,rgba(34,211,238,.10),transparent_34%),rgba(0,0,0,.46)] shadow-[0_0_45px_rgba(34,211,238,.07)]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Narrative Context</SectionLabel>
+            <h2 className="mt-3 text-2xl font-black leading-tight text-white md:text-3xl">
+              {supportState} · {tacticalBrain.verdict}
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
+              Narrative is shown only as execution context: what may be driving attention, what it changes, and what can invalidate it.
+            </p>
           </div>
 
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <SectionLabel icon={<Map className="h-3.5 w-3.5" />}>Advanced Market Map</SectionLabel>
-                <p className="mt-2 text-xs leading-5 text-zinc-500">
-                  Keep the workspace verdict-first. Open the tactical map as an on-demand overlay above this verdict layer only when you want to inspect the reasoning structure.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAdvancedOpen(true)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition hover:bg-cyan-400/15"
-              >
-                <Layers3 className="h-3.5 w-3.5" />
-                Open Advanced Map
-              </button>
+          <div className="grid min-w-[220px] gap-2">
+            <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3">
+              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200/70">Best Match</div>
+              <div className="mt-1 text-sm font-black text-cyan-100">{topPlaybook?.title ?? tacticalBrain.opportunity.category}</div>
             </div>
-          </Card>
-        </main>
+            <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-3">
+              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-200/70">Execution State</div>
+              <div className="mt-1 text-sm font-black text-amber-100">{tacticalBrain.executionState}</div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-        <aside className="space-y-4">
-          <Card className="border-white/10 bg-black/40">
-            <SectionLabel icon={<Zap className="h-3.5 w-3.5" />}>Live Tactical Alerts</SectionLabel>
-            <div className="mt-3 space-y-2">
-              {tacticalAlerts.map((alert) => {
-                const tone = alert.tone === "cyan" ? "border-cyan-300/15 bg-cyan-400/10" : alert.tone === "amber" ? "border-amber-300/15 bg-amber-400/10" : "border-rose-300/15 bg-rose-400/10"
-                return (
-                  <div key={alert.title} className={`rounded-2xl border p-3 ${tone}`}>
-                    <div className="flex items-center gap-2 text-sm font-black text-white">
-                      {alert.tone === "rose" ? <AlertTriangle className="h-4 w-4 text-rose-300" /> : <CheckCircle2 className="h-4 w-4 text-cyan-300" />}
-                      {alert.title}
-                    </div>
-                    <div className="mt-1 text-xs leading-4 text-zinc-500">{alert.detail}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-
-          <Card className="border-amber-300/15 bg-amber-950/[0.07]">
-            <SectionLabel icon={<Eye className="h-3.5 w-3.5" />}>What To Watch</SectionLabel>
-            <div className="mt-3 space-y-2 text-sm font-bold text-zinc-200">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">RWA continuation after pullback</div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">AI failed breakout / late chase risk</div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">ETH/BTC improvement as beta confirmation</div>
-            </div>
-          </Card>
-        </aside>
+      <div className="grid gap-3 xl:grid-cols-3">
+        <ContextPill label="Narrative" value={narrativeDriver} tone="cyan" />
+        <ContextPill label="Market Impact" value={marketImpact} tone="emerald" />
+        <ContextPill label="Risk" value={primaryRisk} tone="amber" />
       </div>
+
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <SectionLabel icon={<Zap className="h-3.5 w-3.5" />}>Why Now</SectionLabel>
+              <div className="mt-2 text-base font-black text-white">{whyNow}</div>
+              <div className="mt-2 text-xs leading-5 text-zinc-500">
+                Use this only as confirmation. Execution still requires trigger, liquidity, and risk alignment.
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-right">
+              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">Narrative Role</div>
+              <div className="mt-1 text-sm font-black text-white">Support Layer</div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="border-amber-300/15 bg-amber-950/[0.07]">
+          <SectionLabel icon={<Eye className="h-3.5 w-3.5" />}>Watch</SectionLabel>
+          <div className="mt-3 space-y-2 text-sm font-bold text-zinc-200">
+            {tacticalBrain.watchList.slice(0, 3).map((item) => (
+              <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                {item}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <details className="group rounded-3xl border border-zinc-900 bg-black/50">
+        <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-black text-white">
+          <span>Context Details</span>
+          <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 group-open:text-cyan-300">Open</span>
+        </summary>
+        <div className="grid gap-3 border-t border-zinc-900 p-3 xl:grid-cols-3">
+          <ContextPill label="Flow Read" value={flowIntelligence.read} tone="zinc" />
+          <ContextPill label="Macro Filter" value={macroReasoning.executionImpact} tone="zinc" />
+          <ContextPill label="Strategy Fit" value={topPlaybook?.executionMode ?? tacticalBrain.aggression} tone="zinc" />
+        </div>
+      </details>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <SectionLabel icon={<Map className="h-3.5 w-3.5" />}>Advanced Market Map</SectionLabel>
+            <p className="mt-2 text-xs leading-5 text-zinc-500">
+              Keep narrative compressed. Open the map only when you need to inspect the underlying rotation, pressure, and threat layers.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen(true)}
+            className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 transition hover:bg-cyan-400/15"
+          >
+            <Layers3 className="h-3.5 w-3.5" />
+            Open Map
+          </button>
+        </div>
+      </Card>
+
+      <Card className="border-white/10 bg-black/40">
+        <SectionLabel icon={<CheckCircle2 className="h-3.5 w-3.5" />}>Active Context Alerts</SectionLabel>
+        <div className="mt-3 grid gap-2 xl:grid-cols-3">
+          {tacticalBrain.alerts.slice(0, 3).map((alert) => (
+            <div key={alert.title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+              <div className="text-sm font-black text-white">{alert.title}</div>
+              <div className="mt-1 text-xs leading-4 text-zinc-500">{alert.detail}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {advancedOpen ? <AdvancedMapModal activeOverlays={activeOverlays} onToggle={toggleOverlay} onClose={() => setAdvancedOpen(false)} /> : null}
     </div>
+  )
+}
+
+export default function NarrativeIntelligenceSurface() {
+  return (
+    <TacticalLiveBindingProvider>
+      <NarrativeIntelligenceSurfaceInner />
+    </TacticalLiveBindingProvider>
   )
 }

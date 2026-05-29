@@ -9,6 +9,7 @@ interface Candle {
   high: number
   low: number
   close: number
+  volume?: number
 }
 
 export default function useKlineSocket(symbol: string, interval = "1m") {
@@ -30,6 +31,7 @@ export default function useKlineSocket(symbol: string, interval = "1m") {
           high: Number(k[2]),
           low: Number(k[3]),
           close: Number(k[4]),
+          volume: Number(k[5]),
         })))
       } catch (error) {
         console.warn("Kline history load failed", error)
@@ -47,6 +49,7 @@ export default function useKlineSocket(symbol: string, interval = "1m") {
             high: Number(k.h),
             low: Number(k.l),
             close: Number(k.c),
+            volume: Number(k.v),
           }
           setCandles((prev) => {
             const copy = [...prev]

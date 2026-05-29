@@ -23,7 +23,7 @@ async function fetchJson<T>(url: string): Promise<T> {
       signal: controller.signal,
       headers: {
         accept: "application/json",
-        "user-agent": "QuantTerminal/1.0 Phase41-45 Institutional Terminal Layer",
+        "user-agent": "QuantTerminal/1.0 Institutional Intelligence",
       },
     })
     if (!response.ok) throw new Error(`${url} returned ${response.status}`)

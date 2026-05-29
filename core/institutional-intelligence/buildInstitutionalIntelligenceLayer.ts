@@ -77,7 +77,7 @@ function buildPortfolio(sectors: MarketStructureSectorSnapshot[], ai: AIIntellig
     hedgingRead: exposures.length
       ? `${dominantSector} dominates exposure; hedge pressure rises when concentration exceeds ${round(concentrationRisk, 0)}.`
       : "No portfolio exposure can be inferred yet.",
-    notes: ["Phase 41 derives synthetic portfolio exposure from sector structure, narrative conviction, leverage crowding, and liquidity fracture risk."],
+    notes: ["Alert OS1 derives synthetic portfolio exposure from sector structure, narrative conviction, leverage crowding, and liquidity fracture risk."],
   }
 }
 
@@ -213,7 +213,7 @@ function buildUX(signalRanking: SignalRankingSurface, portfolio: PortfolioIntell
 export function buildInstitutionalIntelligenceLayer(input: AIIntelligenceLayerSurface | null): InstitutionalIntelligenceSurface {
   const sectors = input?.inputs.topSector ? [input.inputs.topSector] : []
   const inferredSectors = sectors.length ? sectors : []
-  // Phase 36-40 API currently exposes only topSector in inputs, so use signal-derived fallback for UI richness.
+  // AI Intelligence API currently exposes only topSector in inputs, so use signal-derived fallback for UI richness.
   const syntheticSectors: MarketStructureSectorSnapshot[] = inferredSectors
   const portfolio = buildPortfolio(syntheticSectors, input)
   const tradeMemory = buildTradeMemory(syntheticSectors)
@@ -236,8 +236,8 @@ export function buildInstitutionalIntelligenceLayer(input: AIIntelligenceLayerSu
       topSector: input?.inputs.topSector,
     },
     notes: [
-      "Phase 41-45 adds portfolio intelligence, AI trade memory, multi-timeframe consensus, signal ranking, and institutional UX orchestration.",
-      syntheticSectors.length ? "Derived from Phase 36-40 AI intelligence top-sector input." : "Waiting for richer sector payload; signal ranking remains available from autonomous AI signals.",
+      "Institutional Intelligence adds portfolio intelligence, AI trade memory, multi-timeframe consensus, signal ranking, and institutional UX orchestration.",
+      syntheticSectors.length ? "Derived from AI Intelligence AI intelligence top-sector input." : "Waiting for richer sector payload; signal ranking remains available from autonomous AI signals.",
     ],
   }
 }

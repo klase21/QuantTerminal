@@ -57,7 +57,7 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
         title="Tactical AI Agent"
         subtitle="Context builder, decision engine, confidence tree, risk recommendation"
         badge="agent"
-        defaultOpen
+        defaultOpen={false}
       >
         <TacticalAIAgentPanel flow={flow} />
       </AdvancedFlowSection>
@@ -76,7 +76,7 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
 
 
       <AdvancedFlowSection
-        title="Tactical Intelligence Expansion"
+        title="Tactical Intelligence"
         subtitle="Alerts, debate system, liquidity map, replay scaffold"
         badge="expansion"
         defaultOpen={false}
@@ -96,7 +96,7 @@ export default function FlowAdvancedWorkspace({ flow }: FlowAdvancedWorkspacePro
           title="Decision Compression"
           subtitle="Action / readiness / size / timing"
           badge="default"
-          defaultOpen
+          defaultOpen={false}
         >
           <TacticalDecisionCompressionPanel flow={flow} />
         </AdvancedFlowSection>

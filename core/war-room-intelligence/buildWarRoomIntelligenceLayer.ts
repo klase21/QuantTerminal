@@ -279,9 +279,9 @@ export function buildWarRoomIntelligenceLayer(input: InstitutionalIntelligenceSu
       sourceMode: input?.mode,
     },
     notes: [
-      "Phase 46 builds a tactical narrative universe from ranked signals and portfolio exposure.",
-      "Phase 47 converts ranked intelligence into live operator briefs and speech queue items.",
-      "Phase 48 runs autonomous signal hunting over actionability, confidence, persistence, and false-positive risk.",
+      "Alert OS6 builds a tactical narrative universe from ranked signals and portfolio exposure.",
+      "Alert OS7 converts ranked intelligence into live operator briefs and speech queue items.",
+      "Alert OS8 runs autonomous signal hunting over actionability, confidence, persistence, and false-positive risk.",
     ],
   }
 }

@@ -60,7 +60,7 @@ function NarrativePropagationGraph({ nodes, links }: { nodes: NarrativePropagati
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 31</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Narrative Propagation</div>
           <div className="mt-1 text-sm font-black uppercase text-zinc-100">Narrative Propagation Graph</div>
         </div>
         <PhaseBadge phase={lead?.phase} />
@@ -115,7 +115,7 @@ function ReflexivityMap({ nodes }: { nodes: CrossMarketNode[] }) {
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 32</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Narrative Graph</div>
           <div className="mt-1 text-sm font-black uppercase text-zinc-100">Cross-Market Reflexivity Map</div>
         </div>
       </div>
@@ -150,7 +150,7 @@ function HistoricalReplayTape({ snapshots, narrative }: { snapshots: HistoricalR
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 33</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Contagion Frame</div>
           <div className="mt-1 text-sm font-black uppercase text-zinc-100">Historical Replay Engine</div>
         </div>
         <div className="text-right text-[10px] uppercase tracking-[0.18em] text-zinc-500">{snapshots.length} frames</div>
@@ -186,7 +186,7 @@ function EventTape({ narrative, snapshots }: { narrative: NarrativeSurface; snap
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
       <div>
-        <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 34</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Memory Snapshot</div>
         <div className="mt-1 text-sm font-black uppercase text-zinc-100">Intelligence Timeline / Event Tape</div>
       </div>
       <div className="mt-4 space-y-2">
@@ -212,7 +212,7 @@ function DashboardIntegrationSummary({ narrative, snapshots }: { narrative: Narr
     <div className="rounded-2xl border border-violet-500/20 bg-zinc-950/80 p-4 shadow-[0_0_40px_rgba(139,92,246,0.08)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-violet-300/80">Phase 35</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-violet-300/80">Intelligence Map</div>
           <div className="mt-1 text-sm font-black uppercase text-zinc-100">Dashboard Integration + UX Polish</div>
         </div>
         <div className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200">MVP Live</div>

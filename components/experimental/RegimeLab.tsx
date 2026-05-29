@@ -1750,7 +1750,7 @@ export default function RegimeLab() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">
-              <Layers3 className="h-4 w-4" /> Phase 6 / Terminal Core Refactor
+              <Layers3 className="h-4 w-4" /> Terminal Core
             </div>
             <p className="mt-1 text-xs text-zinc-500">
               Regime Lab remains the visual sandbox, while reusable intelligence contracts are being extracted into /core.
@@ -1805,7 +1805,7 @@ export default function RegimeLab() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">
-              <RadioTower className="h-4 w-4" /> Phase 7 / Real Market Integration
+              <RadioTower className="h-4 w-4" /> Real Market Integration
             </div>
             <p className="mt-1 text-xs text-zinc-500">
               Binance global ticker aggregation + Upbit KRW overlay. This panel is live-data first and keeps the main dashboard untouched.
@@ -2647,7 +2647,7 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
               <RadioTower className={`h-4 w-4 ${phase4AlertOS.hudFlash ? "animate-pulse text-red-200" : "text-cyan-200"}`} />
-              Phase 4 Alert Operating System
+              Alert Operating System
             </div>
             <div className="mt-1 text-xs text-zinc-500">
               Real alert promotion layer: severity, cooldown, dedupe, event bus, priority queue, and operator sync. Sandbox only.
@@ -3257,7 +3257,7 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-200">
               <Database className="h-4 w-4" />
-              Phase 2 DataLab Historical Intelligence
+              Historical Intelligence
             </div>
             <div className="mt-1 max-w-4xl text-xs leading-5 text-zinc-500">
               5Y candles for Fear, Volatility, Altseason, BTC Dominance, Upbit Trade Volume, and Premium coverage since 2024. Current value now has history, momentum, percentile, and divergence context.
@@ -3368,7 +3368,7 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-fuchsia-200">
               <Radar className="h-4 w-4" />
-              Phase 3 Real Rotation Intelligence
+              Rotation Intelligence
             </div>
             <div className="mt-1 max-w-4xl text-xs leading-5 text-zinc-500">
               Sector score is now interpreted as a rotation state machine: rank change, lifecycle, regime fit, premium boost, and generated rotation story. Still sandbox-only inside Regime Lab.
@@ -3501,7 +3501,7 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
             <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-amber-200">
               <Target className="h-3.5 w-3.5" />
-              Phase 3 Promotion Rules
+              Promotion Rules
             </div>
             <div className="space-y-2 text-xs leading-5 text-amber-50/85">
               <div className="rounded-xl border border-white/10 bg-black/25 p-3">Promote INFLOW only when lifecycle is INFLOW/EXPANSION, regime fit ≥ 70, and rank is stable or improving.</div>
@@ -3520,7 +3520,7 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
               <BrainCircuit className="h-4 w-4" />
-              Phase 1 Intelligence Pack
+              Intelligence Pack
             </div>
             <div className="mt-1 max-w-4xl text-xs leading-5 text-zinc-500">
               Regime glossary, formula inspector, enhanced scenarios, conflict detector, and operator summary. This is sandbox-only and ready to migrate into README/Wiki later.
@@ -3615,7 +3615,7 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           </div>
 
           <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-600">Phase 1 Output</div>
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-600">Output</div>
             <div className="text-sm leading-6 text-zinc-300">
               Use this pack to decide whether a signal stays in lab, moves to watch, or becomes an alert candidate. Redundant cards are intentional for now; cleanup can happen after the terminal language feels right.
             </div>
@@ -3630,10 +3630,10 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
               <Play className="h-4 w-4" />
-              Phase 5 Replay & Backtest Intelligence
+              Replay & Backtest Intelligence
             </div>
             <div className="mt-1 max-w-4xl text-xs leading-5 text-zinc-500">
-              Historical DataLab candles are merged into replayable daily frames. Phase 4 alert rules are applied backward to preview regime transitions, alert clusters, and signal quality before any rule graduates from the lab.
+              Historical DataLab candles are merged into replayable daily frames. Alert OS alert rules are applied backward to preview regime transitions, alert clusters, and signal quality before any rule graduates from the lab.
             </div>
           </div>
 

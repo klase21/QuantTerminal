@@ -1,20 +1,37 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
+
 import { useFocusRoutingStore } from "@/stores/useFocusRoutingStore"
 
 import { formatChartCrosshairTime, formatChartTimeTick } from "@/lib/chartTimeFormatter";
 import ChartTile from "@/components/ChartTile"
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore"
 import MiniTimeAxis from "@/components/charts/MiniTimeAxis";
+import AdvancedChartModal from "@/components/charts/AdvancedChartModal"
 
 export default function MultiChartWorkspace() {
   const { activeSymbol, focusScope } = useFocusRoutingStore()
+  const [expandedChartId, setExpandedChartId] = useState<string | null>(null)
 
   const {
     charts,
     removeChart,
+    updateChart,
     updateTimeframe,
   } = useWorkspaceStore()
+
+  const expandedChart = useMemo(
+    () => charts.find((chart) => chart.id === expandedChartId) ?? null,
+    [charts, expandedChartId]
+  )
+
+  useEffect(() => {
+    const primaryChart = charts[0]
+    if (!primaryChart || !activeSymbol) return
+    if (primaryChart.symbol.toUpperCase() === activeSymbol.toUpperCase()) return
+    updateChart(primaryChart.id, { symbol: activeSymbol })
+  }, [activeSymbol, charts, updateChart])
 
   return (
 
@@ -46,6 +63,9 @@ export default function MultiChartWorkspace() {
           "
         >
           Multi-Chart Workspace
+          <span className="ml-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-100">
+            Focus {activeSymbol}
+          </span>
         </div>
 
       </div>
@@ -82,11 +102,20 @@ export default function MultiChartWorkspace() {
                 timeframe
               )
             }
+            onOpen={() => setExpandedChartId(chart.id)}
           />
 
         ))}
 
       </div>
+
+      {expandedChart && (
+        <AdvancedChartModal
+          symbol={expandedChart.symbol}
+          timeframe={expandedChart.timeframe}
+          onClose={() => setExpandedChartId(null)}
+        />
+      )}
 
     </div>
 

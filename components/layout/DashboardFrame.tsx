@@ -41,8 +41,8 @@ export default function DashboardFrame({
         right={
           <div className="h-full min-h-0">
             <Panel
-              title="Macro Intelligence"
-              right="Alerts · Narrative · Flow"
+              title="Mode Guide"
+              right="Default · Advanced · Help"
               collapsible
               collapsed={rightRailCollapsed}
               onToggle={onToggleRightRail}

@@ -134,7 +134,7 @@ export default function Phase41_45InstitutionalTerminalLayer() {
     <section className="rounded-3xl border border-fuchsia-500/20 bg-zinc-950/80 p-5 shadow-[0_0_60px_rgba(217,70,239,0.08)]">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.36em] text-fuchsia-300/80">Phase 41-45</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.36em] text-fuchsia-300/80">Institutional Intelligence</div>
           <h2 className="mt-2 text-2xl font-black uppercase tracking-tight text-white">Institutional Terminal Layer</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
             Portfolio intelligence, AI trade memory, multi-timeframe consensus, signal ranking, and institutional workspace orchestration layered over the AI intelligence stack.
@@ -150,7 +150,7 @@ export default function Phase41_45InstitutionalTerminalLayer() {
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 41</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Institutional Flow</div>
           <div className="mt-1 flex items-center justify-between gap-3">
             <div className="text-sm font-black uppercase text-zinc-100">Portfolio Intelligence</div>
             <div className="text-right text-xl font-black text-fuchsia-200">{metric(data?.portfolio.concentrationRisk)}</div>
@@ -162,7 +162,7 @@ export default function Phase41_45InstitutionalTerminalLayer() {
         </div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 44</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Workspace Intelligence</div>
           <div className="mt-1 flex items-center justify-between gap-3">
             <div className="text-sm font-black uppercase text-zinc-100">Signal Ranking Engine</div>
             <div className="text-right text-xl font-black text-emerald-200">{metric(data?.signalRanking.signalQualityScore)}</div>
@@ -176,7 +176,7 @@ export default function Phase41_45InstitutionalTerminalLayer() {
 
       <div className="mt-5 grid gap-4 xl:grid-cols-3">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 42</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Timeframe Intelligence</div>
           <div className="mt-1 text-sm font-black uppercase text-zinc-100">AI Trade Memory</div>
           <p className="mt-2 text-xs leading-5 text-zinc-500">{data?.tradeMemory.memoryRead ?? "Waiting for memory recall."}</p>
           <div className="mt-4 space-y-2">
@@ -185,7 +185,7 @@ export default function Phase41_45InstitutionalTerminalLayer() {
         </div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 43</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Trade Memory</div>
           <div className="mt-1 flex items-center justify-between gap-3">
             <div className="text-sm font-black uppercase text-zinc-100">Multi-Timeframe Intelligence</div>
             <Pill value={data?.multiTimeframe.consensus}>{data?.multiTimeframe.consensus ?? "--"}</Pill>
@@ -197,7 +197,7 @@ export default function Phase41_45InstitutionalTerminalLayer() {
         </div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Phase 45</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">Signal Ranking</div>
           <div className="mt-1 flex items-center justify-between gap-3">
             <div className="text-sm font-black uppercase text-zinc-100">Institutional UX Layer</div>
             <Pill value={data?.ux.activeMode}>{data?.ux.activeMode ?? "--"}</Pill>
