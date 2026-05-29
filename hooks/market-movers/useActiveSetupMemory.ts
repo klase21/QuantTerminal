@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 
 import type { MarketMoverCandidate } from "@/lib/market-movers/types"
+import { outcomeRecordFromMemory, setupDetectedEventFromMemory, setupRecordFromMemory } from "@/lib/trading/modelAdapters"
+import { upsertEventRecord, upsertSetupOutcomeRecord, upsertSetupRecord } from "@/lib/trading/localTradingDatabase"
 
 export type ActiveSetupLifecycle = "NEW" | "ACTIVE" | "STRENGTHENING" | "WEAKENING" | "INVALIDATED" | "COMPLETED"
 export type ActiveSetupOutcome = "OPEN" | "TP1_HIT" | "TP2_HIT" | "STOPPED" | "EXPIRED"
@@ -169,6 +171,19 @@ function readMemory(): ActiveSetupMemoryItem[] {
   }
 }
 
+function syncTradingDatabase(items: ActiveSetupMemoryItem[]) {
+  if (typeof window === "undefined") return
+  try {
+    for (const item of items) {
+      upsertSetupRecord(setupRecordFromMemory(item))
+      upsertSetupOutcomeRecord(outcomeRecordFromMemory(item))
+      upsertEventRecord(setupDetectedEventFromMemory(item))
+    }
+  } catch {
+    // Persistent trade/event history is best-effort and must never break live scanning.
+  }
+}
+
 function writeMemory(items: ActiveSetupMemoryItem[]) {
   if (typeof window === "undefined") return
   try {
@@ -243,6 +258,7 @@ export function useActiveSetupMemory(candidates: MarketMoverCandidate[] | undefi
         .slice(0, MAX_ITEMS)
 
       writeMemory(next)
+      syncTradingDatabase(next)
       return next
     })
   }, [candidates])

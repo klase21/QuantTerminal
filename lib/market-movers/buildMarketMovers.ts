@@ -397,9 +397,29 @@ export function buildMarketMoversResponse(raw: BinanceFuturesTicker24h[], now = 
       capTier,
       tradeabilityScore,
     })
-    const suppressedReason = quality.state === "ACTIONABLE" || quality.state === "WATCHLIST"
+
+    // Final pre-tracker quality gate.
+    // A setup should not surface as actionable if the discovered move is interesting
+    // but the actual trade framework is not tradable. This keeps the next demo
+    // trading layer from recording noisy/poor-R:R ideas.
+    const planRejectedReason = plans.planQuality === "NO_TRADE"
+      ? "No executable trade plan yet."
+      : plans.planQuality === "POOR_RR"
+        ? "Risk/reward is not attractive enough for execution."
+        : plans.planQuality === "SL_TOO_TIGHT"
+          ? "Stop loss is too tight for current volatility."
+          : plans.planQuality === "WIDE_RISK" && capTier === "SPECULATIVE"
+            ? "Risk is too wide for a speculative mover."
+            : undefined
+    const finalQualityState = planRejectedReason
+      ? "NO_DIRECTION" as const
+      : quality.state
+    const finalAction = planRejectedReason
+      ? "WAIT" as const
+      : plans.action
+    const suppressedReason = finalQualityState === "ACTIONABLE" || finalQualityState === "WATCHLIST"
       ? undefined
-      : quality.reason
+      : planRejectedReason ?? quality.reason
     const isLargeCapWatch = capTier !== "SPECULATIVE" && liquidityRank >= 65
     const freshness = freshnessFor(absMove, chaseRisk, quality.state)
     const scoreBreakdown = buildScoreBreakdown({ capTier, liquidityRank, participationRank, volatilityRank, absMove, chaseRisk, tradeabilityScore, isLargeCapWatch })
@@ -408,7 +428,7 @@ export function buildMarketMoversResponse(raw: BinanceFuturesTicker24h[], now = 
     return {
       symbol: row.item.symbol,
       direction: plans.direction,
-      action: plans.action,
+      action: finalAction,
       setup: suppressedReason ? "No clean setup" : plans.setup,
       score: Math.round(score),
       grade: plans.grade,
@@ -425,8 +445,8 @@ export function buildMarketMoversResponse(raw: BinanceFuturesTicker24h[], now = 
       attentionScore: Math.round(attentionScore),
       chaseRisk: Math.round(chaseRisk),
       tradeabilityScore: Math.round(tradeabilityScore),
-      qualityState: quality.state,
-      qualityReason: quality.reason,
+      qualityState: finalQualityState,
+      qualityReason: planRejectedReason ?? quality.reason,
       confidence,
       freshness,
       scoreBreakdown,

@@ -103,6 +103,7 @@ export default function MarketMoverSignalCard() {
   const memory = useActiveSetupMemory(data?.candidates)
   const setup = data?.candidates?.[0]
   const liquidWatch = (data?.candidates ?? []).slice(1, 4)
+  const currentSetupMemory = setup ? memory.find((item) => item.symbol === setup.symbol) : undefined
   const recentSetups = memory.filter((item) => item.symbol !== setup?.symbol).slice(0, 3)
   const focusCandidate = data?.focusCandidate ?? null
   const { winners, failures } = outcomeSummary(memory)
@@ -190,6 +191,11 @@ export default function MarketMoverSignalCard() {
             <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase ${planQualityClass(setup.planQuality)}`}>{formatPlanQuality(setup.planQuality)}</span>
             <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-100">{setup.confidence}</span>
             <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase ${freshnessClass(setup.freshness)}`}>{setup.freshness}</span>
+            {currentSetupMemory ? (
+              <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase ${lifecycleClass(currentSetupMemory.lifecycle)}`}>
+                {currentSetupMemory.lifecycle} · {formatSetupAge(currentSetupMemory.firstSeenAt)}
+              </span>
+            ) : null}
           </div>
           <div className="mt-1 truncate text-base font-black text-white" title={`${setup.symbol} ${setup.setup}`}>
             {setup.symbol} · {setup.setup}
@@ -199,6 +205,11 @@ export default function MarketMoverSignalCard() {
             {setup.isLargeCapWatch ? <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-100">Liquid watch</span> : null}
           </div>
           <div className="mt-1 line-clamp-1 text-xs text-zinc-400" title={`${setup.reason} ${setup.qualityReason}`}>WHY: {setup.qualityReason}</div>
+          {setup.planQuality !== "BALANCED" ? (
+            <div className="mt-1 line-clamp-1 text-[10px] font-bold uppercase tracking-wide text-yellow-200" title={setup.volatilityNote}>
+              PLAN WARNING: {formatPlanQuality(setup.planQuality)} · {setup.volatilityNote}
+            </div>
+          ) : null}
           <div className="mt-1 line-clamp-1 text-[10px] font-bold uppercase tracking-wide text-zinc-500" title={setup.trustSummary}>TRUST: {setup.trustSummary}</div>
         </div>
 

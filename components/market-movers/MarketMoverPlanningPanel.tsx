@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { Activity, AlertTriangle, CheckCircle2, Copy, Crosshair, Gauge, Loader2, Shield, Target, XCircle } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Activity, AlertTriangle, CheckCircle2, Copy, Crosshair, Gauge, Loader2, PlayCircle, Shield, Square, Target, XCircle } from "lucide-react"
 
 import { formatSetupAge, useActiveSetupMemory, type ActiveSetupMemoryItem } from "@/hooks/market-movers/useActiveSetupMemory"
 import { useMarketMovers } from "@/hooks/market-movers/useMarketMovers"
@@ -11,6 +11,9 @@ import { useFocusRoutingStore } from "@/stores/useFocusRoutingStore"
 import type { MarketMoverCandidate } from "@/lib/market-movers/types"
 import { exportSetupSnapshotPng } from "@/lib/share/exportSetupSnapshot"
 import { resolveSnapshotCandles } from "@/lib/share/resolveSnapshotCandles"
+import { closeDemoTradeManually, formatTradeDuration, openDemoTradeFromCandidate, updateOpenDemoTrades } from "@/lib/trading/demoTrading"
+import { readTradingDatabase } from "@/lib/trading/localTradingDatabase"
+import type { DemoTradeRecord } from "@/lib/trading/types"
 
 function outcomeClass(outcome: ActiveSetupMemoryItem["outcome"]) {
   if (outcome === "TP2_HIT" || outcome === "TP1_HIT") return "text-emerald-200"
@@ -20,6 +23,24 @@ function outcomeClass(outcome: ActiveSetupMemoryItem["outcome"]) {
 
 function signedPct(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
+}
+
+function pnlClass(value: number | undefined) {
+  if ((value ?? 0) > 0) return "text-emerald-200"
+  if ((value ?? 0) < 0) return "text-red-200"
+  return "text-zinc-400"
+}
+
+function formatSignedNumber(value: number | undefined, digits = 2) {
+  const safe = Number.isFinite(value ?? NaN) ? (value as number) : 0
+  return `${safe >= 0 ? "+" : ""}${safe.toFixed(digits)}%`
+}
+
+function tradeStatusClass(trade: DemoTradeRecord) {
+  if (trade.status === "OPEN") return "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
+  if (trade.exitReason === "TP1" || trade.exitReason === "TP2") return "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+  if (trade.exitReason === "SL") return "border-red-300/30 bg-red-400/10 text-red-100"
+  return "border-zinc-700 bg-zinc-900 text-zinc-300"
 }
 
 function compactBiasLabel(value: unknown) {
@@ -110,6 +131,29 @@ export default function MarketMoverPlanningPanel() {
   const recentOutcomes = activeSetups.filter((item) => item.outcome !== "OPEN").slice(0, 6)
   const recentWinners = recentOutcomes.filter((item) => item.outcome === "TP1_HIT" || item.outcome === "TP2_HIT").slice(0, 4)
   const recentFailures = recentOutcomes.filter((item) => item.outcome === "STOPPED" || item.outcome === "EXPIRED").slice(0, 4)
+  const [tradeDb, setTradeDb] = useState(() => readTradingDatabase())
+  const priceBySymbol = useMemo(() => {
+    const entries: Array<[string, number]> = []
+    for (const candidate of candidates) entries.push([candidate.symbol, candidate.lastPrice])
+    if (focusCandidate) entries.push([focusCandidate.symbol, focusCandidate.lastPrice])
+    return Object.fromEntries(entries) as Record<string, number>
+  }, [candidates, focusCandidate])
+
+  useEffect(() => {
+    updateOpenDemoTrades(priceBySymbol)
+    setTradeDb(readTradingDatabase())
+  }, [priceBySymbol])
+
+  const openDemoTrades = tradeDb.demoTrades.filter((trade) => trade.status === "OPEN").slice(0, 6)
+  const recentDemoTrades = tradeDb.demoTrades.filter((trade) => trade.status !== "OPEN").slice(0, 6)
+  const closedTrades = tradeDb.demoTrades.filter((trade) => trade.status !== "OPEN")
+  const wins = closedTrades.filter((trade) => trade.exitReason === "TP1" || trade.exitReason === "TP2").length
+  const tradeStats = {
+    total: closedTrades.length,
+    open: tradeDb.demoTrades.filter((trade) => trade.status === "OPEN").length,
+    winRate: closedTrades.length ? Math.round((wins / closedTrades.length) * 100) : 0,
+  }
+  const refreshTrades = () => setTradeDb(readTradingDatabase())
 
   return (
     <section className="rounded-3xl border border-zinc-900 bg-black/60 p-4">
@@ -165,12 +209,20 @@ export default function MarketMoverPlanningPanel() {
       ) : null}
 
       <div className="grid gap-3 xl:grid-cols-3">
-        {candidates.length ? candidates.map((candidate) => <PlanningCard key={candidate.symbol} candidate={candidate} />) : (
+        {candidates.length ? candidates.map((candidate) => <PlanningCard key={candidate.symbol} candidate={candidate} onTradeCreated={refreshTrades} />) : (
           <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-4 text-sm text-zinc-400 xl:col-span-3">
             No tradable mover passed the filter yet. Market may be active, but the scanner is not seeing clean execution conditions.
           </div>
         )}
       </div>
+
+      <DemoTradingPanel
+        openTrades={openDemoTrades}
+        recentTrades={recentDemoTrades}
+        priceBySymbol={priceBySymbol}
+        stats={tradeStats}
+        onRefresh={refreshTrades}
+      />
 
       {(recentWinners.length || recentFailures.length) ? (
         <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -281,7 +333,7 @@ export default function MarketMoverPlanningPanel() {
   )
 }
 
-function PlanningCard({ candidate }: { candidate: MarketMoverCandidate }) {
+function PlanningCard({ candidate, onTradeCreated }: { candidate: MarketMoverCandidate; onTradeCreated?: () => void }) {
   const [shareStatus, setShareStatus] = useState<"idle" | "busy" | "done" | "error">("idle")
   const [shareMessage, setShareMessage] = useState<string | null>(null)
 
@@ -346,6 +398,16 @@ function PlanningCard({ candidate }: { candidate: MarketMoverCandidate }) {
           <div className="text-sm font-black text-cyan-300">{candidate.tradeabilityScore}</div>
           <div className="text-[10px] text-zinc-500">quality</div>
           <button
+            onClick={() => {
+              const trade = openDemoTradeFromCandidate(candidate)
+              if (trade) onTradeCreated?.()
+            }}
+            disabled={candidate.direction === "NEUTRAL"}
+            className="mt-2 inline-flex items-center gap-1 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-black uppercase text-emerald-100 hover:border-emerald-300/50 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:bg-black/30 disabled:text-zinc-600"
+          >
+            <PlayCircle size={11} /> Demo
+          </button>
+          <button
             onClick={downloadSnapshot}
             disabled={shareStatus === "busy"}
             className="mt-2 inline-flex items-center gap-1 rounded-lg border border-zinc-800 bg-black/40 px-2 py-1 text-[10px] font-black uppercase text-zinc-400 hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-wait disabled:opacity-60"
@@ -387,6 +449,121 @@ function PlanningCard({ candidate }: { candidate: MarketMoverCandidate }) {
         <PlanRow icon={<Gauge size={12} />} label="Pullback" value={candidate.pullbackGuide} />
         <PlanRow icon={<Shield size={12} />} label="Plan Quality" value={`${formatPlanQuality(candidate.planQuality)} · ${candidate.volatilityNote}`} />
       </div>
+    </article>
+  )
+}
+
+
+function DemoTradingPanel({
+  openTrades,
+  recentTrades,
+  priceBySymbol,
+  stats,
+  onRefresh,
+}: {
+  openTrades: DemoTradeRecord[]
+  recentTrades: DemoTradeRecord[]
+  priceBySymbol: Record<string, number>
+  stats: { total: number; open: number; winRate: number }
+  onRefresh: () => void
+}) {
+  return (
+    <section className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.035] p-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">Demo Trading</div>
+          <div className="mt-1 text-sm font-black text-white">Setup-based paper tracker</div>
+          <p className="mt-1 text-xs text-zinc-500">Demo trades are created from trade plans and tracked against live scanner prices. No real orders are sent.</p>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5 text-center">
+          <div className="rounded-xl border border-zinc-800 bg-black/35 px-2 py-1">
+            <div className="text-sm font-black text-white">{stats.open}</div>
+            <div className="text-[8px] font-black uppercase text-zinc-600">Open</div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-black/35 px-2 py-1">
+            <div className="text-sm font-black text-white">{stats.total}</div>
+            <div className="text-[8px] font-black uppercase text-zinc-600">Closed</div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-black/35 px-2 py-1">
+            <div className="text-sm font-black text-emerald-200">{stats.total ? `${stats.winRate}%` : "--"}</div>
+            <div className="text-[8px] font-black uppercase text-zinc-600">Win</div>
+          </div>
+        </div>
+      </div>
+
+      {openTrades.length ? (
+        <div className="grid gap-2 xl:grid-cols-3">
+          {openTrades.map((trade) => (
+            <DemoTradeTile key={trade.id} trade={trade} price={priceBySymbol[trade.symbol]} onRefresh={onRefresh} />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-zinc-900 bg-black/35 p-3 text-xs text-zinc-500">No active demo trades. Use the Demo button on a setup to start tracking a paper position.</div>
+      )}
+
+      {recentTrades.length ? (
+        <details className="group mt-3 rounded-xl border border-zinc-900 bg-black/25">
+          <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-xs font-black text-zinc-300">
+            <span>Recent demo trade history</span>
+            <span className="text-[9px] uppercase tracking-[0.2em] text-zinc-600 group-open:text-cyan-300">Open</span>
+          </summary>
+          <div className="grid gap-2 border-t border-zinc-900 p-3 md:grid-cols-2 xl:grid-cols-3">
+            {recentTrades.map((trade) => (
+              <DemoTradeTile key={trade.id} trade={trade} price={trade.exitPrice} compact onRefresh={onRefresh} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </section>
+  )
+}
+
+function DemoTradeTile({ trade, price, compact = false, onRefresh }: { trade: DemoTradeRecord; price?: number; compact?: boolean; onRefresh: () => void }) {
+  const livePrice = Number.isFinite(price ?? NaN) ? price as number : trade.exitPrice ?? trade.entryPrice
+  const pnl = trade.status === "OPEN" ? trade.unrealizedPnlPct ?? 0 : trade.realizedPnlPct ?? 0
+  const distanceToSl = livePrice && trade.stopLoss ? Math.abs(((trade.stopLoss - livePrice) / livePrice) * 100) : 0
+  const tpTarget = trade.side === "LONG" ? (livePrice < trade.takeProfit1 ? trade.takeProfit1 : trade.takeProfit2) : (livePrice > trade.takeProfit1 ? trade.takeProfit1 : trade.takeProfit2)
+  const distanceToTp = livePrice && tpTarget ? Math.abs(((tpTarget - livePrice) / livePrice) * 100) : 0
+
+  return (
+    <article className="rounded-xl border border-zinc-900 bg-black/40 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className={`h-1.5 w-1.5 rounded-full ${trade.side === "LONG" ? "bg-emerald-300" : "bg-red-300"}`} />
+            <div className="truncate text-sm font-black text-white">{trade.symbol}</div>
+          </div>
+          <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-zinc-500">Demo {trade.side} · {formatTradeDuration(trade.openedAt, trade.closedAt)}</div>
+        </div>
+        <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase ${tradeStatusClass(trade)}`}>{trade.status === "OPEN" ? "OPEN" : trade.exitReason}</span>
+      </div>
+
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <Metric icon={<Crosshair size={10} />} label="Entry" value={trade.entryPrice.toFixed(4)} />
+        <Metric icon={<Activity size={10} />} label="Live" value={livePrice.toFixed(4)} />
+        <Metric icon={<Gauge size={10} />} label="PnL" value={formatSignedNumber(pnl)} />
+      </div>
+
+      {!compact ? (
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <PlanRow icon={<AlertTriangle size={12} />} label="To SL" value={`${distanceToSl.toFixed(2)}% · ${trade.stopLoss.toFixed(4)}`} danger />
+          <PlanRow icon={<Target size={12} />} label="To TP" value={`${distanceToTp.toFixed(2)}% · ${tpTarget.toFixed(4)}`} />
+        </div>
+      ) : null}
+
+      {trade.status === "OPEN" ? (
+        <button
+          onClick={() => {
+            closeDemoTradeManually(trade.id, livePrice)
+            onRefresh()
+          }}
+          className="mt-2 inline-flex items-center gap-1 rounded-lg border border-zinc-800 bg-black/40 px-2 py-1 text-[10px] font-black uppercase text-zinc-400 hover:border-red-300/40 hover:text-red-200"
+        >
+          <Square size={10} /> Manual close
+        </button>
+      ) : (
+        <div className={`mt-2 text-xs font-black ${pnlClass(pnl)}`}>{formatSignedNumber(pnl)} · {trade.exitReason}</div>
+      )}
     </article>
   )
 }
