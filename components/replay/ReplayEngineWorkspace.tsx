@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import {
   Activity,
   BarChart3,
@@ -10,6 +10,7 @@ import {
   Gauge,
   History,
   Newspaper,
+  ScanLine,
   ShieldAlert,
   Target,
   TrendingUp,
@@ -32,6 +33,22 @@ import {
   getTacticalPlaybook,
   type TacticalPlaybook,
 } from "@/core/historical-intelligence/tacticalPlaybookEngine"
+import {
+  getAgentAccuracyStats,
+  type AgentAccuracyStat,
+} from "@/core/historical-intelligence/agentAccuracyEngine"
+import { getMarketMemory } from "@/core/historical-intelligence/marketMemoryEngine"
+import { getPredictionMarketIntelligence } from "@/core/historical-intelligence/predictionMarketEngine"
+import { getEventMemoryLinker } from "@/core/historical-intelligence/eventMemoryLinkerEngine"
+import { getReplayExplanation } from "@/core/historical-intelligence/replayExplanationEngine"
+import { getReplayLearningSummary } from "@/core/historical-intelligence/replayLearningSummaryEngine"
+import { getReplayDecisionJournal } from "@/core/historical-intelligence/replayDecisionJournalEngine"
+import { EventMemoryLinkerPanel } from "./EventMemoryLinkerPanel"
+import { MarketMemoryPanel } from "./MarketMemoryPanel"
+import { PredictionMarketPanel } from "./PredictionMarketPanel"
+import { ReplayDecisionJournalPanel } from "./ReplayDecisionJournalPanel"
+import { ReplayExplanationPanel } from "./ReplayExplanationPanel"
+import { ReplayLearningSummaryPanel } from "./ReplayLearningSummaryPanel"
 import type { SimilarEventMatch } from "@/core/historical-intelligence/historicalIntelligenceTypes"
 import type { ReplayAgentTone, ReplayCase, ReplayFrame, ReplaySentiment, ReplaySeverity } from "@/core/replay/replayTypes"
 
@@ -143,42 +160,46 @@ function CaseSelector({
 }) {
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
-      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
-        <Target className="h-3.5 w-3.5" />
-        Case / Event
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
+          <Target className="h-3.5 w-3.5" />
+          Replay Case Selector
+        </div>
+        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+          {cases.length} cases / {replay.window}
+        </div>
       </div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        {FILTERS.map((filter) => (
-          <button
-            key={filter.id}
-            type="button"
-            onClick={() => onFilterChange(filter.id)}
-            className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] transition ${
-              filter.id === activeFilter
-                ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-50"
-                : "border-zinc-800 bg-black/45 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
-            }`}
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="flex flex-wrap gap-2">
+          {FILTERS.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => onFilterChange(filter.id)}
+              className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] transition ${
+                filter.id === activeFilter
+                  ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-50"
+                  : "border-zinc-800 bg-black/45 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        <label className="grid gap-1">
+          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Selected Case</span>
+          <select
+            value={replay.id}
+            onChange={(event) => onReplayChange(event.target.value)}
+            className="h-9 rounded-lg border border-zinc-800 bg-black/60 px-3 text-xs font-bold text-cyan-50 outline-none ring-0 transition focus:border-cyan-300/50"
           >
-            {filter.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {cases.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onReplayChange(item.id)}
-            className={`rounded-lg border px-3 py-2 text-left transition ${
-              item.id === replay.id
-                ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-50"
-                : "border-zinc-800 bg-black/45 text-zinc-400 hover:border-zinc-700"
-            }`}
-          >
-            <div className="text-[9px] font-black uppercase tracking-[0.16em]">{item.symbol}</div>
-            <div className="mt-1 text-xs font-black">{item.title}</div>
-          </button>
-        ))}
+            {cases.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.symbol} / {item.title}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="mt-3 grid gap-2 md:grid-cols-3">
@@ -215,6 +236,9 @@ function TopSummaryCard({ replay, frame, event }: { replay: ReplayCase; frame: R
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300">Market Forensics</div>
+          <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+            {replay.symbol} / {replay.title} / {replay.window}
+          </div>
           <h1 className="mt-2 text-2xl font-black text-white">{event.title}</h1>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-400">{event.description}</p>
         </div>
@@ -516,6 +540,49 @@ function TacticalPlaybookCard({ playbook }: { playbook: TacticalPlaybook }) {
   )
 }
 
+function AgentAccuracy({ stats }: { stats: AgentAccuracyStat[] }) {
+  const top = stats[0]
+  const weakest = stats[stats.length - 1]
+
+  return (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
+      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
+        <ScanLine className="h-3.5 w-3.5" />
+        Agent Accuracy
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/10 p-3">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/70">Top Agent</div>
+          <div className="mt-1 text-sm font-black text-white">{top?.agent ?? "N/A"}</div>
+          <div className="mt-1 text-xs font-black text-emerald-100">{top?.accuracyScore ?? 0}% / {top?.caseAlignment ?? "catalog"}</div>
+        </div>
+        <div className="rounded-lg border border-rose-300/15 bg-rose-400/10 p-3">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Weakest</div>
+          <div className="mt-1 text-sm font-black text-white">{weakest?.agent ?? "N/A"}</div>
+          <div className="mt-1 text-xs font-black text-rose-100">{weakest?.accuracyScore ?? 0}% / {weakest?.caseAlignment ?? "catalog"}</div>
+        </div>
+      </div>
+      <div className="mt-2 grid gap-2">
+        {stats.map((stat) => (
+          <article key={stat.agent} className="rounded-lg border border-zinc-900 bg-black/45 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-black text-white">{stat.agent}</div>
+                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
+                  n={stat.sampleSize} / calibration {stat.confidenceCalibrationScore}%
+                </div>
+              </div>
+              <div className="shrink-0 text-right text-lg font-black text-cyan-100">{stat.accuracyScore}%</div>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-400">{stat.alignmentRead ?? stat.tacticalTakeaway}</p>
+            {stat.fallbackNote ? <p className="mt-1 text-[11px] leading-5 text-amber-100/80">{stat.fallbackNote}</p> : null}
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function ExpectationIntelligenceCard({ expectation }: { expectation: ExpectationIntelligenceSummary }) {
   return (
     <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
@@ -557,15 +624,35 @@ function ExpectationIntelligenceCard({ expectation }: { expectation: Expectation
   )
 }
 
-function ReplayTimeline({
-  replay,
-  frame,
-  expectation,
+function CollapsibleSection({
+  title,
+  eyebrow,
+  defaultOpen = false,
+  children,
 }: {
-  replay: ReplayCase
-  frame: ReplayFrame
-  expectation: ExpectationIntelligenceSummary
+  title: string
+  eyebrow: string
+  defaultOpen?: boolean
+  children: ReactNode
 }) {
+  return (
+    <details open={defaultOpen} className="group rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <div>
+          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500">{eyebrow}</div>
+          <div className="mt-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-300">{title}</div>
+        </div>
+        <div className="rounded-full border border-zinc-800 bg-black/45 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 group-open:text-cyan-200">
+          <span className="group-open:hidden">Open</span>
+          <span className="hidden group-open:inline">Visible</span>
+        </div>
+      </summary>
+      <div className="mt-3 grid gap-3">{children}</div>
+    </details>
+  )
+}
+
+function ReplayTimeline({ replay, frame }: { replay: ReplayCase; frame: ReplayFrame }) {
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -613,7 +700,6 @@ function ReplayTimeline({
               <div className="mt-1 text-[11px] text-cyan-200/80">{item.narrative}</div>
             </div>
           ))}
-          <ExpectationIntelligenceCard expectation={expectation} />
         </div>
       </div>
     </section>
@@ -636,6 +722,13 @@ export default function ReplayEngineWorkspace() {
   const setupMemory = useMemo(() => getSetupOutcomeMemory(replay), [replay])
   const expectation = useMemo(() => getExpectationIntelligence(replay), [replay])
   const tacticalPlaybook = useMemo(() => getTacticalPlaybook(replay), [replay])
+  const agentAccuracy = useMemo(() => getAgentAccuracyStats({ replay }), [replay])
+  const marketMemory = useMemo(() => getMarketMemory({ caseId: replay.id }), [replay])
+  const predictionMarkets = useMemo(() => getPredictionMarketIntelligence({ caseId: replay.id }), [replay])
+  const eventMemoryLink = useMemo(() => getEventMemoryLinker({ caseId: replay.id }), [replay])
+  const replayExplanation = useMemo(() => getReplayExplanation({ caseId: replay.id }), [replay])
+  const learningSummary = useMemo(() => getReplayLearningSummary({ caseId: replay.id }), [replay])
+  const decisionJournal = useMemo(() => getReplayDecisionJournal({ caseId: replay.id }), [replay])
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -662,19 +755,33 @@ export default function ReplayEngineWorkspace() {
         />
 
         <TopSummaryCard replay={replay} frame={activeFrame} event={activeEvent ?? replay.events[0]!} />
+        {learningSummary ? <ReplayLearningSummaryPanel summary={learningSummary} /> : null}
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="grid gap-3">
             <NarrativeRealitySection replay={replay} frame={activeFrame} />
-            <ReplayTimeline replay={replay} frame={activeFrame} expectation={expectation} />
+            <ReplayTimeline replay={replay} frame={activeFrame} />
           </div>
 
           <div className="grid content-start gap-3">
             <PossibleDrivers frame={activeFrame} />
-            <SimilarHistoricalEvents matches={similarEvents} />
-            <SetupOutcomeMemory memory={setupMemory} />
-            <TacticalPlaybookCard playbook={tacticalPlaybook} />
-            <AgentCommittee frame={activeFrame} />
+            <CollapsibleSection title="Core Replay Forensics" eyebrow="Primary" defaultOpen>
+              {replayExplanation ? <ReplayExplanationPanel explanation={replayExplanation} /> : null}
+              {decisionJournal ? <ReplayDecisionJournalPanel journal={decisionJournal} /> : null}
+              <SimilarHistoricalEvents matches={similarEvents} />
+              <SetupOutcomeMemory memory={setupMemory} />
+            </CollapsibleSection>
+            <CollapsibleSection title="Memory & Expectations" eyebrow="Secondary">
+              <MarketMemoryPanel memory={marketMemory} />
+              <ExpectationIntelligenceCard expectation={expectation} />
+              <PredictionMarketPanel intelligence={predictionMarkets} />
+              {eventMemoryLink ? <EventMemoryLinkerPanel link={eventMemoryLink} /> : null}
+            </CollapsibleSection>
+            <CollapsibleSection title="Agent & Playbook" eyebrow="Secondary">
+              <AgentAccuracy stats={agentAccuracy} />
+              <TacticalPlaybookCard playbook={tacticalPlaybook} />
+              <AgentCommittee frame={activeFrame} />
+            </CollapsibleSection>
           </div>
         </div>
       </div>
