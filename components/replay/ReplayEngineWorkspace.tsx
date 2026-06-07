@@ -6,6 +6,7 @@ import {
   BarChart3,
   BrainCircuit,
   ClipboardCheck,
+  ClipboardList,
   Gauge,
   History,
   Newspaper,
@@ -27,6 +28,10 @@ import {
   getExpectationIntelligence,
   type ExpectationIntelligenceSummary,
 } from "@/core/historical-intelligence/expectationIntelligenceEngine"
+import {
+  getTacticalPlaybook,
+  type TacticalPlaybook,
+} from "@/core/historical-intelligence/tacticalPlaybookEngine"
 import type { SimilarEventMatch } from "@/core/historical-intelligence/historicalIntelligenceTypes"
 import type { ReplayAgentTone, ReplayCase, ReplayFrame, ReplaySentiment, ReplaySeverity } from "@/core/replay/replayTypes"
 
@@ -453,6 +458,64 @@ function SetupOutcomeMemory({ memory }: { memory: SetupOutcomeMemorySummary }) {
   )
 }
 
+function TacticalPlaybookCard({ playbook }: { playbook: TacticalPlaybook }) {
+  return (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
+      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
+        <ClipboardList className="h-3.5 w-3.5" />
+        Tactical Playbook
+      </div>
+      <div className="grid gap-2">
+        <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Historical Lesson</div>
+          <p className="mt-1 text-xs leading-5 text-cyan-50/85">{playbook.lesson}</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="rounded-lg border border-rose-300/15 bg-rose-400/10 p-3">
+            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Key Mistake</div>
+            <p className="mt-1 text-xs leading-5 text-rose-50/85">{playbook.mistake}</p>
+          </div>
+          <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/10 p-3">
+            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/70">Confirmation Signal</div>
+            <p className="mt-1 text-xs leading-5 text-emerald-50/85">{playbook.confirmation}</p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 rounded-lg border border-zinc-900 bg-black/45 p-3">
+        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Future Playbook</div>
+        <div className="mt-2 space-y-1.5">
+          {playbook.playbook.map((item, index) => (
+            <div key={item} className="flex gap-2 text-xs leading-5 text-zinc-300">
+              <span className="font-black text-cyan-300">{index + 1}.</span>
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-2 grid gap-2">
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-3">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Execution Checklist</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {playbook.executionChecklist.map((item) => (
+              <span key={item} className="rounded-full border border-emerald-300/15 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-100/80">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-3">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Invalidation Checklist</div>
+          <div className="mt-2 space-y-1.5">
+            {playbook.invalidationChecklist.map((item) => (
+              <div key={item} className="text-xs leading-5 text-amber-100/80">{item}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function ExpectationIntelligenceCard({ expectation }: { expectation: ExpectationIntelligenceSummary }) {
   return (
     <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
@@ -572,6 +635,7 @@ export default function ReplayEngineWorkspace() {
   const similarEvents = useMemo(() => findSimilarReplayCases(replay, 3), [replay])
   const setupMemory = useMemo(() => getSetupOutcomeMemory(replay), [replay])
   const expectation = useMemo(() => getExpectationIntelligence(replay), [replay])
+  const tacticalPlaybook = useMemo(() => getTacticalPlaybook(replay), [replay])
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -609,6 +673,7 @@ export default function ReplayEngineWorkspace() {
             <PossibleDrivers frame={activeFrame} />
             <SimilarHistoricalEvents matches={similarEvents} />
             <SetupOutcomeMemory memory={setupMemory} />
+            <TacticalPlaybookCard playbook={tacticalPlaybook} />
             <AgentCommittee frame={activeFrame} />
           </div>
         </div>
