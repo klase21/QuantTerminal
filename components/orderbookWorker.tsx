@@ -9,7 +9,7 @@ self.onmessage = (event) => {
   const symbol =
     event.data.symbol || "btcusdt"
 
-  // 기존 소켓 종료
+  // Close the previous socket.
   if (socket) {
     socket.close()
   }

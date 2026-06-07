@@ -114,7 +114,7 @@ export default function AlertCenter() {
 
         // ======================================================
         // FAKE DATA
-        // 실제론 websocket data 넣으면 됨
+        // Replace with websocket data when wired to the live stream.
         // ======================================================
 
         const fakeMarketData = {

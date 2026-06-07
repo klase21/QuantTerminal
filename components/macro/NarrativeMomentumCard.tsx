@@ -1,0 +1,1 @@
+export default function NarrativeMomentumCard(){ return <div className="rounded-xl border p-4">Narrative Momentum Active</div> }

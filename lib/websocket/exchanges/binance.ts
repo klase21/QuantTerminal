@@ -50,7 +50,7 @@ export class BinanceSocket extends BaseSocket {
   }
 
   protected ping(): void {
-    // Binance는 클라이언트 ping 필요 없음
-    // 브라우저 websocket이면 제거 추천
+    // Binance does not need client-side ping here.
+    // Recommended to remove for browser websocket usage.
   }
 }

@@ -55,7 +55,7 @@ export default function useLiquidityEvents(
       const previous =
         previousLevelsRef.current.get(key)
 
-      // 신규 대형 벽 생성
+      // New large liquidity wall.
       if (
         !previous &&
         current.liquidity >= WALL_THRESHOLD
@@ -70,7 +70,7 @@ export default function useLiquidityEvents(
         })
       }
 
-      // liquidity 급증
+      // Liquidity spike.
       if (
         previous &&
         previous.liquidity <
@@ -88,7 +88,7 @@ export default function useLiquidityEvents(
         })
       }
 
-      // liquidity 급감 = sweep/pull
+      // Liquidity drop = sweep/pull.
       if (
         previous &&
         previous.liquidity >=

@@ -1,55 +1,31 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { subscribeJsonStream } from "@/lib/realtime/sharedWsManager"
 
 interface ProfileLevel {
   price: number
   volume: number
 }
 
-export default function useVolumeProfile(
-  symbol: string
-) {
-  const [levels, setLevels] = useState<
-    ProfileLevel[]
-  >([])
+export default function useVolumeProfile(symbol: string) {
+  const [levels, setLevels] = useState<ProfileLevel[]>([])
+  const bucketRef = useRef<Record<string, number>>({})
 
   useEffect(() => {
-    const bucket: Record<
-      string,
-      number
-    > = {}
-
-    const ws = new WebSocket(
-      `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@trade`
-    )
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-
-      const price = Math.round(
-        Number(data.p)
-      )
-
+    if (!symbol) return
+    bucketRef.current = {}
+    const url = `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@trade`
+    return subscribeJsonStream(url, (data) => {
+      const price = Math.round(Number(data.p))
       const qty = Number(data.q)
-
-      bucket[price] =
-        (bucket[price] || 0) + qty
-
-      const arr = Object.entries(bucket)
-        .map(([price, volume]) => ({
-          price: Number(price),
-          volume,
-        }))
-        .sort(
-          (a, b) => b.price - a.price
-        )
-        .slice(0, 80)
-
-      setLevels(arr)
-    }
-
-    return () => ws.close()
+      if (!Number.isFinite(price) || !Number.isFinite(qty)) return
+      bucketRef.current[price] = (bucketRef.current[price] || 0) + qty
+      setLevels(Object.entries(bucketRef.current)
+        .map(([price, volume]) => ({ price: Number(price), volume }))
+        .sort((a, b) => b.price - a.price)
+        .slice(0, 80))
+    })
   }, [symbol])
 
   return levels
