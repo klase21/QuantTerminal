@@ -14,7 +14,7 @@ interface Props {
   onClose: () => void
 }
 
-type IndicatorKey = "rsi" | "macd" | "stochastic" | "volumeProfile" | "sma20" | "sma200" | "nma" | "vwap" | "bollinger" | "hullTrend" | "tradeMarkers"
+type IndicatorKey = "setupOverlay" | "rsi" | "macd" | "stochastic" | "volumeProfile" | "ema9" | "ema21" | "ema50" | "sma20" | "sma200" | "nma" | "vwap" | "anchoredVwap" | "keyLevels" | "htfLevels" | "sessions" | "mtfDashboard" | "bollinger" | "hullTrend" | "tradeMarkers"
 type ChartPresetKey = "execution" | "swing" | "scalp"
 type ChartDensity = "comfortable" | "compact"
 type ModalTab = "chart" | "indicators" | "layout"
@@ -34,40 +34,67 @@ const ADVANCED_CHART_LAYOUT_KEY = "qt.advancedChart.v2.layout"
 
 const PRESET_INDICATORS: Record<ChartPresetKey, Record<IndicatorKey, boolean>> = {
   execution: {
+    setupOverlay: true,
     rsi: true,
     macd: true,
     stochastic: true,
     volumeProfile: true,
+    ema9: true,
+    ema21: true,
+    ema50: true,
     sma20: true,
     sma200: true,
     nma: false,
     vwap: true,
+    anchoredVwap: true,
+    keyLevels: true,
+    htfLevels: true,
+    sessions: true,
+    mtfDashboard: true,
     bollinger: true,
     hullTrend: true,
     tradeMarkers: true,
   },
   scalp: {
+    setupOverlay: true,
     rsi: true,
     macd: true,
     stochastic: true,
     volumeProfile: true,
+    ema9: true,
+    ema21: true,
+    ema50: false,
     sma20: true,
     sma200: false,
     nma: false,
     vwap: true,
+    anchoredVwap: true,
+    keyLevels: true,
+    htfLevels: true,
+    sessions: true,
+    mtfDashboard: true,
     bollinger: true,
     hullTrend: true,
     tradeMarkers: true,
   },
   swing: {
+    setupOverlay: true,
     rsi: true,
     macd: true,
     stochastic: false,
     volumeProfile: true,
+    ema9: false,
+    ema21: true,
+    ema50: true,
     sma20: true,
     sma200: true,
     nma: true,
     vwap: true,
+    anchoredVwap: true,
+    keyLevels: true,
+    htfLevels: true,
+    sessions: false,
+    mtfDashboard: true,
     bollinger: true,
     hullTrend: true,
     tradeMarkers: false,
@@ -90,14 +117,23 @@ const PRESET_COPY: Record<ChartPresetKey, { label: string; detail: string }> = {
 }
 
 const INDICATOR_LABELS: Record<IndicatorKey, string> = {
+  setupOverlay: "Setup Bias Overlay",
   rsi: "RSI 14",
   macd: "MACD 12/26/9",
   stochastic: "Stoch 14/1/3",
   volumeProfile: "Volume Profile",
+  ema9: "EMA 9",
+  ema21: "EMA 21",
+  ema50: "EMA 50",
   sma20: "SMA 20",
   sma200: "SMA 200",
   nma: "NMA step line",
   vwap: "VWAP",
+  anchoredVwap: "Anchored VWAP",
+  keyLevels: "PD/PW Key Levels",
+  htfLevels: "4H HTF Levels",
+  sessions: "Session Zones",
+  mtfDashboard: "MTF Context Matrix",
   bollinger: "Bollinger Bands",
   hullTrend: "Hull + Kalman Trend",
   tradeMarkers: "Buy/Sell Markers",
@@ -162,10 +198,10 @@ function MiniIndicatorPanel({
   detail: string
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-black px-4 py-3">
-      <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">{title}</div>
-      <div className="mt-2 text-lg font-semibold text-white">{value}</div>
-      <div className="mt-1 text-xs text-zinc-500">{detail}</div>
+    <div className="rounded-lg border border-zinc-800 bg-black px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{title}</div>
+      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+      <div className="mt-1 text-[11px] leading-relaxed text-zinc-500">{detail}</div>
     </div>
   )
 }
@@ -186,27 +222,47 @@ export default function AdvancedChartModal({
   const [compareMode, setCompareMode] = useState(false)
   const [compareSymbol, setCompareSymbol] = useState("ETHUSDT")
   const [enabledIndicators, setEnabledIndicators] = useState<Record<IndicatorKey, boolean>>({
+    setupOverlay: true,
     rsi: true,
     macd: true,
     stochastic: true,
     volumeProfile: true,
+    ema9: true,
+    ema21: true,
+    ema50: true,
     sma20: true,
     sma200: true,
     nma: false,
     vwap: true,
+    anchoredVwap: true,
+    keyLevels: true,
+    htfLevels: true,
+    sessions: true,
+    mtfDashboard: true,
     bollinger: true,
     hullTrend: true,
     tradeMarkers: true,
   })
 
-  const candles = useKlineSocket(symbol, selectedTimeframe)
-  const compareCandles = useKlineSocket(compareSymbol, selectedTimeframe)
-  const { data: moverData } = useMarketMovers(true, symbol)
-  const setupCandidate = moverData?.focusCandidate ?? moverData?.candidates?.find((item) => item.symbol === symbol.toUpperCase()) ?? null
+  const normalizedPrimarySymbol = symbol.toUpperCase()
+  const availableCompareSymbols = useMemo(
+    () => COMPARE_SYMBOL_OPTIONS.filter((option) => option.toUpperCase() !== normalizedPrimarySymbol),
+    [normalizedPrimarySymbol]
+  )
+  const effectiveCompareMode = compareMode && compareSymbol.toUpperCase() !== normalizedPrimarySymbol
+  const candles = useKlineSocket(normalizedPrimarySymbol, selectedTimeframe)
+  const compareCandles = useKlineSocket(effectiveCompareMode ? compareSymbol : normalizedPrimarySymbol, selectedTimeframe)
+  const { data: moverData } = useMarketMovers(true, normalizedPrimarySymbol)
+  const setupCandidate = moverData?.focusCandidate ?? moverData?.candidates?.find((item) => item.symbol === normalizedPrimarySymbol) ?? null
 
   useEffect(() => {
     setSelectedTimeframe(timeframe)
   }, [timeframe])
+
+  useEffect(() => {
+    if (compareSymbol.toUpperCase() !== normalizedPrimarySymbol) return
+    setCompareSymbol(availableCompareSymbols[0] ?? "BTCUSDT")
+  }, [availableCompareSymbols, compareSymbol, normalizedPrimarySymbol])
 
   useEffect(() => {
     try {
@@ -221,13 +277,26 @@ export default function AdvancedChartModal({
       }
       if (parsed.preset && PRESET_INDICATORS[parsed.preset]) setActivePreset(parsed.preset)
       if (parsed.density === "comfortable" || parsed.density === "compact") setDensity(parsed.density)
-      if (typeof parsed.compareMode === "boolean") setCompareMode(parsed.compareMode)
-      if (parsed.compareSymbol) setCompareSymbol(parsed.compareSymbol)
+      if (parsed.compareSymbol && parsed.compareSymbol.toUpperCase() !== normalizedPrimarySymbol) {
+        setCompareSymbol(parsed.compareSymbol.toUpperCase())
+        if (typeof parsed.compareMode === "boolean") setCompareMode(parsed.compareMode)
+      } else {
+        setCompareMode(false)
+      }
       if (parsed.indicators) {
         const savedIndicators = parsed.indicators as Record<string, boolean>
         setEnabledIndicators((current) => ({
           ...current,
           ...savedIndicators,
+          setupOverlay: savedIndicators.setupOverlay ?? current.setupOverlay,
+          ema9: savedIndicators.ema9 ?? current.ema9,
+          ema21: savedIndicators.ema21 ?? current.ema21,
+          ema50: savedIndicators.ema50 ?? current.ema50,
+          anchoredVwap: savedIndicators.anchoredVwap ?? current.anchoredVwap,
+          keyLevels: savedIndicators.keyLevels ?? current.keyLevels,
+          htfLevels: savedIndicators.htfLevels ?? current.htfLevels,
+          sessions: savedIndicators.sessions ?? current.sessions,
+          mtfDashboard: savedIndicators.mtfDashboard ?? current.mtfDashboard,
           nma: savedIndicators.nma ?? savedIndicators.idealBb ?? current.nma,
           vwap: savedIndicators.vwap ?? savedIndicators.idealBb ?? current.vwap,
           bollinger: savedIndicators.bollinger ?? savedIndicators.idealBb ?? current.bollinger,
@@ -238,13 +307,25 @@ export default function AdvancedChartModal({
     } catch {
       // optional saved chart layout
     }
-  }, [])
+  }, [normalizedPrimarySymbol])
+
+  useEffect(() => {
+    setCompareMode(false)
+  }, [normalizedPrimarySymbol])
 
 
   const chartIndicators: TradingChartIndicatorSet = useMemo(
     () => ({
+      ema9: enabledIndicators.ema9,
+      ema21: enabledIndicators.ema21,
+      ema50: enabledIndicators.ema50,
       sma20: enabledIndicators.sma20,
       sma200: enabledIndicators.sma200,
+      anchoredVwap: enabledIndicators.anchoredVwap,
+      keyLevels: enabledIndicators.keyLevels,
+      htfLevels: enabledIndicators.htfLevels,
+      sessions: enabledIndicators.sessions,
+      mtfDashboard: enabledIndicators.mtfDashboard,
       volumeProfile: enabledIndicators.volumeProfile,
       macd: enabledIndicators.macd,
       stochastic: enabledIndicators.stochastic,
@@ -255,8 +336,16 @@ export default function AdvancedChartModal({
       tradeMarkers: enabledIndicators.tradeMarkers,
     }),
     [
+      enabledIndicators.ema9,
+      enabledIndicators.ema21,
+      enabledIndicators.ema50,
       enabledIndicators.sma20,
       enabledIndicators.sma200,
+      enabledIndicators.anchoredVwap,
+      enabledIndicators.keyLevels,
+      enabledIndicators.htfLevels,
+      enabledIndicators.sessions,
+      enabledIndicators.mtfDashboard,
       enabledIndicators.volumeProfile,
       enabledIndicators.macd,
       enabledIndicators.stochastic,
@@ -352,7 +441,7 @@ export default function AdvancedChartModal({
     applyPreset("execution")
     setDensity("comfortable")
     setCompareMode(false)
-    setCompareSymbol("ETHUSDT")
+    setCompareSymbol(availableCompareSymbols[0] ?? "BTCUSDT")
     try {
       window.localStorage.removeItem(ADVANCED_CHART_LAYOUT_KEY)
     } catch {
@@ -446,20 +535,21 @@ export default function AdvancedChartModal({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 rounded-b-2xl border-x border-b border-zinc-800 bg-zinc-950 p-4">
+        <div className="min-h-0 flex-1 overflow-hidden rounded-b-2xl border-x border-b border-zinc-800 bg-zinc-950 p-4">
           {activeTab === "chart" ? (
             <div className={`flex h-full ${density === "compact" ? "min-h-[560px]" : "min-h-[620px]"} flex-col gap-3`}>
-              <div className={compareMode ? "grid min-h-0 flex-1 gap-3 lg:grid-cols-2" : "min-h-0 flex-1"}>
+              <div className={effectiveCompareMode ? "grid min-h-0 flex-1 gap-3 lg:grid-cols-2" : "min-h-0 flex-1"}>
                 <div className="min-h-0 overflow-hidden rounded-xl border border-zinc-800 bg-black">
-                  <div className="border-b border-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400">
-                    Primary · {symbol.toUpperCase()} · {selectedTimeframe}
+                  <div className="flex items-center justify-between border-b border-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400">
+                    <span>Primary · {symbol.toUpperCase()} · {selectedTimeframe}</span>
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">Controls in Indicators</span>
                   </div>
                   <div className="h-[calc(100%-37px)] min-h-0">
-                    <TradingChart data={candles} indicators={chartIndicators} setupOverlay={setupOverlay} />
+                    <TradingChart data={candles} indicators={chartIndicators} setupOverlay={enabledIndicators.setupOverlay ? setupOverlay : null} />
                   </div>
                 </div>
 
-                {compareMode && (
+                {effectiveCompareMode && (
                   <div className="min-h-0 overflow-hidden rounded-xl border border-zinc-800 bg-black">
                     <div className="flex items-center justify-between border-b border-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400">
                       <span>Compare · {compareSymbol.toUpperCase()} · {selectedTimeframe}</span>
@@ -469,7 +559,7 @@ export default function AdvancedChartModal({
                         className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 outline-none"
                         aria-label="Compare symbol"
                       >
-                        {COMPARE_SYMBOL_OPTIONS.map((option) => (
+                        {availableCompareSymbols.map((option) => (
                           <option key={option} value={option}>
                             {option}
                           </option>
@@ -484,68 +574,81 @@ export default function AdvancedChartModal({
               </div>
             </div>
           ) : activeTab === "indicators" ? (
-            <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-              <div className="rounded-xl border border-zinc-800 bg-black p-4">
-                <div className="text-sm font-semibold text-white">Core Indicator Controls</div>
-                <div className="mt-1 text-xs text-zinc-500">
-                  These controls only affect the Advanced Chart modal.
+            <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[320px_1fr]">
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-black">
+                <div className="shrink-0 border-b border-zinc-900 p-4">
+                  <div className="text-sm font-semibold text-white">Core Indicator Controls</div>
+                  <div className="mt-1 text-xs text-zinc-500">These controls only affect the Advanced Chart modal.</div>
                 </div>
 
-                <div className="mt-4 grid gap-2">
-                  {(Object.keys(PRESET_COPY) as ChartPresetKey[]).map((preset) => (
-                    <button
-                      key={preset}
-                      onClick={() => applyPreset(preset)}
-                      className={`rounded-lg border px-3 py-2 text-left ${
-                        activePreset === preset
-                          ? "border-sky-500/60 bg-sky-500/10"
-                          : "border-zinc-800 bg-zinc-950 hover:border-zinc-600"
-                      }`}
-                    >
-                      <div className="text-sm font-medium text-white">{PRESET_COPY[preset].label}</div>
-                      <div className="mt-1 text-xs text-zinc-500">{PRESET_COPY[preset].detail}</div>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-5 border-t border-zinc-900 pt-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Indicator toggles</div>
-                </div>
-
-                <div className="mt-3 space-y-2">
-                  {(Object.keys(INDICATOR_LABELS) as IndicatorKey[]).map((key) => (
-                    <button
-                      key={key}
-                      onClick={() => toggleIndicator(key)}
-                      className="flex w-full items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-left text-sm text-zinc-300 hover:border-zinc-600"
-                    >
-                      <span>{INDICATOR_LABELS[key]}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] ${
-                          enabledIndicators[key]
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : "bg-zinc-800 text-zinc-500"
+                <div className="min-h-0 flex-1 overflow-y-auto p-4 pr-2">
+                  <div className="grid gap-2">
+                    {(Object.keys(PRESET_COPY) as ChartPresetKey[]).map((preset) => (
+                      <button
+                        key={preset}
+                        onClick={() => applyPreset(preset)}
+                        className={`rounded-lg border px-3 py-2 text-left ${
+                          activePreset === preset
+                            ? "border-sky-500/60 bg-sky-500/10"
+                            : "border-zinc-800 bg-zinc-950 hover:border-zinc-600"
                         }`}
                       >
-                        {enabledIndicators[key] ? "ON" : "OFF"}
-                      </span>
-                    </button>
-                  ))}
+                        <div className="text-sm font-medium text-white">{PRESET_COPY[preset].label}</div>
+                        <div className="mt-1 text-xs text-zinc-500">{PRESET_COPY[preset].detail}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 border-t border-zinc-900 pt-4">
+                    <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Indicator toggles</div>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {(Object.keys(INDICATOR_LABELS) as IndicatorKey[]).map((key) => (
+                      <button
+                        key={key}
+                        onClick={() => toggleIndicator(key)}
+                        className="flex w-full items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-left text-sm text-zinc-300 hover:border-zinc-600"
+                      >
+                        <span>{INDICATOR_LABELS[key]}</span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] ${
+                            enabledIndicators[key]
+                              ? "bg-emerald-500/15 text-emerald-300"
+                              : "bg-zinc-800 text-zinc-500"
+                          }`}
+                        >
+                          {enabledIndicators[key] ? "ON" : "OFF"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-zinc-800 bg-black p-4">
-                <div className="text-sm font-semibold text-white">How to Use</div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <MiniIndicatorPanel title="SMA 20" value="Short structure" detail="Use as pullback/reclaim reference in active trend conditions." />
-                  <MiniIndicatorPanel title="SMA 200" value="Macro structure" detail="Use as higher-timeframe regime reference, not as an immediate trigger." />
-                  <MiniIndicatorPanel title="RSI" value="Chase filter" detail="Use to avoid late entries when expansion is already stretched." />
-                  <MiniIndicatorPanel title="MACD" value="Momentum shift" detail="Use crosses as confirmation only after Execution Workspace context agrees." />
-                  <MiniIndicatorPanel title="Stoch" value="Timing wave" detail="Use stochastic as short-term timing context, not as a standalone trade signal." />
-                  <MiniIndicatorPanel title="Volume Profile" value="Price memory" detail="Use visible profile bars as approximate liquidity / acceptance zones. Yellow/Sky split shows up/down volume balance." />
-                  <MiniIndicatorPanel title="VWAP" value="Fair value" detail="Use reclaim/loss around VWAP as execution confirmation, especially after sweeps." />
-                  <MiniIndicatorPanel title="BB" value="Expansion state" detail="Use band expansion for volatility release and avoid late entries outside stretched bands." />
-                  <MiniIndicatorPanel title="Hull/Kalman" value="Trend turn" detail="Use Buy/Sell markers as confirmation only. Markers are cooldown-filtered to avoid signal spam." />
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-black">
+                <div className="shrink-0 border-b border-zinc-900 p-4">
+                  <div className="text-sm font-semibold text-white">How to Use</div>
+                  <div className="mt-1 text-xs text-zinc-500">Scroll this panel to see every indicator guide without the modal overflowing.</div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                  <div className="grid gap-3 xl:grid-cols-2">
+                    <MiniIndicatorPanel title="EMA 9/21/50" value="Trend backbone" detail="Use EMA stack alignment to judge continuation quality before acting on signals." />
+                    <MiniIndicatorPanel title="SMA 20" value="Short structure" detail="Use as pullback/reclaim reference in active trend conditions." />
+                    <MiniIndicatorPanel title="SMA 200" value="Macro structure" detail="Use as higher-timeframe regime reference, not as an immediate trigger." />
+                    <MiniIndicatorPanel title="RSI" value="Chase filter" detail="Use to avoid late entries when expansion is already stretched." />
+                    <MiniIndicatorPanel title="MACD" value="Momentum shift" detail="Use crosses as confirmation only after Execution Workspace context agrees." />
+                    <MiniIndicatorPanel title="Stoch" value="Timing wave" detail="Use stochastic as short-term timing context, not as a standalone trade signal." />
+                    <MiniIndicatorPanel title="Volume Profile" value="Price memory" detail="Use visible profile bars as approximate liquidity / acceptance zones. Yellow/Sky split shows up/down volume balance." />
+                    <MiniIndicatorPanel title="VWAP" value="Fair value" detail="Use reclaim/loss around VWAP as execution confirmation, especially after sweeps." />
+                    <MiniIndicatorPanel title="Anchored VWAP" value="Event anchor" detail="Anchors from recent structure to show whether price is accepted above or below event value." />
+                    <MiniIndicatorPanel title="PD/PW Levels" value="Price memory" detail="Previous day/week high-low lines expose breakout, rejection and sweep zones." />
+                    <MiniIndicatorPanel title="4H Levels" value="HTF context" detail="Use the latest closed 4H range as bigger-picture support/resistance while trading lower timeframes." />
+                    <MiniIndicatorPanel title="Sessions" value="Timing context" detail="Session tag helps interpret whether liquidity is Asia, London or New York driven." />
+                    <MiniIndicatorPanel title="MTF Matrix" value="Context matrix" detail="Fast dashboard showing 15m/1H/4H/1D trend alignment and bar change." />
+                    <MiniIndicatorPanel title="BB" value="Expansion state" detail="Use band expansion for volatility release and avoid late entries outside stretched bands." />
+                    <MiniIndicatorPanel title="Hull/Kalman" value="Trend turn" detail="Use Buy/Sell markers as confirmation only. Markers are cooldown-filtered to avoid signal spam." />
+                  </div>
                 </div>
               </div>
             </div>
@@ -584,7 +687,7 @@ export default function AdvancedChartModal({
                     }`}
                   >
                     <span className="flex items-center gap-2"><SplitSquareHorizontal size={14} /> Compare mode</span>
-                    <span>{compareMode ? "ON" : "OFF"}</span>
+                    <span>{effectiveCompareMode ? "ON" : compareMode ? "SAME PAIR BLOCKED" : "OFF"}</span>
                   </button>
 
                   <select
@@ -593,7 +696,7 @@ export default function AdvancedChartModal({
                     className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 outline-none"
                     aria-label="Compare symbol layout selector"
                   >
-                    {COMPARE_SYMBOL_OPTIONS.map((option) => (
+                    {availableCompareSymbols.map((option) => (
                       <option key={option} value={option}>
                         {option}
                       </option>
@@ -623,7 +726,7 @@ export default function AdvancedChartModal({
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <MiniIndicatorPanel title="Preset" value={PRESET_COPY[activePreset].label} detail={PRESET_COPY[activePreset].detail} />
                   <MiniIndicatorPanel title="Timeframe" value={selectedTimeframe} detail="Applies to primary and compare charts inside this modal only." />
-                  <MiniIndicatorPanel title="Compare" value={compareMode ? compareSymbol : "OFF"} detail="Use for BTC/ETH/sector relative structure checks." />
+                  <MiniIndicatorPanel title="Compare" value={effectiveCompareMode ? compareSymbol : "OFF"} detail="Use for BTC/ETH/sector relative structure checks." />
                   <MiniIndicatorPanel title="Density" value={density.toUpperCase()} detail="Compact reduces chart chrome for faster tactical review." />
                 </div>
               </div>

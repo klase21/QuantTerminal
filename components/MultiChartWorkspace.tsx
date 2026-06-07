@@ -29,9 +29,18 @@ export default function MultiChartWorkspace() {
   useEffect(() => {
     const primaryChart = charts[0]
     if (!primaryChart || !activeSymbol) return
-    if (primaryChart.symbol.toUpperCase() === activeSymbol.toUpperCase()) return
-    updateChart(primaryChart.id, { symbol: activeSymbol })
-  }, [activeSymbol, charts, updateChart])
+
+    const normalizedFocusSymbol = activeSymbol.toUpperCase()
+
+    if (primaryChart.symbol.toUpperCase() !== normalizedFocusSymbol) {
+      updateChart(primaryChart.id, { symbol: normalizedFocusSymbol })
+    }
+
+    charts
+      .slice(1)
+      .filter((chart) => chart.symbol.toUpperCase() === normalizedFocusSymbol)
+      .forEach((chart) => removeChart(chart.id))
+  }, [activeSymbol, charts, updateChart, removeChart])
 
   return (
 

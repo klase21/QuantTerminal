@@ -12,6 +12,7 @@ import {
   Time,
   IChartApi,
   ISeriesApi,
+  IPriceLine,
   createSeriesMarkers,
   SeriesMarker,
 } from "lightweight-charts"
@@ -29,8 +30,16 @@ interface Candle {
 }
 
 export type TradingChartIndicatorSet = {
+  ema9?: boolean
+  ema21?: boolean
+  ema50?: boolean
   sma20?: boolean
   sma200?: boolean
+  anchoredVwap?: boolean
+  keyLevels?: boolean
+  htfLevels?: boolean
+  sessions?: boolean
+  mtfDashboard?: boolean
   volumeProfile?: boolean
   macd?: boolean
   stochastic?: boolean
@@ -312,6 +321,131 @@ function buildSmaData(data: Candle[], length: number): LineData<Time>[] {
   })
 }
 
+function buildEmaData(data: Candle[], length: number): LineData<Time>[] {
+  const closes = data.map((candle) => candle.close)
+  const values = ema(closes, length)
+  return data.flatMap((candle, index) => {
+    const value = values[index]
+    if (!Number.isFinite(value)) return []
+    return [{ time: candle.time as Time, value }]
+  })
+}
+
+function buildAnchoredVwapData(data: Candle[], lookbackBars = 180): LineData<Time>[] {
+  const startIndex = Math.max(0, data.length - lookbackBars)
+  let cumulativePv = 0
+  let cumulativeVolume = 0
+
+  return data.flatMap((candle, index) => {
+    if (index < startIndex) return []
+    const typical = (candle.high + candle.low + candle.close) / 3
+    const volume = Math.max(1, candle.volume ?? Math.abs(candle.high - candle.low) * 1000)
+    cumulativePv += typical * volume
+    cumulativeVolume += volume
+    if (cumulativeVolume <= 0) return []
+    return [{ time: candle.time as Time, value: cumulativePv / cumulativeVolume }]
+  })
+}
+
+type KeyLevel = { label: string; price: number; color: string; lineStyle?: 0 | 1 | 2 | 3 | 4 }
+
+function utcDayKey(seconds: number) {
+  const date = new Date(seconds * 1000)
+  return `${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`
+}
+
+function utcWeekKey(seconds: number) {
+  const date = new Date(seconds * 1000)
+  const day = date.getUTCDay() || 7
+  date.setUTCDate(date.getUTCDate() - day + 1)
+  return `${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`
+}
+
+function buildPreviousPeriodLevels(data: Candle[]): KeyLevel[] {
+  if (data.length < 10) return []
+  const last = data[data.length - 1]
+  const currentDay = utcDayKey(last.time)
+  const currentWeek = utcWeekKey(last.time)
+
+  const previousDayCandles = data.filter((candle) => utcDayKey(candle.time) !== currentDay)
+  const lastPreviousDay = previousDayCandles[previousDayCandles.length - 1]
+  const previousDayKey = lastPreviousDay ? utcDayKey(lastPreviousDay.time) : null
+  const dayCandles = previousDayKey ? data.filter((candle) => utcDayKey(candle.time) === previousDayKey) : []
+
+  const previousWeekCandles = data.filter((candle) => utcWeekKey(candle.time) !== currentWeek)
+  const lastPreviousWeek = previousWeekCandles[previousWeekCandles.length - 1]
+  const previousWeekKey = lastPreviousWeek ? utcWeekKey(lastPreviousWeek.time) : null
+  const weekCandles = previousWeekKey ? data.filter((candle) => utcWeekKey(candle.time) === previousWeekKey) : []
+
+  const levels: KeyLevel[] = []
+  if (dayCandles.length) {
+    levels.push({ label: 'PDH', price: Math.max(...dayCandles.map((candle) => candle.high)), color: '#94a3b8', lineStyle: 2 })
+    levels.push({ label: 'PDL', price: Math.min(...dayCandles.map((candle) => candle.low)), color: '#94a3b8', lineStyle: 2 })
+  }
+  if (weekCandles.length) {
+    levels.push({ label: 'PWH', price: Math.max(...weekCandles.map((candle) => candle.high)), color: '#14b8a6', lineStyle: 1 })
+    levels.push({ label: 'PWL', price: Math.min(...weekCandles.map((candle) => candle.low)), color: '#14b8a6', lineStyle: 1 })
+  }
+  return levels
+}
+
+function aggregateBars(data: Candle[], bucketSeconds: number): Candle[] {
+  const buckets = new Map<number, Candle>()
+  data.forEach((candle) => {
+    const bucketTime = Math.floor(candle.time / bucketSeconds) * bucketSeconds
+    const existing = buckets.get(bucketTime)
+    if (!existing) {
+      buckets.set(bucketTime, { ...candle, time: bucketTime })
+      return
+    }
+    existing.high = Math.max(existing.high, candle.high)
+    existing.low = Math.min(existing.low, candle.low)
+    existing.close = candle.close
+    existing.volume = (existing.volume ?? 0) + (candle.volume ?? 0)
+  })
+  return Array.from(buckets.values()).sort((a, b) => a.time - b.time)
+}
+
+function buildHtfLevels(data: Candle[]): KeyLevel[] {
+  const htf = aggregateBars(data, 4 * 60 * 60)
+  const lastClosed = htf.length > 1 ? htf[htf.length - 2] : htf[htf.length - 1]
+  if (!lastClosed) return []
+  return [
+    { label: '4H High', price: lastClosed.high, color: '#22c55e', lineStyle: 1 },
+    { label: '4H Low', price: lastClosed.low, color: '#ef4444', lineStyle: 1 },
+    { label: '4H Close', price: lastClosed.close, color: '#64748b', lineStyle: 2 },
+  ]
+}
+
+function getSessionName(seconds: number) {
+  const hour = new Date(seconds * 1000).getUTCHours()
+  if (hour >= 0 && hour < 7) return 'Asia'
+  if (hour >= 7 && hour < 12) return 'London'
+  if (hour >= 12 && hour < 20) return 'New York'
+  return 'After-hours'
+}
+
+function buildMtfContext(data: Candle[]) {
+  const frames = [
+    { label: '15m', seconds: 15 * 60 },
+    { label: '1H', seconds: 60 * 60 },
+    { label: '4H', seconds: 4 * 60 * 60 },
+    { label: '1D', seconds: 24 * 60 * 60 },
+  ]
+
+  return frames.map((frame) => {
+    const bars = aggregateBars(data, frame.seconds)
+    const closes = bars.map((bar) => bar.close)
+    const fast = ema(closes, 21)
+    const slow = ema(closes, 50)
+    const latest = bars[bars.length - 1]
+    const previous = bars[bars.length - 2]
+    const trendUp = fast.length > 1 && slow.length > 1 ? fast[fast.length - 1] >= slow[slow.length - 1] : latest?.close >= latest?.open
+    const change = latest && previous ? ((latest.close - previous.close) / previous.close) * 100 : 0
+    return { label: frame.label, trend: trendUp ? 'BULL' : 'BEAR', change }
+  })
+}
+
 function buildVolumeData(data: Candle[]): HistogramData<Time>[] {
   return data.map((candle) => ({
     time: candle.time as Time,
@@ -503,20 +637,23 @@ function PanelLabel({ title, value }: { title: string; value?: string }) {
 
 export default function TradingChart({ data, indicators, setupOverlay }: Props) {
   const mainRef = useRef<HTMLDivElement | null>(null)
-  const volumeRef = useRef<HTMLDivElement | null>(null)
   const macdRef = useRef<HTMLDivElement | null>(null)
   const stochRef = useRef<HTMLDivElement | null>(null)
 
   const mainChartRef = useRef<IChartApi | null>(null)
-  const volumeChartRef = useRef<IChartApi | null>(null)
   const macdChartRef = useRef<IChartApi | null>(null)
   const stochChartRef = useRef<IChartApi | null>(null)
 
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
+  const ema9SeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
+  const ema21SeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
+  const ema50SeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const sma20SeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const sma200SeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const nmaSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const vwapSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
+  const anchoredVwapSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
+  const priceLinesRef = useRef<IPriceLine[]>([])
   const bbBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const bbUpperSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
   const bbLowerSeriesRef = useRef<ISeriesApi<"Line"> | null>(null)
@@ -533,7 +670,6 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
   const stochLowerRef = useRef<ISeriesApi<"Line"> | null>(null)
 
   const mainSizeRef = useRef({ width: 0, height: 0 })
-  const volumeSizeRef = useRef({ width: 0, height: 0 })
   const macdSizeRef = useRef({ width: 0, height: 0 })
   const stochSizeRef = useRef({ width: 0, height: 0 })
   const fittedRef = useRef(false)
@@ -543,6 +679,14 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
     [data]
   )
   const volumeData = useMemo(() => buildVolumeData(data), [data])
+  const ema9Data = useMemo(() => buildEmaData(data, 9), [data])
+  const ema21Data = useMemo(() => buildEmaData(data, 21), [data])
+  const ema50Data = useMemo(() => buildEmaData(data, 50), [data])
+  const anchoredVwapData = useMemo(() => buildAnchoredVwapData(data), [data])
+  const keyLevels = useMemo(() => (indicators?.keyLevels ? buildPreviousPeriodLevels(data) : []), [data, indicators?.keyLevels])
+  const htfLevels = useMemo(() => (indicators?.htfLevels ? buildHtfLevels(data) : []), [data, indicators?.htfLevels])
+  const mtfContext = useMemo(() => (indicators?.mtfDashboard ? buildMtfContext(data) : []), [data, indicators?.mtfDashboard])
+  const currentSession = useMemo(() => data.length ? getSessionName(data[data.length - 1].time) : '—', [data])
   const sma20Data = useMemo(() => buildSmaData(data, 20), [data])
   const sma200Data = useMemo(() => buildSmaData(data, 200), [data])
   const macdData = useMemo(() => buildMacdData(data), [data])
@@ -561,15 +705,13 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
   }, [data, setupOverlay])
 
   useEffect(() => {
-    if (!mainRef.current || !volumeRef.current || !macdRef.current || !stochRef.current) return
+    if (!mainRef.current || !macdRef.current || !stochRef.current) return
 
-    const mainChart = createBaseChart(mainRef.current, 420)
-    const volumeChart = createBaseChart(volumeRef.current, 92)
-    const macdChart = createBaseChart(macdRef.current, 132)
-    const stochChart = createBaseChart(stochRef.current, 132, true)
+    const mainChart = createBaseChart(mainRef.current, 500)
+    const macdChart = createBaseChart(macdRef.current, 142)
+    const stochChart = createBaseChart(stochRef.current, 178, true)
 
     mainChartRef.current = mainChart
-    volumeChartRef.current = volumeChart
     macdChartRef.current = macdChart
     stochChartRef.current = stochChart
 
@@ -580,6 +722,25 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
       borderDownColor: "#ef4444",
       wickUpColor: "#22c55e",
       wickDownColor: "#ef4444",
+    })
+
+    ema9SeriesRef.current = mainChart.addSeries(LineSeries, {
+      color: "#34d399",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    })
+    ema21SeriesRef.current = mainChart.addSeries(LineSeries, {
+      color: "#f59e0b",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    })
+    ema50SeriesRef.current = mainChart.addSeries(LineSeries, {
+      color: "#60a5fa",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
     })
 
     sma20SeriesRef.current = mainChart.addSeries(LineSeries, {
@@ -606,6 +767,13 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
     vwapSeriesRef.current = mainChart.addSeries(LineSeries, {
       color: "#ec4899",
       lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    })
+    anchoredVwapSeriesRef.current = mainChart.addSeries(LineSeries, {
+      color: "#a855f7",
+      lineWidth: 2,
+      lineStyle: 1,
       priceLineVisible: false,
       lastValueVisible: false,
     })
@@ -641,10 +809,14 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
     })
     markerPrimitiveRef.current = createSeriesMarkers(candleSeriesRef.current, [])
 
-    volumeSeriesRef.current = volumeChart.addSeries(HistogramSeries, {
+    volumeSeriesRef.current = mainChart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
+      priceScaleId: "",
       priceLineVisible: false,
-      lastValueVisible: true,
+      lastValueVisible: false,
+    })
+    mainChart.priceScale("").applyOptions({
+      scaleMargins: { top: 0.76, bottom: 0 },
     })
 
     macdHistRef.current = macdChart.addSeries(HistogramSeries, {
@@ -688,17 +860,15 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
     })
 
     const resizeAll = () => {
-      resizeChart(mainChartRef.current, mainRef.current, 420, mainSizeRef)
-      resizeChart(volumeChartRef.current, volumeRef.current, 92, volumeSizeRef)
-      resizeChart(macdChartRef.current, macdRef.current, 132, macdSizeRef)
-      resizeChart(stochChartRef.current, stochRef.current, 132, stochSizeRef)
+      resizeChart(mainChartRef.current, mainRef.current, 500, mainSizeRef)
+      resizeChart(macdChartRef.current, macdRef.current, 142, macdSizeRef)
+      resizeChart(stochChartRef.current, stochRef.current, 178, stochSizeRef)
     }
 
     const resizeObserver = new ResizeObserver(() => {
       window.requestAnimationFrame(resizeAll)
     })
     resizeObserver.observe(mainRef.current)
-    resizeObserver.observe(volumeRef.current)
     resizeObserver.observe(macdRef.current)
     resizeObserver.observe(stochRef.current)
 
@@ -712,7 +882,6 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
       resizeObserver.disconnect()
       window.removeEventListener("resize", resizeAll)
       mainChart.remove()
-      volumeChart.remove()
       macdChart.remove()
       stochChart.remove()
     }
@@ -721,6 +890,9 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
   useEffect(() => {
     candleSeriesRef.current?.setData(formattedData)
     volumeSeriesRef.current?.setData(volumeData)
+    ema9SeriesRef.current?.setData(indicators?.ema9 ? ema9Data : [])
+    ema21SeriesRef.current?.setData(indicators?.ema21 ? ema21Data : [])
+    ema50SeriesRef.current?.setData(indicators?.ema50 ? ema50Data : [])
     sma20SeriesRef.current?.setData(indicators?.sma20 ? sma20Data : [])
     sma200SeriesRef.current?.setData(indicators?.sma200 ? sma200Data : [])
     const legacyIdeal = Boolean(indicators?.idealBb)
@@ -732,6 +904,23 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
 
     nmaSeriesRef.current?.setData(showNma ? adarshData.nma : [])
     vwapSeriesRef.current?.setData(showVwap ? adarshData.vwap : [])
+    anchoredVwapSeriesRef.current?.setData(indicators?.anchoredVwap ? anchoredVwapData : [])
+
+    if (candleSeriesRef.current) {
+      priceLinesRef.current.forEach((line) => candleSeriesRef.current?.removePriceLine(line))
+      priceLinesRef.current = []
+      ;[...keyLevels, ...htfLevels].forEach((level) => {
+        if (!Number.isFinite(level.price)) return
+        priceLinesRef.current.push(candleSeriesRef.current!.createPriceLine({
+          price: level.price,
+          color: level.color,
+          lineWidth: 1,
+          lineStyle: level.lineStyle ?? 2,
+          axisLabelVisible: true,
+          title: level.label,
+        }))
+      })
+    }
     bbBasisSeriesRef.current?.setData(showBollinger ? adarshData.bbBasis : [])
     bbUpperSeriesRef.current?.setData(showBollinger ? adarshData.bbUpper : [])
     bbLowerSeriesRef.current?.setData(showBollinger ? adarshData.bbLower : [])
@@ -750,33 +939,20 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
     stochLowerRef.current?.setData(indicators?.stochastic ? stochLowerData : [])
 
     if (!fittedRef.current && formattedData.length > 20) {
-      ;[mainChartRef.current, volumeChartRef.current, macdChartRef.current, stochChartRef.current].forEach((chart) => {
+      ;[mainChartRef.current, macdChartRef.current, stochChartRef.current].forEach((chart) => {
         chart?.timeScale().fitContent()
       })
       fittedRef.current = true
     }
-  }, [data, formattedData, indicators, macdData, sma20Data, sma200Data, stochData, volumeData, adarshData])
+  }, [data, formattedData, indicators, macdData, ema9Data, ema21Data, ema50Data, anchoredVwapData, keyLevels, htfLevels, sma20Data, sma200Data, stochData, volumeData, adarshData])
 
   return (
-    <div className="relative h-full min-h-[780px] w-full overflow-hidden bg-[#05070b]">
-      <div className="absolute left-4 top-3 z-20 space-y-1 text-xs text-zinc-400">
-        <div className="flex flex-wrap gap-3">
-          {indicators?.sma20 ? <span>SMA20</span> : null}
-          {indicators?.sma200 ? <span>SMA200</span> : null}
-          {(indicators?.nma ?? indicators?.idealBb) ? <span>NMA</span> : null}
-          {(indicators?.vwap ?? indicators?.idealBb) ? <span>VWAP</span> : null}
-          {(indicators?.bollinger ?? indicators?.idealBb) ? <span>BB</span> : null}
-          {(indicators?.hullTrend ?? indicators?.idealBb) ? <span>Hull/Kalman</span> : null}
-          {indicators?.volumeProfile ? <span>VRVP</span> : null}
-          {indicators?.macd ? <span>MACD 12 26 9</span> : null}
-          {indicators?.stochastic ? <span>Stoch 14 1 3</span> : null}
-        </div>
-      </div>
+    <div className="relative h-full min-h-[820px] w-full overflow-hidden bg-[#05070b]">
 
-      <div className="relative h-[420px] border-b border-zinc-800/80">
+      <div className="relative h-[500px] border-b border-zinc-800/80">
         <div ref={mainRef} className="h-full w-full" />
         {setupOverlay ? (
-          <div className="pointer-events-none absolute left-3 top-11 z-20 rounded-xl border border-zinc-700/80 bg-black/70 px-3 py-2 text-xs shadow-xl backdrop-blur-sm">
+          <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-xl border border-zinc-700/80 bg-black/70 px-3 py-2 text-xs shadow-xl backdrop-blur-sm">
             <div className={setupOverlay.direction === "LONG" ? "font-black text-emerald-200" : setupOverlay.direction === "SHORT" ? "font-black text-red-200" : "font-black text-zinc-200"}>
               {setupOverlay.symbol} · {setupOverlay.bias}
             </div>
@@ -800,6 +976,25 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
             <SetupLine label="TP2" value={setupOverlay.takeProfit2.toPrecision(5)} pct={overlayPct(setupOverlay.takeProfit2, overlayRange.min, overlayRange.max)} tone="tp" />
           </>
         ) : null}
+        {indicators?.sessions ? (
+          <div className="pointer-events-none absolute left-3 bottom-3 z-20 rounded-lg border border-zinc-700/70 bg-black/65 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+            Session · {currentSession}
+          </div>
+        ) : null}
+        {indicators?.mtfDashboard && mtfContext.length > 0 ? (
+          <div className="pointer-events-none absolute right-3 top-3 z-20 w-[245px] rounded-xl border border-zinc-700/80 bg-black/75 p-2 text-[10px] shadow-xl backdrop-blur-sm">
+            <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">MTF Context</div>
+            <div className="grid grid-cols-4 gap-1">
+              {mtfContext.map((row) => (
+                <div key={row.label} className="rounded-md border border-zinc-800 bg-zinc-950 px-1.5 py-1 text-center">
+                  <div className="text-zinc-500">{row.label}</div>
+                  <div className={row.trend === 'BULL' ? 'font-black text-emerald-300' : 'font-black text-red-300'}>{row.trend}</div>
+                  <div className={row.change >= 0 ? 'text-emerald-400' : 'text-red-400'}>{row.change.toFixed(1)}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {volumeProfile.length > 0 && (
           <div className="pointer-events-none absolute bottom-5 right-12 top-10 z-10 flex w-[22%] flex-col justify-between opacity-95">
             {volumeProfile.map((bucket, index) => (
@@ -816,19 +1011,11 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
           </div>
         )}
       </div>
-
-      <div className="relative h-[92px] border-b border-zinc-800/80">
-        <PanelLabel title="Volume" />
-        <div ref={volumeRef} className="h-full w-full" />
-      </div>
-
-      <div className="relative h-[132px] border-b border-zinc-800/80">
-        <PanelLabel title="MACD 12 26 close 9" />
+      <div className="relative h-[142px] border-b border-zinc-800/80">
         <div ref={macdRef} className="h-full w-full" />
       </div>
 
-      <div className="relative h-[132px]">
-        <PanelLabel title="Stoch 14 1 3" />
+      <div className="relative h-[178px]">
         <div className="pointer-events-none absolute left-0 right-0 top-[20%] z-10 border-t border-dashed border-slate-500/35" />
         <div className="pointer-events-none absolute left-0 right-0 top-[80%] z-10 border-t border-dashed border-slate-500/35" />
         <div ref={stochRef} className="h-full w-full" />
