@@ -1,18 +1,115 @@
-export type ReplayWindow = "30D" | "90D" | "180D"
+export type ReplaySeverity = "LOW" | "MEDIUM" | "HIGH"
+export type ReplaySentiment = "positive" | "negative" | "neutral"
+export type ReplayDirection = "UP" | "DOWN" | "SIDEWAYS"
+export type ReplayAgentTone = "BULLISH" | "BEARISH" | "MIXED" | "DEFENSIVE"
+export type ReplayVerdict = "Narrative Confirmed" | "Narrative Failed" | "Reality Diverged"
 
-export interface HistoricalSnapshot {
-  date: string
-  fearGreed: number | null
-  volatility: number | null
-  altSeason: number | null
-  btcDominance: number | null
-  premium: number | null
-  tradeVolume: number | null
+export type ReplayAgentName =
+  | "Technical Agent"
+  | "Flow Agent"
+  | "Narrative Agent"
+  | "Expectation Agent"
+  | "Risk Agent"
+  | "Final Verdict / Narrative vs Reality"
+
+export interface ReplayPriceCandle {
+  time: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume?: number
 }
 
-export interface ReplayFrame extends HistoricalSnapshot {
+export interface ReplayEvent {
+  id: string
+  timestamp: string
+  title: string
+  severity: ReplaySeverity
+  description: string
+  source: "news" | "macro" | "price" | "derivatives" | "expectation" | "memory" | "manual"
+}
+
+export interface ReplayMarketSnapshot {
+  symbol: string
+  price: number
+  priceChangePct: number
+  direction: ReplayDirection
+  volumeRead: string
+  fundingRate: number
+  openInterestChangePct: number
+  openInterestNotional: string
+  liquidityRead: string
+}
+
+export interface ReplayExpectationSnapshot {
+  label: string
+  probability: number
+  source: string
+  status: "mock" | "placeholder" | "historical"
+  interpretation: string
+}
+
+export interface ReplayNarrativeItem {
+  timestamp: string
+  source: string
+  headline: string
+  sentiment: ReplaySentiment
+  narrative: string
+}
+
+export interface ReplayDriverRanking {
+  driver: string
+  rank: number
+  confidence: number
+  evidence: string
+}
+
+export interface ReplayNarrativeSnapshot {
+  primaryNarrative: string
+  summary: string
+  items: ReplayNarrativeItem[]
+  possibleDrivers: ReplayDriverRanking[]
+}
+
+export interface ReplayRiskSnapshot {
+  level: "LOW" | "MEDIUM" | "HIGH"
+  summary: string
+  invalidation: string
+  risks: string[]
+}
+
+export interface ReplayAgentSummary {
+  agent: ReplayAgentName
+  tone: ReplayAgentTone
+  confidence: number
+  summary: string
+  watch: string
+}
+
+export interface ReplayFrame {
+  id: string
   index: number
-  regime: string
-  temperature: number
-  alertCount: number
+  timestamp: string
+  label: string
+  eventIds: string[]
+  market: ReplayMarketSnapshot
+  expectation: ReplayExpectationSnapshot
+  narrative: ReplayNarrativeSnapshot
+  risk: ReplayRiskSnapshot
+  agents: ReplayAgentSummary[]
+}
+
+export interface ReplayCase {
+  id: string
+  title: string
+  symbol: string
+  window: string
+  setup: string
+  outcome: string
+  verdict: ReplayVerdict
+  verdictSummary: string
+  realityCheck: string
+  events: ReplayEvent[]
+  frames: ReplayFrame[]
 }
