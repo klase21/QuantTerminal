@@ -1,28 +1,38 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   Activity,
   BarChart3,
   BrainCircuit,
+  ClipboardCheck,
   Gauge,
+  History,
   Newspaper,
   ShieldAlert,
   Target,
   TrendingUp,
 } from "lucide-react"
 
-import { adaptMockReplayCase } from "@/core/replay/replayAdapter"
-import { MOCK_REPLAY_SOURCE_CASES, type MockReplayEventType } from "@/core/replay/mockReplayData"
+import {
+  getReplayCaseCatalog,
+  type HistoricalReplayEventType,
+} from "@/core/historical-intelligence/mockHistoricalIntelligenceRepository"
+import { findSimilarReplayCases } from "@/core/historical-intelligence/similarHistoricalEventEngine"
+import {
+  getSetupOutcomeMemory,
+  type SetupOutcomeMemorySummary,
+} from "@/core/historical-intelligence/setupOutcomeMemoryEngine"
+import {
+  getExpectationIntelligence,
+  type ExpectationIntelligenceSummary,
+} from "@/core/historical-intelligence/expectationIntelligenceEngine"
+import type { SimilarEventMatch } from "@/core/historical-intelligence/historicalIntelligenceTypes"
 import type { ReplayAgentTone, ReplayCase, ReplayFrame, ReplaySentiment, ReplaySeverity } from "@/core/replay/replayTypes"
 
-type ReplayFilter = "all" | MockReplayEventType
+type ReplayFilter = "all" | Exclude<HistoricalReplayEventType, "mixed">
 
-const REPLAY_CATALOG = MOCK_REPLAY_SOURCE_CASES.map((source) => ({
-  eventType: source.eventType,
-  shockLevel: source.shockLevel,
-  replay: adaptMockReplayCase(source),
-}))
+const REPLAY_CATALOG = getReplayCaseCatalog()
 
 const FILTERS: { id: ReplayFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -353,7 +363,146 @@ function AgentCommittee({ frame }: { frame: ReplayFrame }) {
   )
 }
 
-function ReplayTimeline({ replay, frame }: { replay: ReplayCase; frame: ReplayFrame }) {
+function reasonLabel(reason: string) {
+  return reason.replace(/_/g, " ")
+}
+
+function SimilarHistoricalEvents({ matches }: { matches: SimilarEventMatch[] }) {
+  if (!matches.length) return null
+
+  return (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
+      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
+        <History className="h-3.5 w-3.5" />
+        Similar Historical Events
+      </div>
+      <div className="grid gap-2">
+        {matches.map((match) => (
+          <article key={match.caseId} className="rounded-lg border border-zinc-900 bg-black/45 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">{match.symbol}</div>
+                <div className="mt-1 text-sm font-black leading-5 text-white">{match.title}</div>
+              </div>
+              <div className="shrink-0 text-right text-lg font-black text-cyan-100">{match.similarityScore}%</div>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {match.reasons.slice(0, 3).map((reason) => (
+                <span
+                  key={`${match.caseId}-${reason}`}
+                  className="rounded-full border border-cyan-300/15 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100/80"
+                >
+                  {reasonLabel(reason)}
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-400">{match.takeaway}</p>
+            {match.keyDifferences.length ? (
+              <div className="mt-2 text-[11px] leading-5 text-amber-100/80">{match.keyDifferences.join(" / ")}</div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function SetupOutcomeMemory({ memory }: { memory: SetupOutcomeMemorySummary }) {
+  return (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
+      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
+        <ClipboardCheck className="h-3.5 w-3.5" />
+        Setup Outcome Memory
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Sample</div>
+          <div className="mt-1 text-sm font-black text-white">{memory.sampleSize}</div>
+        </div>
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Win Rate</div>
+          <div className="mt-1 text-sm font-black text-cyan-100">{memory.winRate}%</div>
+        </div>
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Avg Move</div>
+          <div className={`mt-1 text-sm font-black ${metricClass(memory.averageMovePct)}`}>
+            {memory.averageMovePct >= 0 ? "+" : ""}{memory.averageMovePct.toFixed(2)}%
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Max Adverse</div>
+          <div className="mt-1 text-sm font-black text-rose-200">{memory.maxAdverseMovePct.toFixed(2)}%</div>
+        </div>
+      </div>
+      <div className="mt-2 rounded-lg border border-amber-300/15 bg-amber-400/10 p-3">
+        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-100/70">Common Failure Mode</div>
+        <p className="mt-1 text-xs leading-5 text-amber-50/80">{memory.commonFailureMode}</p>
+      </div>
+      <div className="mt-2 grid gap-2">
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Best Condition</div>
+          <div className="mt-1 text-xs leading-5 text-emerald-100/85">{memory.bestHistoricalCondition}</div>
+        </div>
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Worst Condition</div>
+          <div className="mt-1 text-xs leading-5 text-rose-100/85">{memory.worstHistoricalCondition}</div>
+        </div>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-zinc-400">{memory.tacticalLesson}</p>
+    </section>
+  )
+}
+
+function ExpectationIntelligenceCard({ expectation }: { expectation: ExpectationIntelligenceSummary }) {
+  return (
+    <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
+      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/80">
+        <Gauge className="h-3.5 w-3.5" />
+        Expectation Intelligence
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-md border border-cyan-300/10 bg-black/35 p-2">
+          <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/50">Expected</div>
+          <div className="mt-1 truncate text-xs font-black text-white">{expectation.dominantExpectedOutcome}</div>
+        </div>
+        <div className="rounded-md border border-cyan-300/10 bg-black/35 p-2 text-right">
+          <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/50">Probability</div>
+          <div className="mt-1 text-xs font-black text-cyan-100">{expectation.expectationProbability}%</div>
+        </div>
+        <div className="rounded-md border border-cyan-300/10 bg-black/35 p-2">
+          <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/50">Surprise</div>
+          <div className="mt-1 text-xs font-black text-amber-100">{expectation.surpriseScore}/100</div>
+        </div>
+        <div className="rounded-md border border-cyan-300/10 bg-black/35 p-2 text-right">
+          <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/50">Status</div>
+          <div className="mt-1 text-xs font-black uppercase text-cyan-100">{expectation.pricingStatus}</div>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <span className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">
+          {expectation.expectationMomentum}
+        </span>
+        <span className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">
+          {expectation.convictionLevel} conviction
+        </span>
+        <span className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">
+          {expectation.confidence}% confidence
+        </span>
+      </div>
+      <div className="mt-2 text-xs leading-5 text-cyan-50/80">{expectation.interpretation}</div>
+    </div>
+  )
+}
+
+function ReplayTimeline({
+  replay,
+  frame,
+  expectation,
+}: {
+  replay: ReplayCase
+  frame: ReplayFrame
+  expectation: ExpectationIntelligenceSummary
+}) {
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -401,13 +550,7 @@ function ReplayTimeline({ replay, frame }: { replay: ReplayCase; frame: ReplayFr
               <div className="mt-1 text-[11px] text-cyan-200/80">{item.narrative}</div>
             </div>
           ))}
-          <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/80">
-              <Gauge className="h-3.5 w-3.5" />
-              Prediction Market Placeholder
-            </div>
-            <div className="mt-2 text-xs leading-5 text-cyan-50/80">{frame.expectation.interpretation}</div>
-          </div>
+          <ExpectationIntelligenceCard expectation={expectation} />
         </div>
       </div>
     </section>
@@ -426,6 +569,9 @@ export default function ReplayEngineWorkspace() {
   const activeEvent = currentEvent(replay, activeEventId)
   const activeEventIdForReplay = activeEvent?.id ?? replay.events[0]?.id ?? ""
   const activeFrame = frameForEvent(replay, activeEventIdForReplay)
+  const similarEvents = useMemo(() => findSimilarReplayCases(replay, 3), [replay])
+  const setupMemory = useMemo(() => getSetupOutcomeMemory(replay), [replay])
+  const expectation = useMemo(() => getExpectationIntelligence(replay), [replay])
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -456,11 +602,13 @@ export default function ReplayEngineWorkspace() {
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="grid gap-3">
             <NarrativeRealitySection replay={replay} frame={activeFrame} />
-            <ReplayTimeline replay={replay} frame={activeFrame} />
+            <ReplayTimeline replay={replay} frame={activeFrame} expectation={expectation} />
           </div>
 
           <div className="grid content-start gap-3">
             <PossibleDrivers frame={activeFrame} />
+            <SimilarHistoricalEvents matches={similarEvents} />
+            <SetupOutcomeMemory memory={setupMemory} />
             <AgentCommittee frame={activeFrame} />
           </div>
         </div>
