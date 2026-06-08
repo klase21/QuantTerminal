@@ -50,6 +50,7 @@ import { ExternalEventReviewQueuePanel } from "./ExternalEventReviewQueuePanel"
 import { HistoricalEventIngestionPanel } from "./HistoricalEventIngestionPanel"
 import { HistoricalQueryExplorerPanel } from "./HistoricalQueryExplorerPanel"
 import { HistoricalRecordInspectorPanel } from "./HistoricalRecordInspectorPanel"
+import { HistoricalRelationshipGraphPanel } from "./HistoricalRelationshipGraphPanel"
 import { MarketMemoryPanel } from "./MarketMemoryPanel"
 import { PredictionMarketPanel } from "./PredictionMarketPanel"
 import { ReplayDecisionJournalPanel } from "./ReplayDecisionJournalPanel"
@@ -793,6 +794,7 @@ export default function ReplayEngineWorkspace() {
                 onAccepted={() => setStorageRefreshSignal((value) => value + 1)}
               />
               <AcceptedEventLinkerPanel onLinkAccepted={() => setStorageRefreshSignal((value) => value + 1)} />
+              <HistoricalRelationshipGraphPanel />
               <HistoricalRecordInspectorPanel refreshSignal={storageRefreshSignal} />
               <ReplayDecisionWritePanel replay={replay} onWrite={() => setStorageRefreshSignal((value) => value + 1)} />
               <HistoricalEventIngestionPanel replay={replay} onIngest={() => setStorageRefreshSignal((value) => value + 1)} />
