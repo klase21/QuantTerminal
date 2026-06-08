@@ -159,7 +159,8 @@ export function HistoricalRelationshipGraphPanel() {
                 </div>
                 <div className="text-xs font-black text-zinc-100">{target?.title ?? edge.targetNodeId}</div>
                 <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500">
-                  {target?.type ?? "target"} {target?.subtitle ? `/ ${target.subtitle}` : ""}
+                  {target?.type ?? "target"} {target?.subtitle ? `/ ${target.subtitle}` : ""}{" "}
+                  {target?.score !== undefined ? `/ score ${target.score}` : ""}
                 </div>
                 {edge.rationale ? <p className="mt-2 text-[11px] leading-5 text-zinc-400">{edge.rationale}</p> : null}
               </article>

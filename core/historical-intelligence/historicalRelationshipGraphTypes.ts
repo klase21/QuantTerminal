@@ -9,6 +9,7 @@ export interface HistoricalGraphNode {
   subtitle?: string
   status?: string
   confidence?: number
+  score?: number
   sourceId?: string
   createdAt?: string
 }

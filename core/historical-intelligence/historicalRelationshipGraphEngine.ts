@@ -1,4 +1,5 @@
 import { listAcceptedEventLinks } from "./acceptedEventLinkerService"
+import { getHistoricalScoringResult } from "./historicalScoringEngine"
 import { mockHistoricalPersistenceRepository } from "./mockHistoricalPersistenceRepository"
 import type { AcceptedEventLink, AcceptedEventLinkType } from "./acceptedEventLinkerTypes"
 import type {
@@ -160,6 +161,16 @@ export async function getHistoricalRelationshipGraph(
   }
 
   const sourceEventIds = uniqueById(links.map((link) => ({ id: link.sourceEventId }))).map((item) => item.id)
+  const scores = await getHistoricalScoringResult()
+  const scoreByRecordId = new Map(
+    [
+      ...scores.events,
+      ...scores.memories,
+      ...scores.decisions,
+      ...scores.outcomes,
+      ...scores.playbooks,
+    ].map((score) => [score.recordId, score.composite]),
+  )
   const sourceNodes: HistoricalGraphNode[] = await Promise.all(
     sourceEventIds.map(async (sourceEventId) => {
       const event = await mockHistoricalPersistenceRepository.events.getById(sourceEventId)
@@ -170,6 +181,7 @@ export async function getHistoricalRelationshipGraph(
         subtitle: event?.symbol ?? event?.category,
         status: event?.status,
         confidence: event?.confidence,
+        score: scoreByRecordId.get(sourceEventId),
         sourceId: sourceEventId,
         createdAt: event?.audit.createdAt,
       }
@@ -186,6 +198,7 @@ export async function getHistoricalRelationshipGraph(
         subtitle: target.subtitle,
         status: target.status,
         confidence: target.confidence ?? link.confidence,
+        score: scoreByRecordId.get(link.targetId),
         sourceId: link.targetId,
         createdAt: target.createdAt,
       }

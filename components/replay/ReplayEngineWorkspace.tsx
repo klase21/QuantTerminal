@@ -51,8 +51,10 @@ import { HistoricalEventIngestionPanel } from "./HistoricalEventIngestionPanel"
 import { HistoricalQueryExplorerPanel } from "./HistoricalQueryExplorerPanel"
 import { HistoricalRecordInspectorPanel } from "./HistoricalRecordInspectorPanel"
 import { HistoricalRelationshipGraphPanel } from "./HistoricalRelationshipGraphPanel"
+import { HistoricalScoringPanel } from "./HistoricalScoringPanel"
 import { MarketMemoryPanel } from "./MarketMemoryPanel"
 import { PredictionMarketPanel } from "./PredictionMarketPanel"
+import { PolymarketLiveValidationPanel } from "./PolymarketLiveValidationPanel"
 import { ReplayDecisionJournalPanel } from "./ReplayDecisionJournalPanel"
 import { ReplayDecisionWritePanel } from "./ReplayDecisionWritePanel"
 import { ReplayExplanationPanel } from "./ReplayExplanationPanel"
@@ -789,12 +791,14 @@ export default function ReplayEngineWorkspace() {
             </CollapsibleSection>
             <CollapsibleSection title="Storage & Ingestion" eyebrow="Internal">
               <ExternalEventAdapterPreviewPanel assetHint={replay.symbol} />
+              <PolymarketLiveValidationPanel assetHint={replay.symbol} />
               <ExternalEventReviewQueuePanel
                 assetHint={replay.symbol}
                 onAccepted={() => setStorageRefreshSignal((value) => value + 1)}
               />
               <AcceptedEventLinkerPanel onLinkAccepted={() => setStorageRefreshSignal((value) => value + 1)} />
               <HistoricalRelationshipGraphPanel />
+              <HistoricalScoringPanel />
               <HistoricalRecordInspectorPanel refreshSignal={storageRefreshSignal} />
               <ReplayDecisionWritePanel replay={replay} onWrite={() => setStorageRefreshSignal((value) => value + 1)} />
               <HistoricalEventIngestionPanel replay={replay} onIngest={() => setStorageRefreshSignal((value) => value + 1)} />
