@@ -43,7 +43,10 @@ import { getEventMemoryLinker } from "@/core/historical-intelligence/eventMemory
 import { getReplayExplanation } from "@/core/historical-intelligence/replayExplanationEngine"
 import { getReplayLearningSummary } from "@/core/historical-intelligence/replayLearningSummaryEngine"
 import { getReplayDecisionJournal } from "@/core/historical-intelligence/replayDecisionJournalEngine"
+import { AcceptedEventLinkerPanel } from "./AcceptedEventLinkerPanel"
 import { EventMemoryLinkerPanel } from "./EventMemoryLinkerPanel"
+import { ExternalEventAdapterPreviewPanel } from "./ExternalEventAdapterPreviewPanel"
+import { ExternalEventReviewQueuePanel } from "./ExternalEventReviewQueuePanel"
 import { HistoricalEventIngestionPanel } from "./HistoricalEventIngestionPanel"
 import { HistoricalQueryExplorerPanel } from "./HistoricalQueryExplorerPanel"
 import { HistoricalRecordInspectorPanel } from "./HistoricalRecordInspectorPanel"
@@ -784,6 +787,12 @@ export default function ReplayEngineWorkspace() {
               {eventMemoryLink ? <EventMemoryLinkerPanel link={eventMemoryLink} /> : null}
             </CollapsibleSection>
             <CollapsibleSection title="Storage & Ingestion" eyebrow="Internal">
+              <ExternalEventAdapterPreviewPanel assetHint={replay.symbol} />
+              <ExternalEventReviewQueuePanel
+                assetHint={replay.symbol}
+                onAccepted={() => setStorageRefreshSignal((value) => value + 1)}
+              />
+              <AcceptedEventLinkerPanel onLinkAccepted={() => setStorageRefreshSignal((value) => value + 1)} />
               <HistoricalRecordInspectorPanel refreshSignal={storageRefreshSignal} />
               <ReplayDecisionWritePanel replay={replay} onWrite={() => setStorageRefreshSignal((value) => value + 1)} />
               <HistoricalEventIngestionPanel replay={replay} onIngest={() => setStorageRefreshSignal((value) => value + 1)} />
