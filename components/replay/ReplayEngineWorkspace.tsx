@@ -44,9 +44,12 @@ import { getReplayExplanation } from "@/core/historical-intelligence/replayExpla
 import { getReplayLearningSummary } from "@/core/historical-intelligence/replayLearningSummaryEngine"
 import { getReplayDecisionJournal } from "@/core/historical-intelligence/replayDecisionJournalEngine"
 import { EventMemoryLinkerPanel } from "./EventMemoryLinkerPanel"
+import { HistoricalEventIngestionPanel } from "./HistoricalEventIngestionPanel"
+import { HistoricalQueryExplorerPanel } from "./HistoricalQueryExplorerPanel"
 import { MarketMemoryPanel } from "./MarketMemoryPanel"
 import { PredictionMarketPanel } from "./PredictionMarketPanel"
 import { ReplayDecisionJournalPanel } from "./ReplayDecisionJournalPanel"
+import { ReplayDecisionWritePanel } from "./ReplayDecisionWritePanel"
 import { ReplayExplanationPanel } from "./ReplayExplanationPanel"
 import { ReplayLearningSummaryPanel } from "./ReplayLearningSummaryPanel"
 import type { SimilarEventMatch } from "@/core/historical-intelligence/historicalIntelligenceTypes"
@@ -772,10 +775,15 @@ export default function ReplayEngineWorkspace() {
               <SetupOutcomeMemory memory={setupMemory} />
             </CollapsibleSection>
             <CollapsibleSection title="Memory & Expectations" eyebrow="Secondary">
+              <HistoricalQueryExplorerPanel assetHint={replay.symbol} />
               <MarketMemoryPanel memory={marketMemory} />
               <ExpectationIntelligenceCard expectation={expectation} />
               <PredictionMarketPanel intelligence={predictionMarkets} />
               {eventMemoryLink ? <EventMemoryLinkerPanel link={eventMemoryLink} /> : null}
+            </CollapsibleSection>
+            <CollapsibleSection title="Storage & Ingestion" eyebrow="Internal">
+              <ReplayDecisionWritePanel replay={replay} />
+              <HistoricalEventIngestionPanel replay={replay} />
             </CollapsibleSection>
             <CollapsibleSection title="Agent & Playbook" eyebrow="Secondary">
               <AgentAccuracy stats={agentAccuracy} />
