@@ -10,8 +10,10 @@ type WriteResult =
       ok: true
       data: {
         id: string
+        caseId?: string
         decision?: string
         title?: string
+        status?: string
       }
     }
   | {
@@ -25,9 +27,15 @@ const AUDIT = {
   schemaVersion: 1,
 }
 
-export function ReplayDecisionWritePanel({ replay }: { replay: ReplayCase }) {
+export function ReplayDecisionWritePanel({ replay, onWrite }: { replay: ReplayCase; onWrite?: () => void }) {
   const [result, setResult] = useState<WriteResult | null>(null)
   const [isWriting, setIsWriting] = useState(false)
+  const validationItems = [
+    { label: "case", ready: Boolean(replay.id) },
+    { label: "symbol", ready: Boolean(replay.symbol) },
+    { label: "thesis", ready: Boolean(replay.setup) },
+    { label: "outcome", ready: Boolean(replay.outcome) },
+  ]
 
   async function writeDecision() {
     setIsWriting(true)
@@ -60,6 +68,7 @@ export function ReplayDecisionWritePanel({ replay }: { replay: ReplayCase }) {
       })
       const json = (await response.json()) as WriteResult
       setResult(json)
+      if (json.ok) onWrite?.()
     } catch {
       setResult({ ok: false, error: "Decision write request failed" })
     } finally {
@@ -79,6 +88,20 @@ export function ReplayDecisionWritePanel({ replay }: { replay: ReplayCase }) {
       <p className="text-xs leading-5 text-zinc-400">
         Creates a draft hypothetical decision for the selected replay case in the in-memory persistence adapter.
       </p>
+      <div className="mt-3 grid grid-cols-4 gap-1.5">
+        {validationItems.map((item) => (
+          <div
+            key={item.label}
+            className={`rounded-md border px-2 py-1 text-center text-[8px] font-black uppercase tracking-[0.1em] ${
+              item.ready
+                ? "border-emerald-300/15 bg-emerald-400/10 text-emerald-100"
+                : "border-rose-300/15 bg-rose-400/10 text-rose-100"
+            }`}
+          >
+            {item.label}
+          </div>
+        ))}
+      </div>
       <button
         type="button"
         onClick={writeDecision}
@@ -93,7 +116,18 @@ export function ReplayDecisionWritePanel({ replay }: { replay: ReplayCase }) {
             result.ok ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"
           }`}
         >
-          {result.ok ? `Created ${result.data.id}` : "error" in result ? result.error : "Decision write failed"}
+          {result.ok ? (
+            <div className="grid gap-1">
+              <div className="font-black">Created decision {result.data.id}</div>
+              <div className="text-[10px] text-emerald-100/75">
+                case {result.data.caseId ?? replay.id} / {result.data.status ?? "draft"}
+              </div>
+            </div>
+          ) : "error" in result ? (
+            result.error
+          ) : (
+            "Decision write failed"
+          )}
         </div>
       ) : null}
     </section>

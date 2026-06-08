@@ -10,9 +10,12 @@ type IngestionResult =
   | {
       ok: true
       data: {
+        sourceKind?: HistoricalMockIngestionKind
         event: {
           id: string
           title: string
+          category?: string
+          symbol?: string
         }
         memory?: {
           id: string
@@ -42,10 +45,17 @@ const INGESTION_KINDS: { id: HistoricalMockIngestionKind; label: string }[] = [
   { id: "regulatory_event", label: "Regulatory" },
 ]
 
-export function HistoricalEventIngestionPanel({ replay }: { replay: ReplayCase }) {
+export function HistoricalEventIngestionPanel({ replay, onIngest }: { replay: ReplayCase; onIngest?: () => void }) {
   const [kind, setKind] = useState<HistoricalMockIngestionKind>("cpi")
   const [result, setResult] = useState<IngestionResult | null>(null)
   const [isIngesting, setIsIngesting] = useState(false)
+  const candidateCounts = {
+    event: 1,
+    memory: 1,
+    decision: 1,
+    playbook: 1,
+  }
+  const normalizedPreview = `${replay.symbol} / ${kind.replace(/_/g, " ")} / mock-only`
 
   async function ingestEvent() {
     setIsIngesting(true)
@@ -65,6 +75,7 @@ export function HistoricalEventIngestionPanel({ replay }: { replay: ReplayCase }
       })
       const json = (await response.json()) as IngestionResult
       setResult(json)
+      if (json.ok) onIngest?.()
     } catch {
       setResult({ ok: false, error: "Mock ingestion request failed" })
     } finally {
@@ -102,6 +113,26 @@ export function HistoricalEventIngestionPanel({ replay }: { replay: ReplayCase }
           {isIngesting ? "..." : "Ingest"}
         </button>
       </div>
+      <div className="mt-3 rounded-lg border border-zinc-900 bg-black/45 p-3">
+        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Normalized Preview</div>
+        <div className="mt-1 text-xs font-black text-white">{normalizedPreview}</div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {Object.entries(candidateCounts).map(([label, count]) => (
+            <span
+              key={label}
+              className="rounded-full border border-cyan-300/15 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100"
+            >
+              {label} {count}
+            </span>
+          ))}
+          <span className="rounded-full border border-amber-300/15 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-amber-100">
+            mock-only
+          </span>
+          <span className="rounded-full border border-emerald-300/15 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-100">
+            write-ready
+          </span>
+        </div>
+      </div>
       {result ? (
         <div
           className={`mt-3 rounded-lg border p-3 text-xs leading-5 ${
@@ -109,7 +140,9 @@ export function HistoricalEventIngestionPanel({ replay }: { replay: ReplayCase }
           }`}
         >
           {result.ok
-            ? `Created event ${result.data.event.id}${result.data.memory ? ` / memory ${result.data.memory.id}` : ""}`
+            ? `Created ${result.data.event.id} / ${result.data.memory ? `memory ${result.data.memory.id}` : "no memory"} / ${
+                result.data.decision ? `decision ${result.data.decision.id}` : "no decision"
+              } / ${result.data.playbook ? `playbook ${result.data.playbook.id}` : "no playbook"}`
             : "error" in result
               ? result.error
               : "Mock ingestion failed"}

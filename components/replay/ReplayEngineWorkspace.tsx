@@ -46,6 +46,7 @@ import { getReplayDecisionJournal } from "@/core/historical-intelligence/replayD
 import { EventMemoryLinkerPanel } from "./EventMemoryLinkerPanel"
 import { HistoricalEventIngestionPanel } from "./HistoricalEventIngestionPanel"
 import { HistoricalQueryExplorerPanel } from "./HistoricalQueryExplorerPanel"
+import { HistoricalRecordInspectorPanel } from "./HistoricalRecordInspectorPanel"
 import { MarketMemoryPanel } from "./MarketMemoryPanel"
 import { PredictionMarketPanel } from "./PredictionMarketPanel"
 import { ReplayDecisionJournalPanel } from "./ReplayDecisionJournalPanel"
@@ -712,6 +713,7 @@ function ReplayTimeline({ replay, frame }: { replay: ReplayCase; frame: ReplayFr
 export default function ReplayEngineWorkspace() {
   const initialReplay = REPLAY_CATALOG[0]!.replay
   const [activeFilter, setActiveFilter] = useState<ReplayFilter>("all")
+  const [storageRefreshSignal, setStorageRefreshSignal] = useState(0)
   const filteredCases = REPLAY_CATALOG
     .filter((item) => activeFilter === "all" || item.eventType === activeFilter)
     .map((item) => item.replay)
@@ -782,8 +784,9 @@ export default function ReplayEngineWorkspace() {
               {eventMemoryLink ? <EventMemoryLinkerPanel link={eventMemoryLink} /> : null}
             </CollapsibleSection>
             <CollapsibleSection title="Storage & Ingestion" eyebrow="Internal">
-              <ReplayDecisionWritePanel replay={replay} />
-              <HistoricalEventIngestionPanel replay={replay} />
+              <HistoricalRecordInspectorPanel refreshSignal={storageRefreshSignal} />
+              <ReplayDecisionWritePanel replay={replay} onWrite={() => setStorageRefreshSignal((value) => value + 1)} />
+              <HistoricalEventIngestionPanel replay={replay} onIngest={() => setStorageRefreshSignal((value) => value + 1)} />
             </CollapsibleSection>
             <CollapsibleSection title="Agent & Playbook" eyebrow="Secondary">
               <AgentAccuracy stats={agentAccuracy} />
