@@ -43,6 +43,7 @@ export function ExternalEventReviewQueuePanel({
   onAccepted?: () => void
 }) {
   const [sourceType, setSourceType] = useState<ExternalEventSourceType>("polymarket")
+  const [mode, setMode] = useState<"mock" | "live">("mock")
   const [keyword, setKeyword] = useState("")
   const [items, setItems] = useState<ExternalEventReviewItem[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -74,6 +75,7 @@ export function ExternalEventReviewQueuePanel({
           keyword: keyword || undefined,
           asset: assetHint,
           limit: 3,
+          mode,
         }),
       })
       const payload = (await response.json()) as QueueResponse
@@ -81,7 +83,7 @@ export function ExternalEventReviewQueuePanel({
         setMessage("error" in payload ? payload.error : "Enqueue failed")
         return
       }
-      setMessage(`Queued ${payload.data.count} item(s)`)
+      setMessage(`${mode === "live" ? "Live events queued for review only" : "Queued"}: ${payload.data.count} item(s)`)
       await loadItems()
     } catch {
       setMessage("Review queue enqueue request failed")
@@ -128,7 +130,11 @@ export function ExternalEventReviewQueuePanel({
         <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2">
           <select
             value={sourceType}
-            onChange={(event) => setSourceType(event.target.value as ExternalEventSourceType)}
+            onChange={(event) => {
+              const nextSourceType = event.target.value as ExternalEventSourceType
+              setSourceType(nextSourceType)
+              if (nextSourceType !== "polymarket") setMode("mock")
+            }}
             className="h-9 rounded-lg border border-zinc-800 bg-black/60 px-3 text-xs font-bold text-cyan-50 outline-none transition focus:border-cyan-300/50"
           >
             {SOURCES.map((source) => (
@@ -146,6 +152,16 @@ export function ExternalEventReviewQueuePanel({
             Queue
           </button>
         </div>
+        <select
+          value={mode}
+          onChange={(event) => setMode(event.target.value as "mock" | "live")}
+          className="h-9 rounded-lg border border-zinc-800 bg-black/60 px-3 text-xs font-bold text-cyan-50 outline-none transition focus:border-cyan-300/50"
+        >
+          <option value="mock">Mock enqueue</option>
+          <option value="live" disabled={sourceType !== "polymarket"}>
+            Live Polymarket enqueue
+          </option>
+        </select>
         <input
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
@@ -157,6 +173,11 @@ export function ExternalEventReviewQueuePanel({
       {message ? (
         <div className="mt-3 rounded-lg border border-zinc-800 bg-black/45 p-3 text-xs leading-5 text-zinc-300">
           {message}
+        </div>
+      ) : null}
+      {mode === "live" ? (
+        <div className="mt-3 rounded-lg border border-amber-300/15 bg-amber-400/10 p-3 text-[11px] leading-5 text-amber-50/80">
+          Live events are queued for review only. They are external market context, not trading signals.
         </div>
       ) : null}
 

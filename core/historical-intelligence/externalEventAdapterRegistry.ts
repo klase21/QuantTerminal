@@ -1,6 +1,6 @@
 import { mockEtfFlowAdapter } from "./externalAdapters/mockEtfFlowAdapter"
 import { mockMacroCalendarAdapter } from "./externalAdapters/mockMacroCalendarAdapter"
-import { mockPolymarketAdapter } from "./externalAdapters/mockPolymarketAdapter"
+import { polymarketLiveAdapter } from "./externalAdapters/polymarketLiveAdapter"
 import type {
   ExternalEventAdapter,
   ExternalEventAdapterHealth,
@@ -10,7 +10,7 @@ import type {
 } from "./externalEventAdapterTypes"
 
 const ADAPTERS: ExternalEventAdapter[] = [
-  mockPolymarketAdapter,
+  polymarketLiveAdapter,
   mockEtfFlowAdapter,
   mockMacroCalendarAdapter,
 ]
@@ -28,6 +28,7 @@ export function listExternalEventAdapters() {
   return ADAPTERS.map((adapter) => ({
     sourceType: adapter.sourceType,
     sourceName: adapter.sourceName,
+    supportsLive: Boolean(adapter.supportsLive),
   }))
 }
 
@@ -47,10 +48,40 @@ export async function previewExternalEventAdapter(
   sourceType: ExternalEventSourceType,
   query?: ExternalEventFetchQuery,
 ): Promise<ExternalAdapterPreviewResult | null> {
+  return previewMockExternalEventAdapter(sourceType, query)
+}
+
+export async function previewMockExternalEventAdapter(
+  sourceType: ExternalEventSourceType,
+  query?: ExternalEventFetchQuery,
+): Promise<ExternalAdapterPreviewResult | null> {
   const adapter = getExternalEventAdapter(sourceType)
   if (!adapter) return null
 
   const fetchResult = await adapter.fetchMock(query)
+  const normalizedCandidates = fetchResult.rawItems.map((item) => adapter.normalize(item))
+
+  return {
+    health: adapter.getHealth(),
+    rawItemCount: fetchResult.rawItems.length,
+    normalizedEventCount: normalizedCandidates.length,
+    rawItems: fetchResult.rawItems,
+    normalizedCandidates,
+    warnings: [
+      ...fetchResult.warnings,
+      ...normalizedCandidates.flatMap((candidate) => candidate.warnings),
+    ],
+  }
+}
+
+export async function previewLiveExternalEventAdapter(
+  sourceType: ExternalEventSourceType,
+  query: ExternalEventFetchQuery = {},
+): Promise<ExternalAdapterPreviewResult | null> {
+  const adapter = getExternalEventAdapter(sourceType)
+  if (!adapter?.fetchLive) return null
+
+  const fetchResult = await adapter.fetchLive(query)
   const normalizedCandidates = fetchResult.rawItems.map((item) => adapter.normalize(item))
 
   return {

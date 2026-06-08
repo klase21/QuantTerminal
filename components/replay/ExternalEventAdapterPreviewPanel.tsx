@@ -16,8 +16,12 @@ type PreviewResponse =
         health: ExternalEventAdapterHealth
         rawItemCount: number
         normalizedEventCount: number
+        rawItems: {
+          sourceUrl?: string
+        }[]
         normalizedCandidates: ExternalEventNormalizationResult[]
         warnings: string[]
+        previewMode?: "mock" | "live"
       }
     }
   | {
@@ -39,6 +43,7 @@ function appendParam(params: URLSearchParams, key: string, value: string) {
 
 export function ExternalEventAdapterPreviewPanel({ assetHint }: { assetHint?: string }) {
   const [sourceType, setSourceType] = useState<ExternalEventSourceType>("polymarket")
+  const [mode, setMode] = useState<"mock" | "live">("mock")
   const [keyword, setKeyword] = useState("")
   const [asset, setAsset] = useState("")
   const [limit, setLimit] = useState("3")
@@ -54,7 +59,11 @@ export function ExternalEventAdapterPreviewPanel({ assetHint }: { assetHint?: st
     appendParam(params, "asset", asset)
 
     try {
-      const response = await fetch(`/api/historical-intelligence/external-adapters/preview?${params.toString()}`)
+      const endpoint =
+        mode === "live" && sourceType === "polymarket"
+          ? "/api/historical-intelligence/external-adapters/live-preview"
+          : "/api/historical-intelligence/external-adapters/preview"
+      const response = await fetch(`${endpoint}?${params.toString()}`)
       const payload = (await response.json()) as PreviewResponse
       setResult(payload)
     } catch {
@@ -71,14 +80,20 @@ export function ExternalEventAdapterPreviewPanel({ assetHint }: { assetHint?: st
           <SatelliteDish className="h-3.5 w-3.5" />
           External Adapter Preview
         </div>
-        <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Mock-only</div>
+        <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">
+          {mode === "live" && sourceType === "polymarket" ? "Live Preview" : "Mock"}
+        </div>
       </div>
 
       <div className="grid gap-2">
-        <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_112px_72px] gap-2">
           <select
             value={sourceType}
-            onChange={(event) => setSourceType(event.target.value as ExternalEventSourceType)}
+            onChange={(event) => {
+              const nextSourceType = event.target.value as ExternalEventSourceType
+              setSourceType(nextSourceType)
+              if (nextSourceType !== "polymarket") setMode("mock")
+            }}
             className="h-9 rounded-lg border border-zinc-800 bg-black/60 px-3 text-xs font-bold text-cyan-50 outline-none transition focus:border-cyan-300/50"
           >
             {SOURCES.map((source) => (
@@ -86,6 +101,14 @@ export function ExternalEventAdapterPreviewPanel({ assetHint }: { assetHint?: st
                 {source.label}
               </option>
             ))}
+          </select>
+          <select
+            value={mode}
+            onChange={(event) => setMode(event.target.value as "mock" | "live")}
+            className="h-9 rounded-lg border border-zinc-800 bg-black/60 px-2 text-xs font-bold text-cyan-50 outline-none transition focus:border-cyan-300/50"
+          >
+            <option value="mock">Mock</option>
+            <option value="live">Live</option>
           </select>
           <select
             value={limit}
@@ -154,8 +177,20 @@ export function ExternalEventAdapterPreviewPanel({ assetHint }: { assetHint?: st
                   </article>
                 ))}
               </div>
+              {result.data.rawItems?.[0]?.sourceUrl ? (
+                <div className="truncate rounded-lg border border-zinc-900 bg-black/45 p-3 text-[11px] leading-5 text-zinc-400">
+                  Source: {result.data.rawItems[0].sourceUrl}
+                </div>
+              ) : null}
+              {result.data.warnings.length ? (
+                <div className="rounded-lg border border-zinc-800 bg-black/45 p-3 text-[11px] leading-5 text-zinc-400">
+                  {result.data.warnings.slice(0, 2).join(" / ")}
+                </div>
+              ) : null}
               <div className="rounded-lg border border-amber-300/15 bg-amber-400/10 p-3 text-[11px] leading-5 text-amber-50/80">
-                Mock-only preview. No external request, API key, or database write occurred.
+                {mode === "live" && sourceType === "polymarket"
+                  ? "Live preview only. External market context and crowd expectation, not a trading signal. Send to Review Queue before writing."
+                  : "Mock-only preview. No external request, API key, or database write occurred."}
               </div>
             </>
           ) : (

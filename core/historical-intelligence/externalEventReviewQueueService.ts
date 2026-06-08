@@ -1,4 +1,7 @@
-import { previewExternalEventAdapter } from "./externalEventAdapterRegistry"
+import {
+  previewExternalEventAdapter,
+  previewLiveExternalEventAdapter,
+} from "./externalEventAdapterRegistry"
 import type { ExternalEventFetchQuery, ExternalEventSourceType } from "./externalEventAdapterTypes"
 import {
   createDecision,
@@ -48,14 +51,18 @@ function updateStatus(id: string, status: ExternalEventReviewStatus, note?: stri
 export async function enqueueFromAdapterPreview(
   sourceType: ExternalEventSourceType,
   query?: ExternalEventFetchQuery,
+  mode: "mock" | "live" = "mock",
 ): Promise<ExternalEventReviewQueueResult> {
-  const preview = await previewExternalEventAdapter(sourceType, query)
+  const preview =
+    mode === "live"
+      ? await previewLiveExternalEventAdapter(sourceType, query)
+      : await previewExternalEventAdapter(sourceType, query)
   if (!preview) return queueResult([])
 
   const inserted: ExternalEventReviewItem[] = []
 
   preview.normalizedCandidates.forEach((candidate) => {
-    const id = itemId(sourceType, candidate.rawItem.id)
+    const id = itemId(sourceType, `${mode}-${candidate.rawItem.id}`)
     const existing = reviewItems.find((item) => item.id === id)
     if (existing) {
       inserted.push(existing)

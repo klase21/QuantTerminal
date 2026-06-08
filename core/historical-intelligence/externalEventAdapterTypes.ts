@@ -45,12 +45,19 @@ export interface ExternalEventAdapterHealth {
   status: "mock_ready" | "disabled" | "error"
   lastCheckedAt: string
   message: string
+  supportsLive?: boolean
+  liveSourceUrl?: string
+  rateLimitNote?: string
 }
 
 export interface ExternalEventAdapter {
   sourceType: ExternalEventSourceType
   sourceName: string
+  supportsLive?: boolean
+  liveSourceUrl?: string
+  rateLimitNote?: string
   fetchMock(query?: ExternalEventFetchQuery): Promise<ExternalEventFetchResult>
+  fetchLive?(query: ExternalEventFetchQuery): Promise<ExternalEventFetchResult>
   normalize(rawItem: ExternalEventRawItem): ExternalEventNormalizationResult
   getHealth(): ExternalEventAdapterHealth
 }
