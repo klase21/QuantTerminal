@@ -4,6 +4,7 @@ import { Gauge, Scale } from "lucide-react"
 
 import type { ExpectationIntelligenceSummary } from "@/core/historical-intelligence/expectationIntelligenceEngine"
 import type { PredictionMarketIntelligence } from "@/core/historical-intelligence/predictionMarketTypes"
+import { getReplayConfidencePresentation, replayStandardCaveats } from "@/design-system/replayPresentationRules"
 
 function signalClass(signal: PredictionMarketIntelligence["disagreementSignal"]) {
   if (signal === "high") return "text-rose-200"
@@ -19,6 +20,7 @@ export function ExpectationContextPanel({
   predictionMarkets: PredictionMarketIntelligence
 }) {
   const topMarket = predictionMarkets.marketEvents[0]
+  const confidenceRead = getReplayConfidencePresentation(expectation.confidence)
 
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
@@ -27,8 +29,8 @@ export function ExpectationContextPanel({
           <Gauge className="h-3.5 w-3.5" />
           Expectation Context
         </div>
-        <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-          {expectation.confidence}% confidence
+        <div className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${confidenceRead.className}`}>
+          {confidenceRead.shortLabel}
         </div>
       </div>
 
@@ -75,7 +77,7 @@ export function ExpectationContextPanel({
       ) : null}
 
       <p className="mt-2 text-xs leading-5 text-zinc-400">{expectation.interpretation}</p>
+      <p className="mt-1 text-[11px] leading-5 text-zinc-500">{replayStandardCaveats.expectation}</p>
     </section>
   )
 }
-

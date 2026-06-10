@@ -20,6 +20,11 @@ import { CaseBriefPanel } from "./CaseBriefPanel"
 import { DataOperationsWorkbenchPanel } from "./DataOperationsWorkbenchPanel"
 import { ExpectationContextPanel } from "./ExpectationContextPanel"
 import { HistoricalContextPanel } from "./HistoricalContextPanel"
+import {
+  getReplayConfidencePresentation,
+  getReplaySectionPriority,
+  type ReplaySectionPriority,
+} from "@/design-system/replayPresentationRules"
 
 type NarrativeSectionId = "what-happened" | "why" | "history" | "worked" | "watch" | "advanced"
 
@@ -67,30 +72,53 @@ function FlowSection({
   step,
   title,
   prompt,
+  cardType,
+  informationLevel,
   open,
   onOpenChange,
   onContinue,
+  nextLabel,
   children,
 }: {
   id: NarrativeSectionId
   step: string
   title: string
   prompt: string
+  cardType: "primary" | "secondary" | "evidence" | "signal" | "decision"
+  informationLevel: "level_1" | "level_2" | "level_3" | "level_4" | "advanced"
   open: boolean
   onOpenChange: (id: NarrativeSectionId, open: boolean) => void
   onContinue?: () => void
+  nextLabel?: string
   children: ReactNode
 }) {
+  const priority = getReplaySectionPriority(informationLevel, cardType)
+  const shellClass: Record<ReplaySectionPriority, string> = {
+    primary: "border-cyan-300/25 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,.12),transparent_34%),rgba(9,9,11,.9)]",
+    supporting: "border-zinc-800 bg-zinc-950/80",
+    advanced: "border-zinc-900 bg-zinc-950/55",
+  }
+  const priorityClass: Record<ReplaySectionPriority, string> = {
+    primary: "border-cyan-300/25 bg-cyan-400/10 text-cyan-100",
+    supporting: "border-zinc-700 bg-black/35 text-zinc-300",
+    advanced: "border-amber-300/20 bg-amber-400/10 text-amber-100",
+  }
+
   return (
     <details
       open={open}
       onToggle={(event) => onOpenChange(id, event.currentTarget.open)}
-      className="group rounded-xl border border-zinc-800 bg-zinc-950/80 p-3"
+      className={`group rounded-xl border p-3 ${shellClass[priority]}`}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500">{step}</div>
-          <div className="mt-1 text-sm font-black text-white">{title}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500">{step}</div>
+            <div className={`rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] ${priorityClass[priority]}`}>
+              {priority}
+            </div>
+          </div>
+          <div className={priority === "primary" ? "mt-1 text-base font-black text-white" : "mt-1 text-sm font-black text-white"}>{title}</div>
           <div className="mt-1 text-xs leading-5 text-zinc-500">{prompt}</div>
         </div>
         <div className="shrink-0 rounded-full border border-zinc-800 bg-black/45 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 group-open:text-cyan-200">
@@ -104,9 +132,9 @@ function FlowSection({
           <button
             type="button"
             onClick={onContinue}
-            className="flex items-center justify-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15"
+            className="flex items-center justify-center gap-2 rounded-lg border border-zinc-800 bg-black/45 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-300 transition hover:border-cyan-300/35 hover:bg-cyan-400/10 hover:text-cyan-100"
           >
-            Continue Investigation
+            Continue{nextLabel ? `: ${nextLabel}` : " Investigation"}
             <ArrowDown className="h-3.5 w-3.5" />
           </button>
         ) : null}
@@ -153,6 +181,7 @@ function MarketDriversStory({ replay, frame }: { replay: ReplayCase; frame: Repl
     ...frame.risk.risks,
   ].slice(0, 3)
   const sectionConfidence = topDriver?.confidence ?? 0
+  const confidenceRead = getReplayConfidencePresentation(sectionConfidence)
 
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
@@ -161,8 +190,8 @@ function MarketDriversStory({ replay, frame }: { replay: ReplayCase; frame: Repl
           <Target className="h-3.5 w-3.5" />
           Market Drivers Story
         </div>
-        <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-          {sectionConfidence}% driver confidence
+        <div className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${confidenceRead.className}`}>
+          {confidenceRead.shortLabel}
         </div>
       </div>
 
@@ -359,6 +388,7 @@ function WhatToWatchPanel({
   agentAccuracy: AgentAccuracyStat[]
 }) {
   const topAgent = agentAccuracy[0]
+  const confidenceRead = getReplayConfidencePresentation(expectation.confidence)
   const watchItems = [
     `Expectation status: ${expectation.pricingStatus} / surprise ${expectation.surpriseScore}`,
     `Risk state: ${frame.risk.level} / ${frame.risk.summary}`,
@@ -372,8 +402,8 @@ function WhatToWatchPanel({
           <Eye className="h-3.5 w-3.5" />
           What Should I Watch?
         </div>
-        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200">
-          {expectation.confidence}% expectation confidence
+        <div className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${confidenceRead.className}`}>
+          {confidenceRead.shortLabel}
         </div>
       </div>
       <div className="grid gap-2 lg:grid-cols-3">
@@ -446,6 +476,7 @@ export function ReplayNarrativeFlow({
     () => narrativeCompletenessScore({ replay, frame, similarEvents, setupMemory, tacticalPlaybook, expectation, agentAccuracy }),
     [agentAccuracy, expectation, frame, replay, setupMemory, similarEvents, tacticalPlaybook],
   )
+  const completenessRead = getReplayConfidencePresentation(completenessScore)
 
   function setSectionOpen(id: NarrativeSectionId, open: boolean) {
     setOpenSections((current) => ({ ...current, [id]: open }))
@@ -468,9 +499,9 @@ export function ReplayNarrativeFlow({
               Read the case as an investigation: incident, drivers, analogs, outcome memory, then watch signals.
             </p>
           </div>
-          <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-right">
+          <div className={`rounded-lg border px-3 py-2 text-right ${completenessRead.className}`}>
             <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Narrative Completeness</div>
-            <div className="mt-1 text-lg font-black text-white">{completenessScore}/100</div>
+            <div className="mt-1 text-lg font-black text-white">{completenessRead.value}/100</div>
           </div>
         </div>
       </div>
@@ -480,9 +511,12 @@ export function ReplayNarrativeFlow({
         step="Section A"
         title="What Happened?"
         prompt="Start with the event, verdict, confidence, replay window, and key lesson."
+        cardType="primary"
+        informationLevel="level_1"
         open={openSections["what-happened"]}
         onOpenChange={setSectionOpen}
         onContinue={() => continueTo("why")}
+        nextLabel="Why"
       >
         <CaseBriefPanel
           replay={replay}
@@ -499,9 +533,12 @@ export function ReplayNarrativeFlow({
         step="Section B"
         title="Why Did It Happen?"
         prompt="Follow the driver story, narrative shift, and evidence for or against the market's explanation."
+        cardType="evidence"
+        informationLevel="level_2"
         open={openSections.why}
         onOpenChange={setSectionOpen}
         onContinue={() => continueTo("history")}
+        nextLabel="History"
       >
         <MarketDriversStory replay={replay} frame={frame} />
         <EvidenceTimelineStory replay={replay} frame={frame} />
@@ -512,9 +549,12 @@ export function ReplayNarrativeFlow({
         step="Section C"
         title="Has This Happened Before?"
         prompt="Compare this case to analogs and recurring historical patterns."
+        cardType="secondary"
+        informationLevel="level_3"
         open={openSections.history}
         onOpenChange={setSectionOpen}
         onContinue={() => continueTo("worked")}
+        nextLabel="What Worked"
       >
         <HistoricalContextPanel
           similarEvents={similarEvents}
@@ -529,9 +569,12 @@ export function ReplayNarrativeFlow({
         step="Section D"
         title="What Worked Before?"
         prompt="Translate outcome memory into playbook rules, mistake awareness, and invalidation."
+        cardType="decision"
+        informationLevel="level_4"
         open={openSections.worked}
         onOpenChange={setSectionOpen}
         onContinue={() => continueTo("watch")}
+        nextLabel="Watch Signals"
       >
         <WhatWorkedBeforePanel
           setupMemory={setupMemory}
@@ -545,9 +588,12 @@ export function ReplayNarrativeFlow({
         step="Section E"
         title="What Should I Watch?"
         prompt="Use expectations, agent reliability, and risk signals as the forward-looking checklist."
+        cardType="signal"
+        informationLevel="level_4"
         open={openSections.watch}
         onOpenChange={setSectionOpen}
         onContinue={() => continueTo("advanced")}
+        nextLabel="Advanced Tools"
       >
         <WhatToWatchPanel
           expectation={expectation}
@@ -564,6 +610,8 @@ export function ReplayNarrativeFlow({
         step="Advanced"
         title="Data Operations Workbench"
         prompt="Source preview, validation, review, linking, scoring, inspection, write tests, and ingestion stay out of the normal investigation path."
+        cardType="secondary"
+        informationLevel="advanced"
         open={openSections.advanced}
         onOpenChange={setSectionOpen}
       >
@@ -576,4 +624,3 @@ export function ReplayNarrativeFlow({
     </section>
   )
 }
-

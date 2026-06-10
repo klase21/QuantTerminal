@@ -6,17 +6,12 @@ import type { ReplayExplanation } from "@/core/historical-intelligence/replayExp
 import type { ReplayLearningSummary } from "@/core/historical-intelligence/replayLearningSummaryTypes"
 import type { ReplayDecisionJournal } from "@/core/historical-intelligence/replayDecisionJournalTypes"
 import type { ReplayCase, ReplayEvent, ReplayFrame } from "@/core/replay/replayTypes"
+import { getReplayConfidencePresentation, replayStandardCaveats } from "@/design-system/replayPresentationRules"
 
 function metricClass(value: number) {
   if (value > 0) return "text-emerald-300"
   if (value < 0) return "text-rose-300"
   return "text-zinc-300"
-}
-
-function resultClass(result?: ReplayExplanation["setupResult"]) {
-  if (result === "worked") return "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-  if (result === "failed") return "border-rose-300/20 bg-rose-400/10 text-rose-100"
-  return "border-amber-300/20 bg-amber-400/10 text-amber-100"
 }
 
 export function CaseBriefPanel({
@@ -41,7 +36,8 @@ export function CaseBriefPanel({
   const whyItHappened = explanation?.primaryReason ?? frame.narrative.summary
   const keyLesson = learningSummary?.historicalLesson ?? explanation?.tacticalLesson ?? replay.realityCheck
   const futureRule = learningSummary?.futureExecutionRule ?? explanation?.futureExecutionRule ?? frame.risk.invalidation
-  const caveat = learningSummary?.caveat ?? explanation?.caveat ?? "Mock-first replay context. Use as historical review, not a live signal."
+  const caveat = learningSummary?.caveat ?? explanation?.caveat ?? replayStandardCaveats.mockReplay
+  const confidenceRead = getReplayConfidencePresentation(confidence)
 
   return (
     <section className="rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,.15),transparent_34%),rgba(9,9,11,.92)] p-4">
@@ -52,8 +48,8 @@ export function CaseBriefPanel({
               <FileQuestion className="h-3.5 w-3.5" />
               Case Brief
             </div>
-            <div className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${resultClass(explanation?.setupResult)}`}>
-              {explanation?.setupResult ?? "review"} / {confidence}%
+            <div className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${confidenceRead.className}`}>
+              {explanation?.setupResult ?? "review"} / {confidenceRead.shortLabel}
             </div>
           </div>
           <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
