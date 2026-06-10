@@ -5,6 +5,8 @@ import { Gauge, Scale } from "lucide-react"
 import type { ExpectationIntelligenceSummary } from "@/core/historical-intelligence/expectationIntelligenceEngine"
 import type { PredictionMarketIntelligence } from "@/core/historical-intelligence/predictionMarketTypes"
 import { getReplayConfidencePresentation, replayStandardCaveats } from "@/design-system/replayPresentationRules"
+import { ReplayInsightCard } from "./ReplayInsightCard"
+import { ReplayMetricBadge } from "./ReplayMetricBadge"
 
 function signalClass(signal: PredictionMarketIntelligence["disagreementSignal"]) {
   if (signal === "high") return "text-rose-200"
@@ -34,35 +36,23 @@ export function ExpectationContextPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Expected Outcome</div>
-          <div className="mt-1 text-xs font-black text-white">{expectation.dominantExpectedOutcome}</div>
-          <div className="mt-1 text-xs font-black text-cyan-100">{expectation.expectationProbability}%</div>
-        </div>
-        <div className="rounded-lg border border-zinc-900 bg-black/45 p-3 text-right">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Surprise / Status</div>
-          <div className="mt-1 text-xs font-black text-amber-100">{expectation.surpriseScore}/100</div>
-          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">{expectation.pricingStatus}</div>
-        </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        <ReplayInsightCard icon={Gauge} title={expectation.dominantExpectedOutcome} status="expected" metric={`${expectation.expectationProbability}%`} tone="cyan">
+          <ReplayMetricBadge label={expectation.convictionLevel} tone="cyan" />
+        </ReplayInsightCard>
+        <ReplayInsightCard title={expectation.pricingStatus} status="priced status" metric={`${expectation.surpriseScore}/100`} description="Surprise score" tone="amber">
+          <ReplayMetricBadge label={expectation.expectationMomentum} tone="amber" />
+        </ReplayInsightCard>
+        <ReplayInsightCard icon={Scale} title={predictionMarkets.disagreementSignal} status="disagreement" metric={`${predictionMarkets.averageImpliedProbability}%`} description={predictionMarkets.dominantCrowdExpectation}>
+          <ReplayMetricBadge label="CROWD" />
+        </ReplayInsightCard>
       </div>
 
       <div className="mt-2 rounded-lg border border-zinc-900 bg-black/45 p-3">
-        <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">
-          <Scale className="h-3.5 w-3.5" />
-          Prediction Context
-        </div>
-        <p className="mt-1 text-xs leading-5 text-zinc-300">{predictionMarkets.dominantCrowdExpectation}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          <span className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">
-            odds {predictionMarkets.averageImpliedProbability}%
-          </span>
-          <span className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">
-            change {predictionMarkets.averageProbabilityChange >= 0 ? "+" : ""}{predictionMarkets.averageProbabilityChange}%
-          </span>
-          <span className={`rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] ${signalClass(predictionMarkets.disagreementSignal)}`}>
-            {predictionMarkets.disagreementSignal} disagreement
-          </span>
+          <ReplayMetricBadge label={`odds ${predictionMarkets.averageImpliedProbability}%`} />
+          <ReplayMetricBadge label={`change ${predictionMarkets.averageProbabilityChange >= 0 ? "+" : ""}${predictionMarkets.averageProbabilityChange}%`} />
+          <ReplayMetricBadge label={`${predictionMarkets.disagreementSignal} disagreement`} tone={predictionMarkets.disagreementSignal === "high" ? "rose" : predictionMarkets.disagreementSignal === "medium" ? "amber" : "green"} />
         </div>
       </div>
 
@@ -76,8 +66,11 @@ export function ExpectationContextPanel({
         </div>
       ) : null}
 
-      <p className="mt-2 text-xs leading-5 text-zinc-400">{expectation.interpretation}</p>
-      <p className="mt-1 text-[11px] leading-5 text-zinc-500">{replayStandardCaveats.expectation}</p>
+      <details className="mt-2 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
+        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Details / Caveat</summary>
+        <div className="mt-2">{expectation.interpretation}</div>
+        <div className="mt-1">{replayStandardCaveats.expectation}</div>
+      </details>
     </section>
   )
 }

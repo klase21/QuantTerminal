@@ -4,6 +4,8 @@ import { Activity, BrainCircuit, Gauge, ScanLine, ShieldAlert, TrendingUp } from
 
 import type { AgentAccuracyStat } from "@/core/historical-intelligence/agentAccuracyEngine"
 import type { ReplayAgentTone, ReplayFrame } from "@/core/replay/replayTypes"
+import { ReplayInsightCard } from "./ReplayInsightCard"
+import { ReplayMetricBadge } from "./ReplayMetricBadge"
 
 function toneClass(tone: ReplayAgentTone) {
   if (tone === "BULLISH") return "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
@@ -31,53 +33,37 @@ export function AgentReadPanel({ frame, stats }: { frame: ReplayFrame; stats: Ag
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/70">Most Useful</div>
-          <div className="mt-1 text-sm font-black text-white">{top?.agent ?? "N/A"}</div>
-          <div className="mt-1 text-xs font-black text-emerald-100">{top?.accuracyScore ?? 0}% / {top?.caseAlignment ?? "catalog"}</div>
-        </div>
-        <div className="rounded-lg border border-rose-300/15 bg-rose-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Cross-check</div>
-          <div className="mt-1 text-sm font-black text-white">{weakest?.agent ?? "N/A"}</div>
-          <div className="mt-1 text-xs font-black text-rose-100">{weakest?.accuracyScore ?? 0}% / {weakest?.caseAlignment ?? "catalog"}</div>
-        </div>
+        <ReplayInsightCard title={top?.agent ?? "N/A"} status="most useful" metric={`${top?.accuracyScore ?? 0}%`} tone="green">
+          <ReplayMetricBadge label={top?.caseAlignment ?? "catalog"} tone="green" />
+        </ReplayInsightCard>
+        <ReplayInsightCard title={weakest?.agent ?? "N/A"} status="cross-check" metric={`${weakest?.accuracyScore ?? 0}%`} tone="rose">
+          <ReplayMetricBadge label={weakest?.caseAlignment ?? "catalog"} tone="rose" />
+        </ReplayInsightCard>
       </div>
 
-      <div className="mt-2 grid gap-2">
+      <div className="mt-2 grid gap-2 md:grid-cols-2">
         {frame.agents.map((agent, index) => {
           const Icon = icons[index] ?? BrainCircuit
           const stat = statByAgent.get(agent.agent as AgentAccuracyStat["agent"])
           return (
-            <article key={agent.agent} className="rounded-lg border border-zinc-900 bg-black/45 p-3">
-              <div className="flex items-start gap-3">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-400/10 text-cyan-200">
-                  <Icon className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-black text-white">{agent.agent}</div>
-                    <div className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${toneClass(agent.tone)}`}>
-                      {agent.tone} / {agent.confidence}%
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-zinc-400">{agent.summary}</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">
-                      accuracy {stat?.accuracyScore ?? 0}%
-                    </span>
-                    <span className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">
-                      calibration {stat?.confidenceCalibrationScore ?? 0}%
-                    </span>
-                    {stat?.caseAlignment ? (
-                      <span className="rounded-full border border-cyan-300/15 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100/80">
-                        {stat.caseAlignment}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-2 text-[11px] leading-5 text-zinc-500">{stat?.alignmentRead ?? stat?.tacticalTakeaway ?? agent.watch}</p>
-                </div>
+            <ReplayInsightCard
+              key={agent.agent}
+              icon={Icon}
+              title={agent.agent}
+              status={agent.tone}
+              metric={`${agent.confidence}%`}
+              description={agent.summary}
+            >
+              <div className="flex flex-wrap gap-1.5">
+                <ReplayMetricBadge label={`accuracy ${stat?.accuracyScore ?? 0}%`} />
+                <ReplayMetricBadge label={`cal ${stat?.confidenceCalibrationScore ?? 0}%`} />
+                {stat?.caseAlignment ? <ReplayMetricBadge label={stat.caseAlignment} tone="cyan" /> : null}
               </div>
-            </article>
+              <details className="mt-2 text-[11px] leading-5 text-zinc-500">
+                <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Details</summary>
+                <div className="mt-1">{stat?.alignmentRead ?? stat?.tacticalTakeaway ?? agent.watch}</div>
+              </details>
+            </ReplayInsightCard>
           )
         })}
       </div>
@@ -89,4 +75,3 @@ export function AgentReadPanel({ frame, stats }: { frame: ReplayFrame; stats: Ag
     </section>
   )
 }
-

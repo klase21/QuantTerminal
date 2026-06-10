@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, type ReactNode } from "react"
-import { ArrowDown, BarChart3, ClipboardList, Eye, History, Search, ShieldAlert, Target } from "lucide-react"
+import { BarChart3, ClipboardList, Eye, History, Search, ShieldAlert, Target } from "lucide-react"
 
 import type { AgentAccuracyStat } from "@/core/historical-intelligence/agentAccuracyEngine"
 import type { EventMemoryLinkerSnapshot } from "@/core/historical-intelligence/eventMemoryLinkerTypes"
@@ -20,13 +20,16 @@ import { CaseBriefPanel } from "./CaseBriefPanel"
 import { DataOperationsWorkbenchPanel } from "./DataOperationsWorkbenchPanel"
 import { ExpectationContextPanel } from "./ExpectationContextPanel"
 import { HistoricalContextPanel } from "./HistoricalContextPanel"
+import { InformationIntelligencePanel } from "./InformationIntelligencePanel"
+import { ReplayInsightCard } from "./ReplayInsightCard"
+import { ReplayMetricBadge } from "./ReplayMetricBadge"
 import {
   getReplayConfidencePresentation,
   getReplaySectionPriority,
   type ReplaySectionPriority,
 } from "@/design-system/replayPresentationRules"
 
-type NarrativeSectionId = "what-happened" | "why" | "history" | "worked" | "watch" | "advanced"
+type NarrativeSectionId = "what-happened" | "why" | "history" | "worked" | "watch"
 
 function sentimentClass(sentiment: ReplaySentiment) {
   if (sentiment === "positive") return "text-emerald-300"
@@ -67,29 +70,17 @@ function narrativeCompletenessScore({
   return checks.reduce((score, passed) => score + (passed ? 20 : 0), 0)
 }
 
-function FlowSection({
-  id,
-  step,
+function WorkspacePanelShell({
   title,
   prompt,
   cardType,
   informationLevel,
-  open,
-  onOpenChange,
-  onContinue,
-  nextLabel,
   children,
 }: {
-  id: NarrativeSectionId
-  step: string
   title: string
   prompt: string
   cardType: "primary" | "secondary" | "evidence" | "signal" | "decision"
-  informationLevel: "level_1" | "level_2" | "level_3" | "level_4" | "advanced"
-  open: boolean
-  onOpenChange: (id: NarrativeSectionId, open: boolean) => void
-  onContinue?: () => void
-  nextLabel?: string
+  informationLevel: "level_1" | "level_2" | "level_3" | "level_4"
   children: ReactNode
 }) {
   const priority = getReplaySectionPriority(informationLevel, cardType)
@@ -105,41 +96,22 @@ function FlowSection({
   }
 
   return (
-    <details
-      open={open}
-      onToggle={(event) => onOpenChange(id, event.currentTarget.open)}
-      className={`group rounded-xl border p-3 ${shellClass[priority]}`}
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500">{step}</div>
-            <div className={`rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] ${priorityClass[priority]}`}>
-              {priority}
-            </div>
+    <section className={`rounded-xl border p-3 ${shellClass[priority]}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className={`inline-flex rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] ${priorityClass[priority]}`}>
+            {priority}
           </div>
-          <div className={priority === "primary" ? "mt-1 text-base font-black text-white" : "mt-1 text-sm font-black text-white"}>{title}</div>
+          <div className={priority === "primary" ? "mt-2 text-base font-black text-white" : "mt-2 text-sm font-black text-white"}>
+            {title}
+          </div>
           <div className="mt-1 text-xs leading-5 text-zinc-500">{prompt}</div>
         </div>
-        <div className="shrink-0 rounded-full border border-zinc-800 bg-black/45 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 group-open:text-cyan-200">
-          <span className="group-open:hidden">Open</span>
-          <span className="hidden group-open:inline">Reading</span>
-        </div>
-      </summary>
+      </div>
       <div className="mt-3 grid gap-3">
         {children}
-        {onContinue ? (
-          <button
-            type="button"
-            onClick={onContinue}
-            className="flex items-center justify-center gap-2 rounded-lg border border-zinc-800 bg-black/45 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-300 transition hover:border-cyan-300/35 hover:bg-cyan-400/10 hover:text-cyan-100"
-          >
-            Continue{nextLabel ? `: ${nextLabel}` : " Investigation"}
-            <ArrowDown className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
       </div>
-    </details>
+    </section>
   )
 }
 
@@ -197,56 +169,52 @@ function MarketDriversStory({ replay, frame }: { replay: ReplayCase; frame: Repl
 
       <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
         <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Causal Read</div>
-        <p className="mt-1 text-sm leading-6 text-cyan-50/85">
+        <p className="mt-1 line-clamp-2 text-sm leading-6 text-cyan-50/85">
           {topDriver ? `${topDriver.driver} was the highest-ranked explanation, but the replay tests it against narrative evidence and risk state.` : frame.narrative.summary}
         </p>
       </div>
 
-      <div className="mt-2 grid gap-2 lg:grid-cols-[1fr_1.2fr]">
-        <div className="grid gap-2">
+      <div className="mt-2 grid gap-2">
+        <div className="grid gap-2 md:grid-cols-3">
           {frame.narrative.possibleDrivers.slice(0, 3).map((driver) => (
-            <div key={driver.driver} className="rounded-lg border border-zinc-900 bg-black/45 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">#{driver.rank}</div>
-                  <div className="mt-1 text-sm font-black text-white">{driver.driver}</div>
-                </div>
-                <div className="text-right text-sm font-black text-cyan-100">{driver.confidence}%</div>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-zinc-400">{driver.evidence}</p>
-            </div>
+            <ReplayInsightCard
+              key={driver.driver}
+              title={driver.driver}
+              status={`#${driver.rank}`}
+              metric={`${driver.confidence}%`}
+              description={driver.evidence}
+              tone={driver.rank === 1 ? "cyan" : "neutral"}
+            />
           ))}
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-2 lg:grid-cols-3">
           <div className="rounded-lg border border-zinc-900 bg-black/45 p-3">
             <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Narrative Shift</div>
             <div className="mt-1 text-sm font-black text-white">{frame.narrative.primaryNarrative}</div>
-            <p className="mt-2 text-xs leading-5 text-zinc-400">{frame.narrative.summary}</p>
+            <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-400">{frame.narrative.summary}</p>
           </div>
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-            <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/10 p-3">
-              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/70">Evidence For</div>
-              <div className="mt-2 space-y-1.5">
-                {supporting.map((item) => (
-                  <div key={item.headline} className="text-xs leading-5 text-emerald-50/80">{item.headline}</div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-lg border border-rose-300/15 bg-rose-400/10 p-3">
-              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Evidence Against</div>
-              <div className="mt-2 space-y-1.5">
-                {contradicting.map((item) => (
-                  <div key={item} className="text-xs leading-5 text-rose-50/80">{item}</div>
-                ))}
-              </div>
+          <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/10 p-3">
+            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/70">Evidence For</div>
+            <div className="mt-2 space-y-1.5">
+              {supporting.slice(0, 2).map((item) => (
+                <div key={item.headline} className="line-clamp-2 text-xs leading-5 text-emerald-50/80">{item.headline}</div>
+              ))}
             </div>
           </div>
-          <div className="rounded-lg border border-zinc-900 bg-black/45 p-3">
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Reality Check</div>
-            <p className="mt-1 text-xs leading-5 text-zinc-300">{replay.realityCheck}</p>
+          <div className="rounded-lg border border-rose-300/15 bg-rose-400/10 p-3">
+            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Evidence Against</div>
+            <div className="mt-2 space-y-1.5">
+              {contradicting.slice(0, 2).map((item) => (
+                <div key={item} className="line-clamp-2 text-xs leading-5 text-rose-50/80">{item}</div>
+              ))}
+            </div>
           </div>
         </div>
+        <details className="rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
+          <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Expand Driver Detail</summary>
+          <div className="mt-2">{replay.realityCheck}</div>
+        </details>
       </div>
     </section>
   )
@@ -328,50 +296,27 @@ function WhatWorkedBeforePanel({
         </div>
       </div>
 
-      <div className="grid gap-2 lg:grid-cols-2">
-        <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/70">Historical Winners</div>
-          <p className="mt-1 text-xs leading-5 text-emerald-50/85">{setupMemory.bestHistoricalCondition}</p>
-        </div>
-        <div className="rounded-lg border border-rose-300/15 bg-rose-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Historical Failures</div>
-          <p className="mt-1 text-xs leading-5 text-rose-50/85">{setupMemory.worstHistoricalCondition}</p>
-        </div>
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <ReplayInsightCard title="Winner" status="best condition" description={setupMemory.bestHistoricalCondition} tone="green">
+          <ReplayMetricBadge label={`${setupMemory.winRate}% win`} tone="green" />
+        </ReplayInsightCard>
+        <ReplayInsightCard title="Failure" status="worst condition" description={setupMemory.worstHistoricalCondition} tone="rose">
+          <ReplayMetricBadge label={`${setupMemory.maxAdverseMovePct.toFixed(1)}% adverse`} tone="rose" />
+        </ReplayInsightCard>
+        <ReplayInsightCard title={decisionJournal?.mistakeTag ?? "Mistake"} status="common mistake" description={setupMemory.commonFailureMode} tone="amber">
+          <ReplayMetricBadge label="CAUTION" tone="amber" />
+        </ReplayInsightCard>
+        <ReplayInsightCard title="Playbook" status="next time" description={tacticalPlaybook.playbook[0] ?? tacticalPlaybook.lesson} tone="cyan">
+          <ReplayMetricBadge label="ACTION" tone="cyan" />
+        </ReplayInsightCard>
       </div>
-
-      <div className="mt-2 grid gap-2 lg:grid-cols-[1fr_1.1fr]">
-        <div className="rounded-lg border border-amber-300/15 bg-amber-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-100/70">Common Mistake</div>
-          <p className="mt-1 text-xs leading-5 text-amber-50/85">{decisionJournal?.mistakeTag ?? tacticalPlaybook.mistake}</p>
-          <p className="mt-2 text-xs leading-5 text-zinc-300">{setupMemory.commonFailureMode}</p>
+      <details className="mt-2 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
+        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Expand Playbook Detail</summary>
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          <div>{decisionJournal?.lesson ?? tacticalPlaybook.lesson}</div>
+          <div>{tacticalPlaybook.invalidationChecklist.slice(0, 3).join(" / ")}</div>
         </div>
-        <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Recommended Playbook</div>
-          <div className="mt-2 space-y-1.5">
-            {tacticalPlaybook.playbook.slice(0, 4).map((item, index) => (
-              <div key={item} className="flex gap-2 text-xs leading-5 text-cyan-50/85">
-                <span className="font-black text-cyan-300">{index + 1}.</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-2 grid gap-2 lg:grid-cols-2">
-        <div className="rounded-lg border border-zinc-900 bg-black/45 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Decision Lesson</div>
-          <p className="mt-1 text-xs leading-5 text-zinc-300">{decisionJournal?.lesson ?? tacticalPlaybook.lesson}</p>
-        </div>
-        <div className="rounded-lg border border-zinc-900 bg-black/45 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Invalidation</div>
-          <div className="mt-2 space-y-1.5">
-            {tacticalPlaybook.invalidationChecklist.slice(0, 3).map((item) => (
-              <div key={item} className="text-xs leading-5 text-zinc-300">{item}</div>
-            ))}
-          </div>
-        </div>
-      </div>
+      </details>
     </section>
   )
 }
@@ -406,11 +351,11 @@ function WhatToWatchPanel({
           {confidenceRead.shortLabel}
         </div>
       </div>
-      <div className="grid gap-2 lg:grid-cols-3">
+      <div className="grid gap-2 md:grid-cols-3">
         {watchItems.map((item) => (
-          <div key={item} className="rounded-lg border border-zinc-900 bg-black/45 p-3 text-xs leading-5 text-zinc-300">
-            {item}
-          </div>
+          <ReplayInsightCard key={item} title={item} status="watch signal" tone="cyan">
+            <ReplayMetricBadge label="WATCH" tone="cyan" />
+          </ReplayInsightCard>
         ))}
       </div>
       <div className="mt-2 rounded-lg border border-amber-300/15 bg-amber-400/10 p-3">
@@ -420,12 +365,318 @@ function WhatToWatchPanel({
         </div>
         <div className="mt-2 space-y-1.5">
           {frame.risk.risks.slice(0, 3).map((risk) => (
-            <div key={risk} className="text-xs leading-5 text-amber-50/85">{risk}</div>
+            <div key={risk} className="line-clamp-1 text-xs leading-5 text-amber-50/85">{risk}</div>
           ))}
         </div>
       </div>
-      <p className="mt-2 text-xs leading-5 text-zinc-400">{predictionMarkets.tacticalInterpretation}</p>
+      <details className="mt-2 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
+        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Expand Watch Detail</summary>
+        <div className="mt-2">{predictionMarkets.tacticalInterpretation}</div>
+      </details>
     </section>
+  )
+}
+
+const INVESTIGATION_STEPS: {
+  id: NarrativeSectionId
+  label: string
+  prompt: string
+  cardType: "primary" | "secondary" | "evidence" | "signal" | "decision"
+  informationLevel: "level_1" | "level_2" | "level_3" | "level_4"
+}[] = [
+  {
+    id: "what-happened",
+    label: "What Happened?",
+    prompt: "Incident, verdict, confidence, replay window.",
+    cardType: "primary",
+    informationLevel: "level_1",
+  },
+  {
+    id: "why",
+    label: "Why?",
+    prompt: "Drivers, evidence, narrative vs reality.",
+    cardType: "evidence",
+    informationLevel: "level_2",
+  },
+  {
+    id: "history",
+    label: "History",
+    prompt: "Analogs and recurring patterns.",
+    cardType: "secondary",
+    informationLevel: "level_3",
+  },
+  {
+    id: "worked",
+    label: "Worked Before",
+    prompt: "Outcome memory and playbook rules.",
+    cardType: "decision",
+    informationLevel: "level_4",
+  },
+  {
+    id: "watch",
+    label: "Watch",
+    prompt: "Expectations, agents, risk signals.",
+    cardType: "signal",
+    informationLevel: "level_4",
+  },
+]
+
+function CompactCaseStatusBar({
+  replay,
+  frame,
+  event,
+  completenessScore,
+}: {
+  replay: ReplayCase
+  frame: ReplayFrame
+  event: ReplayEvent
+  completenessScore: number
+}) {
+  const completenessRead = getReplayConfidencePresentation(completenessScore)
+
+  return (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
+              <Search className="h-3.5 w-3.5" />
+              Replay Workspace
+            </div>
+            <div className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400">
+              {replay.symbol}
+            </div>
+            <div className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400">
+              {frame.label}
+            </div>
+          </div>
+          <div className="mt-2 truncate text-sm font-black text-white">{event.title}</div>
+          <div className="mt-1 line-clamp-1 text-xs text-zinc-500">{replay.verdict}</div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-right sm:grid-cols-4">
+          <StatusMetric label="Move" value={`${frame.market.priceChangePct >= 0 ? "+" : ""}${frame.market.priceChangePct.toFixed(2)}%`} valueClass={metricClass(frame.market.priceChangePct)} />
+          <StatusMetric label="Risk" value={frame.risk.level} valueClass="text-amber-100" />
+          <StatusMetric label="Window" value={replay.window} valueClass="text-cyan-100" />
+          <StatusMetric label="Complete" value={`${completenessRead.value}/100`} valueClass="text-emerald-100" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function StatusMetric({ label, value, valueClass }: { label: string; value: string; valueClass: string }) {
+  return (
+    <div className="rounded-lg border border-zinc-900 bg-black/45 px-2 py-1.5">
+      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</div>
+      <div className={`mt-1 truncate text-xs font-black ${valueClass}`}>{value}</div>
+    </div>
+  )
+}
+
+function InvestigationRail({
+  activeSection,
+  onSectionChange,
+}: {
+  activeSection: NarrativeSectionId
+  onSectionChange: (section: NarrativeSectionId) => void
+}) {
+  return (
+    <aside className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 lg:sticky lg:top-3 lg:self-start">
+      <div className="mb-3 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">Investigation Steps</div>
+      <div className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:overflow-visible lg:pb-0">
+        {INVESTIGATION_STEPS.map((step, index) => {
+          const active = step.id === activeSection
+          return (
+            <button
+              key={step.id}
+              type="button"
+              onClick={() => onSectionChange(step.id)}
+              className={`min-w-[190px] rounded-lg border p-3 text-left transition lg:min-w-0 ${
+                active
+                  ? "border-cyan-300/45 bg-cyan-400/15"
+                  : "border-zinc-900 bg-black/40 hover:border-zinc-700"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                  Step {index + 1}
+                </span>
+                <span className={active ? "text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100" : "text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600"}>
+                  {active ? "active" : "open"}
+                </span>
+              </div>
+              <div className="mt-1 text-xs font-black text-white">{step.label}</div>
+              <div className="mt-1 text-[11px] leading-4 text-zinc-500">{step.prompt}</div>
+            </button>
+          )
+        })}
+      </div>
+    </aside>
+  )
+}
+
+function ActiveNarrativeWorkspace({
+  activeSection,
+  replay,
+  frame,
+  event,
+  learningSummary,
+  explanation,
+  decisionJournal,
+  similarEvents,
+  setupMemory,
+  marketMemory,
+  eventMemoryLink,
+  expectation,
+  predictionMarkets,
+  tacticalPlaybook,
+  agentAccuracy,
+}: {
+  activeSection: NarrativeSectionId
+  replay: ReplayCase
+  frame: ReplayFrame
+  event: ReplayEvent
+  learningSummary?: ReplayLearningSummary | null
+  explanation?: ReplayExplanation | null
+  decisionJournal?: ReplayDecisionJournal | null
+  similarEvents: SimilarEventMatch[]
+  setupMemory: SetupOutcomeMemorySummary
+  marketMemory: MarketMemorySnapshot
+  eventMemoryLink?: EventMemoryLinkerSnapshot | null
+  expectation: ExpectationIntelligenceSummary
+  predictionMarkets: PredictionMarketIntelligence
+  tacticalPlaybook: TacticalPlaybook
+  agentAccuracy: AgentAccuracyStat[]
+}) {
+  const step = INVESTIGATION_STEPS.find((item) => item.id === activeSection) ?? INVESTIGATION_STEPS[0]!
+
+  return (
+    <WorkspacePanelShell
+      title={step.label}
+      prompt={step.prompt}
+      cardType={step.cardType}
+      informationLevel={step.informationLevel}
+    >
+      {activeSection === "what-happened" ? (
+        <CaseBriefPanel
+          replay={replay}
+          frame={frame}
+          event={event}
+          learningSummary={learningSummary}
+          explanation={explanation}
+          decisionJournal={decisionJournal}
+        />
+      ) : null}
+
+      {activeSection === "why" ? (
+        <>
+          <MarketDriversStory replay={replay} frame={frame} />
+          <EvidenceTimelineStory replay={replay} frame={frame} />
+        </>
+      ) : null}
+
+      {activeSection === "history" ? (
+        <HistoricalContextPanel
+          similarEvents={similarEvents}
+          setupMemory={setupMemory}
+          marketMemory={marketMemory}
+          eventMemoryLink={eventMemoryLink}
+        />
+      ) : null}
+
+      {activeSection === "worked" ? (
+        <WhatWorkedBeforePanel
+          setupMemory={setupMemory}
+          tacticalPlaybook={tacticalPlaybook}
+          decisionJournal={decisionJournal}
+        />
+      ) : null}
+
+      {activeSection === "watch" ? (
+        <>
+          <WhatToWatchPanel
+            expectation={expectation}
+            predictionMarkets={predictionMarkets}
+            frame={frame}
+            agentAccuracy={agentAccuracy}
+          />
+          <InformationIntelligencePanel symbol={replay.symbol} />
+          <ExpectationContextPanel expectation={expectation} predictionMarkets={predictionMarkets} />
+        </>
+      ) : null}
+    </WorkspacePanelShell>
+  )
+}
+
+function DecisionWatchRail({
+  frame,
+  tacticalPlaybook,
+  expectation,
+  agentAccuracy,
+}: {
+  frame: ReplayFrame
+  tacticalPlaybook: TacticalPlaybook
+  expectation: ExpectationIntelligenceSummary
+  agentAccuracy: AgentAccuracyStat[]
+}) {
+  const topAgent = agentAccuracy[0]
+
+  return (
+    <aside className="grid gap-3 lg:sticky lg:top-3 lg:self-start">
+      <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
+        <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
+          <Target className="h-3.5 w-3.5" />
+          Possible Drivers
+        </div>
+        <div className="grid gap-2">
+          {frame.narrative.possibleDrivers.slice(0, 3).map((driver) => (
+            <div key={driver.driver} className="rounded-lg border border-zinc-900 bg-black/45 p-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">#{driver.rank}</div>
+                  <div className="mt-1 text-xs font-black leading-5 text-white">{driver.driver}</div>
+                </div>
+                <div className="text-sm font-black text-cyan-100">{driver.confidence}%</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
+        <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
+          <ClipboardList className="h-3.5 w-3.5" />
+          Tactical Playbook
+        </div>
+        <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-2 text-xs leading-5 text-cyan-50/85">
+          {tacticalPlaybook.lesson}
+        </div>
+        <div className="mt-2 space-y-1.5">
+          {tacticalPlaybook.playbook.slice(0, 3).map((item, index) => (
+            <div key={item} className="flex gap-2 text-xs leading-5 text-zinc-300">
+              <span className="font-black text-cyan-300">{index + 1}.</span>
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
+        <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
+          <Eye className="h-3.5 w-3.5" />
+          Watch Signals
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <StatusMetric label="Pricing" value={expectation.pricingStatus} valueClass="text-cyan-100" />
+          <StatusMetric label="Surprise" value={`${expectation.surpriseScore}/100`} valueClass="text-amber-100" />
+        </div>
+        <div className="mt-2 rounded-lg border border-amber-300/15 bg-amber-400/10 p-2 text-xs leading-5 text-amber-50/85">
+          {frame.risk.risks[0] ?? frame.risk.summary}
+        </div>
+      </section>
+
+      <AgentReadPanel frame={frame} stats={topAgent ? [topAgent] : agentAccuracy.slice(0, 1)} />
+    </aside>
   )
 }
 
@@ -464,163 +715,48 @@ export function ReplayNarrativeFlow({
   storageRefreshSignal: number
   onStorageRefresh: () => void
 }) {
-  const [openSections, setOpenSections] = useState<Record<NarrativeSectionId, boolean>>({
-    "what-happened": true,
-    why: false,
-    history: false,
-    worked: false,
-    watch: false,
-    advanced: false,
-  })
+  const [activeSection, setActiveSection] = useState<NarrativeSectionId>("what-happened")
   const completenessScore = useMemo(
     () => narrativeCompletenessScore({ replay, frame, similarEvents, setupMemory, tacticalPlaybook, expectation, agentAccuracy }),
     [agentAccuracy, expectation, frame, replay, setupMemory, similarEvents, tacticalPlaybook],
   )
-  const completenessRead = getReplayConfidencePresentation(completenessScore)
-
-  function setSectionOpen(id: NarrativeSectionId, open: boolean) {
-    setOpenSections((current) => ({ ...current, [id]: open }))
-  }
-
-  function continueTo(id: NarrativeSectionId) {
-    setOpenSections((current) => ({ ...current, [id]: true }))
-  }
 
   return (
     <section className="grid gap-3">
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
-              <Search className="h-3.5 w-3.5" />
-              Replay Narrative Flow
-            </div>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">
-              Read the case as an investigation: incident, drivers, analogs, outcome memory, then watch signals.
-            </p>
-          </div>
-          <div className={`rounded-lg border px-3 py-2 text-right ${completenessRead.className}`}>
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Narrative Completeness</div>
-            <div className="mt-1 text-lg font-black text-white">{completenessRead.value}/100</div>
-          </div>
-        </div>
-      </div>
+      <CompactCaseStatusBar replay={replay} frame={frame} event={event} completenessScore={completenessScore} />
 
-      <FlowSection
-        id="what-happened"
-        step="Section A"
-        title="What Happened?"
-        prompt="Start with the event, verdict, confidence, replay window, and key lesson."
-        cardType="primary"
-        informationLevel="level_1"
-        open={openSections["what-happened"]}
-        onOpenChange={setSectionOpen}
-        onContinue={() => continueTo("why")}
-        nextLabel="Why"
-      >
-        <CaseBriefPanel
+      <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_320px] xl:grid-cols-[240px_minmax(0,1fr)_360px]">
+        <InvestigationRail activeSection={activeSection} onSectionChange={setActiveSection} />
+        <ActiveNarrativeWorkspace
+          activeSection={activeSection}
           replay={replay}
           frame={frame}
           event={event}
           learningSummary={learningSummary}
           explanation={explanation}
           decisionJournal={decisionJournal}
-        />
-      </FlowSection>
-
-      <FlowSection
-        id="why"
-        step="Section B"
-        title="Why Did It Happen?"
-        prompt="Follow the driver story, narrative shift, and evidence for or against the market's explanation."
-        cardType="evidence"
-        informationLevel="level_2"
-        open={openSections.why}
-        onOpenChange={setSectionOpen}
-        onContinue={() => continueTo("history")}
-        nextLabel="History"
-      >
-        <MarketDriversStory replay={replay} frame={frame} />
-        <EvidenceTimelineStory replay={replay} frame={frame} />
-      </FlowSection>
-
-      <FlowSection
-        id="history"
-        step="Section C"
-        title="Has This Happened Before?"
-        prompt="Compare this case to analogs and recurring historical patterns."
-        cardType="secondary"
-        informationLevel="level_3"
-        open={openSections.history}
-        onOpenChange={setSectionOpen}
-        onContinue={() => continueTo("worked")}
-        nextLabel="What Worked"
-      >
-        <HistoricalContextPanel
           similarEvents={similarEvents}
           setupMemory={setupMemory}
           marketMemory={marketMemory}
           eventMemoryLink={eventMemoryLink}
-        />
-      </FlowSection>
-
-      <FlowSection
-        id="worked"
-        step="Section D"
-        title="What Worked Before?"
-        prompt="Translate outcome memory into playbook rules, mistake awareness, and invalidation."
-        cardType="decision"
-        informationLevel="level_4"
-        open={openSections.worked}
-        onOpenChange={setSectionOpen}
-        onContinue={() => continueTo("watch")}
-        nextLabel="Watch Signals"
-      >
-        <WhatWorkedBeforePanel
-          setupMemory={setupMemory}
-          tacticalPlaybook={tacticalPlaybook}
-          decisionJournal={decisionJournal}
-        />
-      </FlowSection>
-
-      <FlowSection
-        id="watch"
-        step="Section E"
-        title="What Should I Watch?"
-        prompt="Use expectations, agent reliability, and risk signals as the forward-looking checklist."
-        cardType="signal"
-        informationLevel="level_4"
-        open={openSections.watch}
-        onOpenChange={setSectionOpen}
-        onContinue={() => continueTo("advanced")}
-        nextLabel="Advanced Tools"
-      >
-        <WhatToWatchPanel
           expectation={expectation}
           predictionMarkets={predictionMarkets}
-          frame={frame}
+          tacticalPlaybook={tacticalPlaybook}
           agentAccuracy={agentAccuracy}
         />
-        <ExpectationContextPanel expectation={expectation} predictionMarkets={predictionMarkets} />
-        <AgentReadPanel frame={frame} stats={agentAccuracy} />
-      </FlowSection>
-
-      <FlowSection
-        id="advanced"
-        step="Advanced"
-        title="Data Operations Workbench"
-        prompt="Source preview, validation, review, linking, scoring, inspection, write tests, and ingestion stay out of the normal investigation path."
-        cardType="secondary"
-        informationLevel="advanced"
-        open={openSections.advanced}
-        onOpenChange={setSectionOpen}
-      >
-        <DataOperationsWorkbenchPanel
-          replay={replay}
-          refreshSignal={storageRefreshSignal}
-          onRefresh={onStorageRefresh}
+        <DecisionWatchRail
+          frame={frame}
+          tacticalPlaybook={tacticalPlaybook}
+          expectation={expectation}
+          agentAccuracy={agentAccuracy}
         />
-      </FlowSection>
+      </div>
+
+      <DataOperationsWorkbenchPanel
+        replay={replay}
+        refreshSignal={storageRefreshSignal}
+        onRefresh={onStorageRefresh}
+      />
     </section>
   )
 }
