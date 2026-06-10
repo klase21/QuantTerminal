@@ -43,22 +43,7 @@ import { getEventMemoryLinker } from "@/core/historical-intelligence/eventMemory
 import { getReplayExplanation } from "@/core/historical-intelligence/replayExplanationEngine"
 import { getReplayLearningSummary } from "@/core/historical-intelligence/replayLearningSummaryEngine"
 import { getReplayDecisionJournal } from "@/core/historical-intelligence/replayDecisionJournalEngine"
-import { AcceptedEventLinkerPanel } from "./AcceptedEventLinkerPanel"
-import { EventMemoryLinkerPanel } from "./EventMemoryLinkerPanel"
-import { ExternalEventAdapterPreviewPanel } from "./ExternalEventAdapterPreviewPanel"
-import { ExternalEventReviewQueuePanel } from "./ExternalEventReviewQueuePanel"
-import { HistoricalEventIngestionPanel } from "./HistoricalEventIngestionPanel"
-import { HistoricalQueryExplorerPanel } from "./HistoricalQueryExplorerPanel"
-import { HistoricalRecordInspectorPanel } from "./HistoricalRecordInspectorPanel"
-import { HistoricalRelationshipGraphPanel } from "./HistoricalRelationshipGraphPanel"
-import { HistoricalScoringPanel } from "./HistoricalScoringPanel"
-import { MarketMemoryPanel } from "./MarketMemoryPanel"
-import { PredictionMarketPanel } from "./PredictionMarketPanel"
-import { PolymarketLiveValidationPanel } from "./PolymarketLiveValidationPanel"
-import { ReplayDecisionJournalPanel } from "./ReplayDecisionJournalPanel"
-import { ReplayDecisionWritePanel } from "./ReplayDecisionWritePanel"
-import { ReplayExplanationPanel } from "./ReplayExplanationPanel"
-import { ReplayLearningSummaryPanel } from "./ReplayLearningSummaryPanel"
+import { ReplayNarrativeFlow } from "./ReplayNarrativeFlow"
 import type { SimilarEventMatch } from "@/core/historical-intelligence/historicalIntelligenceTypes"
 import type { ReplayAgentTone, ReplayCase, ReplayFrame, ReplaySentiment, ReplaySeverity } from "@/core/replay/replayTypes"
 
@@ -765,51 +750,24 @@ export default function ReplayEngineWorkspace() {
           onEventChange={setActiveEventId}
         />
 
-        <TopSummaryCard replay={replay} frame={activeFrame} event={activeEvent ?? replay.events[0]!} />
-        {learningSummary ? <ReplayLearningSummaryPanel summary={learningSummary} /> : null}
-
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="grid gap-3">
-            <NarrativeRealitySection replay={replay} frame={activeFrame} />
-            <ReplayTimeline replay={replay} frame={activeFrame} />
-          </div>
-
-          <div className="grid content-start gap-3">
-            <PossibleDrivers frame={activeFrame} />
-            <CollapsibleSection title="Core Replay Forensics" eyebrow="Primary" defaultOpen>
-              {replayExplanation ? <ReplayExplanationPanel explanation={replayExplanation} /> : null}
-              {decisionJournal ? <ReplayDecisionJournalPanel journal={decisionJournal} /> : null}
-              <SimilarHistoricalEvents matches={similarEvents} />
-              <SetupOutcomeMemory memory={setupMemory} />
-            </CollapsibleSection>
-            <CollapsibleSection title="Memory & Expectations" eyebrow="Secondary">
-              <HistoricalQueryExplorerPanel assetHint={replay.symbol} />
-              <MarketMemoryPanel memory={marketMemory} />
-              <ExpectationIntelligenceCard expectation={expectation} />
-              <PredictionMarketPanel intelligence={predictionMarkets} />
-              {eventMemoryLink ? <EventMemoryLinkerPanel link={eventMemoryLink} /> : null}
-            </CollapsibleSection>
-            <CollapsibleSection title="Storage & Ingestion" eyebrow="Internal">
-              <ExternalEventAdapterPreviewPanel assetHint={replay.symbol} />
-              <PolymarketLiveValidationPanel assetHint={replay.symbol} />
-              <ExternalEventReviewQueuePanel
-                assetHint={replay.symbol}
-                onAccepted={() => setStorageRefreshSignal((value) => value + 1)}
-              />
-              <AcceptedEventLinkerPanel onLinkAccepted={() => setStorageRefreshSignal((value) => value + 1)} />
-              <HistoricalRelationshipGraphPanel />
-              <HistoricalScoringPanel />
-              <HistoricalRecordInspectorPanel refreshSignal={storageRefreshSignal} />
-              <ReplayDecisionWritePanel replay={replay} onWrite={() => setStorageRefreshSignal((value) => value + 1)} />
-              <HistoricalEventIngestionPanel replay={replay} onIngest={() => setStorageRefreshSignal((value) => value + 1)} />
-            </CollapsibleSection>
-            <CollapsibleSection title="Agent & Playbook" eyebrow="Secondary">
-              <AgentAccuracy stats={agentAccuracy} />
-              <TacticalPlaybookCard playbook={tacticalPlaybook} />
-              <AgentCommittee frame={activeFrame} />
-            </CollapsibleSection>
-          </div>
-        </div>
+        <ReplayNarrativeFlow
+          replay={replay}
+          frame={activeFrame}
+          event={activeEvent ?? replay.events[0]!}
+          learningSummary={learningSummary}
+          explanation={replayExplanation}
+          decisionJournal={decisionJournal}
+          similarEvents={similarEvents}
+          setupMemory={setupMemory}
+          marketMemory={marketMemory}
+          eventMemoryLink={eventMemoryLink}
+          expectation={expectation}
+          predictionMarkets={predictionMarkets}
+          tacticalPlaybook={tacticalPlaybook}
+          agentAccuracy={agentAccuracy}
+          storageRefreshSignal={storageRefreshSignal}
+          onStorageRefresh={() => setStorageRefreshSignal((value) => value + 1)}
+        />
       </div>
     </main>
   )
