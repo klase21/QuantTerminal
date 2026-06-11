@@ -6,3 +6,11 @@ dist
 build
 coverage
 *.log
+
+# QuantTerminal local data
+.data/
+.chrome-screenshot-profile/
+
+# temp files
+*.tmp
+*.bak
