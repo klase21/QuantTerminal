@@ -29,7 +29,7 @@ export function ExpectationContextPanel({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
           <Gauge className="h-3.5 w-3.5" />
-          Expectation Context
+          Crowd Pricing
         </div>
         <div className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${confidenceRead.className}`}>
           {confidenceRead.shortLabel}
@@ -37,7 +37,7 @@ export function ExpectationContextPanel({
       </div>
 
       <div className="grid gap-2 md:grid-cols-3">
-        <ReplayInsightCard icon={Gauge} title={expectation.dominantExpectedOutcome} status="expected" metric={`${expectation.expectationProbability}%`} tone="cyan">
+        <ReplayInsightCard icon={Gauge} title={expectation.dominantExpectedOutcome} status="market expected" metric={`${expectation.expectationProbability}%`} tone="cyan">
           <ReplayMetricBadge label={expectation.convictionLevel} tone="cyan" />
         </ReplayInsightCard>
         <ReplayInsightCard title={expectation.pricingStatus} status="priced status" metric={`${expectation.surpriseScore}/100`} description="Surprise score" tone="amber">
@@ -67,7 +67,7 @@ export function ExpectationContextPanel({
       ) : null}
 
       <details className="mt-2 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
-        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Details / Caveat</summary>
+        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Details</summary>
         <div className="mt-2">{expectation.interpretation}</div>
         <div className="mt-1">{replayStandardCaveats.expectation}</div>
       </details>

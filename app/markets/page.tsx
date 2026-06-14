@@ -1,10 +1,10 @@
-import DashboardLayout from "@/components/DashboardLayout"
 import { TerminalAppShell } from "@/components/layout/PrimaryNavigation"
+import MarketsPage from "@/components/markets/MarketsPage"
 
-export default function DashboardPage() {
+export default function MarketsRoute() {
   return (
     <TerminalAppShell>
-      <DashboardLayout />
+      <MarketsPage />
     </TerminalAppShell>
   )
 }

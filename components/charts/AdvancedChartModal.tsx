@@ -279,7 +279,7 @@ export default function AdvancedChartModal({
       if (parsed.density === "comfortable" || parsed.density === "compact") setDensity(parsed.density)
       if (parsed.compareSymbol && parsed.compareSymbol.toUpperCase() !== normalizedPrimarySymbol) {
         setCompareSymbol(parsed.compareSymbol.toUpperCase())
-        if (typeof parsed.compareMode === "boolean") setCompareMode(parsed.compareMode)
+        setCompareMode(false)
       } else {
         setCompareMode(false)
       }
@@ -459,9 +459,9 @@ export default function AdvancedChartModal({
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm">
-      <div className="flex h-full w-full flex-col p-4">
-        <div className="flex items-center justify-between rounded-t-2xl border border-zinc-800 bg-zinc-950 px-4 py-3">
-          <div>
+      <div className="flex h-full w-full flex-col p-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-t-2xl border border-zinc-800 bg-zinc-950 px-4 py-2.5">
+          <div className="min-w-[220px]">
             <div className="text-sm font-semibold text-white">
               {symbol.toUpperCase()} {selectedTimeframe} Advanced Chart
             </div>
@@ -470,7 +470,7 @@ export default function AdvancedChartModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <select
               value={selectedTimeframe}
               onChange={(event) => setSelectedTimeframe(event.target.value)}
@@ -535,16 +535,16 @@ export default function AdvancedChartModal({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-hidden rounded-b-2xl border-x border-b border-zinc-800 bg-zinc-950 p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-b-2xl border-x border-b border-zinc-800 bg-zinc-950 p-3">
           {activeTab === "chart" ? (
-            <div className={`flex h-full ${density === "compact" ? "min-h-[560px]" : "min-h-[620px]"} flex-col gap-3`}>
-              <div className={effectiveCompareMode ? "grid min-h-0 flex-1 gap-3 lg:grid-cols-2" : "min-h-0 flex-1"}>
+            <div className="flex min-h-[840px] flex-col gap-3">
+              <div className={effectiveCompareMode ? "grid min-h-[840px] gap-3 lg:grid-cols-2" : "min-h-[840px]"}>
                 <div className="min-h-0 overflow-hidden rounded-xl border border-zinc-800 bg-black">
                   <div className="flex items-center justify-between border-b border-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400">
                     <span>Primary · {symbol.toUpperCase()} · {selectedTimeframe}</span>
                     <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">Controls in Indicators</span>
                   </div>
-                  <div className="h-[calc(100%-37px)] min-h-0">
+                  <div className="h-[calc(100%-37px)] min-h-[820px]">
                     <TradingChart data={candles} indicators={chartIndicators} setupOverlay={enabledIndicators.setupOverlay ? setupOverlay : null} />
                   </div>
                 </div>
@@ -566,7 +566,7 @@ export default function AdvancedChartModal({
                         ))}
                       </select>
                     </div>
-                    <div className="h-[calc(100%-37px)] min-h-0">
+                    <div className="h-[calc(100%-37px)] min-h-[820px]">
                       <TradingChart data={compareCandles} indicators={chartIndicators} />
                     </div>
                   </div>

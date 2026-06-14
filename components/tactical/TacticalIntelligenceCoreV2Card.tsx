@@ -66,7 +66,7 @@ export default function TacticalIntelligenceCoreV2Card({
       <div className="grid gap-4 p-5 xl:grid-cols-[1.05fr_.95fr]">
         <section className="space-y-3">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300">
-            <ListChecks className="h-3.5 w-3.5" /> Tactical Playbook
+            <ListChecks className="h-3.5 w-3.5" /> Execution Plan
           </div>
           <div className="space-y-2">
             {insight.playbook.map((item) => (

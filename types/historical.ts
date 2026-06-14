@@ -5,6 +5,7 @@ export type PredictionBias = "bullish" | "bearish" | "neutral" | "unknown"
 
 export type HistoricalInterval = "1h" | "4h" | "1d"
 export type DominantOutcome = "bullish_continuation" | "bearish_continuation" | "range_continuation" | "mixed"
+export type VerdictHorizon = "1h" | "4h" | "24h" | "7d"
 export type MarketMemoryEventCategory =
   | "ETF"
   | "AI"
@@ -145,10 +146,59 @@ export type MarketMemoryStats = {
   worstPerformingSetup: string | null
 }
 
+export type HistoricalAnalogRecord = {
+  id: string
+  createdAt: string
+  currentSymbol: string
+  currentTimestamp: string
+  currentDirection: MarketStateDirection
+  interval: HistoricalInterval
+  matchedSymbol: string
+  matchedSnapshotId: string
+  matchedTimestamp: number
+  matchedDate: string
+  matchedConditionsJson: string
+  source: "binance-vision" | "local-market-ohlcv-db" | "market-memory-snapshots"
+  queryPath: string
+}
+
+export type VerdictRecordStatus = "completed" | "insufficient_data"
+
+export type VerdictRecord = {
+  id: string
+  analogRecordId: string
+  createdAt: string
+  symbol: string
+  direction: MarketStateDirection
+  horizon: VerdictHorizon
+  baseTimestamp: number
+  basePrice: number
+  targetTimestamp: number
+  outcomeTimestamp: number | null
+  forwardReturn: number | null
+  success: boolean | null
+  status: VerdictRecordStatus
+}
+
+export type VerdictHorizonStats = {
+  total: number
+  completed: number
+  winRate: number | null
+  avgForwardReturn: number | null
+}
+
+export type VerdictAccuracyStats = {
+  status: "available" | "insufficient_cases"
+  totalVerdicts: number
+  completedOutcomes: number
+  byHorizon: Record<VerdictHorizon, VerdictHorizonStats>
+}
+
 export type DashboardHistoricalAnalogResponse = {
   status: "available" | "unavailable"
   source?: "binance-vision" | "local-market-ohlcv-db" | "market-memory-snapshots"
   queryPath?: string
+  currentDirection?: MarketStateDirection
   recordCountSearched: number
   message?: "NO VERIFIED ANALOG" | "NO VERIFIED MEMORY"
   reason?: string
@@ -159,6 +209,8 @@ export type DashboardHistoricalAnalogResponse = {
     successRate: number | null
     dominantOutcome: string | null
   }
+  similarCases?: number
+  accuracyStats?: VerdictAccuracyStats
   match?: {
     symbol?: string
     date: string

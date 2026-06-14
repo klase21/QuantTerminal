@@ -3257,7 +3257,7 @@ Live mode now uses Upbit DataLab indicator overview as the primary snapshot sour
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-200">
               <Database className="h-4 w-4" />
-              Historical Intelligence
+              Market History
             </div>
             <div className="mt-1 max-w-4xl text-xs leading-5 text-zinc-500">
               5Y candles for Fear, Volatility, Altseason, BTC Dominance, Upbit Trade Volume, and Premium coverage since 2024. Current value now has history, momentum, percentile, and divergence context.

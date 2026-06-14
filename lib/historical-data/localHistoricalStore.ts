@@ -4,6 +4,7 @@ import path from "node:path"
 
 import type {
   DashboardMarketStateSnapshot,
+  HistoricalAnalogRecord,
   HistoricalInterval,
   HistoricalMarketSnapshot,
   IngestionJob,
@@ -11,6 +12,7 @@ import type {
   MarketMemoryEvent,
   MarketMemoryEventCategory,
   MarketOhlcvRow,
+  VerdictRecord,
 } from "@/types/historical"
 
 const DATA_DIR = path.join(process.cwd(), ".data", "historical")
@@ -20,6 +22,8 @@ const HISTORICAL_SNAPSHOTS_FILE = path.join(DATA_DIR, "historical_market_snapsho
 const MARKET_OUTCOMES_FILE = path.join(DATA_DIR, "market_outcomes.json")
 const DASHBOARD_SNAPSHOTS_FILE = path.join(DATA_DIR, "market_state_snapshots.json")
 const MARKET_MEMORY_EVENTS_FILE = path.join(DATA_DIR, "market_memory_events.json")
+const HISTORICAL_ANALOG_RECORDS_FILE = path.join(DATA_DIR, "historical_analog_records.json")
+const VERDICT_RECORDS_FILE = path.join(DATA_DIR, "verdict_records.json")
 
 declare global {
   // eslint-disable-next-line no-var
@@ -201,6 +205,43 @@ export async function listDashboardSnapshots(symbol?: string) {
 export async function listMarketMemoryEvents() {
   const rows = await readJsonArray<MarketMemoryEvent>(MARKET_MEMORY_EVENTS_FILE)
   return rows.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime())
+}
+
+export async function upsertHistoricalAnalogRecord(record: HistoricalAnalogRecord) {
+  return withWriteLock(async () => {
+    const rows = await readJsonArray<HistoricalAnalogRecord>(HISTORICAL_ANALOG_RECORDS_FILE)
+    const map = new Map(rows.map((row) => [row.id, row]))
+    map.set(record.id, record)
+    const nextRows = Array.from(map.values())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5000)
+    await writeJsonArray(HISTORICAL_ANALOG_RECORDS_FILE, nextRows)
+    return record
+  })
+}
+
+export async function listHistoricalAnalogRecords() {
+  const rows = await readJsonArray<HistoricalAnalogRecord>(HISTORICAL_ANALOG_RECORDS_FILE)
+  return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
+
+export async function upsertVerdictRecords(records: VerdictRecord[]) {
+  if (!records.length) return 0
+  return withWriteLock(async () => {
+    const rows = await readJsonArray<VerdictRecord>(VERDICT_RECORDS_FILE)
+    const map = new Map(rows.map((row) => [row.id, row]))
+    records.forEach((record) => map.set(record.id, record))
+    const nextRows = Array.from(map.values())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 20000)
+    await writeJsonArray(VERDICT_RECORDS_FILE, nextRows)
+    return records.length
+  })
+}
+
+export async function listVerdictRecords() {
+  const rows = await readJsonArray<VerdictRecord>(VERDICT_RECORDS_FILE)
+  return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
 
 function parseJsonArray(value: string) {

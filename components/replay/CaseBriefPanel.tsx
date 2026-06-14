@@ -48,7 +48,7 @@ export function CaseBriefPanel({
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
               <FileQuestion className="h-3.5 w-3.5" />
-              Case Brief
+              Case Summary
             </div>
             <div className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${confidenceRead.className}`}>
               {explanation?.setupResult ?? "review"} / {confidenceRead.shortLabel}
@@ -90,10 +90,10 @@ export function CaseBriefPanel({
         <ReplayInsightCard icon={GraduationCap} title="Lesson" status="memory" description={keyLesson} tone="green">
           <ReplayMetricBadge label="LEARNED" tone="green" />
         </ReplayInsightCard>
-        <ReplayInsightCard icon={TrendingUp} title="Future Rule" status="execution" description={futureRule}>
+        <ReplayInsightCard icon={TrendingUp} title="Execution Lesson" status="next time" description={futureRule}>
           <ReplayMetricBadge label="RULE" />
         </ReplayInsightCard>
-        <ReplayInsightCard icon={ShieldAlert} title={frame.risk.level} status="risk" description={frame.risk.invalidation} tone="amber">
+        <ReplayInsightCard icon={ShieldAlert} title="What Failed" status={frame.risk.level} description={frame.risk.invalidation} tone="amber">
           <ReplayMetricBadge label="CAUTION" tone="amber" />
         </ReplayInsightCard>
         <ReplayInsightCard icon={FileQuestion} title={decisionJournal?.hypotheticalDecision ?? "Review"} status="decision" description={decisionJournal?.decisionReason ?? frame.risk.invalidation}>
@@ -102,7 +102,7 @@ export function CaseBriefPanel({
       </div>
 
       <details className="mt-2 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
-        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em] text-zinc-500">Details / Caveat</summary>
+        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em] text-zinc-500">Details</summary>
         <div className="mt-2">{event.description}</div>
         <div className="mt-1">{caveat}</div>
       </details>

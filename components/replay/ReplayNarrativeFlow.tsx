@@ -160,7 +160,7 @@ function MarketDriversStory({ replay, frame }: { replay: ReplayCase; frame: Repl
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
           <Target className="h-3.5 w-3.5" />
-          Market Drivers Story
+          Why It Worked
         </div>
         <div className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${confidenceRead.className}`}>
           {confidenceRead.shortLabel}
@@ -168,7 +168,7 @@ function MarketDriversStory({ replay, frame }: { replay: ReplayCase; frame: Repl
       </div>
 
       <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
-        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Causal Read</div>
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Driver Read</div>
         <p className="mt-1 line-clamp-2 text-sm leading-6 text-cyan-50/85">
           {topDriver ? `${topDriver.driver} was the highest-ranked explanation, but the replay tests it against narrative evidence and risk state.` : frame.narrative.summary}
         </p>
@@ -212,7 +212,7 @@ function MarketDriversStory({ replay, frame }: { replay: ReplayCase; frame: Repl
           </div>
         </div>
         <details className="rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
-          <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Expand Driver Detail</summary>
+          <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Details</summary>
           <div className="mt-2">{replay.realityCheck}</div>
         </details>
       </div>
@@ -226,7 +226,7 @@ function EvidenceTimelineStory({ replay, frame }: { replay: ReplayCase; frame: R
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
           <BarChart3 className="h-3.5 w-3.5" />
-          Evidence Timeline
+          Key Signals
         </div>
         <div className={`text-[10px] font-black uppercase tracking-[0.14em] ${metricClass(frame.market.priceChangePct)}`}>
           {frame.market.priceChangePct >= 0 ? "+" : ""}{frame.market.priceChangePct.toFixed(2)}%
@@ -289,7 +289,7 @@ function WhatWorkedBeforePanel({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
           <ClipboardList className="h-3.5 w-3.5" />
-          What Worked Before
+          Execution Lesson
         </div>
         <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
           n={setupMemory.sampleSize} / {setupMemory.winRate}% win
@@ -297,10 +297,10 @@ function WhatWorkedBeforePanel({
       </div>
 
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <ReplayInsightCard title="Winner" status="best condition" description={setupMemory.bestHistoricalCondition} tone="green">
+        <ReplayInsightCard title="Why It Worked" status="best condition" description={setupMemory.bestHistoricalCondition} tone="green">
           <ReplayMetricBadge label={`${setupMemory.winRate}% win`} tone="green" />
         </ReplayInsightCard>
-        <ReplayInsightCard title="Failure" status="worst condition" description={setupMemory.worstHistoricalCondition} tone="rose">
+        <ReplayInsightCard title="What Failed" status="worst condition" description={setupMemory.worstHistoricalCondition} tone="rose">
           <ReplayMetricBadge label={`${setupMemory.maxAdverseMovePct.toFixed(1)}% adverse`} tone="rose" />
         </ReplayInsightCard>
         <ReplayInsightCard title={decisionJournal?.mistakeTag ?? "Mistake"} status="common mistake" description={setupMemory.commonFailureMode} tone="amber">
@@ -311,7 +311,7 @@ function WhatWorkedBeforePanel({
         </ReplayInsightCard>
       </div>
       <details className="mt-2 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
-        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Expand Playbook Detail</summary>
+        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Lesson Detail</summary>
         <div className="mt-2 grid gap-2 md:grid-cols-2">
           <div>{decisionJournal?.lesson ?? tacticalPlaybook.lesson}</div>
           <div>{tacticalPlaybook.invalidationChecklist.slice(0, 3).join(" / ")}</div>
@@ -337,7 +337,7 @@ function WhatToWatchPanel({
   const watchItems = [
     `Expectation status: ${expectation.pricingStatus} / surprise ${expectation.surpriseScore}`,
     `Risk state: ${frame.risk.level} / ${frame.risk.summary}`,
-    topAgent ? `${topAgent.agent}: ${topAgent.caseAlignment ?? "catalog"} / ${topAgent.accuracyScore}% accuracy` : "Agent calibration unavailable",
+    topAgent ? `Reliability check: ${topAgent.caseAlignment ?? "catalog"} / ${topAgent.accuracyScore}%` : "Reliability check unavailable",
   ]
 
   return (
@@ -370,7 +370,7 @@ function WhatToWatchPanel({
         </div>
       </div>
       <details className="mt-2 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2 text-[11px] leading-5 text-zinc-500">
-        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Expand Watch Detail</summary>
+        <summary className="cursor-pointer list-none font-black uppercase tracking-[0.12em]">Watch Detail</summary>
         <div className="mt-2">{predictionMarkets.tacticalInterpretation}</div>
       </details>
     </section>
@@ -386,36 +386,36 @@ const INVESTIGATION_STEPS: {
 }[] = [
   {
     id: "what-happened",
-    label: "What Happened?",
-    prompt: "Incident, verdict, confidence, replay window.",
+    label: "Case Summary",
+    prompt: "What happened, verdict, confidence.",
     cardType: "primary",
     informationLevel: "level_1",
   },
   {
     id: "why",
-    label: "Why?",
-    prompt: "Drivers, evidence, narrative vs reality.",
+    label: "Why It Worked",
+    prompt: "Drivers and confirming evidence.",
     cardType: "evidence",
     informationLevel: "level_2",
   },
   {
     id: "history",
-    label: "History",
+    label: "Similar Cases",
     prompt: "Analogs and recurring patterns.",
     cardType: "secondary",
     informationLevel: "level_3",
   },
   {
     id: "worked",
-    label: "Worked Before",
-    prompt: "Outcome memory and playbook rules.",
+    label: "Execution Lesson",
+    prompt: "What worked, what failed, next rule.",
     cardType: "decision",
     informationLevel: "level_4",
   },
   {
     id: "watch",
-    label: "Watch",
-    prompt: "Expectations, agents, risk signals.",
+    label: "Key Signals",
+    prompt: "Crowd pricing, source quality, risk signals.",
     cardType: "signal",
     informationLevel: "level_4",
   },
@@ -441,7 +441,7 @@ function CompactCaseStatusBar({
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
               <Search className="h-3.5 w-3.5" />
-              Replay Workspace
+              Market Forensics
             </div>
             <div className="rounded-full border border-zinc-700 bg-black/35 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400">
               {replay.symbol}
@@ -482,7 +482,7 @@ function InvestigationRail({
 }) {
   return (
     <aside className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 lg:sticky lg:top-3 lg:self-start">
-      <div className="mb-3 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">Investigation Steps</div>
+      <div className="mb-3 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">Case Review</div>
       <div className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:overflow-visible lg:pb-0">
         {INVESTIGATION_STEPS.map((step, index) => {
           const active = step.id === activeSection
@@ -626,7 +626,7 @@ function DecisionWatchRail({
       <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
         <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
           <Target className="h-3.5 w-3.5" />
-          Possible Drivers
+          Why
         </div>
         <div className="grid gap-2">
           {frame.narrative.possibleDrivers.slice(0, 3).map((driver) => (
@@ -646,7 +646,7 @@ function DecisionWatchRail({
       <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
         <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
           <ClipboardList className="h-3.5 w-3.5" />
-          Tactical Playbook
+          Execution Lesson
         </div>
         <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-2 text-xs leading-5 text-cyan-50/85">
           {tacticalPlaybook.lesson}

@@ -3,7 +3,12 @@
 // ======================================================
 
 import DashboardLayout from "@/components/DashboardLayout"
+import { TerminalAppShell } from "@/components/layout/PrimaryNavigation"
 
 export default function Home() {
-  return <DashboardLayout />
+  return (
+    <TerminalAppShell>
+      <DashboardLayout />
+    </TerminalAppShell>
+  )
 }

@@ -173,13 +173,23 @@ type EtfFlowResponse = {
   source?: string
   updatedAt?: string
   unavailableReason?: string
+  btcFlow?: number | null
+  ethFlow?: number | null
+  btcSourceDate?: string | null
+  ethSourceDate?: string | null
+  sourceUrl?: string
+  isStale?: boolean
+  staleReason?: string
   flows?: Array<{
     asset: "BTC" | "ETH"
     latestDate: string
+    sourceDate?: string
     netFlow: number
     unit: string
     sourceUrl: string
     trend1d?: "UP" | "DOWN" | "FLAT"
+    isStale?: boolean
+    staleReason?: string
   }>
 }
 
@@ -383,6 +393,37 @@ function topEvidence(candidate?: MarketMoverCandidate) {
     concreteEvidence(candidate?.trigger),
     concreteEvidence(candidate?.reason),
   ].filter((item): item is string => Boolean(item))
+}
+
+function evidenceConflictsWithDirection(evidence: string[], direction: Bias) {
+  const text = evidence.join(" ").toLowerCase()
+  if (direction === "Bullish") return text.includes("selling") || text.includes("broken") || text.includes("weakness")
+  if (direction === "Bearish") return text.includes("buying") || text.includes("support holding") || text.includes("strength")
+  return false
+}
+
+function signalEvidenceSummary(evidence: string[], direction: Bias) {
+  if (direction === "Neutral") {
+    return {
+      headline: "MIXED SIGNALS",
+      support: evidence[0] ?? "NO CLEAR SETUP",
+      note: evidence.some((item) => /buying|selling/i.test(item)) ? "OFFSET BY OTHER FACTORS" : null,
+    }
+  }
+
+  if (evidenceConflictsWithDirection(evidence, direction)) {
+    return {
+      headline: "CONFLICTING SIGNALS",
+      support: evidence[0] ?? "NO DATA",
+      note: "OFFSET BY OTHER FACTORS",
+    }
+  }
+
+  return {
+    headline: evidence[0] ?? "NO DATA",
+    support: evidence[1] ?? null,
+    note: null,
+  }
 }
 
 function failureFromText(value?: string, chaseRisk?: number) {
@@ -940,16 +981,29 @@ function formatSignedPercent(value: number | null | undefined) {
   return `${sign}${value.toFixed(1)}%`
 }
 
+function pastResultLabel(direction?: string | null, currentDirection?: MarketStateDirection) {
+  if (currentDirection === "neutral") return "MIXED"
+  const normalized = direction?.toLowerCase() ?? ""
+  if (normalized.includes("bullish")) return "BULLISH"
+  if (normalized.includes("bearish")) return "BEARISH"
+  return "MIXED"
+}
+
 function HistoricalAnalogCard({ analog }: { analog: HistoricalAnalogState }) {
   const match = analog?.status === "available" ? analog.match : null
+  const currentDirection = analog?.currentDirection
   const stats = analog?.status === "available" && analog.stats
     ? {
-      found: analog.stats.totalCases,
+      found: analog.similarCases ?? analog.stats.totalCases,
       avg7d: analog.stats.avgReturn7d,
       avg30d: analog.stats.avgReturn30d,
       successRate: analog.stats.successRate,
+      dominantOutcome: analog.stats.dominantOutcome,
     }
     : match?.outcomeStats
+      ? { ...match.outcomeStats, dominantOutcome: null }
+      : undefined
+  const pastResult = pastResultLabel(stats?.dominantOutcome ?? match?.outcomeSummary, currentDirection)
 
   return (
     <Card title="Historical Analog" icon={<History className="h-3.5 w-3.5" />} className="bg-zinc-950/65 p-2.5">
@@ -976,16 +1030,16 @@ function HistoricalAnalogCard({ analog }: { analog: HistoricalAnalogState }) {
             {stats ? (
               <div className="mt-2 grid grid-cols-3 gap-1">
                 <div>
+                  <div className="text-lg font-black text-white">{stats.found ?? "NO DATA"}</div>
+                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Matched Cases</div>
+                </div>
+                <div>
+                  <div className="text-lg font-black uppercase text-white">{pastResult}</div>
+                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Past Result</div>
+                </div>
+                <div>
                   <div className="text-lg font-black text-white">{formatSignedPercent(stats.avg7d)}</div>
-                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Avg 7D</div>
-                </div>
-                <div>
-                  <div className="text-lg font-black text-white">{formatSignedPercent(stats.avg30d)}</div>
-                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Avg 30D</div>
-                </div>
-                <div>
-                  <div className="text-lg font-black text-white">{stats.successRate === null ? "NO DATA" : `${stats.successRate}%`}</div>
-                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Success</div>
+                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Avg Return</div>
                 </div>
               </div>
             ) : (
@@ -1128,8 +1182,9 @@ function consistencyNote(mover: MarketMoverCandidate | undefined, causes: CauseT
   return null
 }
 
-function WhyThisSignal({ mover, causes, futures, analog }: { mover?: MarketMoverCandidate; causes: CauseTag[]; futures: FuturesIntelligenceResponse | null; analog: HistoricalAnalogState }) {
+function WhyThisSignal({ mover, causes, futures, analog, marketDirection }: { mover?: MarketMoverCandidate; causes: CauseTag[]; futures: FuturesIntelligenceResponse | null; analog: HistoricalAnalogState; marketDirection: Bias }) {
   const evidence = topEvidence(mover)
+  const evidenceRead = signalEvidenceSummary(evidence, marketDirection)
   const action = actionFromCandidate(mover)
   const levels = priceContext(mover)
   const failure = invalidationFromContext(mover, levels)
@@ -1149,9 +1204,9 @@ function WhyThisSignal({ mover, causes, futures, analog }: { mover?: MarketMover
       <div className="grid gap-2 lg:grid-cols-4">
         <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 p-4">
           <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Evidence</div>
-          <div className="mt-2 text-3xl font-black uppercase leading-none text-white">{evidence[0] ?? "NO DATA"}</div>
-          {evidence[1] && <div className="mt-2 text-sm font-black uppercase text-cyan-50/80">{evidence[1]}</div>}
-          {note && <div className="mt-3 rounded border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-100">{note}</div>}
+          <div className="mt-2 text-3xl font-black uppercase leading-none text-white">{evidenceRead.headline}</div>
+          {evidenceRead.support && <div className="mt-2 text-sm font-black uppercase text-cyan-50/80">{evidenceRead.support}</div>}
+          {(evidenceRead.note || note) && <div className="mt-3 rounded border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-100">{evidenceRead.note ?? note}</div>}
         </div>
         <div className="rounded-lg border border-zinc-800 bg-black/50 p-4">
           <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">History</div>
@@ -1326,24 +1381,33 @@ function formatFlow(value: number) {
 
 function EtfFlowCard({ data }: { data: EtfFlowResponse | null }) {
   const flows = data?.flows ?? []
+  const btc = flows.find((flow) => flow.asset === "BTC")
+  const eth = flows.find((flow) => flow.asset === "ETH")
+  const rows = [btc, eth].filter((flow): flow is NonNullable<typeof flow> => Boolean(flow))
+  const reason = data?.staleReason ?? data?.unavailableReason ?? "NO DATA"
 
   return (
     <BottomCard title="ETF Flow" icon={<TrendingUp className="h-3.5 w-3.5" />}>
-      {flows.length ? (
+      {rows.length && !data?.isStale ? (
         <div className="grid gap-1">
-          {flows.slice(0, 2).map((flow) => (
+          {rows.map((flow) => (
             <div key={flow.asset} className="flex items-end justify-between gap-2">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.14em] text-zinc-500">{flow.asset} ETF</div>
-                <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">Latest: {flow.latestDate}</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{flow.asset} ETF Latest: {flow.sourceDate ?? flow.latestDate}</div>
                 {flow.trend1d && <div className="text-[9px] font-black uppercase tracking-[0.1em] text-zinc-400">Momentum: {flow.trend1d === "UP" ? "Strengthening" : flow.trend1d === "DOWN" ? "Weakening" : "Stable"}</div>}
               </div>
               <div className={cn("text-2xl font-black", flow.netFlow >= 0 ? "text-emerald-100" : "text-rose-100")}>{formatFlow(flow.netFlow)}</div>
             </div>
           ))}
+          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-600">Source: Farside</div>
         </div>
       ) : (
-        <div className="text-sm font-black uppercase tracking-[0.16em] text-zinc-500">Unavailable</div>
+        <div>
+          <div className="text-sm font-black uppercase tracking-[0.16em] text-zinc-500">NO DATA</div>
+          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">{reason}</div>
+          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-600">Source: Farside</div>
+        </div>
       )}
     </BottomCard>
   )
@@ -1468,6 +1532,7 @@ export default function DashboardV1({
   }, [marketMovers?.updatedAt, moverCandidates])
 
   const topMover = moverCandidates[0]
+  const marketDirection = marketStateFromScore(topMover)
   const causes = useMemo(() => buildCauses(topMover, macro, narratives, sectorRotation, futures), [topMover, macro, narratives, sectorRotation, futures])
   const narrativeItems = useMemo(() => buildNarrativeHeat(narratives), [narratives])
   const informationItems = useMemo(() => buildInformationFlow(macro, narratives), [macro, narratives])
@@ -1523,7 +1588,7 @@ export default function DashboardV1({
           </div>
 
           <TacticalAlerts alerts={alerts} />
-          <WhyThisSignal mover={topMover} causes={causes} futures={futures} analog={historicalAnalog} />
+          <WhyThisSignal mover={topMover} causes={causes} futures={futures} analog={historicalAnalog} marketDirection={marketDirection} />
 
           <div className="grid gap-3 lg:grid-cols-4">
             <PredictionMarketsCard data={predictionMarkets} />

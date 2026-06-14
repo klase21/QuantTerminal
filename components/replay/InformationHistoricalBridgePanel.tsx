@@ -60,7 +60,7 @@ export function InformationHistoricalBridgePanel() {
       </div>
 
       <p className="mb-3 text-xs leading-5 text-zinc-500">
-        Convert an accepted information review item into Historical Intelligence candidates. No persistence write happens here.
+        Convert an accepted source review item into reusable market cases. No persistence write happens here.
       </p>
 
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">

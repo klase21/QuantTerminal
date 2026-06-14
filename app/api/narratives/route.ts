@@ -18,6 +18,7 @@ import {
   calculateAverageDivergence,
   getTopDivergenceRows,
 } from "@/lib/news/narrativeDivergence"
+import { fetchGdeltNarrativeNews } from "@/lib/data-sources/gdeltClient"
 
 const REGION_SOURCE_WEIGHT: Record<string, number> = {
   kr: 1.5,
@@ -84,13 +85,19 @@ export async function GET(req: Request) {
     const rangeHours = getRangeHours(searchParams.get("range"))
     const since = Date.now() - rangeHours * 36e5
 
-    const [kr, cn, en] = await Promise.all([
+    const [kr, cn, en, gdeltResult] = await Promise.allSettled([
       loadRegion("kr"),
       loadRegion("cn"),
       loadRegion("en"),
+      fetchGdeltNarrativeNews(),
     ])
 
-    const items = [...kr, ...cn, ...en]
+    const krItems = kr.status === "fulfilled" ? kr.value : []
+    const cnItems = cn.status === "fulfilled" ? cn.value : []
+    const enItems = en.status === "fulfilled" ? en.value : []
+    const gdeltItems = gdeltResult.status === "fulfilled" ? gdeltResult.value : []
+
+    const items = [...krItems, ...cnItems, ...enItems, ...gdeltItems]
       .filter((item) => item.timestamp >= since)
       .filter((item) => item.narratives.length > 0)
 
@@ -101,10 +108,15 @@ export async function GET(req: Request) {
     return NextResponse.json({
       range: `${rangeHours}h`,
       updatedAt: Date.now(),
+      sources: [
+        ...(krItems.length || cnItems.length || enItems.length ? ["existing-news-feeds"] : []),
+        ...(gdeltItems.length ? ["gdelt-doc"] : []),
+      ],
       counts: {
-        kr: kr.length,
-        cn: cn.length,
-        en: en.length,
+        kr: krItems.length,
+        cn: cnItems.length,
+        en: enItems.length,
+        gdelt: gdeltItems.length,
         tagged: items.length,
       },
       heatmap,

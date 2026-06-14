@@ -25,10 +25,10 @@ export function AgentReadPanel({ frame, stats }: { frame: ReplayFrame; stats: Ag
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
           <BrainCircuit className="h-3.5 w-3.5" />
-          Agent Read
+          Signal Check
         </div>
         <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
-          top {top?.agent ?? "N/A"}
+          best match {top?.accuracyScore ?? 0}%
         </div>
       </div>
 
@@ -70,7 +70,7 @@ export function AgentReadPanel({ frame, stats }: { frame: ReplayFrame; stats: Ag
 
       <div className="mt-2 flex items-start gap-2 rounded-lg border border-zinc-900 bg-black/35 p-2 text-[11px] leading-5 text-zinc-500">
         <ScanLine className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300" />
-        Agent stance and historical calibration are shown together so the committee read is not interpreted without reliability context.
+        Signal stance and reliability are shown together so the read is not used without context.
       </div>
     </section>
   )

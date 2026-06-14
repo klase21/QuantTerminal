@@ -38,7 +38,7 @@ export function HistoricalContextPanel({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
           <History className="h-3.5 w-3.5" />
-          Historical Context
+          Similar Cases
         </div>
         <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
           n={setupMemory.sampleSize} / {setupMemory.winRate}% win
@@ -88,24 +88,24 @@ export function HistoricalContextPanel({
       </div>
 
       <div className="mt-2 grid gap-2 md:grid-cols-3">
-        <ReplayInsightCard title="Repeated Failure" status="pattern" description={setupMemory.commonFailureMode} tone="amber">
+        <ReplayInsightCard title="What Failed" status="pattern" description={setupMemory.commonFailureMode} tone="amber">
           <ReplayMetricBadge label="CAUTION" tone="amber" />
         </ReplayInsightCard>
-        <ReplayInsightCard icon={DatabaseZap} title="Market Memory" status="memory" description={marketMemory.tacticalMemoryTakeaway} tone="cyan">
+        <ReplayInsightCard icon={DatabaseZap} title="History" status="memory" description={marketMemory.tacticalMemoryTakeaway} tone="cyan">
           <ReplayMetricBadge label="MOCK" tone="cyan" />
         </ReplayInsightCard>
         {eventMemoryLink ? (
-          <ReplayInsightCard title="Memory Linkage" status="link" metric={`${eventMemoryLink.memoryConfidenceScore}%`} description={eventMemoryLink.executionImplication} />
+          <ReplayInsightCard title="Similar Setup" status="link" metric={`${eventMemoryLink.memoryConfidenceScore}%`} description={eventMemoryLink.executionImplication} />
         ) : null}
       </div>
 
       <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-1">
         <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Best Historical Condition</div>
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Best Condition</div>
           <div className="mt-1 text-xs leading-5 text-emerald-100/85">{setupMemory.bestHistoricalCondition}</div>
         </div>
         <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Remembered Regime</div>
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Market Backdrop</div>
           <div className="mt-1 text-xs font-black text-white">{topRegime?.label ?? topPattern?.label ?? "No regime memory"}</div>
           <div className="mt-1 text-[11px] leading-5 text-zinc-400">{topRegime?.memoryRead ?? topPattern?.tacticalLesson ?? "Mock memory unavailable."}</div>
         </div>

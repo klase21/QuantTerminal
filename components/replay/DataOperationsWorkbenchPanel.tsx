@@ -23,15 +23,15 @@ type DataOpsTab = "search" | "review" | "bridge" | "adapter" | "validation" | "l
 
 const DATA_OPS_TABS: { id: DataOpsTab; label: string }[] = [
   { id: "search", label: "Search" },
-  { id: "review", label: "Info Review" },
-  { id: "bridge", label: "Bridge" },
-  { id: "adapter", label: "Adapter" },
-  { id: "validation", label: "Validation" },
+  { id: "review", label: "Source Review" },
+  { id: "bridge", label: "Link" },
+  { id: "adapter", label: "Sources" },
+  { id: "validation", label: "Checks" },
   { id: "links", label: "Links" },
-  { id: "graph", label: "Graph" },
-  { id: "records", label: "Records" },
+  { id: "graph", label: "Map" },
+  { id: "records", label: "Cases" },
   { id: "write", label: "Write" },
-  { id: "ingest", label: "Ingest" },
+  { id: "ingest", label: "Add" },
 ]
 
 type DataOpsSummary = {
@@ -139,7 +139,7 @@ export function DataOperationsWorkbenchPanel({
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-500">
               <DatabaseZap className="h-3.5 w-3.5" />
-              Data Ops
+              Advanced Review
             </div>
             <div className="rounded-full border border-amber-300/15 bg-amber-400/5 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100/70">
               advanced-only

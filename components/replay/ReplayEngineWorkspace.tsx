@@ -158,7 +158,7 @@ function CaseSelector({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">
           <Target className="h-3.5 w-3.5" />
-          Replay Case Selector
+          Case Selector
         </div>
         <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
           {cases.length} cases / {replay.window}
@@ -182,7 +182,7 @@ function CaseSelector({
           ))}
         </div>
         <label className="grid gap-1">
-          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Selected Case</span>
+          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Case</span>
           <select
             value={replay.id}
             onChange={(event) => onReplayChange(event.target.value)}
@@ -398,7 +398,7 @@ function SimilarHistoricalEvents({ matches }: { matches: SimilarEventMatch[] }) 
     <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
       <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
         <History className="h-3.5 w-3.5" />
-        Similar Historical Events
+        Similar Cases
       </div>
       <div className="grid gap-2">
         {matches.map((match) => (
@@ -436,7 +436,7 @@ function SetupOutcomeMemory({ memory }: { memory: SetupOutcomeMemorySummary }) {
     <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
       <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
         <ClipboardCheck className="h-3.5 w-3.5" />
-        Setup Outcome Memory
+        Setup Outcomes
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg border border-zinc-900 bg-black/45 p-2">
@@ -482,7 +482,7 @@ function TacticalPlaybookCard({ playbook }: { playbook: TacticalPlaybook }) {
     <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4">
       <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
         <ClipboardList className="h-3.5 w-3.5" />
-        Tactical Playbook
+        Execution Lesson
       </div>
       <div className="grid gap-2">
         <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
@@ -583,7 +583,7 @@ function ExpectationIntelligenceCard({ expectation }: { expectation: Expectation
     <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 p-3">
       <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/80">
         <Gauge className="h-3.5 w-3.5" />
-        Expectation Intelligence
+        Crowd Pricing
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="rounded-md border border-cyan-300/10 bg-black/35 p-2">

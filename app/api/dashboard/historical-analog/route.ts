@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server"
 
-import { latestDashboardSnapshot, listDashboardSnapshots, listHistoricalSnapshotsByInterval, listMarketOutcomes } from "@/lib/historical-data/localHistoricalStore"
+import {
+  latestDashboardSnapshot,
+  listDashboardSnapshots,
+  listHistoricalSnapshotsByInterval,
+  listMarketOutcomes,
+  listVerdictRecords,
+  upsertHistoricalAnalogRecord,
+  upsertVerdictRecords,
+} from "@/lib/historical-data/localHistoricalStore"
 import { buildCurrentMarketState } from "@/lib/historical-analog/buildCurrentMarketState"
 import { filterHistoricalAnalogCandidates, findSimilarDashboardMarketStates, findSimilarMarketStates } from "@/lib/historical-analog/findSimilarMarketStates"
+import { buildHistoricalAnalogRecord, buildVerdictRecords, calculateVerdictAccuracy } from "@/lib/historical-analog/verdictTracking"
 import { aggregateMarketMemory } from "@/lib/market-memory/aggregateMarketMemory"
 import { enrichWeakDashboardSnapshot } from "@/lib/market-memory/currentStateEnrichment"
-import type { HistoricalInterval } from "@/types/historical"
+import type { DashboardHistoricalAnalogResponse, HistoricalInterval, HistoricalMarketSnapshot, VerdictAccuracyStats } from "@/types/historical"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -64,6 +73,62 @@ function timestampRange(timestamps: number[]) {
   }
 }
 
+function isHistoricalSnapshot(snapshot: unknown): snapshot is HistoricalMarketSnapshot {
+  return Boolean(
+    snapshot &&
+    typeof snapshot === "object" &&
+    "id" in snapshot &&
+    "timestamp" in snapshot &&
+    "close" in snapshot &&
+    "marketDirection" in snapshot,
+  )
+}
+
+async function persistAnalogVerdict(input: {
+  currentSnapshot: Awaited<ReturnType<typeof enrichWeakDashboardSnapshot>>
+  interval: HistoricalInterval
+  source: "binance-vision" | "local-market-ohlcv-db" | "market-memory-snapshots"
+  queryPath: string
+  match: HistoricalMarketSnapshot | null
+  matchedConditions: string[]
+  historicalSnapshots: HistoricalMarketSnapshot[]
+}) {
+  if (!input.match) {
+    return calculateVerdictAccuracy(await listVerdictRecords())
+  }
+
+  const analogRecord = buildHistoricalAnalogRecord({
+    current: input.currentSnapshot,
+    interval: input.interval,
+    match: input.match,
+    matchedConditions: input.matchedConditions,
+    source: input.source,
+    queryPath: input.queryPath,
+  })
+  const verdicts = buildVerdictRecords({
+    analogRecord,
+    match: input.match,
+    snapshots: input.historicalSnapshots,
+  })
+
+  await upsertHistoricalAnalogRecord(analogRecord)
+  await upsertVerdictRecords(verdicts)
+  return calculateVerdictAccuracy(await listVerdictRecords())
+}
+
+function withAccuracy<T extends DashboardHistoricalAnalogResponse>(
+  response: T,
+  accuracyStats: VerdictAccuracyStats,
+  currentDirection: DashboardHistoricalAnalogResponse["currentDirection"],
+): T {
+  return {
+    ...response,
+    currentDirection,
+    similarCases: response.stats?.totalCases ?? response.match?.outcomeStats?.found,
+    accuracyStats,
+  }
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
@@ -101,9 +166,22 @@ export async function GET(req: Request) {
     const memorySnapshots = await listDashboardSnapshots(symbol)
     const memoryResult = findSimilarDashboardMarketStates(current, memorySnapshots, enrichedSnapshot.id)
     const [memoryMatch, ...memoryAlternatives] = memoryResult.matches
+    const historicalVerdictMatch = historicalResult.matches.find((item) => isHistoricalSnapshot(item.snapshot))
+    const historicalVerdictSnapshot = historicalVerdictMatch && isHistoricalSnapshot(historicalVerdictMatch.snapshot)
+      ? historicalVerdictMatch.snapshot
+      : null
+    const accuracyStats = await persistAnalogVerdict({
+      currentSnapshot: enrichedSnapshot,
+      interval,
+      source: historicalVerdictSnapshot ? "binance-vision" : "local-market-ohlcv-db",
+      queryPath: "market_ohlcv -> historical_market_snapshots -> verdict_tracking",
+      match: historicalVerdictSnapshot,
+      matchedConditions: historicalVerdictMatch?.matchedConditions ?? [],
+      historicalSnapshots,
+    })
 
     if (aggregation.status !== "available") {
-      return NextResponse.json({
+      return NextResponse.json(withAccuracy({
         status: "unavailable",
         message: "NO VERIFIED MEMORY",
         reason: aggregation.reason,
@@ -113,11 +191,11 @@ export async function GET(req: Request) {
         oldestCandidateSearched,
         newestCandidateSearched,
         stats,
-      })
+      }, accuracyStats, current.direction))
     }
 
     if (memoryMatch) {
-      return NextResponse.json({
+      return NextResponse.json(withAccuracy({
         status: "available",
         source: "market-memory-snapshots",
         queryPath: "market_state_snapshots -> narrative_context_similarity",
@@ -147,13 +225,13 @@ export async function GET(req: Request) {
           label: item.label,
           outcomeSummary: item.outcomeSummary,
         }))),
-      })
+      }, accuracyStats, current.direction))
     }
 
     const [match, ...alternatives] = historicalResult.matches
 
     if (!match) {
-      return NextResponse.json({
+      return NextResponse.json(withAccuracy({
         status: "unavailable",
         message: "NO VERIFIED MEMORY",
         reason: aggregation.reason ?? memoryResult.reason ?? historicalResult.reason,
@@ -162,10 +240,10 @@ export async function GET(req: Request) {
         exclusionWindowDays: 30,
         oldestCandidateSearched,
         newestCandidateSearched,
-      })
+      }, accuracyStats, current.direction))
     }
 
-    return NextResponse.json({
+    return NextResponse.json(withAccuracy({
       status: "available",
       source: "binance-vision",
       queryPath: "market_ohlcv -> historical_market_snapshots -> rule_based_similarity",
@@ -195,7 +273,7 @@ export async function GET(req: Request) {
         label: item.label,
         outcomeSummary: item.outcomeSummary,
       }))),
-    })
+    }, accuracyStats, current.direction))
   } catch (error) {
     return NextResponse.json({
       status: "error",
