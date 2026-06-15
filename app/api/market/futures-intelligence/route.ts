@@ -40,6 +40,12 @@ type ExchangeInfoCache = {
   symbols: Set<string>
 }
 
+type FailedSymbolFetch = {
+  symbol: string
+  stage: "openInterest" | "premiumIndex" | "combined"
+  message: string
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __qtBinanceFuturesExchangeInfoCache: ExchangeInfoCache | undefined
@@ -52,6 +58,10 @@ function unique<T>(items: T[]) {
 function num(value: unknown, fallback = 0) {
   const parsed = typeof value === "number" ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function timeoutSignal(ms: number) {
@@ -151,6 +161,11 @@ export async function GET() {
   try {
     const requested = requestedSymbols()
     const connectors: FuturesConnectorTelemetry[] = []
+    const failedSymbolFetches: FailedSymbolFetch[] = []
+    const recordSymbolFailure = (failure: FailedSymbolFetch) => {
+      if (failedSymbolFetches.length >= 5) return
+      failedSymbolFetches.push(failure)
+    }
 
     const exchangeInfo = await timed(
       "binance-futures-exchange-info",
@@ -167,15 +182,32 @@ export async function GET() {
     const symbols = await mapLimit(validSymbols, CONCURRENCY, async (symbol) => {
       const mapped = mapFuturesSymbol(symbol)
       if (!mapped) return null
+
+      let openInterest: OpenInterestPayload
+      let premium: PremiumIndexPayload
+
       try {
-        const [openInterest, premium] = await Promise.all([
-          fetchJson<OpenInterestPayload>(`${BINANCE_FAPI}/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`),
-          fetchJson<PremiumIndexPayload>(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`),
-        ])
+        openInterest = await fetchJson<OpenInterestPayload>(`${BINANCE_FAPI}/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`)
+      } catch (error) {
+        recordSymbolFailure({ symbol, stage: "openInterest", message: errorMessage(error) })
+        return null
+      }
+
+      try {
+        premium = await fetchJson<PremiumIndexPayload>(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`)
+      } catch (error) {
+        recordSymbolFailure({ symbol, stage: "premiumIndex", message: errorMessage(error) })
+        return null
+      }
+
+      try {
         const markPrice = num(premium.markPrice || premium.indexPrice)
         const openInterestValue = num(openInterest.openInterest)
         const oiNotional = openInterestValue * markPrice
-        if (!markPrice || !openInterestValue || !oiNotional) return null
+        if (!markPrice || !openInterestValue || !oiNotional) {
+          recordSymbolFailure({ symbol, stage: "combined", message: "Missing mark price, open interest, or OI notional." })
+          return null
+        }
         return {
           symbol,
           baseAsset: mapped.baseAsset,
@@ -186,7 +218,8 @@ export async function GET() {
           fundingRate: num(premium.lastFundingRate),
           nextFundingTime: premium.nextFundingTime,
         } satisfies FuturesSymbolSnapshot
-      } catch {
+      } catch (error) {
+        recordSymbolFailure({ symbol, stage: "combined", message: errorMessage(error) })
         return null
       }
     })
@@ -215,8 +248,11 @@ export async function GET() {
       concurrency: CONCURRENCY,
     })
 
-    return NextResponse.json(payload, {
-      status: payload.ok ? 200 : 502,
+    return NextResponse.json({
+      ...payload,
+      ...(failedSymbolFetches.length ? { diagnostics: { failedSymbolFetches } } : {}),
+    }, {
+      status: 200,
       headers: {
         "Cache-Control": "no-store, max-age=0",
       },
