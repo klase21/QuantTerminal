@@ -12,6 +12,16 @@ function num(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function publicReason(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : String(error ?? "")
+  if (/\b(403|451)\b/i.test(message) || /forbidden|restricted|unavailable for legal reasons/i.test(message)) {
+    return "Exchange response blocked."
+  }
+  if (/abort|timeout/i.test(message)) return "Exchange response timed out."
+  if (/missing/i.test(message)) return message
+  return fallback
+}
+
 function timeoutSignal(ms: number) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ms)
@@ -59,7 +69,7 @@ async function getBinance(symbol: string) {
     return {
       ok: false,
       source: "binance-futures",
-      reason: error instanceof Error ? error.message : "Binance futures request failed.",
+      reason: publicReason(error, "Binance futures source unavailable."),
     }
   }
 }
@@ -99,7 +109,7 @@ async function getBybit(symbol: string) {
     return {
       ok: false,
       source: "bybit-linear",
-      reason: error instanceof Error ? error.message : "Bybit public ticker request failed.",
+      reason: publicReason(error, "Bybit public source unavailable."),
     }
   }
 }

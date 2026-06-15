@@ -537,14 +537,14 @@ export default function AdvancedChartModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto rounded-b-2xl border-x border-b border-zinc-800 bg-zinc-950 p-3">
           {activeTab === "chart" ? (
-            <div className="flex min-h-[840px] flex-col gap-3">
-              <div className={effectiveCompareMode ? "grid min-h-[840px] gap-3 lg:grid-cols-2" : "min-h-[840px]"}>
+            <div className="flex min-h-[870px] flex-col gap-3">
+              <div className={effectiveCompareMode ? "grid min-h-[870px] gap-3 lg:grid-cols-2" : "min-h-[870px]"}>
                 <div className="min-h-0 overflow-hidden rounded-xl border border-zinc-800 bg-black">
                   <div className="flex items-center justify-between border-b border-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400">
                     <span>Primary · {symbol.toUpperCase()} · {selectedTimeframe}</span>
                     <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">Controls in Indicators</span>
                   </div>
-                  <div className="h-[calc(100%-37px)] min-h-[820px]">
+                  <div className="h-[calc(100%-37px)] min-h-[850px]">
                     <TradingChart data={candles} indicators={chartIndicators} setupOverlay={enabledIndicators.setupOverlay ? setupOverlay : null} />
                   </div>
                 </div>
@@ -566,7 +566,7 @@ export default function AdvancedChartModal({
                         ))}
                       </select>
                     </div>
-                    <div className="h-[calc(100%-37px)] min-h-[820px]">
+                    <div className="h-[calc(100%-37px)] min-h-[850px]">
                       <TradingChart data={compareCandles} indicators={chartIndicators} />
                     </div>
                   </div>

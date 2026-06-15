@@ -707,9 +707,9 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
   useEffect(() => {
     if (!mainRef.current || !macdRef.current || !stochRef.current) return
 
-    const mainChart = createBaseChart(mainRef.current, 500)
-    const macdChart = createBaseChart(macdRef.current, 142)
-    const stochChart = createBaseChart(stochRef.current, 178, true)
+    const mainChart = createBaseChart(mainRef.current, 470)
+    const macdChart = createBaseChart(macdRef.current, 150)
+    const stochChart = createBaseChart(stochRef.current, 210, true)
 
     mainChartRef.current = mainChart
     macdChartRef.current = macdChart
@@ -860,9 +860,9 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
     })
 
     const resizeAll = () => {
-      resizeChart(mainChartRef.current, mainRef.current, 500, mainSizeRef)
-      resizeChart(macdChartRef.current, macdRef.current, 142, macdSizeRef)
-      resizeChart(stochChartRef.current, stochRef.current, 178, stochSizeRef)
+      resizeChart(mainChartRef.current, mainRef.current, 470, mainSizeRef)
+      resizeChart(macdChartRef.current, macdRef.current, 150, macdSizeRef)
+      resizeChart(stochChartRef.current, stochRef.current, 210, stochSizeRef)
     }
 
     const resizeObserver = new ResizeObserver(() => {
@@ -947,9 +947,9 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
   }, [data, formattedData, indicators, macdData, ema9Data, ema21Data, ema50Data, anchoredVwapData, keyLevels, htfLevels, sma20Data, sma200Data, stochData, volumeData, adarshData])
 
   return (
-    <div className="relative h-full min-h-[820px] w-full overflow-hidden bg-[#05070b]">
+    <div className="relative h-full min-h-[830px] w-full overflow-hidden bg-[#05070b]">
 
-      <div className="relative h-[500px] border-b border-zinc-800/80">
+      <div className="relative h-[470px] border-b border-zinc-800/80">
         <div ref={mainRef} className="h-full w-full" />
         {setupOverlay ? (
           <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-xl border border-zinc-700/80 bg-black/70 px-3 py-2 text-xs shadow-xl backdrop-blur-sm">
@@ -1011,11 +1011,11 @@ export default function TradingChart({ data, indicators, setupOverlay }: Props) 
           </div>
         )}
       </div>
-      <div className="relative h-[142px] border-b border-zinc-800/80">
+      <div className="relative h-[150px] border-b border-zinc-800/80">
         <div ref={macdRef} className="h-full w-full" />
       </div>
 
-      <div className="relative h-[178px]">
+      <div className="relative h-[210px]">
         <div className="pointer-events-none absolute left-0 right-0 top-[20%] z-10 border-t border-dashed border-slate-500/35" />
         <div className="pointer-events-none absolute left-0 right-0 top-[80%] z-10 border-t border-dashed border-slate-500/35" />
         <div ref={stochRef} className="h-full w-full" />

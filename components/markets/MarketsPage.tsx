@@ -96,9 +96,20 @@ function timeLabel(value: number) {
   return new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 }
 
+function displayDataReason(value?: string | null) {
+  const text = value ?? ""
+  if (/\b(403|451)\b/i.test(text) || /forbidden|restricted|unavailable for legal reasons/i.test(text)) {
+    return "Exchange response blocked"
+  }
+  if (/timeout|abort/i.test(text)) return "Source timed out"
+  if (/not responded/i.test(text)) return "Source waiting"
+  if (/unavailable/i.test(text)) return "Source unavailable"
+  return text || "Source unavailable"
+}
+
 function missingFuturesReason(symbol: string, futures: FuturesResponse | null) {
   if (!futures) return "Futures API has not responded yet."
-  if (futures.notes?.[0]) return futures.notes[0]
+  if (futures.notes?.[0]) return displayDataReason(futures.notes[0])
   if (!futures.ok) return "Futures intelligence returned an unavailable status."
   if (!futures.symbols?.length) return "Futures intelligence returned no symbol rows."
   return `${symbol} was not included in the futures intelligence response.`
@@ -154,31 +165,29 @@ function MetricCard({
   )
 }
 
-function ExchangeMetricCell({
+function InlineStatus({
   label,
   value,
-  sub,
   tone,
+  className,
 }: {
   label: string
   value: string
-  sub?: string
   tone?: "green" | "red" | "cyan" | "amber"
+  className?: string
 }) {
   return (
-    <div className="rounded border border-zinc-900 bg-black/45 px-3 py-2">
-      <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</div>
-      <div className={cn(
-        "mt-1 text-base font-black uppercase leading-none text-white",
+    <div className={cn("flex min-w-0 items-center gap-1.5 rounded border border-zinc-900 bg-black/45 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]", className)}>
+      <span className="shrink-0 text-zinc-500">{label}:</span>
+      <span className={cn(
+        "truncate text-white",
         tone === "green" && "text-emerald-100",
         tone === "red" && "text-rose-100",
         tone === "cyan" && "text-cyan-100",
         tone === "amber" && "text-amber-100",
-      )}
-      >
+      )}>
         {value}
-      </div>
-      {sub && <div className="mt-1 truncate text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{sub}</div>}
+      </span>
     </div>
   )
 }
@@ -194,41 +203,44 @@ function ExchangeComparisonGrid({
   fundingRelationship?: string
   openInterestRelationship?: string
 }) {
+  const binanceReason = displayDataReason(binance?.reason)
+  const bybitReason = displayDataReason(bybit?.reason)
+
   return (
-    <div className="grid gap-2">
-      <div className="grid gap-2 md:grid-cols-4">
-        <ExchangeMetricCell
-          label="Binance Funding"
+    <div className="grid gap-1.5 rounded border border-zinc-900 bg-black/25 p-2">
+      <div className="grid gap-1.5 md:grid-cols-[72px_1fr_1fr]">
+        <div className="flex items-center text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Binance</div>
+        <InlineStatus
+          label="Funding"
           value={binance?.ok ? pct((binance.fundingRate ?? 0) * 100, 4) : "NO DATA"}
-          sub={binance?.ok ? binance.source : binance?.reason ?? "Binance unavailable"}
           tone="amber"
         />
-        <ExchangeMetricCell
-          label="Binance OI"
+        <InlineStatus
+          label="OI"
           value={binance?.ok ? compactUsd(binance.oiNotional) : "NO DATA"}
-          sub={binance?.ok ? fmt(binance.openInterest, 2) : binance?.reason ?? "Binance unavailable"}
           tone="cyan"
         />
-        <ExchangeMetricCell
-          label="Bybit Funding"
+        {!binance?.ok && <div className="md:col-span-2 md:col-start-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{binanceReason}</div>}
+        <div className="flex items-center text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Bybit</div>
+        <InlineStatus
+          label="Funding"
           value={bybit?.ok ? pct((bybit.fundingRate ?? 0) * 100, 4) : "NO DATA"}
-          sub={bybit?.ok ? bybit.source : bybit?.reason ?? "Bybit unavailable"}
           tone="amber"
         />
-        <ExchangeMetricCell
-          label="Bybit OI"
+        <InlineStatus
+          label="OI"
           value={bybit?.ok ? compactUsd(bybit.oiNotional) : "NO DATA"}
-          sub={bybit?.ok ? fmt(bybit.openInterest, 2) : bybit?.reason ?? "Bybit unavailable"}
           tone="cyan"
         />
+        {!bybit?.ok && <div className="md:col-span-2 md:col-start-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{bybitReason}</div>}
       </div>
-      <div className="grid gap-2 md:grid-cols-2">
-        <ExchangeMetricCell
+      <div className="grid gap-1.5 border-t border-zinc-900 pt-1.5 md:grid-cols-2">
+        <InlineStatus
           label="Funding Relationship"
           value={fundingRelationship ?? "Unavailable"}
           tone={fundingRelationship === "Aligned" ? "green" : fundingRelationship === "Divergent" ? "red" : undefined}
         />
-        <ExchangeMetricCell
+        <InlineStatus
           label="OI Relationship"
           value={openInterestRelationship ?? "Unavailable"}
           tone={openInterestRelationship === "Aligned" ? "green" : openInterestRelationship === "Divergent" ? "red" : undefined}
@@ -459,6 +471,11 @@ export default function MarketsPage() {
   const [ticker24hReason, setTicker24hReason] = useState<string | null>(null)
   const [previousOi, setPreviousOi] = useState<Record<string, number>>({})
   const [advancedChartOpen, setAdvancedChartOpen] = useState(false)
+  const [liquidationMinNotional, setLiquidationMinNotional] = useState(() => {
+    if (typeof window === "undefined") return 0
+    const stored = Number(window.localStorage.getItem("qt.markets.liqFilter"))
+    return stored === 500 || stored === 1000 ? stored : 0
+  })
   const tickers = useMarketStore((state) => state.tickers)
   const orderbook = useMarketStore((state) => state.orderbook)
   const ticker = tickers[symbol]
@@ -481,7 +498,7 @@ export default function MarketsPage() {
         const payload = await response.json()
         if (active) setTicker24h(payload)
       } catch (error) {
-        if (active) setTicker24hReason(error instanceof Error ? error.message : "Binance 24h range unavailable")
+        if (active) setTicker24hReason(displayDataReason(error instanceof Error ? error.message : "Binance 24h range unavailable"))
       }
     }
     void loadTicker24h()
@@ -525,7 +542,7 @@ export default function MarketsPage() {
             ok: false,
             symbol,
             binance: { ok: false, source: "binance-futures", reason: "Exchange comparison request failed." },
-            bybit: { ok: false, source: "bybit-linear", reason: error instanceof Error ? error.message : "Bybit comparison request failed." },
+            bybit: { ok: false, source: "bybit-linear", reason: displayDataReason(error instanceof Error ? error.message : "Bybit comparison request failed.") },
             fundingRelationship: "Unavailable",
             openInterestRelationship: "Unavailable",
           })
@@ -550,6 +567,9 @@ export default function MarketsPage() {
   const buyVolume = trades.filter((trade) => trade.side === "buy").reduce((sum, trade) => sum + trade.qty, 0)
   const sellVolume = trades.filter((trade) => trade.side === "sell").reduce((sum, trade) => sum + trade.qty, 0)
   const cvd = buyVolume - sellVolume
+  const visibleLiquidations = liquidationMinNotional > 0
+    ? liquidations.filter((item) => item.value >= liquidationMinNotional)
+    : liquidations
   const sourceStatus = useMemo(() => {
     const parts = [
       ticker ? "Binance Ticker Live" : "Binance Ticker No Data",
@@ -581,11 +601,18 @@ export default function MarketsPage() {
         ? "Shorts Hit"
         : "Balanced"
   const structureRead = marketStructureLabel(ticker?.change24h, cvd, liveFundingRate)
+  const hasStructureInputs = Boolean(ticker && trades.length && liveFundingRate !== null)
+  const structureValue = hasStructureInputs ? structureRead : "INSUFFICIENT DATA"
+  const structureReason = hasStructureInputs ? "Price + flow + funding" : "Needs price, trades, and funding"
 
   useEffect(() => {
     if (currentOi === null || currentOi === undefined) return
     setPreviousOi((prev) => prev[symbol] === undefined ? { ...prev, [symbol]: currentOi } : prev)
   }, [currentOi, symbol])
+
+  useEffect(() => {
+    window.localStorage.setItem("qt.markets.liqFilter", String(liquidationMinNotional))
+  }, [liquidationMinNotional])
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
@@ -615,10 +642,10 @@ export default function MarketsPage() {
           <div className="grid gap-2 md:grid-cols-3 2xl:grid-cols-6">
             <MetricCard label="Price" value={ticker ? fmt(ticker.price, 2) : "NO DATA"} sub="Binance realtime" tone="cyan" />
             <MetricCard label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
-            <MetricCard label="Funding" value={liveFundingRate !== null ? pct(liveFundingRate * 100, 4) : "NO DATA"} sub={liveFundingRate !== null ? "8h estimate" : liveOiReason} tone="amber" />
-            <MetricCard label="Open Int." value={compactUsd(liveOiNotional)} sub={liveOiNotional !== null ? "Binance futures" : liveOiReason} tone="cyan" />
+            <MetricCard label="Funding" value={liveFundingRate !== null ? pct(liveFundingRate * 100, 4) : "NO DATA"} sub={liveFundingRate !== null ? "8h estimate" : displayDataReason(liveOiReason)} tone="amber" />
+            <MetricCard label="Open Int." value={compactUsd(liveOiNotional)} sub={liveOiNotional !== null ? "Binance futures" : displayDataReason(liveOiReason)} tone="cyan" />
             <LiquidationBiasCard longNotional={longLiquidationNotional} shortNotional={shortLiquidationNotional} />
-            <MetricCard label="24h Range" value={rangeValue} sub={rangeValue === "NO DATA" ? ticker24hReason ?? "Binance 24h range unavailable" : "High / Low"} tone="cyan" size="md" />
+            <MetricCard label="24h Range" value={rangeValue} sub={rangeValue === "NO DATA" ? displayDataReason(ticker24hReason ?? "Binance 24h range unavailable") : "High / Low"} tone="cyan" size="md" />
           </div>
         </Card>
 
@@ -645,7 +672,7 @@ export default function MarketsPage() {
           />
         </Card>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(420px,.55fr)]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
           <Card title="Advanced Chart" icon={<BarChart3 className="h-3.5 w-3.5" />}>
             <ChartPreview candles={candles} symbol={symbol} timeframe="1m" onOpen={() => setAdvancedChartOpen(true)} />
           </Card>
@@ -654,10 +681,12 @@ export default function MarketsPage() {
 
         <div className="grid gap-3 xl:grid-cols-2">
           <Card title="Trade Flow" icon={<Zap className="h-3.5 w-3.5" />}>
-            <div className="mb-3 grid grid-cols-3 gap-2">
-              <MetricCard label="Buy Vol" value={fmt(buyVolume, 3)} tone="green" />
-              <MetricCard label="Sell Vol" value={fmt(sellVolume, 3)} tone="red" />
-              <MetricCard label="CVD" value={fmt(cvd, 3)} tone={cvd >= 0 ? "green" : "red"} />
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded border border-zinc-900 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]">
+              <span className="text-zinc-500">Buy: <span className="text-emerald-100">{fmt(buyVolume, 3)}</span></span>
+              <span className="text-zinc-700">/</span>
+              <span className="text-zinc-500">Sell: <span className="text-rose-100">{fmt(sellVolume, 3)}</span></span>
+              <span className="text-zinc-700">/</span>
+              <span className="text-zinc-500">CVD: <span className={cvd >= 0 ? "text-emerald-100" : "text-rose-100"}>{fmt(cvd, 3)}</span></span>
             </div>
             <div className="grid gap-1">
               {trades.slice(0, 12).map((trade, index) => (
@@ -673,9 +702,27 @@ export default function MarketsPage() {
           </Card>
 
           <Card title="Market-Wide Liquidation Feed" icon={<AlertTriangle className="h-3.5 w-3.5" />}>
-            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">Shows latest liquidation events across tracked symbols. Bybit liquidation: NO DATA / not connected in this pass.</div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">
+              <span>Shows latest liquidation events across tracked symbols. Bybit liquidation: NO DATA / not connected in this pass.</span>
+              <div className="flex items-center gap-1">
+                <span>Hide below</span>
+                {[0, 500, 1000].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setLiquidationMinNotional(value)}
+                    className={cn(
+                      "rounded border px-2 py-1 text-[9px] font-black uppercase",
+                      liquidationMinNotional === value ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-100" : "border-zinc-900 bg-black/40 text-zinc-500",
+                    )}
+                  >
+                    {value === 0 ? "Off" : compactUsd(value)}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid gap-1">
-              {liquidations.slice(0, 14).map((liq, index) => (
+              {visibleLiquidations.slice(0, 14).map((liq, index) => (
                 <div key={`${liq.time}-${liq.symbol}-${index}`} className="grid grid-cols-[72px_78px_64px_1fr_92px] rounded border border-zinc-900 bg-black/35 px-2 py-1 text-[11px] font-bold">
                   <span className="text-zinc-500">{timeLabel(liq.time)}</span>
                   <span className="text-cyan-100">BINANCE</span>
@@ -684,18 +731,39 @@ export default function MarketsPage() {
                   <span className="text-right text-zinc-400">{compactUsd(liq.value)}</span>
                 </div>
               ))}
-              {!liquidations.length && <div className="rounded border border-zinc-900 bg-black/40 p-6 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">NO LIQUIDATION DATA</div>}
+              {!visibleLiquidations.length && <div className="rounded border border-zinc-900 bg-black/40 p-6 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">{liquidations.length ? "NO EVENTS ABOVE FILTER" : "NO LIQUIDATION DATA"}</div>}
             </div>
           </Card>
         </div>
 
         <div className="grid gap-3">
           <Card title="Market Structure Insights" icon={<Droplets className="h-3.5 w-3.5" />}>
-            <div className="grid gap-2 md:grid-cols-4">
-              <MetricCard label="Funding" value={liveFundingRate === null ? "NO DATA" : liveFundingRate > 0.00008 ? "Bullish" : liveFundingRate < -0.00008 ? "Bearish" : "Neutral"} sub={liveFundingRate === null ? liveOiReason : "Funding pressure"} tone={liveFundingRate === null ? undefined : liveFundingRate >= 0 ? "green" : "red"} />
-              <MetricCard label="Open Interest" value={oiTrend.label} sub={oiTrend.reason} tone={oiTrend.label === "Increasing" ? "green" : oiTrend.label === "Decreasing" ? "red" : "amber"} />
-              <MetricCard label="Liquidations" value={liquidationRead} sub="Market-wide feed" tone={liquidationRead === "Longs Hit" ? "red" : liquidationRead === "Shorts Hit" ? "green" : "amber"} />
-              <MetricCard label="Market Structure" value={structureRead} sub="Price + flow + funding" tone={structureRead === "BULLISH" ? "green" : structureRead === "BEARISH" ? "red" : "amber"} />
+            <div className="flex flex-wrap items-center gap-2 rounded border border-zinc-900 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]">
+              <InlineStatus
+                label="Funding Pressure"
+                value={liveFundingRate === null ? "NO DATA" : liveFundingRate > 0.00008 ? "Bullish" : liveFundingRate < -0.00008 ? "Bearish" : "Neutral"}
+                tone={liveFundingRate === null ? undefined : liveFundingRate >= 0 ? "green" : "red"}
+                className="border-transparent bg-transparent px-0 py-0"
+              />
+              <InlineStatus
+                label="OI Trend"
+                value={oiTrend.label}
+                tone={oiTrend.label === "Increasing" ? "green" : oiTrend.label === "Decreasing" ? "red" : "amber"}
+                className="border-transparent bg-transparent px-0 py-0"
+              />
+              <InlineStatus
+                label="Liquidation Pressure"
+                value={liquidationRead}
+                tone={liquidationRead === "Longs Hit" ? "red" : liquidationRead === "Shorts Hit" ? "green" : "amber"}
+                className="border-transparent bg-transparent px-0 py-0"
+              />
+              <InlineStatus
+                label="Structure"
+                value={structureValue}
+                tone={structureValue === "BULLISH" ? "green" : structureValue === "BEARISH" ? "red" : "amber"}
+                className="border-transparent bg-transparent px-0 py-0"
+              />
+              <span className="text-[9px] text-zinc-600">{structureReason}</span>
             </div>
           </Card>
         </div>
