@@ -6,6 +6,7 @@ import type { FuturesConnectorTelemetry, FuturesSymbolSnapshot } from "@/core/fu
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
+export const preferredRegion = "hnd1"
 
 const BINANCE_FAPI = "https://fapi.binance.com"
 const REQUEST_TIMEOUT_MS = 5500
