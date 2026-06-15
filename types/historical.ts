@@ -198,6 +198,10 @@ export type DashboardHistoricalAnalogResponse = {
   status: "available" | "unavailable"
   source?: "binance-vision" | "local-market-ohlcv-db" | "market-memory-snapshots"
   queryPath?: string
+  requestedSymbol?: string
+  sourceSymbol?: string
+  benchmarkUsed?: string
+  benchmarkReason?: string
   currentDirection?: MarketStateDirection
   recordCountSearched: number
   message?: "NO VERIFIED ANALOG" | "NO VERIFIED MEMORY"

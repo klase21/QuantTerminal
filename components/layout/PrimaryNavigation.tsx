@@ -9,9 +9,9 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge, active: true },
   { label: "Markets", href: "/markets", icon: BarChart3, active: true },
   { label: "Trade", href: "/trade", icon: ClipboardCheck, active: true },
-  { label: "Scanner", icon: Radar, active: false },
-  { label: "Research", icon: Search, active: false },
-  { label: "Replay", icon: History, active: false },
+  { label: "Scanner", href: "/scanner", icon: Radar, active: true },
+  { label: "Research", href: "/research", icon: Search, active: true },
+  { label: "Replay", href: "/replay", icon: History, active: true },
   { label: "Settings", icon: Settings, active: false },
 ]
 

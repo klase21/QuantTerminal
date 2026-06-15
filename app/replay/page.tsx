@@ -1,5 +1,5 @@
-import ReplayEngineWorkspace from "@/components/replay/ReplayEngineWorkspace"
+import ReplayV1Page from "@/components/replay/ReplayV1Page"
 
 export default function ReplayPage() {
-  return <ReplayEngineWorkspace />
+  return <ReplayV1Page />
 }

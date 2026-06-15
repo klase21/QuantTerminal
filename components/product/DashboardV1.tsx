@@ -1009,7 +1009,8 @@ function HistoricalAnalogCard({ analog }: { analog: HistoricalAnalogState }) {
     <Card title="Historical Analog" icon={<History className="h-3.5 w-3.5" />} className="bg-zinc-950/65 p-2.5">
       {!match ? (
         <div className="rounded-md border border-zinc-900 bg-black/45 px-2 py-4 text-center text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">
-          {analog ? "NO VERIFIED MEMORY" : "VERIFYING HISTORY"}
+          <div>{analog ? "NO VERIFIED MEMORY" : "VERIFYING HISTORY"}</div>
+          {analog?.reason ? <div className="mt-2 text-[9px] tracking-[0.1em] text-zinc-600">{analog.reason}</div> : null}
         </div>
       ) : (
         <div className="grid gap-2">
@@ -1552,18 +1553,37 @@ export default function DashboardV1({
     let active = true
 
     async function loadHistoricalAnalog() {
-      await fetch("/api/dashboard/snapshots", {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(dashboardSnapshot),
-      })
+      try {
+        await fetch("/api/dashboard/snapshots", {
+          method: "POST",
+          cache: "no-store",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(dashboardSnapshot),
+        })
 
-      const response = await fetch(`/api/dashboard/historical-analog?symbol=${encodeURIComponent(symbol)}&interval=1h`, { cache: "no-store" })
-      if (!active || !response.ok) return
-      setHistoricalAnalog(await response.json())
+        const response = await fetch(`/api/dashboard/historical-analog?symbol=${encodeURIComponent(symbol)}&interval=1h`, { cache: "no-store" })
+        if (!active) return
+        if (!response.ok) {
+          setHistoricalAnalog({
+            status: "unavailable",
+            message: "NO VERIFIED ANALOG",
+            reason: "API error",
+            recordCountSearched: 0,
+          })
+          return
+        }
+        setHistoricalAnalog(await response.json())
+      } catch {
+        if (!active) return
+        setHistoricalAnalog({
+          status: "unavailable",
+          message: "NO VERIFIED ANALOG",
+          reason: "API unavailable",
+          recordCountSearched: 0,
+        })
+      }
     }
 
     void loadHistoricalAnalog()

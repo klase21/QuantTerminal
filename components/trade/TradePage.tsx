@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Activity, AlertTriangle, Database, History, RadioTower, Save, Target, Trash2, Zap } from "lucide-react"
+import { Activity, History, RadioTower, Save, Trash2, Zap } from "lucide-react"
 
 import useLiquidationSocket from "@/hooks/useLiquidationSocket"
 import useMarketSocket from "@/hooks/useMarketSocket"
@@ -33,6 +33,10 @@ type HistoricalAnalogResponse = {
   status?: "available" | "unavailable" | "error"
   message?: string
   reason?: string
+  requestedSymbol?: string
+  sourceSymbol?: string
+  benchmarkUsed?: string
+  benchmarkReason?: string
   similarCases?: number | null
   currentDirection?: string | null
   stats?: {
@@ -93,18 +97,18 @@ function EmptyState({ title, reason }: { title: string; reason: string }) {
   )
 }
 
-function Metric({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "green" | "red" | "cyan" | "amber" }) {
+function MiniMetric({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "green" | "red" | "cyan" | "amber" }) {
   return (
-    <div className="rounded border border-zinc-900 bg-black/45 px-3 py-2">
-      <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</div>
+    <div className="rounded border border-zinc-900 bg-black/45 px-2 py-1.5">
+      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</div>
       <div className={cn(
-        "mt-1 text-lg font-black uppercase leading-none text-white",
+        "mt-0.5 text-sm font-black uppercase leading-tight text-white",
         tone === "green" && "text-emerald-100",
         tone === "red" && "text-rose-100",
         tone === "cyan" && "text-cyan-100",
         tone === "amber" && "text-amber-100",
       )}>{value}</div>
-      {sub && <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{sub}</div>}
+      {sub && <div className="mt-0.5 truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-600">{sub}</div>}
     </div>
   )
 }
@@ -525,36 +529,38 @@ export default function TradePage() {
               reason={marketMovers?.notes?.[0] ?? moverState.error ?? "No tactical alerts currently meet quality threshold."}
             />
           ) : (
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               {candidates.length > 0 && (
                 <div>
-                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Current Candidates</div>
-                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Current Candidates</div>
+                  <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5 2xl:grid-cols-6">
                     {candidates.map((candidate) => (
                       <button
                         key={`${candidate.symbol}-${candidate.setup}-${candidate.score}`}
                         type="button"
                         onClick={() => setSelectedSymbol(candidate.symbol)}
                         className={cn(
-                          "rounded-lg border bg-black/45 p-3 text-left transition hover:border-cyan-300/45",
+                          "rounded-lg border bg-black/45 p-2 text-left transition hover:border-cyan-300/45",
                           selected?.symbol === candidate.symbol ? "border-cyan-300/55 bg-cyan-400/10" : "border-zinc-900",
                         )}
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-1.5">
                           <div>
-                            <div className="text-lg font-black text-white">{candidate.symbol}</div>
-                            <div className="mt-1 text-xs font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(candidate)}</div>
+                            <div className="text-base font-black leading-none text-white">{candidate.symbol}</div>
+                            <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(candidate)}</div>
                           </div>
                           <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">{directionLabel(candidate)}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {qualityFields(candidate).map((field) => (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {qualityFields(candidate).slice(0, 4).map((field) => (
                             <span key={`${candidate.symbol}-${field}`} className="rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400">{field}</span>
                           ))}
                         </div>
-                        <div className="mt-2 text-xs font-black uppercase tracking-[0.1em] text-emerald-100">{confidenceLabel(candidate)}</div>
-                        <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500">{timeAgo(marketMovers?.updatedAt)}</div>
-                        <div className="mt-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">Reason: {reasonFromCandidate(candidate)}</div>
+                        <div className="mt-1.5 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.1em]">
+                          <span className="text-emerald-100">{confidenceLabel(candidate)}</span>
+                          <span className="text-zinc-500">{timeAgo(marketMovers?.updatedAt)}</span>
+                        </div>
+                        <div className="mt-1 truncate text-[9px] font-black uppercase tracking-[0.1em] text-zinc-400">{reasonFromCandidate(candidate)}</div>
                       </button>
                     ))}
                   </div>
@@ -563,8 +569,8 @@ export default function TradePage() {
 
               {liveTrackedSetups.length > 0 && (
                 <div>
-                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Tracked Setups</div>
-                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
+                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Tracked Setups</div>
+                  <div className="grid gap-1.5 md:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-8">
                     {liveTrackedSetups.slice(0, 12).map((candidate) => (
                       <button
                         key={`${candidate.symbol}-${candidate.firstSeenAt}`}
@@ -576,12 +582,14 @@ export default function TradePage() {
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="text-sm font-black text-white">{candidate.symbol}</div>
+                          <div className="text-xs font-black text-white">{candidate.symbol}</div>
                           <span className={cn("rounded border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em]", lifecycleTone(candidate.lifecycle))}>{candidate.lifecycle}</span>
                         </div>
                         <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(candidate)}</div>
-                        <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{confidenceLabel(candidate)}</div>
-                        <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">Best: {pct(candidate.bestMovePct)}</div>
+                        <div className="mt-1 flex justify-between gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                          <span>{confidenceLabel(candidate)}</span>
+                          <span>Best {pct(candidate.bestMovePct)}</span>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -591,31 +599,48 @@ export default function TradePage() {
           )}
         </Card>
 
-        <div className="grid gap-3 xl:grid-cols-[420px_minmax(0,1fr)]">
-          <Card title="Selected Setup" icon={<RadioTower className="h-3.5 w-3.5" />}>
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <Card title="Selected Execution Plan" icon={<RadioTower className="h-3.5 w-3.5" />}>
             {!selected ? (
               <EmptyState title="No Focused Setup" reason="No focused candidate available." />
             ) : (
-              <div className="grid gap-2">
-                <div className="rounded border border-cyan-300/20 bg-cyan-400/10 p-3">
-                  <div className="text-3xl font-black text-white">{selected.symbol}</div>
-                  <div className="mt-1 text-sm font-black uppercase tracking-[0.12em] text-cyan-100">{setupLabel(selected)}</div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.1em]">
-                    <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-zinc-200">{directionLabel(selected)}</span>
+              <div className="grid gap-2 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <div className="rounded border border-cyan-300/20 bg-cyan-400/10 p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-2xl font-black leading-none text-white">{selected.symbol}</div>
+                      <div className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-cyan-100">{setupLabel(selected)}</div>
+                    </div>
+                    <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-200">{directionLabel(selected)}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1 text-[9px] font-black uppercase tracking-[0.1em]">
                     <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-emerald-100">{confidenceLabel(selected)}</span>
                     <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-amber-100">{statusLabel(selected)}</span>
                     {lifecycleLabel(selected) && (
                       <span className={cn("rounded border px-2 py-1", lifecycleTone(lifecycleLabel(selected)))}>{lifecycleLabel(selected)}</span>
                     )}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1">
                     {qualityFields(selected).map((field) => (
                       <span key={`${selected.symbol}-${field}`} className="rounded border border-zinc-800 bg-black px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-400">{field}</span>
                     ))}
                   </div>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5">
+                    <MiniMetric label="Current Price" value={ticker ? fmt(ticker.price, 2) : "NO DATA"} sub={ticker ? "Binance realtime" : "Ticker stream waiting"} tone="cyan" />
+                    <MiniMetric label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
+                  </div>
                 </div>
-                <Metric label="Current Price" value={ticker ? fmt(ticker.price, 2) : "NO DATA"} sub={ticker ? "Binance realtime" : "Ticker stream waiting"} tone="cyan" />
-                <Metric label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
+                {!plan ? (
+                  <EmptyState title="No Verified Trade Plan" reason="Entry and invalidation levels are unavailable." />
+                ) : (
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    <MiniMetric label="Entry Area" value={plan.entryArea} tone="cyan" />
+                    <MiniMetric label="When This Idea Is Wrong" value={plan.wrongArea} tone="red" />
+                    <MiniMetric label="Target Area" value={plan.targetArea || "NO DATA"} tone="green" />
+                    <MiniMetric label="Risk Level" value={plan.riskLevel} tone={plan.riskLevel === "High" ? "red" : plan.riskLevel === "Medium" ? "amber" : "green"} />
+                    <div className="sm:col-span-2">
+                      <MiniMetric label="Action" value={plan.action} tone="amber" />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </Card>
@@ -624,11 +649,11 @@ export default function TradePage() {
             {!selected ? (
               <EmptyState title="No Trade Evidence" reason="Select an active trade candidate first." />
             ) : (
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-1.5 md:grid-cols-2 2xl:grid-cols-3">
                 {(evidence.length ? evidence : [{ title: "NO DATA", detail: "No tactical evidence available." }]).map((item) => (
-                  <div key={`${item.title}-${item.detail}`} className="rounded border border-zinc-900 bg-black/45 p-3">
-                    <div className="text-sm font-black uppercase text-white">{item.title}</div>
-                    <div className="mt-2 text-[11px] font-black uppercase tracking-[0.1em] text-zinc-500">{item.detail}</div>
+                  <div key={`${item.title}-${item.detail}`} className="min-h-[76px] rounded border border-zinc-900 bg-black/45 p-2">
+                    <div className="line-clamp-2 text-xs font-black uppercase text-white">{item.title}</div>
+                    <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{item.detail}</div>
                   </div>
                 ))}
               </div>
@@ -637,77 +662,43 @@ export default function TradePage() {
         </div>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card title="Trade Plan" icon={<Target className="h-3.5 w-3.5" />}>
-            {!plan ? (
-              <EmptyState title="No Verified Trade Plan" reason="Entry and invalidation levels are unavailable." />
-            ) : (
-              <div className="grid gap-2 md:grid-cols-5">
-                <Metric label="Entry Area" value={plan.entryArea} tone="cyan" />
-                <Metric label="When This Idea Is Wrong" value={plan.wrongArea} tone="red" />
-                <Metric label="Target Area" value={plan.targetArea || "NO DATA"} tone="green" />
-                <Metric label="Risk Level" value={plan.riskLevel} tone={plan.riskLevel === "High" ? "red" : plan.riskLevel === "Medium" ? "amber" : "green"} />
-                <Metric label="Action" value={plan.action} tone="amber" />
-              </div>
-            )}
-          </Card>
-
-          <Card title="Similar Past Setup" icon={<History className="h-3.5 w-3.5" />}>
-            {historicalAnalog?.status !== "available" || !historicalAnalog.match ? (
-              <EmptyState
-                title="No Verified Similar Setup"
-                reason={historicalAnalog?.reason ?? historicalAnalog?.message ?? "Historical analog is unavailable or still verifying."}
-              />
-            ) : (
-              <div className="grid gap-2">
-                <div className="rounded border border-zinc-900 bg-black/45 p-3">
-                  <div className="text-sm font-black uppercase text-white">{historicalAnalog.match.label ?? "Similar Setup"}</div>
-                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">{formatDate(historicalAnalog.match.date)}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Metric label="Similar Cases" value={analogStats.cases === null || analogStats.cases === undefined ? "NO DATA" : String(analogStats.cases)} />
-                  <Metric label="Average Outcome" value={pct(analogStats.avgReturn)} tone="cyan" />
-                  <Metric label="Win Rate" value={analogStats.successRate === null || analogStats.successRate === undefined ? "NO DATA" : `${Math.round(analogStats.successRate)}%`} tone="green" />
-                  <Metric label="Market Direction" value={pastDirection(analogStats.dominantOutcome)} tone="amber" />
-                </div>
-              </div>
-            )}
-          </Card>
-        </div>
-
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
           <Card title="Setup Memory" icon={<Save className="h-3.5 w-3.5" />}>
-            <div className="grid gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-zinc-900 bg-black/45 p-3">
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-zinc-900 bg-black/45 p-2">
                 <div>
-                  <div className="text-sm font-black uppercase text-white">{selected ? `${selected.symbol} ${setupLabel(selected)}` : "NO SETUP SELECTED"}</div>
-                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">LocalStorage only. No backend. No exchange orders.</div>
+                  <div className="text-xs font-black uppercase text-white">
+                    {savedSetups.length === 0
+                      ? "No tracked setups yet. Track the selected setup to start monitoring it."
+                      : selected ? `${selected.symbol} ${setupLabel(selected)}` : "NO SETUP SELECTED"}
+                  </div>
+                  <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">LocalStorage only. No backend. No exchange orders.</div>
                 </div>
                 <button
                   type="button"
                   onClick={trackSetup}
                   disabled={!selected || !plan}
-                  className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 disabled:border-zinc-900 disabled:bg-black/35 disabled:text-zinc-700"
+                  className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:border-zinc-900 disabled:bg-black/35 disabled:text-zinc-700"
                 >
                   Track Setup
                 </button>
               </div>
 
               {savedSetups.length === 0 ? (
-                <EmptyState title="No Tracked Setups" reason="Track a selected setup first." />
+                null
               ) : savedSetups.length > 0 ? (
                 <div className="grid gap-2">
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Local Tracked Setups</div>
                   {savedSetups.slice(0, 8).map((setup) => (
-                    <article key={setup.id} className="grid gap-2 rounded border border-zinc-900 bg-black/45 p-3 lg:grid-cols-[1fr_auto]">
+                    <article key={setup.id} className="grid gap-2 rounded border border-zinc-900 bg-black/45 p-2 lg:grid-cols-[1fr_auto]">
                       <div>
-                        <div className="flex flex-wrap gap-2 text-xs font-black uppercase tracking-[0.1em]">
+                        <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.1em]">
                           <span className="text-white">{setup.symbol}</span>
                           <span className="text-cyan-100">{setup.direction}</span>
                           <span className="text-amber-100">{setup.status}</span>
                           <span className="text-zinc-600">{new Date(setup.createdTime).toLocaleString()}</span>
                         </div>
-                        <div className="mt-1 text-sm font-black uppercase text-zinc-300">{setup.setupType}</div>
-                        <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                        <div className="mt-1 text-xs font-black uppercase text-zinc-300">{setup.setupType}</div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
                           <span>Entry: {setup.entryArea}</span>
                           <span>Wrong: {setup.wrongArea}</span>
                           <span>Target: {setup.targetArea}</span>
@@ -726,63 +717,61 @@ export default function TradePage() {
             </div>
           </Card>
 
-          <Card title="Recent Outcomes" icon={<Database className="h-3.5 w-3.5" />}>
-            {combinedCompleted < 5 ? (
-              <EmptyState title="Not Enough Completed Setups Yet" reason={`${combinedCompleted}/5 closed outcomes available.`} />
-            ) : (
-              <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <Metric label="Total Tracked" value={String(savedSetups.length + activeSetups.length)} />
-                  <Metric label="Open Setups" value={String(open + activeSetups.filter((setup) => setup.outcome === "OPEN").length)} tone="cyan" />
-                  <Metric label="Closed Setups" value={String(combinedCompleted)} />
-                  <Metric label="Wins" value={String(combinedWins)} tone="green" />
-                  <Metric label="Losses" value={String(combinedLosses)} tone="red" />
-                  <Metric label="Win Rate" value={winRate === null ? "NO DATA" : `${winRate}%`} tone="amber" />
-                  <Metric label="Average Outcome" value={pct(averageOutcome)} tone="cyan" />
+          <Card title="Similar Past Setup / Recent Outcomes" icon={<History className="h-3.5 w-3.5" />}>
+            <div className="grid gap-2">
+              {historicalAnalog?.status !== "available" || !historicalAnalog.match ? (
+                <EmptyState
+                  title="No Verified Similar Setup"
+                  reason={historicalAnalog?.reason ?? historicalAnalog?.message ?? "Historical analog is unavailable or still verifying."}
+                />
+              ) : (
+                <div className="grid gap-2">
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2">
+                    <div className="text-xs font-black uppercase text-white">{historicalAnalog.match.label ?? "Similar Setup"}</div>
+                    <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">{formatDate(historicalAnalog.match.date)}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <MiniMetric label="Similar Cases" value={analogStats.cases === null || analogStats.cases === undefined ? "NO DATA" : String(analogStats.cases)} />
+                    <MiniMetric label="Avg Outcome" value={pct(analogStats.avgReturn)} tone="cyan" />
+                    <MiniMetric label="Win Rate" value={analogStats.successRate === null || analogStats.successRate === undefined ? "NO DATA" : `${Math.round(analogStats.successRate)}%`} tone="green" />
+                    <MiniMetric label="Direction" value={pastDirection(analogStats.dominantOutcome)} tone="amber" />
+                  </div>
+                  <div className="rounded border border-zinc-900 bg-black/35 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                    Source: {historicalAnalog.sourceSymbol ?? historicalAnalog.match.symbol ?? selected?.symbol ?? "NO DATA"}
+                    {historicalAnalog.benchmarkReason ? <span className="block text-amber-100/80">{historicalAnalog.benchmarkReason}</span> : null}
+                  </div>
                 </div>
-                {(memoryWinners.length > 0 || memoryLosers.length > 0) && (
-                  <div className="grid gap-2">
-                    {memoryWinners.length > 0 && (
-                      <div className="rounded border border-emerald-300/20 bg-emerald-400/10 p-2">
-                        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/80">Recent Winners</div>
-                        <div className="mt-2 grid gap-1">
-                          {memoryWinners.slice(0, 3).map((setup) => (
-                            <div key={`${setup.symbol}-${setup.firstSeenAt}-winner`} className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.1em]">
-                              <span className="text-white">{setup.symbol}</span>
-                              <span className="text-emerald-100">{setup.outcome} / {pct(setup.bestMovePct)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {memoryLosers.length > 0 && (
-                      <div className="rounded border border-rose-300/20 bg-rose-400/10 p-2">
-                        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/80">Recent Losers</div>
-                        <div className="mt-2 grid gap-1">
-                          {memoryLosers.slice(0, 3).map((setup) => (
-                            <div key={`${setup.symbol}-${setup.firstSeenAt}-loser`} className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.1em]">
-                              <span className="text-white">{setup.symbol}</span>
-                              <span className="text-rose-100">{setup.outcome} / {pct(setup.worstMovePct)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+              )}
+              <div className="border-t border-zinc-900 pt-2">
+                {combinedCompleted < 5 ? (
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
+                    Not enough completed setups yet: {combinedCompleted}/5
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <MiniMetric label="Total" value={String(savedSetups.length + activeSetups.length)} />
+                    <MiniMetric label="Open" value={String(open + activeSetups.filter((setup) => setup.outcome === "OPEN").length)} tone="cyan" />
+                    <MiniMetric label="Closed" value={String(combinedCompleted)} />
+                    <MiniMetric label="Win Rate" value={winRate === null ? "NO DATA" : `${winRate}%`} tone="amber" />
+                    <MiniMetric label="Wins" value={String(combinedWins)} tone="green" />
+                    <MiniMetric label="Losses" value={String(combinedLosses)} tone="red" />
+                    <div className="col-span-2">
+                      <MiniMetric label="Average Outcome" value={pct(averageOutcome)} tone="cyan" />
+                    </div>
                   </div>
                 )}
               </div>
-            )}
+            </div>
           </Card>
         </div>
 
-        <Card title="Live Data Status" icon={<AlertTriangle className="h-3.5 w-3.5" />} className="bg-zinc-950/60">
-          <div className="grid gap-2 md:grid-cols-4">
-            <Metric label="Tactical Alerts" value={marketMovers?.ok ? "LIVE" : "NO DATA"} sub={marketMovers?.ok ? "Market movers" : marketMovers?.notes?.[0] ?? "Market movers unavailable"} tone={marketMovers?.ok ? "green" : "amber"} />
-            <Metric label="Long / Short Positioning" value={futuresSymbol ? pct(futuresSymbol.fundingRate * 100, 4) : "NO DATA"} sub={futuresSymbol ? "Funding" : futuresReason} tone="amber" />
-            <Metric label="Trader Participation" value={compactUsd(futuresSymbol?.oiNotional)} sub={futuresSymbol ? "Open interest" : futuresReason} tone="cyan" />
-            <Metric label="Market Activity" value={orderbookPressure.value} sub={orderbookPressure.reason} tone="cyan" />
-          </div>
-        </Card>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-zinc-900 bg-zinc-950/70 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]">
+          <span className="text-zinc-500">Live Data Status</span>
+          <span className={marketMovers?.ok ? "text-emerald-100" : "text-amber-100"}>Tactical Alerts: {marketMovers?.ok ? "LIVE" : "NO DATA"}</span>
+          <span className="text-amber-100">Positioning: {futuresSymbol ? pct(futuresSymbol.fundingRate * 100, 4) : displayDataReason(futuresReason)}</span>
+          <span className="text-cyan-100">Participation: {compactUsd(futuresSymbol?.oiNotional)}</span>
+          <span className="text-cyan-100">Market Activity: {orderbookPressure.value}</span>
+        </div>
       </div>
     </main>
   )

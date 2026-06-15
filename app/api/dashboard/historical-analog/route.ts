@@ -84,6 +84,100 @@ function isHistoricalSnapshot(snapshot: unknown): snapshot is HistoricalMarketSn
   )
 }
 
+const ETH_STYLE_SYMBOLS = new Set([
+  "AAVEUSDT",
+  "FILUSDT",
+  "ARBUSDT",
+  "OPUSDT",
+  "NEARUSDT",
+  "TONUSDT",
+  "AVAXUSDT",
+  "LINKUSDT",
+  "UNIUSDT",
+  "APTUSDT",
+  "SUIUSDT",
+  "ADAUSDT",
+  "XRPUSDT",
+  "DOGEUSDT",
+])
+
+function createMinimalDashboardSnapshot(symbol: string) {
+  const now = new Date().toISOString()
+  return {
+    id: `dashboard:synthetic:${symbol}:${Date.now()}`,
+    timestamp: now,
+    symbol,
+    direction: "neutral" as const,
+    confidence: null,
+    bullFactors: 0,
+    bearFactors: 0,
+    driversJson: "[]",
+    liquidityState: "unknown" as const,
+    narrativesJson: "[]",
+    narrativeHeat: "unknown" as const,
+    dominantNarrative: null,
+    sectorRotationState: "unknown" as const,
+    predictionState: "unknown" as const,
+    etfFlowState: "unknown" as const,
+    createdAt: now,
+  }
+}
+
+async function resolveCurrentDashboardSnapshot(symbol: string) {
+  const exact = await latestDashboardSnapshot(symbol)
+  if (exact) return { snapshot: exact, reason: undefined as string | undefined }
+
+  const benchmark = await latestDashboardSnapshot("BTCUSDT")
+  if (benchmark) {
+    return {
+      snapshot: { ...benchmark, id: `dashboard:benchmark-current:${symbol}:${benchmark.id}`, symbol },
+      reason: `Using BTCUSDT current market state because ${symbol} has no dashboard snapshot.`,
+    }
+  }
+
+  return {
+    snapshot: createMinimalDashboardSnapshot(symbol),
+    reason: "Missing current dashboard snapshot; live enrichment attempted from existing dashboard sources.",
+  }
+}
+
+function snapshotCountBySymbol(snapshots: HistoricalMarketSnapshot[]) {
+  const counts = new Map<string, number>()
+  snapshots.forEach((snapshot) => counts.set(snapshot.symbol, (counts.get(snapshot.symbol) ?? 0) + 1))
+  return counts
+}
+
+function resolveSourceSymbol(requestedSymbol: string, counts: Map<string, number>) {
+  const minimumCoverage = 100
+  const hasCoverage = (symbol: string) => (counts.get(symbol) ?? 0) >= minimumCoverage
+  if (hasCoverage(requestedSymbol)) {
+    return { sourceSymbol: requestedSymbol, benchmarkReason: undefined as string | undefined }
+  }
+
+  const preferred = ETH_STYLE_SYMBOLS.has(requestedSymbol) ? "ETHUSDT" : "BTCUSDT"
+  if (hasCoverage(preferred)) {
+    return {
+      sourceSymbol: preferred,
+      benchmarkReason: `Using ${preferred} benchmark because ${requestedSymbol} has insufficient historical coverage.`,
+    }
+  }
+
+  if (hasCoverage("BTCUSDT")) {
+    return {
+      sourceSymbol: "BTCUSDT",
+      benchmarkReason: `Using BTCUSDT benchmark because ${requestedSymbol} has insufficient historical coverage.`,
+    }
+  }
+
+  const firstCovered = [...counts.entries()].find(([, count]) => count >= minimumCoverage)?.[0]
+  return {
+    sourceSymbol: firstCovered ?? requestedSymbol,
+    benchmarkReason: firstCovered
+      ? `Using ${firstCovered} benchmark because ${requestedSymbol} has insufficient historical coverage.`
+      : `No historical benchmark has enough coverage for ${requestedSymbol}.`,
+  }
+}
+
 async function persistAnalogVerdict(input: {
   currentSnapshot: Awaited<ReturnType<typeof enrichWeakDashboardSnapshot>>
   interval: HistoricalInterval
@@ -132,23 +226,30 @@ function withAccuracy<T extends DashboardHistoricalAnalogResponse>(
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const symbol = searchParams.get("symbol") || "BTCUSDT"
+    const requestedSymbol = (searchParams.get("symbol") || "BTCUSDT").toUpperCase()
     const interval = (searchParams.get("interval") || "1h") as HistoricalInterval
-    const dashboardSnapshot = await latestDashboardSnapshot(symbol)
-
-    if (!dashboardSnapshot) {
+    if (interval !== "1h" && interval !== "4h" && interval !== "1d") {
       return NextResponse.json({
         status: "unavailable",
         message: "NO VERIFIED ANALOG",
-        reason: "missing_current_dashboard_snapshot",
+        reason: "unsupported_interval",
+        requestedSymbol,
         source: "local-market-ohlcv-db",
         recordCountSearched: 0,
-      })
+      } satisfies DashboardHistoricalAnalogResponse)
     }
 
+    const allHistoricalSnapshots = await listHistoricalSnapshotsByInterval(interval)
+    const counts = snapshotCountBySymbol(allHistoricalSnapshots)
+    const { sourceSymbol, benchmarkReason } = resolveSourceSymbol(requestedSymbol, counts)
+    const { snapshot: dashboardSnapshot, reason: currentSnapshotReason } = await resolveCurrentDashboardSnapshot(sourceSymbol)
+
     const enrichedSnapshot = await enrichWeakDashboardSnapshot(dashboardSnapshot, new URL(req.url).origin)
-    const current = buildCurrentMarketState(enrichedSnapshot)
-    const historicalSnapshots = await listHistoricalSnapshotsByInterval(interval)
+    const current = {
+      ...buildCurrentMarketState(enrichedSnapshot),
+      symbol: sourceSymbol,
+    }
+    const historicalSnapshots = allHistoricalSnapshots
     const filteredHistoricalSnapshots = filterHistoricalAnalogCandidates(historicalSnapshots)
     const range = timestampRange(filteredHistoricalSnapshots.map((snapshot) => snapshot.timestamp))
     const oldestCandidateSearched = range.oldest
@@ -163,7 +264,7 @@ export async function GET(req: Request) {
       dominantOutcome: aggregation.stats.dominantOutcome,
     } : undefined
     const historicalResult = findSimilarMarketStates(current, historicalSnapshots)
-    const memorySnapshots = await listDashboardSnapshots(symbol)
+    const memorySnapshots = await listDashboardSnapshots(sourceSymbol)
     const memoryResult = findSimilarDashboardMarketStates(current, memorySnapshots, enrichedSnapshot.id)
     const [memoryMatch, ...memoryAlternatives] = memoryResult.matches
     const historicalVerdictMatch = historicalResult.matches.find((item) => isHistoricalSnapshot(item.snapshot))
@@ -181,11 +282,19 @@ export async function GET(req: Request) {
     })
 
     if (aggregation.status !== "available") {
+      const availableCaseCount = aggregation.similarOutcomes.length
+      const minimumReason = aggregation.reason === "insufficient_cases"
+        ? `Only ${availableCaseCount} historical matches found. Minimum required is 10.`
+        : aggregation.reason
       return NextResponse.json(withAccuracy({
         status: "unavailable",
         message: "NO VERIFIED MEMORY",
-        reason: aggregation.reason,
+        reason: minimumReason ?? currentSnapshotReason ?? benchmarkReason,
         source: "local-market-ohlcv-db",
+        requestedSymbol,
+        sourceSymbol,
+        benchmarkUsed: sourceSymbol !== requestedSymbol ? sourceSymbol : undefined,
+        benchmarkReason,
         recordCountSearched: historicalResult.recordCountSearched,
         exclusionWindowDays: 30,
         oldestCandidateSearched,
@@ -199,6 +308,10 @@ export async function GET(req: Request) {
         status: "available",
         source: "market-memory-snapshots",
         queryPath: "market_state_snapshots -> narrative_context_similarity",
+        requestedSymbol,
+        sourceSymbol,
+        benchmarkUsed: sourceSymbol !== requestedSymbol ? sourceSymbol : undefined,
+        benchmarkReason,
         recordCountSearched: memoryResult.recordCountSearched,
         exclusionWindowDays: 30,
         oldestCandidateSearched,
@@ -234,8 +347,12 @@ export async function GET(req: Request) {
       return NextResponse.json(withAccuracy({
         status: "unavailable",
         message: "NO VERIFIED MEMORY",
-        reason: aggregation.reason ?? memoryResult.reason ?? historicalResult.reason,
+        reason: aggregation.reason ?? memoryResult.reason ?? historicalResult.reason ?? currentSnapshotReason ?? benchmarkReason,
         source: "local-market-ohlcv-db",
+        requestedSymbol,
+        sourceSymbol,
+        benchmarkUsed: sourceSymbol !== requestedSymbol ? sourceSymbol : undefined,
+        benchmarkReason,
         recordCountSearched: historicalResult.recordCountSearched,
         exclusionWindowDays: 30,
         oldestCandidateSearched,
@@ -247,6 +364,10 @@ export async function GET(req: Request) {
       status: "available",
       source: "binance-vision",
       queryPath: "market_ohlcv -> historical_market_snapshots -> rule_based_similarity",
+      requestedSymbol,
+      sourceSymbol,
+      benchmarkUsed: sourceSymbol !== requestedSymbol ? sourceSymbol : undefined,
+      benchmarkReason,
       recordCountSearched: historicalResult.recordCountSearched,
       exclusionWindowDays: 30,
       oldestCandidateSearched,
