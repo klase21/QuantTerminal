@@ -2,13 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart3, FlaskConical, Gauge, History, Radar, Search, Settings, SlidersHorizontal } from "lucide-react"
+import { BarChart3, Gauge, History, Radar, Search, Settings, SlidersHorizontal, ClipboardCheck } from "lucide-react"
 import type { ReactNode } from "react"
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge, active: true },
   { label: "Markets", href: "/markets", icon: BarChart3, active: true },
-  { label: "Trade Lab", icon: FlaskConical, active: false },
+  { label: "Trade", href: "/trade", icon: ClipboardCheck, active: true },
   { label: "Scanner", icon: Radar, active: false },
   { label: "Research", icon: Search, active: false },
   { label: "Replay", icon: History, active: false },
