@@ -1,5 +1,5 @@
 import { decompress } from "fzstd"
-import { parquetReadObjects } from "hyparquet"
+import { parquetMetadataAsync, parquetReadObjects, parquetSchema } from "hyparquet"
 
 export type CryptoHftDataset = "trades" | "orderbook" | "liquidations" | "open_interest" | "mark_price" | "ticker"
 
@@ -53,12 +53,19 @@ export type ReplayCandle = {
 type DatasetDiagnostic = {
   dataset: CryptoHftDataset
   file: string
+  redactedDownloadUrl?: string
   bytes: number
   decompressedBytes: number | null
   contentType: string | null
   columns: string[]
   rowCountBeforeSlice: number
   rowCountReturned: number
+  totalRows?: number
+  rowsProcessed?: number
+  snapshotRows?: number
+  updateRows?: number
+  bidLevelCount?: number
+  askLevelCount?: number
   usableBidCount?: number
   usableAskCount?: number
   firstRawRow?: Record<string, unknown>
@@ -100,6 +107,8 @@ export type CryptoHftReplayRequest = {
 const COVERAGE_START = "2025-07-01"
 const DOWNLOAD_BASE_URL = "https://api.cryptohftdata.com/download"
 const DATASETS: CryptoHftDataset[] = ["trades", "orderbook", "liquidations", "open_interest", "mark_price", "ticker"]
+const ORDERBOOK_RECONSTRUCTION_ROW_BUDGET = 500_000
+const ORDERBOOK_COLUMNS = ["received_time", "event_time", "transaction_time", "event_type", "side", "price", "quantity"]
 
 export function cryptoHftCoverageStart() {
   return COVERAGE_START
@@ -126,6 +135,13 @@ function replayDownloadUrl(file: string, apiKey: string) {
   return url.toString()
 }
 
+function redactedReplayDownloadUrl(file: string) {
+  const url = new URL(DOWNLOAD_BASE_URL)
+  url.searchParams.set("file", file)
+  url.searchParams.set("api_key", "<redacted>")
+  return url.toString()
+}
+
 function asRecord(row: unknown): Record<string, unknown> {
   return row && typeof row === "object" ? row as Record<string, unknown> : {}
 }
@@ -134,6 +150,11 @@ function columnsFrom(rows: Record<string, unknown>[]) {
   const columns = new Set<string>()
   for (const row of rows.slice(0, 20)) Object.keys(row).forEach((key) => columns.add(key))
   return [...columns]
+}
+
+function columnsFromMetadata(metadata: Awaited<ReturnType<typeof parquetMetadataAsync>>) {
+  const schema = parquetSchema(metadata)
+  return schema.children.map((child) => child.element.name).filter(Boolean)
 }
 
 function pick(row: Record<string, unknown>, names: string[]) {
@@ -251,7 +272,81 @@ function normalizeTrades(rows: Record<string, unknown>[], exchange: string, symb
   }).filter((item): item is ReplayTrade => Boolean(item)).slice(-100)
 }
 
-function normalizeOrderbook(rows: Record<string, unknown>[], exchange: string, symbol: string): ReplayBookSnapshot[] {
+type OrderbookNormalizationStats = {
+  rowsProcessed: number
+  snapshotRows: number
+  updateRows: number
+  bidLevelCount: number
+  askLevelCount: number
+  usableBidCount: number
+  usableAskCount: number
+  rejectionReason?: string
+}
+
+function normalizeOrderbook(rows: Record<string, unknown>[], exchange: string, symbol: string): {
+  snapshots: ReplayBookSnapshot[]
+  stats: OrderbookNormalizationStats
+} {
+  const bids = new Map<number, number>()
+  const asks = new Map<number, number>()
+  let latestTimestamp: string | null = null
+  let wasPrevSnapshot = false
+  let snapshotRows = 0
+  let updateRows = 0
+
+  for (const row of rows) {
+    const time = timestamp(pick(row, ["transaction_time", "event_time", "received_time", "timestamp", "time", "ts", "T"]))
+    if (time) latestTimestamp = time
+    const eventType = String(pick(row, ["event_type"]) ?? "").toLowerCase()
+    if (eventType === "snapshot") {
+      snapshotRows += 1
+      if (!wasPrevSnapshot) {
+        bids.clear()
+        asks.clear()
+      }
+      wasPrevSnapshot = true
+    } else {
+      updateRows += 1
+      wasPrevSnapshot = false
+    }
+
+    const side = String(pick(row, ["side"]) ?? "").toLowerCase()
+    if (side !== "bid" && side !== "ask") continue
+    const price = numeric(pick(row, ["price"]))
+    const quantity = numeric(pick(row, ["quantity"]))
+    if (price === null || quantity === null) continue
+    const target = side === "bid" ? bids : asks
+    if (quantity === 0) target.delete(price)
+    else target.set(price, quantity)
+  }
+
+  const bidLevels = [...bids.entries()].sort((left, right) => right[0] - left[0]).slice(0, 20)
+  const askLevels = [...asks.entries()].sort((left, right) => left[0] - right[0]).slice(0, 20)
+  const baseStats = {
+    rowsProcessed: rows.length,
+    snapshotRows,
+    updateRows,
+    bidLevelCount: bids.size,
+    askLevelCount: asks.size,
+    usableBidCount: bidLevels.length,
+    usableAskCount: askLevels.length,
+  }
+  if (latestTimestamp && bidLevels.length && askLevels.length) {
+    return {
+      snapshots: [{ timestamp: latestTimestamp, bids: bidLevels, asks: askLevels, exchange, symbol }],
+      stats: baseStats,
+    }
+  }
+  if (snapshotRows || updateRows) {
+    return {
+      snapshots: [],
+      stats: {
+        ...baseStats,
+        rejectionReason: "Orderbook snapshot/update replay completed, but did not produce both bid and ask levels.",
+      },
+    }
+  }
+
   const snapshots = rows.map((row) => {
     const time = timestamp(pick(row, ["timestamp", "time", "ts", "T", "event_time"]))
     const bids = levels(pick(row, ["bids", "bid"]))
@@ -259,7 +354,17 @@ function normalizeOrderbook(rows: Record<string, unknown>[], exchange: string, s
     if (!time || (!bids.length && !asks.length)) return null
     return { timestamp: time, bids, asks, exchange, symbol }
   }).filter((item): item is ReplayBookSnapshot => Boolean(item))
-  if (snapshots.length) return snapshots.slice(-1)
+  if (snapshots.length) {
+    const latest = snapshots.slice(-1)
+    return {
+      snapshots: latest,
+      stats: {
+        ...baseStats,
+        usableBidCount: latest[0]?.bids.length ?? 0,
+        usableAskCount: latest[0]?.asks.length ?? 0,
+      },
+    }
+  }
 
   const pairedSnapshots = rows.map((row) => {
     const time = timestamp(pick(row, ["timestamp", "time", "ts", "T", "event_time", "transaction_time", "received_time"]))
@@ -286,14 +391,24 @@ function normalizeOrderbook(rows: Record<string, unknown>[], exchange: string, s
       symbol,
     }
   }).filter((item): item is ReplayBookSnapshot => Boolean(item))
-  if (pairedSnapshots.length) return pairedSnapshots.slice(-1)
+  if (pairedSnapshots.length) {
+    const latest = pairedSnapshots.slice(-1)
+    return {
+      snapshots: latest,
+      stats: {
+        ...baseStats,
+        usableBidCount: latest[0]?.bids.length ?? 0,
+        usableAskCount: latest[0]?.asks.length ?? 0,
+      },
+    }
+  }
 
-  const bids = new Map<number, number>()
-  const asks = new Map<number, number>()
-  let latestTimestamp: string | null = null
+  const fallbackBids = new Map<number, number>()
+  const fallbackAsks = new Map<number, number>()
+  let fallbackLatestTimestamp: string | null = null
   for (const row of rows) {
     const time = timestamp(pick(row, ["timestamp", "time", "ts", "T", "event_time", "transaction_time", "received_time"]))
-    if (time) latestTimestamp = time
+    if (time) fallbackLatestTimestamp = time
     const price = numeric(pick(row, ["price", "px", "p", "price_level", "priceLevel", "level_price", "levelPrice"]))
     const size = numeric(pick(row, ["size", "qty", "quantity", "amount", "volume", "q"]))
     if (price === null || size === null) continue
@@ -304,16 +419,37 @@ function normalizeOrderbook(rows: Record<string, unknown>[], exchange: string, s
         ? "ask"
         : null
     if (!bookSide) continue
-    const target = bookSide === "bid" ? bids : asks
+    const target = bookSide === "bid" ? fallbackBids : fallbackAsks
     if (size <= 0) target.delete(price)
     else target.set(price, size)
   }
 
-  const bidLevels = [...bids.entries()].sort((left, right) => right[0] - left[0]).slice(0, 20)
-  const askLevels = [...asks.entries()].sort((left, right) => left[0] - right[0]).slice(0, 20)
-  return latestTimestamp && (bidLevels.length || askLevels.length)
-    ? [{ timestamp: latestTimestamp, bids: bidLevels, asks: askLevels, exchange, symbol }]
-    : []
+  const fallbackBidLevels = [...fallbackBids.entries()].sort((left, right) => right[0] - left[0]).slice(0, 20)
+  const fallbackAskLevels = [...fallbackAsks.entries()].sort((left, right) => left[0] - right[0]).slice(0, 20)
+  if (fallbackLatestTimestamp && fallbackBidLevels.length && fallbackAskLevels.length) {
+    return {
+      snapshots: [{ timestamp: fallbackLatestTimestamp, bids: fallbackBidLevels, asks: fallbackAskLevels, exchange, symbol }],
+      stats: {
+        ...baseStats,
+        bidLevelCount: fallbackBids.size,
+        askLevelCount: fallbackAsks.size,
+        usableBidCount: fallbackBidLevels.length,
+        usableAskCount: fallbackAskLevels.length,
+      },
+    }
+  }
+
+  return {
+    snapshots: [],
+    stats: {
+      ...baseStats,
+      bidLevelCount: fallbackBids.size,
+      askLevelCount: fallbackAsks.size,
+      usableBidCount: fallbackBidLevels.length,
+      usableAskCount: fallbackAskLevels.length,
+      rejectionReason: "Rows decoded, but no supported bid/ask level fields produced usable levels.",
+    },
+  }
 }
 
 function normalizeLiquidations(rows: Record<string, unknown>[], exchange: string, symbol: string): ReplayLiquidation[] {
@@ -369,15 +505,48 @@ function normalizeTicker(rows: Record<string, unknown>[], exchange: string, symb
   }).filter((item): item is ReplayCandle => Boolean(item)).slice(-200)
 }
 
-async function decodeParquetZst(buffer: ArrayBuffer) {
+type DecodedParquetRows = {
+  decompressedBytes: number
+  rows: Record<string, unknown>[]
+  columns: string[]
+  totalRows?: number
+  skippedReason?: string
+}
+
+async function decodeOrderbookParquet(file: ArrayBuffer, decompressedBytes: number): Promise<DecodedParquetRows> {
+  const metadata = await parquetMetadataAsync(file)
+  const totalRows = Number(metadata.num_rows)
+  const columns = columnsFromMetadata(metadata)
+  if (Number.isFinite(totalRows) && totalRows > ORDERBOOK_RECONSTRUCTION_ROW_BUDGET) {
+    return {
+      decompressedBytes,
+      rows: [],
+      columns,
+      totalRows,
+      skippedReason: "Orderbook reconstruction requires full snapshot/update replay and exceeded runtime budget.",
+    }
+  }
+
+  const selectedColumns = ORDERBOOK_COLUMNS.filter((column) => columns.includes(column))
+  const rows = (await parquetReadObjects({
+    file,
+    metadata,
+    columns: selectedColumns.length ? selectedColumns : undefined,
+  })).map(asRecord)
+  return { decompressedBytes, rows, columns: columns.length ? columns : columnsFrom(rows), totalRows }
+}
+
+async function decodeParquetZst(buffer: ArrayBuffer, dataset: CryptoHftDataset): Promise<DecodedParquetRows> {
   const decompressed = decompress(new Uint8Array(buffer))
   const file = decompressed.buffer.slice(decompressed.byteOffset, decompressed.byteOffset + decompressed.byteLength)
+  if (dataset === "orderbook") return decodeOrderbookParquet(file, decompressed.byteLength)
   const rows = (await parquetReadObjects({ file })).map(asRecord)
   return { decompressedBytes: decompressed.byteLength, rows, columns: columnsFrom(rows) }
 }
 
 async function downloadDataset(dataset: CryptoHftDataset, request: CryptoHftReplayRequest, apiKey: string) {
   const file = replayFilePath(request, dataset)
+  const redactedDownloadUrl = redactedReplayDownloadUrl(file)
   const response = await fetch(replayDownloadUrl(file, apiKey), {
     cache: "no-store",
     headers: { Accept: "application/octet-stream" },
@@ -387,6 +556,7 @@ async function downloadDataset(dataset: CryptoHftDataset, request: CryptoHftRepl
     return {
       dataset,
       file,
+      redactedDownloadUrl,
       bytes: 0,
       contentType: response.headers.get("content-type"),
       error: `Provider returned HTTP ${response.status}`,
@@ -398,6 +568,7 @@ async function downloadDataset(dataset: CryptoHftDataset, request: CryptoHftRepl
   return {
     dataset,
     file,
+    redactedDownloadUrl,
     bytes: buffer.byteLength,
     contentType: response.headers.get("content-type"),
     error: null,
@@ -421,12 +592,12 @@ function orderbookUsability(response: CryptoHftReplayResponse) {
   }
 }
 
-function orderbookRawDiagnostics(rows: Record<string, unknown>[], response: CryptoHftReplayResponse) {
+function orderbookRawDiagnostics(rows: Record<string, unknown>[], response: CryptoHftReplayResponse, rejectionReason?: string) {
   if (!rows.length) {
     return {
       firstRawRow: undefined,
       rawSample: [],
-      rejectionReason: "Orderbook parquet decoded zero rows.",
+      rejectionReason: rejectionReason ?? "Orderbook parquet decoded zero rows.",
     }
   }
   const { usableBidCount, usableAskCount } = orderbookUsability(response)
@@ -435,17 +606,22 @@ function orderbookRawDiagnostics(rows: Record<string, unknown>[], response: Cryp
     rawSample: rows.slice(0, 3),
     rejectionReason: usableBidCount || usableAskCount
       ? undefined
-      : "Rows decoded, but no supported bid/ask level fields produced usable levels.",
+      : rejectionReason ?? "Rows decoded, but no supported bid/ask level fields produced usable levels.",
   }
 }
 
 function applyRows(dataset: CryptoHftDataset, rows: Record<string, unknown>[], response: CryptoHftReplayResponse, request: CryptoHftReplayRequest) {
   if (dataset === "trades") response.trades = normalizeTrades(rows, request.exchange, request.symbol)
-  if (dataset === "orderbook") response.book = normalizeOrderbook(rows, request.exchange, request.symbol)
+  if (dataset === "orderbook") {
+    const orderbook = normalizeOrderbook(rows, request.exchange, request.symbol)
+    response.book = orderbook.snapshots
+    return orderbook.stats
+  }
   if (dataset === "liquidations") response.liquidations = normalizeLiquidations(rows, request.exchange, request.symbol)
   if (dataset === "open_interest") response.funding = [...response.funding, ...normalizeOpenInterest(rows, request.exchange, request.symbol)]
   if (dataset === "mark_price") response.funding = [...response.funding, ...normalizeMarkPrice(rows, request.exchange, request.symbol)]
   if (dataset === "ticker") response.candles = normalizeTicker(rows, request.exchange, request.symbol)
+  return undefined
 }
 
 function diagnostic(input: Omit<DatasetDiagnostic, "decodeStatus"> & { decodeStatus?: DatasetDiagnostic["decodeStatus"] }): DatasetDiagnostic {
@@ -488,11 +664,12 @@ export async function loadCryptoHftDataReplay(request: CryptoHftReplayRequest): 
       continue
     }
 
-    const { dataset, file, bytes, contentType, error, buffer } = result.value
+    const { dataset, file, redactedDownloadUrl, bytes, contentType, error, buffer } = result.value
     if (error || !buffer) {
       diagnostics.downloaded.push(diagnostic({
         dataset,
         file,
+        redactedDownloadUrl,
         bytes,
         decompressedBytes: null,
         contentType,
@@ -507,31 +684,42 @@ export async function loadCryptoHftDataReplay(request: CryptoHftReplayRequest): 
     }
 
     try {
-      const decoded = await decodeParquetZst(buffer)
-      applyRows(dataset, decoded.rows, response, request)
+      const decoded = await decodeParquetZst(buffer, dataset)
+      const orderbookStats = decoded.skippedReason
+        ? undefined
+        : applyRows(dataset, decoded.rows, response, request)
       const count = returnedCount(dataset, response)
       const orderbookCounts = dataset === "orderbook" ? orderbookUsability(response) : {}
-      const orderbookRaw = dataset === "orderbook" ? orderbookRawDiagnostics(decoded.rows, response) : {}
+      const orderbookRaw = dataset === "orderbook" ? orderbookRawDiagnostics(decoded.rows, response, decoded.skippedReason ?? orderbookStats?.rejectionReason) : {}
       diagnostics.downloaded.push(diagnostic({
         dataset,
         file,
+        redactedDownloadUrl,
         bytes,
         decompressedBytes: decoded.decompressedBytes,
         contentType,
         columns: decoded.columns,
-        rowCountBeforeSlice: decoded.rows.length,
+        rowCountBeforeSlice: decoded.totalRows ?? decoded.rows.length,
         rowCountReturned: count,
+        totalRows: decoded.totalRows,
+        rowsProcessed: orderbookStats?.rowsProcessed ?? (dataset === "orderbook" ? 0 : decoded.rows.length),
+        snapshotRows: orderbookStats?.snapshotRows,
+        updateRows: orderbookStats?.updateRows,
+        bidLevelCount: orderbookStats?.bidLevelCount,
+        askLevelCount: orderbookStats?.askLevelCount,
         ...orderbookCounts,
         ...orderbookRaw,
       }))
       if (count === 0) {
-        diagnostics.unavailable.push({ dataset, reason: `${file} decoded, but no rows matched the replay normalizer. Columns: ${decoded.columns.join(", ") || "none"}` })
+        const reason = decoded.skippedReason ?? orderbookStats?.rejectionReason ?? `${file} decoded, but no rows matched the replay normalizer. Columns: ${decoded.columns.join(", ") || "none"}`
+        diagnostics.unavailable.push({ dataset, reason })
       }
     } catch (decodeError) {
       const message = decodeError instanceof Error ? decodeError.message : "Decode failed."
       diagnostics.downloaded.push(diagnostic({
         dataset,
         file,
+        redactedDownloadUrl,
         bytes,
         decompressedBytes: null,
         contentType,
