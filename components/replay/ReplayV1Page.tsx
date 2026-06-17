@@ -32,6 +32,7 @@ type CryptoReplayFundingPoint = {
   fundingRate: number | null
   openInterest: number | null
   openInterestValue: number | null
+  source?: "cryptohftdata" | "binance-historical" | "current-fallback"
 }
 
 type CryptoReplayCandle = {
@@ -83,6 +84,23 @@ type ReplayEvent = {
 type PricePoint = {
   timestamp: string
   value: number
+}
+
+type BinancePositioningResponse = {
+  ok: boolean
+  source: "binance-historical"
+  funding: CryptoReplayFundingPoint[]
+  reason?: string | null
+}
+
+type CurrentPositioningResponse = {
+  ok: boolean
+  symbol: string
+  openInterest?: number | null
+  fundingRate?: number | null
+  openInterestTime?: number | null
+  time?: number | null
+  reason?: string
 }
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -386,6 +404,41 @@ function mergeReplayData(previous: CryptoReplayResponse | null, next: CryptoRepl
       downloaded: [...(base.diagnostics?.downloaded ?? []), ...(next.diagnostics?.downloaded ?? [])],
       unavailable: [...(base.diagnostics?.unavailable ?? []), ...(next.diagnostics?.unavailable ?? [])],
       errors: [...(base.diagnostics?.errors ?? []), ...(next.diagnostics?.errors ?? [])],
+    },
+  }
+}
+
+function hasUsablePositioning(data: CryptoReplayResponse | null) {
+  return Boolean(data?.funding.some((item) => item.fundingRate !== null || item.openInterest !== null || item.openInterestValue !== null))
+}
+
+function positioningSourceLabel(rows: CryptoReplayFundingPoint[]) {
+  const source = rows.find((row) => row.fundingRate !== null || row.openInterest !== null || row.openInterestValue !== null)?.source
+  if (source === "binance-historical") return "Binance historical fallback"
+  if (source === "current-fallback") return "Current fallback"
+  if (rows.length) return "CryptoHFTData"
+  return "No data"
+}
+
+function positioningReason(data: CryptoReplayResponse | null) {
+  if (hasUsablePositioning(data)) return null
+  return datasetReason(data, "open_interest") || datasetReason(data, "mark_price") || "No OI/Funding data returned."
+}
+
+function buildPositioningReplayResponse(base: CryptoReplayResponse | null, funding: CryptoReplayFundingPoint[], reason?: string | null): CryptoReplayResponse {
+  const exchangeValue = base?.exchange ?? "binance_futures"
+  const symbolValue = base?.symbol ?? "BTCUSDT"
+  const windowStart = base?.window?.start ?? new Date().toISOString()
+  const dateValue = windowStart.slice(0, 10)
+  const hourValue = String(new Date(windowStart).getUTCHours())
+  return {
+    ...(base ?? emptyReplayResponse(exchangeValue, symbolValue, dateValue, hourValue)),
+    ok: funding.length > 0,
+    funding,
+    diagnostics: {
+      downloaded: [],
+      unavailable: funding.length ? [] : [{ dataset: "positioning", reason: reason ?? "No OI/Funding data returned." }],
+      errors: [],
     },
   }
 }
@@ -719,6 +772,7 @@ export default function ReplayV1Page() {
   const [symbol, setSymbol] = useState(initialSymbol)
   const [date, setDate] = useState(initialDate)
   const [hour, setHour] = useState(initialHour)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingStage, setLoadingStage] = useState<string | null>(null)
   const [replayData, setReplayData] = useState<CryptoReplayResponse | null>(null)
@@ -729,6 +783,7 @@ export default function ReplayV1Page() {
   const mountedRef = useRef(false)
   const abortControllersRef = useRef<AbortController[]>([])
   const loadIdRef = useRef(0)
+  const requestedDatasetsRef = useRef<Set<string>>(new Set())
 
   const priceSeries = useMemo(() => {
     if (chartCandles.length) return priceSeriesFromChartCandles(chartCandles)
@@ -741,6 +796,9 @@ export default function ReplayV1Page() {
   const priceChange = changePct(firstPrice, lastPrice)
   const oiRows = replayData?.funding.filter((item) => item.openInterest !== null) ?? []
   const fundingRows = replayData?.funding.filter((item) => item.fundingRate !== null) ?? []
+  const positioningRows = replayData?.funding ?? []
+  const positioningSource = positioningSourceLabel(positioningRows)
+  const positioningUnavailableReason = positioningReason(replayData)
   const liqStats = liquidationStats(replayData?.liquidations ?? [])
   const liqBuckets = liquidationBuckets(replayData?.liquidations ?? [])
   const latestBook = replayData?.book.at(-1)
@@ -795,6 +853,9 @@ export default function ReplayV1Page() {
   }
 
   async function fetchReplayDatasets(datasets: string[], stage: string, signal: AbortSignal, loadId: number, foreground = false) {
+    const key = datasets.slice().sort().join(",")
+    if (requestedDatasetsRef.current.has(key)) return null
+    requestedDatasetsRef.current.add(key)
     if (foreground && mountedRef.current && loadIdRef.current === loadId) setLoadingStage(stage)
     const params = new URLSearchParams({
       exchange,
@@ -817,6 +878,67 @@ export default function ReplayV1Page() {
       setError(loadError instanceof Error ? loadError.message : `${stage} unavailable.`)
       return null
     }
+  }
+
+  async function fetchBinancePositioningFallback(signal: AbortSignal, loadId: number) {
+    const params = new URLSearchParams({ symbol, date, hour })
+    try {
+      const response = await fetch(`/api/replay/binance-positioning?${params.toString()}`, { cache: "no-store", signal })
+      const payload = await response.json() as BinancePositioningResponse
+      if (signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return null
+      if (payload.ok && payload.funding.length) {
+        return buildPositioningReplayResponse(replayData, payload.funding)
+      }
+      return buildPositioningReplayResponse(replayData, [], payload.reason ?? "Binance historical fallback returned no OI/Funding rows.")
+    } catch (loadError) {
+      if (signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return null
+      return buildPositioningReplayResponse(replayData, [], loadError instanceof Error ? loadError.message : "Binance historical positioning unavailable.")
+    }
+  }
+
+  async function fetchCurrentPositioningFallback(signal: AbortSignal, loadId: number) {
+    try {
+      const response = await fetch(`/api/market/futures-symbol-context?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store", signal })
+      const payload = await response.json() as CurrentPositioningResponse
+      if (signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return null
+      if (!response.ok || !payload.ok) {
+        return buildPositioningReplayResponse(replayData, [], payload.reason ?? "Current futures context unavailable.")
+      }
+      const timestampMs = payload.openInterestTime ?? payload.time ?? replayWindowBounds(date, hour).endMs
+      const row: CryptoReplayFundingPoint = {
+        timestamp: new Date(timestampMs).toISOString(),
+        fundingRate: payload.fundingRate ?? null,
+        openInterest: payload.openInterest ?? null,
+        openInterestValue: null,
+        source: "current-fallback",
+      }
+      return buildPositioningReplayResponse(replayData, [row].filter((item) => item.fundingRate !== null || item.openInterest !== null), "Current futures context returned no OI/Funding values.")
+    } catch (loadError) {
+      if (signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return null
+      return buildPositioningReplayResponse(replayData, [], loadError instanceof Error ? loadError.message : "Current futures context unavailable.")
+    }
+  }
+
+  async function loadPositioning(loadId: number) {
+    const controller = new AbortController()
+    abortControllersRef.current.push(controller)
+    const cryptoData = await fetchReplayDatasets(["open_interest", "mark_price"], "open interest and funding", controller.signal, loadId)
+    if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+    if (hasUsablePositioning(cryptoData)) {
+      setReplayData((previous) => mergeReplayData(previous, cryptoData!))
+      return
+    }
+
+    const binanceData = await fetchBinancePositioningFallback(controller.signal, loadId)
+    if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+    if (hasUsablePositioning(binanceData)) {
+      setReplayData((previous) => mergeReplayData(previous, binanceData!))
+      return
+    }
+
+    const currentData = await fetchCurrentPositioningFallback(controller.signal, loadId)
+    if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+    setReplayData((previous) => mergeReplayData(previous, currentData ?? binanceData ?? cryptoData ?? buildPositioningReplayResponse(replayData, [], "No OI/Funding data returned.")))
   }
 
   async function fetchReplayChartCandles(signal: AbortSignal, loadId: number) {
@@ -862,6 +984,8 @@ export default function ReplayV1Page() {
     abortReplayRequests()
     const loadId = loadIdRef.current + 1
     loadIdRef.current = loadId
+    requestedDatasetsRef.current = new Set()
+    setHasLoaded(true)
     setLoading(true)
     setLoadingStage("metadata")
     setError(null)
@@ -877,28 +1001,14 @@ export default function ReplayV1Page() {
       if (klineChart) {
         setChartCandles(klineChart.candles)
         setChartSource(klineChart.source)
-      } else {
-        const chartData = await fetchReplayDatasets(["trades"], "chart fallback", chartController.signal, loadId, true)
-        if (!mountedRef.current || loadIdRef.current !== loadId || chartController.signal.aborted) return
-        if (chartData) {
-          const fallback = chooseReplayCandles([], chartData.trades)
-          if (fallback.candles.length) {
-            setChartCandles(fallback.candles)
-            setChartSource(fallback.source)
-            setChartReason((previous) => previous ?? "Using CryptoHFTData trade-derived OHLC fallback.")
-          }
-          setReplayData((previous) => mergeReplayData(previous, chartData))
-        }
       }
 
       setLoading(false)
       setLoadingStage(null)
       const backgroundStages = [
-        { datasets: ["trades"], stage: "trades" },
         { datasets: ["liquidations"], stage: "liquidations" },
-        { datasets: ["open_interest", "mark_price"], stage: "open interest and funding" },
-        { datasets: ["orderbook"], stage: "orderbook" },
       ]
+      void loadPositioning(loadId)
       for (const item of backgroundStages) {
         const controller = new AbortController()
         abortControllersRef.current.push(controller)
@@ -915,16 +1025,24 @@ export default function ReplayV1Page() {
     }
   }
 
+  async function loadManualDatasets(datasets: string[], stage: string) {
+    const loadId = loadIdRef.current || 1
+    if (!loadIdRef.current) loadIdRef.current = loadId
+    setHasLoaded(true)
+    const controller = new AbortController()
+    abortControllersRef.current.push(controller)
+    const data = await fetchReplayDatasets(datasets, stage, controller.signal, loadId, true)
+    if (!data || controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+    setReplayData((previous) => mergeReplayData(previous, data))
+    setLoadingStage(null)
+  }
+
   useEffect(() => {
     mountedRef.current = true
-    if (searchParams.get("exchange") || searchParams.get("symbol") || searchParams.get("date") || searchParams.get("hour")) {
-      void loadReplay()
-    }
     return () => {
       mountedRef.current = false
       abortReplayRequests()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
@@ -956,8 +1074,12 @@ export default function ReplayV1Page() {
           </label>
           <label className="border border-zinc-800 bg-zinc-950 p-3">
             <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Hour UTC</div>
-            <select value={hour} onChange={(event) => setHour(event.target.value)} className="mt-1 w-full bg-transparent text-sm font-black uppercase text-white outline-none">
-              {Array.from({ length: 24 }, (_, index) => <option key={index} value={String(index)}>{String(index).padStart(2, "0")}:00</option>)}
+            <select value={hour} onChange={(event) => setHour(event.target.value)} className="mt-1 w-full bg-zinc-950 text-sm font-black uppercase text-white outline-none [color-scheme:dark]">
+              {Array.from({ length: 24 }, (_, index) => (
+                <option key={index} value={String(index)} className="bg-zinc-950 text-white">
+                  {String(index).padStart(2, "0")}:00
+                </option>
+              ))}
             </select>
           </label>
           <button type="button" onClick={loadReplay} disabled={loading} className="border border-teal-300/40 bg-teal-400/20 px-4 text-[12px] font-black uppercase tracking-[0.16em] text-teal-50 shadow-[0_0_28px_rgba(45,212,191,0.18)] disabled:cursor-wait disabled:opacity-50">
@@ -974,7 +1096,10 @@ export default function ReplayV1Page() {
             <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-500">Chart + Microstructure</div>
           </div>
         </div>
-        {error ? <EmptyState title="Replay Provider Error" reason={error} /> : null}
+        {!hasLoaded && !loading ? (
+          <EmptyState title="Replay Ready" reason="Select a market window and click Load Replay." />
+        ) : null}
+        {hasLoaded && error ? <EmptyState title="Replay Provider Error" reason={error} /> : null}
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(360px,3fr)]">
           <Section title="Price Replay Chart" icon={<LineChart className="h-3.5 w-3.5" />} className="min-h-[520px]">
@@ -999,6 +1124,8 @@ export default function ReplayV1Page() {
                 </div>
               ) : priceSeries.length ? (
                 <PriceReplayChart points={priceSeries} candles={[]} priceChange={priceChange} />
+              ) : !hasLoaded ? (
+                <EmptyState title="Price Chart Ready" reason="Select a market window and click Load Replay." />
               ) : (
                 <EmptyState title="Price Chart Unavailable" reason={chartReason ?? datasetReason(replayData, "trades")} />
               )}
@@ -1015,11 +1142,25 @@ export default function ReplayV1Page() {
                 <SnapshotMetric label="OI Value" value={compactUsd(oiRows.at(-1)?.openInterestValue)} />
                 <SnapshotMetric label="Liquidations" value={compactUsd(liqStats.total)} tone="amber" />
                 <SnapshotMetric label="Liq Bias" value={liqStats.bias} tone={liqStats.bias === "SHORT" ? "red" : liqStats.bias === "LONG" ? "green" : "amber"} />
+                <div className="col-span-2 border border-zinc-900 bg-black px-3 py-2">
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">OI / Funding Source</div>
+                  <div className="mt-1 text-xs font-black uppercase text-zinc-200">{positioningSource}</div>
+                  {positioningSource === "No data" && positioningUnavailableReason ? (
+                    <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{positioningUnavailableReason}</div>
+                  ) : null}
+                </div>
               </div>
             </Section>
 
             <Section title="Orderbook Snapshot" icon={<BarChart3 className="h-3.5 w-3.5" />}>
               <div className="grid gap-2 p-3">
+                <button
+                  type="button"
+                  onClick={() => void loadManualDatasets(["orderbook"], "orderbook")}
+                  className="w-fit border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300 hover:border-cyan-300/40 hover:text-cyan-100"
+                >
+                  Load Orderbook
+                </button>
                 <DepthCurve book={latestBook} />
                 <div className="grid grid-cols-2 gap-2">
                   <SnapshotMetric label="Bid Liquidity" value={numberValue(bookMetrics.bidLiquidity, 4)} tone="green" />
@@ -1034,6 +1175,13 @@ export default function ReplayV1Page() {
 
         <Section title="Event Timeline" icon={<Zap className="h-3.5 w-3.5" />}>
           <div className="p-3">
+            <button
+              type="button"
+              onClick={() => void loadManualDatasets(["trades"], "trades")}
+              className="mb-2 border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300 hover:border-cyan-300/40 hover:text-cyan-100"
+            >
+              Load Trades
+            </button>
             {timelineEvents.length ? (
               <div className="overflow-x-auto border border-zinc-900 bg-black">
                 <div className="relative h-[128px] min-w-[760px] px-10">
@@ -1076,7 +1224,7 @@ export default function ReplayV1Page() {
                 </div>
               </div>
             ) : (
-              <EmptyState title="No Significant Replay Events" reason={replayData ? "No significant replay events detected in this hour." : "Load decoded replay data first."} />
+              <EmptyState title={hasLoaded ? "No Significant Replay Events" : "Event Timeline Ready"} reason={hasLoaded ? "No significant replay events detected in this hour." : "Select a market window and click Load Replay."} />
             )}
           </div>
         </Section>
@@ -1090,6 +1238,7 @@ export default function ReplayV1Page() {
                 <SnapshotMetric label="OI Last" value={numberValue(oiRows.at(-1)?.openInterest)} />
                 <SnapshotMetric label="OI Change" value={pct(oiChange)} tone={oiChange !== null && oiChange < 0 ? "red" : "green"} />
               </div>
+              <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">Source: {positioningSource}{positioningSource === "No data" && positioningUnavailableReason ? ` - ${positioningUnavailableReason}` : ""}</div>
             </div>
           </Section>
 
@@ -1101,6 +1250,7 @@ export default function ReplayV1Page() {
                 <SnapshotMetric label="Last" value={fundingRows.at(-1)?.fundingRate === null || fundingRows.at(-1)?.fundingRate === undefined ? "NO DATA" : `${(fundingRows.at(-1)!.fundingRate! * 100).toFixed(4)}%`} />
                 <SnapshotMetric label="Change" value={fundingChange === null ? "NO DATA" : `${(fundingChange * 100).toFixed(5)}%`} />
               </div>
+              <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">Source: {positioningSource}{positioningSource === "No data" && positioningUnavailableReason ? ` - ${positioningUnavailableReason}` : ""}</div>
             </div>
           </Section>
 
@@ -1146,7 +1296,7 @@ export default function ReplayV1Page() {
             <div className="grid gap-2 p-3">
               {summaryLines.length ? summaryLines.map((line) => (
                 <div key={line} className="border border-zinc-900 bg-black px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-300">{line}</div>
-              )) : <EmptyState title="Replay Summary Unavailable" reason="Load decoded replay data first." />}
+              )) : <EmptyState title={hasLoaded ? "Replay Summary Unavailable" : "Replay Summary Ready"} reason={hasLoaded ? "Replay summary will appear after replay data loads." : "Select a market window and click Load Replay."} />}
             </div>
           </Section>
 

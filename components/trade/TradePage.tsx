@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Activity, History, RadioTower, Save, Trash2, Zap } from "lucide-react"
 
 import useLiquidationSocket from "@/hooks/useLiquidationSocket"
@@ -15,9 +15,17 @@ import { useMarketStore } from "@/stores/useMarketStore"
 import type { MarketMoverCandidate } from "@/lib/market-movers/types"
 
 const STORAGE_KEY = "qt.trade.setupMemory.v2"
+const CANDIDATE_RETENTION_MS = 5 * 60 * 1000
 
 type SetupStatus = "Watching" | "Active" | "Won" | "Lost" | "Expired"
 type CandidateListState = "loading" | "empty" | "ready"
+type RetainedTradeCandidate = MarketMoverCandidate & {
+  displayState?: "ACTIVE" | "AGING"
+}
+type RetainedTradeCandidateRecord = {
+  candidate: RetainedTradeCandidate
+  lastSeenAt: number
+}
 
 type FuturesSymbol = {
   symbol: string
@@ -30,37 +38,6 @@ type FuturesResponse = {
   ok?: boolean
   symbols?: FuturesSymbol[]
   notes?: string[]
-}
-
-type HistoricalAnalogResponse = {
-  status?: "available" | "unavailable" | "error"
-  message?: string
-  reason?: string
-  requestedSymbol?: string
-  sourceSymbol?: string
-  benchmarkUsed?: string
-  benchmarkReason?: string
-  similarCases?: number | null
-  currentDirection?: string | null
-  stats?: {
-    totalCases?: number | null
-    avgReturn7d?: number | null
-    avgReturn30d?: number | null
-    successRate?: number | null
-    dominantOutcome?: string | null
-  }
-  match?: {
-    symbol?: string
-    date?: string
-    label?: string
-    outcomeSummary?: string
-    outcomeStats?: {
-      found?: number | null
-      avg7d?: number | null
-      avg30d?: number | null
-      successRate?: number | null
-    }
-  }
 }
 
 type SavedSetup = {
@@ -349,18 +326,19 @@ function saveSetups(setups: SavedSetup[]) {
 
 function selectedCandidateFrom(input: {
   focusCandidate?: MarketMoverCandidate | null
-  candidates: MarketMoverCandidate[]
+  candidates: RetainedTradeCandidate[]
   activeSetups: ActiveSetupMemoryItem[]
   selectedId: string | null
 }) {
   const { focusCandidate, candidates, activeSetups, selectedId } = input
   const liveTracked = activeSetups.filter((setup) => !isClosedMemorySetup(setup))
   if (selectedId) {
-    return focusCandidate?.symbol === selectedId
+    const selected = focusCandidate?.symbol === selectedId
       ? focusCandidate
       : candidates.find((candidate) => candidate.symbol === selectedId)
         ?? liveTracked.find((candidate) => candidate.symbol === selectedId)
         ?? null
+    return selected ?? candidates[0] ?? focusCandidate ?? liveTracked[0] ?? null
   }
   return candidates[0] ?? focusCandidate ?? liveTracked[0] ?? null
 }
@@ -369,11 +347,11 @@ export default function TradePage() {
   const searchParams = useSearchParams()
   const requestedSymbol = searchParams.get("symbol")?.toUpperCase() ?? null
   const [futures, setFutures] = useState<FuturesResponse | null>(null)
-  const [historicalAnalog, setHistoricalAnalog] = useState<HistoricalAnalogResponse | null>(null)
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(requestedSymbol)
   const [savedSetups, setSavedSetups] = useState<SavedSetup[]>([])
-  const [stableCandidates, setStableCandidates] = useState<MarketMoverCandidate[]>([])
+  const [retainedCandidateRecords, setRetainedCandidateRecords] = useState<RetainedTradeCandidateRecord[]>([])
   const [stableFocusCandidate, setStableFocusCandidate] = useState<MarketMoverCandidate | null>(null)
+  const lastRequestedSymbolRef = useRef(requestedSymbol)
   const moverState = useMarketMovers(true, selectedSymbol)
   const marketMovers = moverState.data
 
@@ -381,13 +359,49 @@ export default function TradePage() {
   const orderbook = useMarketStore((state) => state.orderbook)
   const liveCandidates = useMemo(() => (marketMovers?.candidates ?? []).slice(0, 10), [marketMovers])
   useEffect(() => {
-    if (liveCandidates.length > 0) setStableCandidates(liveCandidates)
     if (marketMovers?.focusCandidate) setStableFocusCandidate(marketMovers.focusCandidate)
+  }, [marketMovers?.focusCandidate])
+  useEffect(() => {
+    const now = Date.now()
+    setRetainedCandidateRecords((previous) => {
+      const incoming = new Map<string, MarketMoverCandidate>()
+      for (const candidate of liveCandidates) {
+        incoming.set(candidate.symbol, candidate)
+      }
+      if (marketMovers?.focusCandidate) {
+        incoming.set(marketMovers.focusCandidate.symbol, marketMovers.focusCandidate)
+      }
+
+      const merged = new Map<string, RetainedTradeCandidateRecord>()
+      for (const record of previous) {
+        if (now - record.lastSeenAt > CANDIDATE_RETENTION_MS) continue
+        const refreshed = incoming.get(record.candidate.symbol)
+        merged.set(record.candidate.symbol, {
+          candidate: {
+            ...(refreshed ?? record.candidate),
+            displayState: refreshed ? "ACTIVE" : "AGING",
+          },
+          lastSeenAt: refreshed ? now : record.lastSeenAt,
+        })
+      }
+      for (const candidate of incoming.values()) {
+        merged.set(candidate.symbol, {
+          candidate: { ...candidate, displayState: "ACTIVE" },
+          lastSeenAt: now,
+        })
+      }
+      return [...merged.values()]
+        .sort((left, right) => (right.candidate.score ?? 0) - (left.candidate.score ?? 0))
+        .slice(0, 10)
+    })
   }, [liveCandidates, marketMovers?.focusCandidate])
+  const stableCandidates = useMemo(() => retainedCandidateRecords.map((record) => record.candidate), [retainedCandidateRecords])
   const candidates = stableCandidates
   const activeSetups = useActiveSetupMemory(candidates)
   const liveTrackedSetups = useMemo(() => activeSetups.filter((setup) => !isClosedMemorySetup(setup)), [activeSetups])
-  const focusCandidate = marketMovers?.focusCandidate ?? stableFocusCandidate
+  const focusCandidate = marketMovers?.focusCandidate
+    ?? candidates.find((candidate) => candidate.symbol === stableFocusCandidate?.symbol)
+    ?? null
   const candidateListState: CandidateListState = candidates.length > 0
     ? "ready"
     : moverState.loading
@@ -413,7 +427,7 @@ export default function TradePage() {
 
     async function loadTradeData() {
       try {
-        const futuresResult = await fetch("/api/market/futures-intelligence", { cache: "no-store" })
+        const futuresResult = await fetch(`/api/market/futures-intelligence?symbol=${encodeURIComponent(activeSymbol)}`, { cache: "no-store" })
         if (!active) return
 
         if (futuresResult.ok) setFutures(await futuresResult.json())
@@ -429,10 +443,11 @@ export default function TradePage() {
       active = false
       window.clearInterval(timer)
     }
-  }, [])
+  }, [activeSymbol])
 
   useEffect(() => {
-    if (requestedSymbol && selectedSymbol !== requestedSymbol) {
+    if (requestedSymbol && requestedSymbol !== lastRequestedSymbolRef.current) {
+      lastRequestedSymbolRef.current = requestedSymbol
       setSelectedSymbol(requestedSymbol)
       return
     }
@@ -447,31 +462,11 @@ export default function TradePage() {
       selectedSymbol,
       liveCandidates: liveCandidates.length,
       cachedCandidates: stableCandidates.length,
+      retainedCandidates: retainedCandidateRecords.length,
       focusCandidate: focusCandidate?.symbol ?? null,
       candidateListState,
     })
-  }, [candidateListState, focusCandidate?.symbol, liveCandidates.length, requestedSymbol, selectedSymbol, stableCandidates.length])
-
-  useEffect(() => {
-    let active = true
-    async function loadAnalog() {
-      if (!selected?.symbol) {
-        setHistoricalAnalog(null)
-        return
-      }
-      try {
-        const response = await fetch(`/api/dashboard/historical-analog?symbol=${encodeURIComponent(selected.symbol)}&interval=1h`, { cache: "no-store" })
-        const payload = await response.json()
-        if (active) setHistoricalAnalog(payload)
-      } catch {
-        if (active) setHistoricalAnalog({ status: "unavailable", message: "NO VERIFIED SIMILAR SETUP", reason: "Historical analog unavailable" })
-      }
-    }
-    void loadAnalog()
-    return () => {
-      active = false
-    }
-  }, [selected?.symbol])
+  }, [candidateListState, focusCandidate?.symbol, liveCandidates.length, requestedSymbol, retainedCandidateRecords.length, selectedSymbol, stableCandidates.length])
 
   const buyQty = trades.filter((trade) => trade.side === "buy").reduce((sum, trade) => sum + trade.qty, 0)
   const sellQty = trades.filter((trade) => trade.side === "sell").reduce((sum, trade) => sum + trade.qty, 0)
@@ -502,12 +497,6 @@ export default function TradePage() {
         : { value: "Balanced", reason: compactUsd(longLiq + shortLiq) }
   const plan = tradePlan(selected)
   const evidence = evidenceLines(selected, futuresSymbol, tradeFlow, liquidationPressure)
-  const analogStats = {
-    cases: historicalAnalog?.similarCases ?? historicalAnalog?.stats?.totalCases ?? historicalAnalog?.match?.outcomeStats?.found ?? null,
-    avgReturn: historicalAnalog?.stats?.avgReturn7d ?? historicalAnalog?.match?.outcomeStats?.avg7d ?? null,
-    successRate: historicalAnalog?.stats?.successRate ?? historicalAnalog?.match?.outcomeStats?.successRate ?? null,
-    dominantOutcome: historicalAnalog?.stats?.dominantOutcome ?? historicalAnalog?.match?.outcomeSummary ?? null,
-  }
   const completed = savedSetups.filter((setup) => setup.status === "Won" || setup.status === "Lost")
   const wins = savedSetups.filter((setup) => setup.status === "Won").length
   const losses = savedSetups.filter((setup) => setup.status === "Lost").length
@@ -551,9 +540,6 @@ export default function TradePage() {
   const deleteSetup = (id: string) => {
     persistSetups(savedSetups.filter((setup) => setup.id !== id))
   }
-  const replayHref = selected
-    ? `/replay?symbol=${encodeURIComponent(selected.symbol)}${historicalAnalog?.match?.date ? `&case=${encodeURIComponent(historicalAnalog.match.date)}` : ""}`
-    : "/replay"
   const marketHref = selected
     ? `/markets?${new URLSearchParams({
       symbol: selected.symbol,
@@ -773,40 +759,12 @@ export default function TradePage() {
             </div>
           </Card>
 
-          <Card title="Similar Past Setup / Recent Outcomes" icon={<History className="h-3.5 w-3.5" />}>
+          <Card title="Recent Outcomes" icon={<History className="h-3.5 w-3.5" />}>
             <div className="grid gap-2">
-              {historicalAnalog?.status !== "available" || !historicalAnalog.match ? (
-                <div className="grid gap-2">
-                  <EmptyState
-                    title="No Verified Similar Setup"
-                    reason={historicalAnalog?.reason ?? historicalAnalog?.message ?? "Historical analog is unavailable or still verifying."}
-                  />
-                </div>
-              ) : (
-                <div className="grid gap-2">
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2">
-                    <div className="text-xs font-black uppercase text-white">{historicalAnalog.match.label ?? "Similar Setup"}</div>
-                    <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">{formatDate(historicalAnalog.match.date)}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <MiniMetric label="Similar Cases" value={analogStats.cases === null || analogStats.cases === undefined ? "NO DATA" : String(analogStats.cases)} />
-                    <MiniMetric label="Avg Outcome" value={pct(analogStats.avgReturn)} tone="cyan" />
-                    <MiniMetric label="Win Rate" value={analogStats.successRate === null || analogStats.successRate === undefined ? "NO DATA" : `${Math.round(analogStats.successRate)}%`} tone="green" />
-                    <MiniMetric label="Direction" value={pastDirection(analogStats.dominantOutcome)} tone="amber" />
-                  </div>
-                  <div className="rounded border border-zinc-900 bg-black/35 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
-                    Source: {historicalAnalog.sourceSymbol ?? historicalAnalog.match.symbol ?? selected?.symbol ?? "NO DATA"}
-                    {historicalAnalog.benchmarkReason ? <span className="block text-amber-100/80">{historicalAnalog.benchmarkReason}</span> : null}
-                  </div>
-                  <Link
-                    href={replayHref}
-                    className="rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60"
-                  >
-                    Open Case
-                  </Link>
-                </div>
-              )}
-              <div className="border-t border-zinc-900 pt-2">
+              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
+                Historical setup analysis disabled.
+              </div>
+              <div>
                 {combinedCompleted < 5 ? (
                   <div className="rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
                     Not enough completed setups yet: {combinedCompleted}/5
