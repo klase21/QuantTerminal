@@ -6,10 +6,10 @@ export const revalidate = 0
 export async function POST() {
   return NextResponse.json({
     ok: false,
-    source: "local-market-ohlcv-db",
+    source: "cryptohftdata-compatible-replay-window",
     updatedAt: new Date().toISOString(),
     snapshotStored: false,
     matches: [],
-    unavailableReason: "NO VERIFIED ANALOG",
+    unavailableReason: "NO VERIFIED ANALOG: CryptoHFTData-backed analog search is not available from this legacy endpoint.",
   })
 }

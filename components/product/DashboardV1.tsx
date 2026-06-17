@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import Link from "next/link"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   Activity,
   AlertTriangle,
@@ -194,6 +195,40 @@ type EtfFlowResponse = {
 }
 
 type HistoricalAnalogState = DashboardHistoricalAnalogResponse | null
+
+const DASHBOARD_CACHE_KEY = "qt.dashboard.v1.cache"
+
+type DashboardCache = {
+  cachedAt: string
+  symbol: string
+  marketMovers: MarketMoversResponse | null
+  narratives: NarrativesResponse | null
+  macro: MacroResponse | null
+  predictionMarkets: PredictionMarketsResponse | null
+  etfFlow: EtfFlowResponse | null
+  sectorRotation: SectorRotationResponse | null
+  futures: FuturesIntelligenceResponse | null
+}
+
+function loadDashboardCache(symbol: string): DashboardCache | null {
+  if (typeof window === "undefined") return null
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DASHBOARD_CACHE_KEY) ?? "null") as DashboardCache | null
+    if (!parsed || parsed.symbol !== symbol) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveDashboardCache(cache: DashboardCache) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(cache))
+  } catch {
+    // Cache is a performance hint only.
+  }
+}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ")
@@ -1004,6 +1039,18 @@ function HistoricalAnalogCard({ analog }: { analog: HistoricalAnalogState }) {
       ? { ...match.outcomeStats, dominantOutcome: null }
       : undefined
   const pastResult = pastResultLabel(stats?.dominantOutcome ?? match?.outcomeSummary, currentDirection)
+  const replayDate = match?.date?.slice(0, 10)
+  const replayHour = match?.date?.includes("T") ? String(new Date(match.date).getUTCHours()) : "0"
+  const replaySymbol = match?.symbol ?? analog?.sourceSymbol ?? analog?.requestedSymbol ?? "BTCUSDT"
+  const replayReady = Boolean(replayDate && replayDate >= "2025-07-01")
+  const replayHref = replayReady
+    ? `/replay?${new URLSearchParams({
+      exchange: "binance_futures",
+      symbol: replaySymbol,
+      date: replayDate!,
+      hour: replayHour,
+    }).toString()}`
+    : null
 
   return (
     <Card title="Historical Analog" icon={<History className="h-3.5 w-3.5" />} className="bg-zinc-950/65 p-2.5">
@@ -1047,6 +1094,18 @@ function HistoricalAnalogCard({ analog }: { analog: HistoricalAnalogState }) {
               <div className="mt-1 text-xs font-black uppercase text-white">{match.outcomeSummary}</div>
             )}
           </div>
+          {replayHref ? (
+            <Link
+              href={replayHref}
+              className="rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60"
+            >
+              Open Replay
+            </Link>
+          ) : (
+            <div className="rounded border border-zinc-900 bg-black/45 px-2 py-1.5 text-center text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+              Replay unavailable: CryptoHFTData coverage starts 2025-07-01
+            </div>
+          )}
           {(analog?.alternatives?.length ?? 0) > 0 && (
             <div className="grid gap-1">
               {analog?.alternatives?.slice(0, 2).map((item) => {
@@ -1121,12 +1180,32 @@ function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
   const scoreSpread = numericScores.length ? Math.max(...numericScores) - Math.min(...numericScores) : 0
   const hasRepeatedExtremeScores = numericScores.filter((score) => score >= 97).length > 1
   const hasMeaningfulNumericScores = uniqueScores.size === numericScores.length && scoreSpread >= 10 && !hasRepeatedExtremeScores
+  const priorityLabel = (score: number | null) => {
+    if (score === null) return "LOW"
+    if (score >= 80) return "HIGH"
+    if (score >= 60) return "MEDIUM"
+    return "LOW"
+  }
   const scoreLabel = (score: number | null) => {
     if (score === null) return "NO SCORE"
     if (hasMeaningfulNumericScores) return String(score)
-    if (score >= 80) return "HIGH PRIORITY"
-    if (score >= 60) return "WATCHLIST"
-    return "DEVELOPING"
+    return null
+  }
+  const directionLabel = (bias: Bias) => {
+    if (bias === "Bullish") return "Uptrend"
+    if (bias === "Bearish") return "Downtrend"
+    return "Neutral"
+  }
+  const marketHref = (alert: TacticalAlert) => {
+    const params = new URLSearchParams({
+      symbol: alert.asset,
+      source: "tactical-alert",
+      setup: alert.label ?? "Live Market Signal",
+      direction: directionLabel(alert.bias),
+    })
+    if (alert.confidence !== null) params.set("confidence", String(alert.confidence))
+    if (alert.explanation) params.set("reason", alert.explanation)
+    return `/markets?${params.toString()}`
   }
 
   return (
@@ -1134,15 +1213,23 @@ function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
       {rankedAlerts.length === 0 ? (
         <div className="rounded-lg border border-zinc-900 bg-black/45 p-6 text-center text-sm font-black uppercase tracking-[0.16em] text-zinc-500">NO LIVE ALERTS</div>
       ) : (
-      <div className="grid gap-2 xl:grid-cols-4">
+      <div className="grid auto-rows-fr gap-2 xl:grid-cols-4">
         {rankedAlerts.map((alert, index) => (
-          <article key={`${alert.asset}-${alert.label}`} className="rounded-lg border border-zinc-900 bg-black/45 p-3">
-            <div className="grid gap-2">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">#{index + 1}</div>
-                <div className="mt-1 text-lg font-black text-white">{alert.asset}</div>
+          <article key={`${alert.asset}-${alert.label}`} className="flex h-full flex-col rounded-lg border border-zinc-900 bg-black/45 p-2.5">
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              <div className="min-h-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">#{index + 1}</div>
+                  <span className={cn(
+                    "shrink-0 rounded border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.12em]",
+                    priorityLabel(alert.confidence) === "HIGH" && "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
+                    priorityLabel(alert.confidence) === "MEDIUM" && "border-amber-300/25 bg-amber-400/10 text-amber-100",
+                    priorityLabel(alert.confidence) === "LOW" && "border-zinc-700 bg-zinc-900 text-zinc-300",
+                  )}>{priorityLabel(alert.confidence)}</span>
+                </div>
+                <div className="mt-1 text-base font-black leading-none text-white">{alert.asset}</div>
                 {alert.context && <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{alert.context}</div>}
-                <div className="mt-0.5 text-sm font-black text-zinc-300">{alert.label ?? "NO DATA"}</div>
+                <div className="mt-0.5 text-xs font-black text-zinc-300">{alert.label ?? "NO DATA"}</div>
                 {alert.explanation && <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{alert.explanation}</div>}
                 {timeAgo(alert.detectedAt) && (
                   <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100">{timeAgo(alert.detectedAt)}</div>
@@ -1150,7 +1237,9 @@ function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
               </div>
               <div className="flex items-end justify-between gap-2">
                 <span className={cn("rounded-full border px-2 py-0.5 text-[9px] font-black uppercase", biasClass(alert.bias))}>{alert.bias}</span>
-                <span className={cn("font-black leading-none text-cyan-100", hasMeaningfulNumericScores && alert.confidence !== null ? "text-4xl" : "text-sm")}>{scoreLabel(alert.confidence)}</span>
+                {scoreLabel(alert.confidence) && (
+                  <span className="text-2xl font-black leading-none text-cyan-100">{scoreLabel(alert.confidence)}</span>
+                )}
               </div>
               {alert.tags.length > 0 && <div className="flex flex-wrap gap-1">
                 {alert.tags.map((tag) => (
@@ -1159,6 +1248,12 @@ function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
                   </span>
                 ))}
               </div>}
+              <Link
+                href={marketHref(alert)}
+                className="mt-auto rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60"
+              >
+                Inspect Market
+              </Link>
             </div>
           </article>
         ))}
@@ -1194,34 +1289,34 @@ function WhyThisSignal({ mover, causes, futures, analog, marketDirection }: { mo
 
   if (!mover) {
     return (
-      <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} className="min-h-[250px] border-cyan-300/20 bg-zinc-950/90 p-4">
-        <div className="rounded-lg border border-zinc-900 bg-black/45 p-10 text-center text-sm font-black uppercase tracking-[0.16em] text-zinc-500">NO SIGNAL DATA</div>
+      <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} className="border-cyan-300/20 bg-zinc-950/90 p-3">
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-5 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500">NO SIGNAL DATA</div>
       </Card>
     )
   }
 
   return (
-    <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} className="min-h-[250px] border-cyan-300/20 bg-zinc-950/90 p-4">
+    <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} className="border-cyan-300/20 bg-zinc-950/90 p-3">
       <div className="grid gap-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 p-4">
+        <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 p-3">
           <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Evidence</div>
-          <div className="mt-2 text-3xl font-black uppercase leading-none text-white">{evidenceRead.headline}</div>
-          {evidenceRead.support && <div className="mt-2 text-sm font-black uppercase text-cyan-50/80">{evidenceRead.support}</div>}
-          {(evidenceRead.note || note) && <div className="mt-3 rounded border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-100">{evidenceRead.note ?? note}</div>}
+          <div className="mt-1.5 text-xl font-black uppercase leading-tight text-white">{evidenceRead.headline}</div>
+          {evidenceRead.support && <div className="mt-1 text-xs font-black uppercase leading-tight text-cyan-50/80">{evidenceRead.support}</div>}
+          {(evidenceRead.note || note) && <div className="mt-2 rounded border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-amber-100">{evidenceRead.note ?? note}</div>}
         </div>
-        <div className="rounded-lg border border-zinc-800 bg-black/50 p-4">
+        <div className="rounded-lg border border-zinc-800 bg-black/50 p-3">
           <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">History</div>
-          <div className="mt-2 text-3xl font-black uppercase leading-none text-white">{topAnalog?.label ?? "NO VERIFIED ANALOG"}</div>
-          {topAnalog && <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{formatAnalogDate(topAnalog.date)}</div>}
+          <div className="mt-1.5 text-xl font-black uppercase leading-tight text-white">{topAnalog?.label ?? "NO VERIFIED ANALOG"}</div>
+          {topAnalog && <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{formatAnalogDate(topAnalog.date)}</div>}
         </div>
-        <div className="rounded-lg border border-rose-300/20 bg-rose-400/10 p-4">
+        <div className="rounded-lg border border-rose-300/20 bg-rose-400/10 p-3">
           <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Invalidation</div>
-          <div className="mt-2 text-4xl font-black leading-none text-white">{failure ?? "NO DATA"}</div>
+          <div className="mt-1.5 text-2xl font-black leading-tight text-white">{failure ?? "NO DATA"}</div>
         </div>
-        <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-4">
+        <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-3">
           <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/70">Action</div>
-          <div className="mt-2 text-4xl font-black leading-none text-white">{action ?? "NO DATA"}</div>
-          <div className="mt-3 grid gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-50/80">
+          <div className="mt-1.5 text-2xl font-black leading-tight text-white">{action ?? "NO DATA"}</div>
+          <div className="mt-2 grid gap-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-50/80">
             <div>Range: {levels.range ?? "NO DATA"}</div>
             <div>Resistance: {levels.resistance ?? "NO DATA"}</div>
             <div>Support: {levels.support ?? "NO DATA"}</div>
@@ -1252,7 +1347,7 @@ function InformationFlow({ items }: { items: InformationFlowItem[] }) {
   )
 }
 
-function SystemStatus({ liquidationCount, alertCount }: { liquidationCount: number; alertCount: number }) {
+function SystemStatus({ liquidationCount, alertCount, cacheUpdatedAt }: { liquidationCount: number; alertCount: number; cacheUpdatedAt?: string | null }) {
   return (
     <Card title="System Status" icon={<RadioTower className="h-3.5 w-3.5" />}>
       <div className="space-y-1.5">
@@ -1268,6 +1363,12 @@ function SystemStatus({ liquidationCount, alertCount }: { liquidationCount: numb
           <span className="flex items-center gap-2 text-zinc-300"><AlertTriangle className="h-3.5 w-3.5 text-amber-300" /> Liquidations</span>
           <span className="font-black text-amber-100">{liquidationCount}</span>
         </div>
+        {cacheUpdatedAt ? (
+          <div className="flex items-center justify-between rounded-md border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em]">
+            <span className="text-zinc-500">Last updated</span>
+            <span className="text-zinc-300">{new Date(cacheUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
+          </div>
+        ) : null}
       </div>
     </Card>
   )
@@ -1452,58 +1553,60 @@ export default function DashboardV1({
   tradeCount: number
   liquidationCount: number
 }) {
-  const [marketMovers, setMarketMovers] = useState<MarketMoversResponse | null>(null)
-  const [narratives, setNarratives] = useState<NarrativesResponse | null>(null)
-  const [macro, setMacro] = useState<MacroResponse | null>(null)
-  const [predictionMarkets, setPredictionMarkets] = useState<PredictionMarketsResponse | null>(null)
-  const [etfFlow, setEtfFlow] = useState<EtfFlowResponse | null>(null)
-  const [sectorRotation, setSectorRotation] = useState<SectorRotationResponse | null>(null)
-  const [futures, setFutures] = useState<FuturesIntelligenceResponse | null>(null)
+  const cachedDashboard = useMemo(() => loadDashboardCache(symbol), [symbol])
+  const [cacheUpdatedAt, setCacheUpdatedAt] = useState<string | null>(cachedDashboard?.cachedAt ?? null)
+  const [marketMovers, setMarketMovers] = useState<MarketMoversResponse | null>(cachedDashboard?.marketMovers ?? null)
+  const [narratives, setNarratives] = useState<NarrativesResponse | null>(cachedDashboard?.narratives ?? null)
+  const [macro, setMacro] = useState<MacroResponse | null>(cachedDashboard?.macro ?? null)
+  const [predictionMarkets, setPredictionMarkets] = useState<PredictionMarketsResponse | null>(cachedDashboard?.predictionMarkets ?? null)
+  const [etfFlow, setEtfFlow] = useState<EtfFlowResponse | null>(cachedDashboard?.etfFlow ?? null)
+  const [sectorRotation, setSectorRotation] = useState<SectorRotationResponse | null>(cachedDashboard?.sectorRotation ?? null)
+  const [futures, setFutures] = useState<FuturesIntelligenceResponse | null>(cachedDashboard?.futures ?? null)
   const [historicalAnalog, setHistoricalAnalog] = useState<HistoricalAnalogState>(null)
+  const lastHistoricalRequestKey = useRef<string | null>(null)
 
   useEffect(() => {
     let active = true
+    const nextCache: DashboardCache = {
+      cachedAt: new Date().toISOString(),
+      symbol,
+      marketMovers: cachedDashboard?.marketMovers ?? null,
+      narratives: cachedDashboard?.narratives ?? null,
+      macro: cachedDashboard?.macro ?? null,
+      predictionMarkets: cachedDashboard?.predictionMarkets ?? null,
+      etfFlow: cachedDashboard?.etfFlow ?? null,
+      sectorRotation: cachedDashboard?.sectorRotation ?? null,
+      futures: cachedDashboard?.futures ?? null,
+    }
+
+    function commitCache() {
+      nextCache.cachedAt = new Date().toISOString()
+      saveDashboardCache(nextCache)
+      if (active) setCacheUpdatedAt(nextCache.cachedAt)
+    }
+
+    async function loadJson<T>(path: string, onValue: (value: T) => void, cacheKey: keyof Omit<DashboardCache, "cachedAt" | "symbol">) {
+      try {
+        const response = await fetch(path, { cache: "no-store" })
+        if (!active || !response.ok) return
+        const value = await response.json() as T
+        if (!active) return
+        onValue(value)
+        ;(nextCache[cacheKey] as T | null) = value
+        commitCache()
+      } catch {
+        // Keep cached or existing state visible.
+      }
+    }
 
     async function loadDashboardData() {
-      const [moversResult, narrativesResult, macroResult, predictionResult, etfFlowResult, sectorRotationResult, futuresResult] = await Promise.allSettled([
-        fetch(`/api/market/movers?focus=${encodeURIComponent(symbol)}`, { cache: "no-store" }),
-        fetch("/api/narratives?range=24h", { cache: "no-store" }),
-        fetch("/api/macro", { cache: "no-store" }),
-        fetch("/api/prediction-markets", { cache: "no-store" }),
-        fetch("/api/etf-flow", { cache: "no-store" }),
-        fetch("/api/market/sector-rotation", { cache: "no-store" }),
-        fetch("/api/market/futures-intelligence", { cache: "no-store" }),
-      ])
-
-      if (!active) return
-
-      if (moversResult.status === "fulfilled" && moversResult.value.ok) {
-        setMarketMovers(await moversResult.value.json())
-      }
-
-      if (narrativesResult.status === "fulfilled" && narrativesResult.value.ok) {
-        setNarratives(await narrativesResult.value.json())
-      }
-
-      if (macroResult.status === "fulfilled" && macroResult.value.ok) {
-        setMacro(await macroResult.value.json())
-      }
-
-      if (predictionResult.status === "fulfilled" && predictionResult.value.ok) {
-        setPredictionMarkets(await predictionResult.value.json())
-      }
-
-      if (etfFlowResult.status === "fulfilled" && etfFlowResult.value.ok) {
-        setEtfFlow(await etfFlowResult.value.json())
-      }
-
-      if (sectorRotationResult.status === "fulfilled" && sectorRotationResult.value.ok) {
-        setSectorRotation(await sectorRotationResult.value.json())
-      }
-
-      if (futuresResult.status === "fulfilled" && futuresResult.value.ok) {
-        setFutures(await futuresResult.value.json())
-      }
+      void loadJson<MarketMoversResponse>(`/api/market/movers?focus=${encodeURIComponent(symbol)}`, setMarketMovers, "marketMovers")
+      void loadJson<NarrativesResponse>("/api/narratives?range=24h", setNarratives, "narratives")
+      void loadJson<MacroResponse>("/api/macro", setMacro, "macro")
+      void loadJson<PredictionMarketsResponse>("/api/prediction-markets", setPredictionMarkets, "predictionMarkets")
+      void loadJson<EtfFlowResponse>("/api/etf-flow", setEtfFlow, "etfFlow")
+      void loadJson<SectorRotationResponse>("/api/market/sector-rotation", setSectorRotation, "sectorRotation")
+      void loadJson<FuturesIntelligenceResponse>("/api/market/futures-intelligence", setFutures, "futures")
     }
 
     void loadDashboardData()
@@ -1511,7 +1614,7 @@ export default function DashboardV1({
     return () => {
       active = false
     }
-  }, [symbol])
+  }, [cachedDashboard, symbol])
 
   const moverCandidates = useMemo(() => {
     const focus = marketMovers?.focusCandidate ? [marketMovers.focusCandidate] : []
@@ -1548,24 +1651,66 @@ export default function DashboardV1({
     sectorRotation,
     futures,
   }), [symbol, topMover, causes, narratives, narrativeItems, etfFlow, predictionMarkets, sectorRotation, futures])
+  const historicalRequestKey = useMemo(() => JSON.stringify({
+    symbol,
+    mover: topMover?.symbol ?? null,
+    score: topMover?.score ?? null,
+    causes: causes.map((cause) => cause.label).slice(0, 4),
+    narratives: narrativeItems.map((item) => item.label).slice(0, 3),
+  }), [causes, narrativeItems, symbol, topMover?.score, topMover?.symbol])
+  const criticalDataReady = Boolean(marketMovers || narratives || macro)
 
   useEffect(() => {
     let active = true
+    let slowTimer: number | null = null
+    let timeoutTimer: number | null = null
+    const controller = new AbortController()
+    if (!criticalDataReady) return () => {
+      active = false
+      controller.abort()
+    }
+    if (lastHistoricalRequestKey.current === historicalRequestKey) return () => {
+      active = false
+      controller.abort()
+    }
+    slowTimer = window.setTimeout(() => {
+      if (!active) return
+      setHistoricalAnalog({
+        status: "unavailable",
+        message: "NO VERIFIED ANALOG",
+        reason: "Historical data loading in background",
+        recordCountSearched: 0,
+      })
+    }, 2500)
+    timeoutTimer = window.setTimeout(() => {
+      if (!active) return
+      controller.abort()
+      lastHistoricalRequestKey.current = null
+      setHistoricalAnalog({
+        status: "unavailable",
+        message: "NO VERIFIED ANALOG",
+        reason: "Request timed out.",
+        recordCountSearched: 0,
+      })
+    }, 9000)
 
     async function loadHistoricalAnalog() {
       try {
+        lastHistoricalRequestKey.current = historicalRequestKey
         await fetch("/api/dashboard/snapshots", {
           method: "POST",
           cache: "no-store",
+          signal: controller.signal,
           headers: {
             "content-type": "application/json",
           },
           body: JSON.stringify(dashboardSnapshot),
         })
 
-        const response = await fetch(`/api/dashboard/historical-analog?symbol=${encodeURIComponent(symbol)}&interval=1h`, { cache: "no-store" })
-        if (!active) return
+        const response = await fetch(`/api/dashboard/historical-analog?symbol=${encodeURIComponent(symbol)}&interval=1h`, { cache: "no-store", signal: controller.signal })
+        if (!active || controller.signal.aborted) return
         if (!response.ok) {
+          lastHistoricalRequestKey.current = null
           setHistoricalAnalog({
             status: "unavailable",
             message: "NO VERIFIED ANALOG",
@@ -1575,23 +1720,34 @@ export default function DashboardV1({
           return
         }
         setHistoricalAnalog(await response.json())
-      } catch {
+      } catch (error) {
         if (!active) return
+        lastHistoricalRequestKey.current = null
         setHistoricalAnalog({
           status: "unavailable",
           message: "NO VERIFIED ANALOG",
-          reason: "API unavailable",
+          reason: controller.signal.aborted ? "Request timed out." : error instanceof Error ? error.message : "API unavailable",
           recordCountSearched: 0,
         })
+      } finally {
+        if (slowTimer) window.clearTimeout(slowTimer)
+        if (timeoutTimer) window.clearTimeout(timeoutTimer)
       }
     }
 
-    void loadHistoricalAnalog()
+    const deferTimer = window.setTimeout(() => {
+      void loadHistoricalAnalog()
+    }, 800)
 
     return () => {
       active = false
+      controller.abort()
+      lastHistoricalRequestKey.current = null
+      window.clearTimeout(deferTimer)
+      if (slowTimer) window.clearTimeout(slowTimer)
+      if (timeoutTimer) window.clearTimeout(timeoutTimer)
     }
-  }, [dashboardSnapshot, symbol])
+  }, [criticalDataReady, dashboardSnapshot, historicalRequestKey, symbol])
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
@@ -1635,7 +1791,7 @@ export default function DashboardV1({
         <aside className="grid gap-3 xl:content-start">
           <InformationFlow items={informationItems} />
           <TrendChangeRiskCard mover={topMover} causes={causes} />
-          <SystemStatus liquidationCount={liquidationCount} alertCount={alerts.length} />
+          <SystemStatus liquidationCount={liquidationCount} alertCount={alerts.length} cacheUpdatedAt={cacheUpdatedAt} />
         </aside>
       </div>
     </main>

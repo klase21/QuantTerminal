@@ -158,9 +158,15 @@ export type HistoricalAnalogRecord = {
   matchedTimestamp: number
   matchedDate: string
   matchedConditionsJson: string
-  source: "binance-vision" | "local-market-ohlcv-db" | "market-memory-snapshots"
+  source: HistoricalAnalogSource
   queryPath: string
 }
+
+export type HistoricalAnalogSource =
+  | "binance-vision"
+  | "local-market-ohlcv-db"
+  | "market-memory-snapshots"
+  | "cryptohftdata-compatible-replay-window"
 
 export type VerdictRecordStatus = "completed" | "insufficient_data"
 
@@ -196,7 +202,7 @@ export type VerdictAccuracyStats = {
 
 export type DashboardHistoricalAnalogResponse = {
   status: "available" | "unavailable"
-  source?: "binance-vision" | "local-market-ohlcv-db" | "market-memory-snapshots"
+  source?: HistoricalAnalogSource
   queryPath?: string
   requestedSymbol?: string
   sourceSymbol?: string
@@ -204,7 +210,10 @@ export type DashboardHistoricalAnalogResponse = {
   benchmarkReason?: string
   currentDirection?: MarketStateDirection
   recordCountSearched: number
-  message?: "NO VERIFIED ANALOG" | "NO VERIFIED MEMORY"
+  exclusionWindowDays?: number
+  oldestCandidateSearched?: string | null
+  newestCandidateSearched?: string | null
+  message?: "NO VERIFIED ANALOG" | "NO VERIFIED MEMORY" | "NO VERIFIED REPLAY CASE"
   reason?: string
   stats?: {
     totalCases: number

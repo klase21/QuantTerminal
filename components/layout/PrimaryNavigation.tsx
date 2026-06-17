@@ -8,8 +8,8 @@ import type { ReactNode } from "react"
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge, active: true },
   { label: "Markets", href: "/markets", icon: BarChart3, active: true },
-  { label: "Trade", href: "/trade", icon: ClipboardCheck, active: true },
   { label: "Scanner", href: "/scanner", icon: Radar, active: true },
+  { label: "Trade", href: "/trade", icon: ClipboardCheck, active: true },
   { label: "Research", href: "/research", icon: Search, active: true },
   { label: "Replay", href: "/replay", icon: History, active: true },
   { label: "Settings", icon: Settings, active: false },
@@ -59,7 +59,7 @@ export function TerminalAppShell({ children }: { children: ReactNode }) {
           <nav className="flex gap-2 overflow-x-auto">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon
-              const selected = Boolean(item.active && item.href && pathname === item.href)
+              const selected = Boolean(item.active && item.href && (pathname === item.href || pathname === "/" && item.href === "/dashboard"))
               const content = (
                 <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] ${navClass(item.active, selected)}`}>
                   <Icon className="h-3.5 w-3.5" />

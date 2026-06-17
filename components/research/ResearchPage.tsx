@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Brain, History, Newspaper, PieChart, Search, Sparkles } from "lucide-react"
 
 import { useSafePolling } from "@/hooks/system/useSafePolling"
@@ -103,6 +104,13 @@ function time(value?: number) {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
 }
 
+function attentionLabel(market: PredictionResponse["markets"][number] | undefined) {
+  if (!market) return "Unavailable"
+  if ((market.volume ?? 0) >= 1_000_000 || (market.liquidity ?? 0) >= 1_000_000) return "High Attention"
+  if ((market.volume ?? 0) >= 100_000 || (market.liquidity ?? 0) >= 100_000) return "Active"
+  return "Developing"
+}
+
 export default function ResearchPage() {
   const narratives = useSafePolling<NarrativeResponse>("/api/narratives?range=24h", 60000, { label: "research-narratives", timeoutMs: 12000, retries: 1 })
   const predictions = useSafePolling<PredictionResponse>("/api/research/prediction-markets", 60000, { label: "research-predictions", timeoutMs: 12000, retries: 1 })
@@ -117,10 +125,38 @@ export default function ResearchPage() {
     ...(macro.data?.items?.slice(0, 3).map((item) => ({ label: `${item.symbol ?? "MACRO"} ${item.change ?? ""}`.trim(), tag: item.signal ?? item.tone ?? "MACRO", time: time(item.updatedAt ?? macro.data?.updatedAt) })) ?? []),
     ...(narratives.data?.topNarratives?.slice(0, 3).map((item) => ({ label: `${item} Heat`, tag: "NARRATIVE", time: time(narratives.data?.updatedAt) })) ?? []),
   ]
+  const strongestNarrative = topNarratives[0]
+  const topPrediction = predictionMarkets[0]
+  const topAnalog = analogRows[0]
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3">
+        <Card title="Research Brief" icon={<Brain className="h-3.5 w-3.5" />}>
+          <div className="grid gap-2 md:grid-cols-4">
+            <div className="rounded border border-zinc-900 bg-black/45 p-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Strongest Narrative</div>
+              <div className="mt-1 text-sm font-black uppercase text-white">{strongestNarrative?.narrative ?? "Unavailable"}</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{strongestNarrative ? heatState(strongestNarrative.total) : narratives.error ?? "No narrative heat"}</div>
+            </div>
+            <div className="rounded border border-zinc-900 bg-black/45 p-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Prediction Attention</div>
+              <div className="mt-1 truncate text-sm font-black uppercase text-white">{topPrediction?.title ?? "Unavailable"}</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{attentionLabel(topPrediction)}</div>
+            </div>
+            <div className="rounded border border-zinc-900 bg-black/45 p-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Historical Signal</div>
+              <div className="mt-1 text-sm font-black uppercase text-white">{topAnalog?.dominantOutcome ?? memory.data?.dominantOutcome ?? "Unavailable"}</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{topAnalog ? `${topAnalog.symbol} ${topAnalog.date}` : analogs.data?.reason ?? "No verified analog"}</div>
+            </div>
+            <div className="rounded border border-zinc-900 bg-black/45 p-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Information Heat</div>
+              <div className="mt-1 text-sm font-black uppercase text-white">{informationItems.length ? `${informationItems.length} Active Items` : "Unavailable"}</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{informationItems[0]?.time ?? "No flow data"}</div>
+            </div>
+          </div>
+        </Card>
+
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_460px]">
           <Card title="Narrative Intelligence" icon={<Newspaper className="h-3.5 w-3.5" />}>
             {topNarratives.length ? (
@@ -194,6 +230,12 @@ export default function ResearchPage() {
                       <span className="text-cyan-100">7D {pct(item.avgReturn7d)}</span>
                       <span className="text-emerald-100">{item.successRate === null ? "NO RATE" : `${Math.round(item.successRate)}%`}</span>
                     </div>
+                    <Link
+                      href={`/replay?symbol=${encodeURIComponent(item.symbol)}&case=${encodeURIComponent(item.date)}`}
+                      className="mt-2 block rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-center text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60"
+                    >
+                      Open Case
+                    </Link>
                   </div>
                 ))}
               </div>

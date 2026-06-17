@@ -1,19 +1,17 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Activity, AlertTriangle, BarChart3, BookOpen, Droplets, RadioTower, TrendingUp, Zap } from "lucide-react"
-import { CandlestickSeries, ColorType, HistogramSeries, createChart, type IChartApi, type ISeriesApi } from "lightweight-charts"
+import { useSearchParams } from "next/navigation"
+import { Activity, AlertTriangle, BarChart3, BookOpen, Droplets, RadioTower, Zap } from "lucide-react"
 
 import AdvancedChartModal from "@/components/charts/AdvancedChartModal"
+import MarketCandleChart from "@/components/charts/MarketCandleChart"
 import useDepthHeatmap from "@/hooks/useDepthHeatmap"
 import useKlineSocket from "@/hooks/useKlineSocket"
-import useLiquidationSocket from "@/hooks/useLiquidationSocket"
 import useMarketSocket from "@/hooks/useMarketSocket"
 import useOrderbookSocket from "@/hooks/useOrderbookSocket"
 import useTradeSocket from "@/hooks/useTradeSocket"
 import { useMarketStore } from "@/stores/useMarketStore"
-
-const SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]
 
 type FuturesSymbol = {
   symbol: string
@@ -32,25 +30,6 @@ type FuturesResponse = {
   notes?: string[]
 }
 
-type ExchangeVenue = {
-  ok?: boolean
-  source?: string
-  fundingRate?: number
-  openInterest?: number
-  oiNotional?: number
-  reason?: string
-}
-
-type ExchangeComparisonResponse = {
-  ok?: boolean
-  symbol?: string
-  updatedAt?: string
-  binance?: ExchangeVenue
-  bybit?: ExchangeVenue
-  fundingRelationship?: "Aligned" | "Divergent" | "Unavailable"
-  openInterestRelationship?: "Aligned" | "Divergent" | "Unavailable"
-}
-
 type Candle = {
   time: number
   open: number
@@ -66,6 +45,31 @@ type Ticker24h = {
   lastPrice?: string
   priceChangePercent?: string
 }
+
+type ReplayLiquidation = {
+  timestamp: string
+  side: string
+  price: number | null
+  size: number | null
+  notional: number | null
+  exchange?: string
+  symbol?: string
+}
+
+type ReplayLiquidationResponse = {
+  ok?: boolean
+  source?: string
+  exchange?: string
+  symbol?: string
+  liquidations?: ReplayLiquidation[]
+  diagnostics?: {
+    unavailable?: Array<{ dataset: string; reason: string }>
+    errors?: Array<{ dataset: string; message: string }>
+  }
+  reason?: string
+}
+
+type LiquidationLoadState = "idle" | "loading" | "ready" | "unavailable" | "error" | "aborted"
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ")
@@ -96,6 +100,10 @@ function timeLabel(value: number) {
   return new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 }
 
+function timeText(value: string) {
+  return new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "UTC" })
+}
+
 function displayDataReason(value?: string | null) {
   const text = value ?? ""
   if (/\b(403|451)\b/i.test(text) || /forbidden|restricted|unavailable for legal reasons/i.test(text)) {
@@ -107,12 +115,34 @@ function displayDataReason(value?: string | null) {
   return text || "Source unavailable"
 }
 
+function replayDateDefault() {
+  const date = new Date()
+  date.setUTCMinutes(0, 0, 0)
+  date.setUTCHours(date.getUTCHours() - 24)
+  const value = date.toISOString().slice(0, 10)
+  return value < "2025-07-01" ? "2025-07-01" : value
+}
+
+function utcHourDefault() {
+  const date = new Date()
+  date.setUTCMinutes(0, 0, 0)
+  date.setUTCHours(date.getUTCHours() - 24)
+  return String(date.getUTCHours())
+}
+
+function replayDatasetReason(data: ReplayLiquidationResponse | null, fallback: string) {
+  return data?.reason
+    ?? data?.diagnostics?.unavailable?.find((item) => item.dataset === "liquidations" || item.dataset === "provider")?.reason
+    ?? data?.diagnostics?.errors?.find((item) => item.dataset === "liquidations" || item.dataset === "provider")?.message
+    ?? fallback
+}
+
 function missingFuturesReason(symbol: string, futures: FuturesResponse | null) {
   if (!futures) return "Futures API has not responded yet."
   if (futures.notes?.[0]) return displayDataReason(futures.notes[0])
   if (!futures.ok) return "Futures intelligence returned an unavailable status."
   if (!futures.symbols?.length) return "Futures intelligence returned no symbol rows."
-  return `${symbol} was not included in the futures intelligence response.`
+  return "Funding/OI unavailable for selected symbol."
 }
 
 function marketStructureLabel(change24h: number | undefined, cvd: number, fundingRate: number | null) {
@@ -192,65 +222,15 @@ function InlineStatus({
   )
 }
 
-function ExchangeComparisonGrid({
-  binance,
-  bybit,
-  fundingRelationship,
-  openInterestRelationship,
+function LiquidationBiasCard({
+  longNotional,
+  shortNotional,
+  state,
 }: {
-  binance?: ExchangeVenue
-  bybit?: ExchangeVenue
-  fundingRelationship?: string
-  openInterestRelationship?: string
+  longNotional: number
+  shortNotional: number
+  state: LiquidationLoadState
 }) {
-  const binanceReason = displayDataReason(binance?.reason)
-  const bybitReason = displayDataReason(bybit?.reason)
-
-  return (
-    <div className="grid gap-1.5 rounded border border-zinc-900 bg-black/25 p-2">
-      <div className="grid gap-1.5 md:grid-cols-[72px_1fr_1fr]">
-        <div className="flex items-center text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Binance</div>
-        <InlineStatus
-          label="Funding"
-          value={binance?.ok ? pct((binance.fundingRate ?? 0) * 100, 4) : "NO DATA"}
-          tone="amber"
-        />
-        <InlineStatus
-          label="OI"
-          value={binance?.ok ? compactUsd(binance.oiNotional) : "NO DATA"}
-          tone="cyan"
-        />
-        {!binance?.ok && <div className="md:col-span-2 md:col-start-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{binanceReason}</div>}
-        <div className="flex items-center text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Bybit</div>
-        <InlineStatus
-          label="Funding"
-          value={bybit?.ok ? pct((bybit.fundingRate ?? 0) * 100, 4) : "NO DATA"}
-          tone="amber"
-        />
-        <InlineStatus
-          label="OI"
-          value={bybit?.ok ? compactUsd(bybit.oiNotional) : "NO DATA"}
-          tone="cyan"
-        />
-        {!bybit?.ok && <div className="md:col-span-2 md:col-start-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{bybitReason}</div>}
-      </div>
-      <div className="grid gap-1.5 border-t border-zinc-900 pt-1.5 md:grid-cols-2">
-        <InlineStatus
-          label="Funding Relationship"
-          value={fundingRelationship ?? "Unavailable"}
-          tone={fundingRelationship === "Aligned" ? "green" : fundingRelationship === "Divergent" ? "red" : undefined}
-        />
-        <InlineStatus
-          label="OI Relationship"
-          value={openInterestRelationship ?? "Unavailable"}
-          tone={openInterestRelationship === "Aligned" ? "green" : openInterestRelationship === "Divergent" ? "red" : undefined}
-        />
-      </div>
-    </div>
-  )
-}
-
-function LiquidationBiasCard({ longNotional, shortNotional }: { longNotional: number; shortNotional: number }) {
   const total = longNotional + shortNotional
   const longPct = total > 0 ? Math.round((longNotional / total) * 100) : null
   const shortPct = total > 0 ? 100 - (longPct ?? 0) : null
@@ -258,7 +238,12 @@ function LiquidationBiasCard({ longNotional, shortNotional }: { longNotional: nu
   return (
     <div className="rounded-lg border border-zinc-900 bg-black/45 p-3">
       <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Market Liq Bias</div>
-      {total > 0 && longPct !== null && shortPct !== null ? (
+      {state === "loading" || state === "idle" ? (
+        <>
+          <div className="mt-2 text-2xl font-black uppercase leading-none text-zinc-300">LOADING</div>
+          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-600">Selected symbol history</div>
+        </>
+      ) : total > 0 && longPct !== null && shortPct !== null ? (
         <>
           <div className="mt-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.1em]">
             <span className="text-emerald-100">Longs Hit {longPct}%</span>
@@ -268,12 +253,12 @@ function LiquidationBiasCard({ longNotional, shortNotional }: { longNotional: nu
             <div className="bg-emerald-400/80" style={{ width: `${longPct}%` }} />
             <div className="bg-rose-400/80" style={{ width: `${shortPct}%` }} />
           </div>
-          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{compactUsd(total)} / market-wide feed</div>
+          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{compactUsd(total)} / selected symbol history</div>
         </>
       ) : (
         <>
           <div className="mt-2 text-2xl font-black uppercase leading-none text-zinc-500">NO LIQ DATA</div>
-          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-600">Market-wide liquidation feed</div>
+          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-600">Selected symbol history</div>
         </>
       )}
     </div>
@@ -291,86 +276,7 @@ function ChartPreview({
   timeframe: string
   onOpen: () => void
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<IChartApi | null>(null)
-  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
-  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null)
   const hasVolume = candles.some((candle) => Number.isFinite(candle.volume) && (candle.volume ?? 0) > 0)
-
-  useEffect(() => {
-    if (!ref.current || chartRef.current) return
-    const chart = createChart(ref.current, {
-      height: Math.max(320, ref.current.clientHeight || 0),
-      layout: {
-        background: { type: ColorType.Solid, color: "#050505" },
-        textColor: "#a1a1aa",
-      },
-      grid: {
-        vertLines: { color: "rgba(39,39,42,.55)" },
-        horzLines: { color: "rgba(39,39,42,.55)" },
-      },
-      rightPriceScale: { borderColor: "#27272a" },
-      timeScale: { borderColor: "#27272a", timeVisible: true },
-    })
-    chartRef.current = chart
-    seriesRef.current = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderUpColor: "#22c55e",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e",
-        wickDownColor: "#ef4444",
-      })
-    volumeSeriesRef.current = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: "volume" },
-      priceScaleId: "",
-      priceLineVisible: false,
-      lastValueVisible: false,
-    })
-    chart.priceScale("").applyOptions({
-      scaleMargins: { top: 0.78, bottom: 0 },
-    })
-    const resize = () => chart.applyOptions({
-      width: ref.current?.clientWidth ?? 600,
-      height: Math.max(320, ref.current?.clientHeight ?? 0),
-    })
-    const resizeObserver = new ResizeObserver(() => {
-      window.requestAnimationFrame(resize)
-    })
-    resizeObserver.observe(ref.current)
-    resize()
-    window.addEventListener("resize", resize)
-    return () => {
-      resizeObserver.disconnect()
-      window.removeEventListener("resize", resize)
-      chart.remove()
-      chartRef.current = null
-      seriesRef.current = null
-      volumeSeriesRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    const chart = chartRef.current
-    const series = seriesRef.current
-    const volumeSeries = volumeSeriesRef.current
-    if (!chart || !series || !candles.length) return
-    series.setData(candles.map((candle) => ({
-      time: candle.time as any,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    })))
-    volumeSeries?.setData(candles
-      .filter((candle) => Number.isFinite(candle.volume))
-      .map((candle) => ({
-        time: candle.time as any,
-        value: candle.volume ?? 0,
-        color: candle.close >= candle.open ? "rgba(34, 197, 94, 0.32)" : "rgba(239, 68, 68, 0.32)",
-      })))
-    chart.timeScale().fitContent()
-  }, [candles])
 
   return (
     <div className="flex min-h-[390px] flex-1 flex-col gap-2">
@@ -388,7 +294,7 @@ function ChartPreview({
         </button>
       </div>
       <div className="relative min-h-[320px] flex-1 overflow-hidden rounded-md border border-zinc-900 bg-black">
-        <div ref={ref} className="h-full w-full" />
+        <MarketCandleChart candles={candles} minHeight={320} />
         {!candles.length && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-center">
             <div className="text-sm font-black uppercase tracking-[0.16em] text-zinc-500">NO CANDLE DATA</div>
@@ -463,29 +369,216 @@ function OrderbookDepth({ orderbook, depthFrames }: { orderbook: ReturnType<type
   )
 }
 
+function SelectedSymbolLiquidations({
+  symbol,
+  onSummary,
+  onStateChange,
+}: {
+  symbol: string
+  onSummary?: (summary: { longNotional: number; shortNotional: number }) => void
+  onStateChange?: (state: LiquidationLoadState) => void
+}) {
+  const [liqDate, setLiqDate] = useState(replayDateDefault)
+  const [liqHour, setLiqHour] = useState(utcHourDefault)
+  const [liquidationHistory, setLiquidationHistory] = useState<ReplayLiquidationResponse | null>(null)
+  const [liquidationState, setLiquidationState] = useState<LiquidationLoadState>("idle")
+  const [liquidationHistoryReason, setLiquidationHistoryReason] = useState<string | null>(null)
+  const requestIdRef = useRef(0)
+
+  useEffect(() => {
+    onStateChange?.(liquidationState)
+  }, [liquidationState, onStateChange])
+
+  useEffect(() => {
+    const requestId = requestIdRef.current + 1
+    requestIdRef.current = requestId
+    const controller = new AbortController()
+    let active = true
+    let timedOut = false
+    const timeout = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 7000)
+
+    async function loadLiquidationHistory() {
+      setLiquidationState("loading")
+      setLiquidationHistoryReason(null)
+      setLiquidationHistory(null)
+      console.debug("Markets liquidation request", { symbol, date: liqDate, hour: liqHour, state: "loading" })
+      try {
+        const params = new URLSearchParams({
+          exchange: "binance_futures",
+          symbol,
+          date: liqDate,
+          hour: liqHour,
+          datasets: "liquidations",
+        })
+        const response = await fetch(`/api/replay/cryptohftdata?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+        const payload = await response.json() as ReplayLiquidationResponse
+        if (!active || requestIdRef.current !== requestId || controller.signal.aborted) return
+        if (!response.ok) {
+          setLiquidationHistory(null)
+          setLiquidationHistoryReason(replayDatasetReason(payload, "Liquidation history unavailable for selected symbol/window."))
+          setLiquidationState("unavailable")
+          console.debug("Markets liquidation request", { symbol, date: liqDate, hour: liqHour, state: "unavailable", reason: replayDatasetReason(payload, "Liquidation history unavailable for selected symbol/window.") })
+          return
+        }
+        setLiquidationHistory(payload)
+        if (!payload.liquidations?.length) {
+          setLiquidationHistoryReason(replayDatasetReason(payload, "Liquidation history unavailable for selected symbol/window."))
+          setLiquidationState("unavailable")
+          console.debug("Markets liquidation request", { symbol, date: liqDate, hour: liqHour, state: "unavailable", reason: replayDatasetReason(payload, "Liquidation history unavailable for selected symbol/window.") })
+          return
+        }
+        setLiquidationState("ready")
+        console.debug("Markets liquidation request", { symbol, date: liqDate, hour: liqHour, state: "ready", rows: payload.liquidations.length })
+      } catch (error) {
+        if (!active || requestIdRef.current !== requestId) return
+        if (controller.signal.aborted) {
+          setLiquidationHistory(null)
+          setLiquidationHistoryReason(timedOut ? "Liquidation history request timed out." : "Liquidation history request was cancelled.")
+          setLiquidationState(timedOut ? "unavailable" : "aborted")
+          console.debug("Markets liquidation request", { symbol, date: liqDate, hour: liqHour, state: timedOut ? "unavailable" : "aborted", reason: timedOut ? "Liquidation history request timed out." : "Liquidation history request was cancelled." })
+          return
+        }
+        setLiquidationHistory(null)
+        setLiquidationHistoryReason(displayDataReason(error instanceof Error ? error.message : "Liquidation history unavailable for selected symbol/window."))
+        setLiquidationState("error")
+        console.debug("Markets liquidation request", { symbol, date: liqDate, hour: liqHour, state: "error", reason: displayDataReason(error instanceof Error ? error.message : "Liquidation history unavailable for selected symbol/window.") })
+      } finally {
+        window.clearTimeout(timeout)
+      }
+    }
+
+    void loadLiquidationHistory()
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [liqDate, liqHour, symbol])
+
+  const selectedLiquidations = liquidationHistory?.liquidations ?? []
+  const recentSelectedLiquidations = [...selectedLiquidations]
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+    .slice(0, 14)
+  const longLiquidationNotional = selectedLiquidations.filter((item) => item.side.toLowerCase() === "long").reduce((sum, item) => sum + (item.notional ?? 0), 0)
+  const shortLiquidationNotional = selectedLiquidations.filter((item) => item.side.toLowerCase() === "short").reduce((sum, item) => sum + (item.notional ?? 0), 0)
+  const totalLiquidationNotional = longLiquidationNotional + shortLiquidationNotional
+  const unavailableReason = liquidationHistoryReason ?? replayDatasetReason(liquidationHistory, "No decoded liquidation rows returned.")
+
+  useEffect(() => {
+    if (liquidationState === "ready") {
+      onSummary?.({ longNotional: longLiquidationNotional, shortNotional: shortLiquidationNotional })
+      return
+    }
+    onSummary?.({ longNotional: 0, shortNotional: 0 })
+  }, [liquidationState, longLiquidationNotional, onSummary, shortLiquidationNotional])
+
+  const totalValue = liquidationState === "ready" ? compactUsd(totalLiquidationNotional) : liquidationState === "loading" ? "LOADING" : "NO DATA"
+  const longValue = liquidationState === "ready" ? compactUsd(longLiquidationNotional) : liquidationState === "loading" ? "LOADING" : "NO DATA"
+  const shortValue = liquidationState === "ready" ? compactUsd(shortLiquidationNotional) : liquidationState === "loading" ? "LOADING" : "NO DATA"
+  const biasValue = liquidationState === "ready"
+    ? totalLiquidationNotional === 0
+      ? "NO DATA"
+      : longLiquidationNotional > shortLiquidationNotional
+        ? "LONG"
+        : shortLiquidationNotional > longLiquidationNotional
+          ? "SHORT"
+          : "BALANCED"
+    : liquidationState === "loading"
+      ? "LOADING"
+      : "NO DATA"
+
+  return (
+    <Card title="Selected Symbol Liquidations" icon={<AlertTriangle className="h-3.5 w-3.5" />}>
+      <div className="mb-2 grid gap-2 lg:grid-cols-[130px_1fr_96px_96px]">
+        <div className="rounded border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-black uppercase text-cyan-100">Binance Futures</div>
+        <input type="date" min="2025-07-01" value={liqDate} onChange={(event) => setLiqDate(event.target.value)} className="rounded border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-black uppercase text-white" />
+        <select value={liqHour} onChange={(event) => setLiqHour(event.target.value)} className="rounded border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-black uppercase text-white">
+          {Array.from({ length: 24 }, (_, index) => <option key={index} value={String(index)}>{String(index).padStart(2, "0")}:00</option>)}
+        </select>
+        <div className="rounded border border-zinc-900 bg-black/45 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{liquidationState === "loading" ? "Loading" : symbol}</div>
+      </div>
+      <div className="mb-2 grid grid-cols-4 gap-1.5">
+        <InlineStatus label="Total" value={totalValue} tone="amber" />
+        <InlineStatus label="Long" value={longValue} tone="green" />
+        <InlineStatus label="Short" value={shortValue} tone="red" />
+        <InlineStatus label="Bias" value={biasValue} tone="cyan" />
+      </div>
+      <div className="grid gap-1">
+        <div className="grid grid-cols-[72px_64px_1fr_80px_92px] rounded border border-zinc-900 bg-black/60 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+          <span>Time</span>
+          <span>Side</span>
+          <span>Price</span>
+          <span className="text-right">Size</span>
+          <span className="text-right">Notional</span>
+        </div>
+        {liquidationState === "ready" && recentSelectedLiquidations.map((liq, index) => (
+          <div key={`${liq.timestamp}-${index}`} className="grid grid-cols-[72px_64px_1fr_80px_92px] rounded border border-zinc-900 bg-black/35 px-2 py-1 text-[11px] font-bold">
+            <span className="text-zinc-500">{timeText(liq.timestamp)}</span>
+            <span className={liq.side.toLowerCase() === "long" ? "text-emerald-100" : "text-rose-100"}>{liq.side.toUpperCase()}</span>
+            <span className="text-zinc-300">{fmt(liq.price, 2)}</span>
+            <span className="text-right text-zinc-500">{fmt(liq.size, 4)}</span>
+            <span className="text-right text-zinc-400">{compactUsd(liq.notional)}</span>
+          </div>
+        ))}
+        {liquidationState === "loading" && (
+          <div className="rounded border border-zinc-900 bg-black/40 p-4 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">
+            Loading selected symbol liquidation history.
+          </div>
+        )}
+        {liquidationState === "idle" && (
+          <div className="rounded border border-zinc-900 bg-black/40 p-4 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">
+            Preparing liquidation history request.
+          </div>
+        )}
+        {(liquidationState === "unavailable" || liquidationState === "error" || liquidationState === "aborted") && (
+          <div className="rounded border border-zinc-900 bg-black/40 p-4 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">
+            Liquidation history unavailable for selected symbol/window.
+            <span className="mt-2 block text-[10px] text-zinc-700">{unavailableReason}</span>
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 export default function MarketsPage() {
+  const searchParams = useSearchParams()
   const [symbol, setSymbol] = useState("BTCUSDT")
   const [futures, setFutures] = useState<FuturesResponse | null>(null)
-  const [exchangeComparison, setExchangeComparison] = useState<ExchangeComparisonResponse | null>(null)
   const [ticker24h, setTicker24h] = useState<Ticker24h | null>(null)
   const [ticker24hReason, setTicker24hReason] = useState<string | null>(null)
   const [previousOi, setPreviousOi] = useState<Record<string, number>>({})
   const [advancedChartOpen, setAdvancedChartOpen] = useState(false)
-  const [liquidationMinNotional, setLiquidationMinNotional] = useState(() => {
-    if (typeof window === "undefined") return 0
-    const stored = Number(window.localStorage.getItem("qt.markets.liqFilter"))
-    return stored === 500 || stored === 1000 ? stored : 0
-  })
+  const [liquidationSummary, setLiquidationSummary] = useState({ longNotional: 0, shortNotional: 0 })
+  const [liquidationLoadState, setLiquidationLoadState] = useState<LiquidationLoadState>("idle")
   const tickers = useMarketStore((state) => state.tickers)
   const orderbook = useMarketStore((state) => state.orderbook)
+  const requestedSymbol = searchParams.get("symbol")?.toUpperCase().trim() || null
+  const signalSource = searchParams.get("source")
+  const signalSetup = searchParams.get("setup")
+  const signalDirection = searchParams.get("direction")
+  const signalConfidence = searchParams.get("confidence")
+  const signalReason = searchParams.get("reason")
+  const effectiveSource = signalSource ?? "default-market-view"
+  const hasSignalContext = Boolean(signalSource || signalSetup || signalDirection || signalConfidence || signalReason)
   const ticker = tickers[symbol]
   const candles = useKlineSocket(symbol, "1m")
   const { trades } = useTradeSocket(symbol)
-  const { liquidations } = useLiquidationSocket()
   const depthFrames = useDepthHeatmap(symbol)
 
   useMarketSocket()
   useOrderbookSocket(symbol)
+
+  useEffect(() => {
+    if (!requestedSymbol) return
+    setSymbol(requestedSymbol)
+  }, [requestedSymbol])
 
   useEffect(() => {
     let active = true
@@ -528,48 +621,22 @@ export default function MarketsPage() {
     }
   }, [])
 
-  useEffect(() => {
-    let active = true
-    async function loadExchangeComparison() {
-      try {
-        setExchangeComparison(null)
-        const response = await fetch(`/api/market/exchange-comparison?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" })
-        const payload = await response.json()
-        if (active) setExchangeComparison(payload)
-      } catch (error) {
-        if (active) {
-          setExchangeComparison({
-            ok: false,
-            symbol,
-            binance: { ok: false, source: "binance-futures", reason: "Exchange comparison request failed." },
-            bybit: { ok: false, source: "bybit-linear", reason: displayDataReason(error instanceof Error ? error.message : "Bybit comparison request failed.") },
-            fundingRelationship: "Unavailable",
-            openInterestRelationship: "Unavailable",
-          })
-        }
-      }
-    }
-    void loadExchangeComparison()
-    const timer = setInterval(loadExchangeComparison, 30000)
-    return () => {
-      active = false
-      clearInterval(timer)
-    }
-  }, [symbol])
-
   const futuresSymbol = futures?.symbols?.find((item) => item.symbol === symbol)
-  const binanceComparison = exchangeComparison?.binance?.ok ? exchangeComparison.binance : null
-  const liveFundingRate = futuresSymbol?.fundingRate ?? binanceComparison?.fundingRate ?? null
-  const liveOiNotional = futuresSymbol?.oiNotional ?? binanceComparison?.oiNotional ?? null
-  const liveOiReason = futuresSymbol || binanceComparison ? "Binance futures" : missingFuturesReason(symbol, futures)
-  const longLiquidationNotional = liquidations.filter((item) => item.side === "LONG").reduce((sum, item) => sum + item.value, 0)
-  const shortLiquidationNotional = liquidations.filter((item) => item.side === "SHORT").reduce((sum, item) => sum + item.value, 0)
+  const liveFundingRate = futuresSymbol?.fundingRate ?? null
+  const liveOiNotional = futuresSymbol?.oiNotional ?? null
+  const liveOiReason = futuresSymbol ? "Binance futures" : missingFuturesReason(symbol, futures)
+
+  useEffect(() => {
+    console.debug("Markets futures trace", {
+      selectedSymbol: symbol,
+      requestSymbol: requestedSymbol ?? "BTCUSDT",
+      responseSymbol: futuresSymbol?.symbol ?? null,
+      responseSymbolCount: futures?.symbols?.length ?? 0,
+    })
+  }, [futures?.symbols, futuresSymbol?.symbol, requestedSymbol, symbol])
   const buyVolume = trades.filter((trade) => trade.side === "buy").reduce((sum, trade) => sum + trade.qty, 0)
   const sellVolume = trades.filter((trade) => trade.side === "sell").reduce((sum, trade) => sum + trade.qty, 0)
   const cvd = buyVolume - sellVolume
-  const visibleLiquidations = liquidationMinNotional > 0
-    ? liquidations.filter((item) => item.value >= liquidationMinNotional)
-    : liquidations
   const sourceStatus = useMemo(() => {
     const parts = [
       ticker ? "Binance Ticker Live" : "Binance Ticker No Data",
@@ -593,13 +660,7 @@ export default function MarketsPage() {
         : currentOi > previousSymbolOi
           ? { label: "Increasing", reason: "Open interest rising this session" }
           : { label: "Decreasing", reason: "Open interest falling this session" }
-  const liquidationRead = longLiquidationNotional + shortLiquidationNotional === 0
-    ? "NO DATA"
-    : longLiquidationNotional > shortLiquidationNotional * 1.15
-      ? "Longs Hit"
-      : shortLiquidationNotional > longLiquidationNotional * 1.15
-        ? "Shorts Hit"
-        : "Balanced"
+  const liquidationRead: string = "NO DATA"
   const structureRead = marketStructureLabel(ticker?.change24h, cvd, liveFundingRate)
   const hasStructureInputs = Boolean(ticker && trades.length && liveFundingRate !== null)
   const structureValue = hasStructureInputs ? structureRead : "INSUFFICIENT DATA"
@@ -610,31 +671,32 @@ export default function MarketsPage() {
     setPreviousOi((prev) => prev[symbol] === undefined ? { ...prev, [symbol]: currentOi } : prev)
   }, [currentOi, symbol])
 
-  useEffect(() => {
-    window.localStorage.setItem("qt.markets.liqFilter", String(liquidationMinNotional))
-  }, [liquidationMinNotional])
-
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3">
         <Card title="Markets" icon={<RadioTower className="h-3.5 w-3.5" />}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              {SYMBOLS.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setSymbol(item)}
-                  className={cn(
-                    "rounded-lg border px-3 py-2 text-xs font-black uppercase tracking-[0.12em]",
-                    item === symbol ? "border-cyan-300/45 bg-cyan-400/10 text-cyan-100" : "border-zinc-900 bg-black/45 text-zinc-500 hover:border-zinc-700 hover:text-zinc-200",
-                  )}
-                >
-                  {item}
-                </button>
-              ))}
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-3xl font-black leading-none text-white">{symbol}</div>
+                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                    {hasSignalContext ? `Inspecting ${effectiveSource.replaceAll("-", " ")}` : "Live Market View"}
+                  </div>
+                </div>
+                <div className="text-right text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{sourceStatus}</div>
+              </div>
+              {hasSignalContext ? (
+                <div className="mt-3 grid gap-1.5 md:grid-cols-4">
+                  <InlineStatus label="Setup" value={signalSetup ?? "NO DATA"} tone="cyan" />
+                  <InlineStatus label="Direction" value={signalDirection ?? "NO DATA"} tone={signalDirection?.toLowerCase().includes("down") ? "red" : signalDirection?.toLowerCase().includes("up") ? "green" : "amber"} />
+                  <InlineStatus label="Confidence" value={signalConfidence ?? "NO DATA"} tone="amber" />
+                  <InlineStatus label="Reason" value={signalReason ?? "NO DATA"} />
+                </div>
+              ) : (
+                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">No signal selected. Showing default active market state.</div>
+              )}
             </div>
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{sourceStatus}</div>
           </div>
         </Card>
 
@@ -644,32 +706,9 @@ export default function MarketsPage() {
             <MetricCard label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
             <MetricCard label="Funding" value={liveFundingRate !== null ? pct(liveFundingRate * 100, 4) : "NO DATA"} sub={liveFundingRate !== null ? "8h estimate" : displayDataReason(liveOiReason)} tone="amber" />
             <MetricCard label="Open Int." value={compactUsd(liveOiNotional)} sub={liveOiNotional !== null ? "Binance futures" : displayDataReason(liveOiReason)} tone="cyan" />
-            <LiquidationBiasCard longNotional={longLiquidationNotional} shortNotional={shortLiquidationNotional} />
+            <LiquidationBiasCard longNotional={liquidationSummary.longNotional} shortNotional={liquidationSummary.shortNotional} state={liquidationLoadState} />
             <MetricCard label="24h Range" value={rangeValue} sub={rangeValue === "NO DATA" ? displayDataReason(ticker24hReason ?? "Binance 24h range unavailable") : "High / Low"} tone="cyan" size="md" />
           </div>
-        </Card>
-
-        <Card title="Exchange Comparison" icon={<TrendingUp className="h-3.5 w-3.5" />}>
-          <ExchangeComparisonGrid
-            binance={exchangeComparison?.binance ?? (futuresSymbol ? {
-              ok: true,
-              source: "binance-futures",
-              fundingRate: futuresSymbol.fundingRate,
-              openInterest: futuresSymbol.openInterest,
-              oiNotional: futuresSymbol.oiNotional,
-            } : {
-              ok: false,
-              source: "binance-futures",
-              reason: missingFuturesReason(symbol, futures),
-            })}
-            bybit={exchangeComparison?.bybit ?? {
-              ok: false,
-              source: "bybit-linear",
-              reason: "Bybit public API has not responded yet.",
-            }}
-            fundingRelationship={exchangeComparison?.fundingRelationship}
-            openInterestRelationship={exchangeComparison?.openInterestRelationship}
-          />
         </Card>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
@@ -701,39 +740,7 @@ export default function MarketsPage() {
             </div>
           </Card>
 
-          <Card title="Market-Wide Liquidation Feed" icon={<AlertTriangle className="h-3.5 w-3.5" />}>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">
-              <span>Shows latest liquidation events across tracked symbols. Bybit liquidation: NO DATA / not connected in this pass.</span>
-              <div className="flex items-center gap-1">
-                <span>Hide below</span>
-                {[0, 500, 1000].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setLiquidationMinNotional(value)}
-                    className={cn(
-                      "rounded border px-2 py-1 text-[9px] font-black uppercase",
-                      liquidationMinNotional === value ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-100" : "border-zinc-900 bg-black/40 text-zinc-500",
-                    )}
-                  >
-                    {value === 0 ? "Off" : compactUsd(value)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-1">
-              {visibleLiquidations.slice(0, 14).map((liq, index) => (
-                <div key={`${liq.time}-${liq.symbol}-${index}`} className="grid grid-cols-[72px_78px_64px_1fr_92px] rounded border border-zinc-900 bg-black/35 px-2 py-1 text-[11px] font-bold">
-                  <span className="text-zinc-500">{timeLabel(liq.time)}</span>
-                  <span className="text-cyan-100">BINANCE</span>
-                  <span className={liq.side === "LONG" ? "text-rose-100" : "text-emerald-100"}>{liq.side}</span>
-                  <span className="text-zinc-300">{liq.symbol}</span>
-                  <span className="text-right text-zinc-400">{compactUsd(liq.value)}</span>
-                </div>
-              ))}
-              {!visibleLiquidations.length && <div className="rounded border border-zinc-900 bg-black/40 p-6 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">{liquidations.length ? "NO EVENTS ABOVE FILTER" : "NO LIQUIDATION DATA"}</div>}
-            </div>
-          </Card>
+          <SelectedSymbolLiquidations symbol={symbol} onSummary={setLiquidationSummary} onStateChange={setLiquidationLoadState} />
         </div>
 
         <div className="grid gap-3">

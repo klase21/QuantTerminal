@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { Activity, History, RadioTower, Save, Trash2, Zap } from "lucide-react"
 
@@ -15,6 +17,7 @@ import type { MarketMoverCandidate } from "@/lib/market-movers/types"
 const STORAGE_KEY = "qt.trade.setupMemory.v2"
 
 type SetupStatus = "Watching" | "Active" | "Won" | "Lost" | "Expired"
+type CandidateListState = "loading" | "empty" | "ready"
 
 type FuturesSymbol = {
   symbol: string
@@ -363,19 +366,34 @@ function selectedCandidateFrom(input: {
 }
 
 export default function TradePage() {
+  const searchParams = useSearchParams()
+  const requestedSymbol = searchParams.get("symbol")?.toUpperCase() ?? null
   const [futures, setFutures] = useState<FuturesResponse | null>(null)
   const [historicalAnalog, setHistoricalAnalog] = useState<HistoricalAnalogResponse | null>(null)
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(requestedSymbol)
   const [savedSetups, setSavedSetups] = useState<SavedSetup[]>([])
+  const [stableCandidates, setStableCandidates] = useState<MarketMoverCandidate[]>([])
+  const [stableFocusCandidate, setStableFocusCandidate] = useState<MarketMoverCandidate | null>(null)
   const moverState = useMarketMovers(true, selectedSymbol)
   const marketMovers = moverState.data
 
   const tickers = useMarketStore((state) => state.tickers)
   const orderbook = useMarketStore((state) => state.orderbook)
-  const candidates = useMemo(() => (marketMovers?.candidates ?? []).slice(0, 10), [marketMovers])
+  const liveCandidates = useMemo(() => (marketMovers?.candidates ?? []).slice(0, 10), [marketMovers])
+  useEffect(() => {
+    if (liveCandidates.length > 0) setStableCandidates(liveCandidates)
+    if (marketMovers?.focusCandidate) setStableFocusCandidate(marketMovers.focusCandidate)
+  }, [liveCandidates, marketMovers?.focusCandidate])
+  const candidates = stableCandidates
   const activeSetups = useActiveSetupMemory(candidates)
   const liveTrackedSetups = useMemo(() => activeSetups.filter((setup) => !isClosedMemorySetup(setup)), [activeSetups])
-  const selected = selectedCandidateFrom({ focusCandidate: marketMovers?.focusCandidate, candidates, activeSetups, selectedId: selectedSymbol })
+  const focusCandidate = marketMovers?.focusCandidate ?? stableFocusCandidate
+  const candidateListState: CandidateListState = candidates.length > 0
+    ? "ready"
+    : moverState.loading
+      ? "loading"
+      : "empty"
+  const selected = selectedCandidateFrom({ focusCandidate, candidates, activeSetups, selectedId: selectedSymbol })
   const activeSymbol = selected?.symbol ?? "BTCUSDT"
   const ticker = tickers[activeSymbol]
   const futuresSymbol = futures?.symbols?.find((item) => item.symbol === activeSymbol)
@@ -414,10 +432,25 @@ export default function TradePage() {
   }, [])
 
   useEffect(() => {
-    if (!selectedSymbol && (candidates[0]?.symbol || marketMovers?.focusCandidate?.symbol || liveTrackedSetups[0]?.symbol)) {
-      setSelectedSymbol(candidates[0]?.symbol ?? marketMovers?.focusCandidate?.symbol ?? liveTrackedSetups[0]?.symbol ?? null)
+    if (requestedSymbol && selectedSymbol !== requestedSymbol) {
+      setSelectedSymbol(requestedSymbol)
+      return
     }
-  }, [candidates, liveTrackedSetups, marketMovers?.focusCandidate?.symbol, selectedSymbol])
+    if (!selectedSymbol && (candidates[0]?.symbol || focusCandidate?.symbol || liveTrackedSetups[0]?.symbol)) {
+      setSelectedSymbol(candidates[0]?.symbol ?? focusCandidate?.symbol ?? liveTrackedSetups[0]?.symbol ?? null)
+    }
+  }, [candidates, liveTrackedSetups, focusCandidate?.symbol, requestedSymbol, selectedSymbol])
+
+  useEffect(() => {
+    console.debug("Trade candidate trace", {
+      requestedSymbol,
+      selectedSymbol,
+      liveCandidates: liveCandidates.length,
+      cachedCandidates: stableCandidates.length,
+      focusCandidate: focusCandidate?.symbol ?? null,
+      candidateListState,
+    })
+  }, [candidateListState, focusCandidate?.symbol, liveCandidates.length, requestedSymbol, selectedSymbol, stableCandidates.length])
 
   useEffect(() => {
     let active = true
@@ -518,12 +551,30 @@ export default function TradePage() {
   const deleteSetup = (id: string) => {
     persistSetups(savedSetups.filter((setup) => setup.id !== id))
   }
+  const replayHref = selected
+    ? `/replay?symbol=${encodeURIComponent(selected.symbol)}${historicalAnalog?.match?.date ? `&case=${encodeURIComponent(historicalAnalog.match.date)}` : ""}`
+    : "/replay"
+  const marketHref = selected
+    ? `/markets?${new URLSearchParams({
+      symbol: selected.symbol,
+      source: "trade",
+      setup: setupLabel(selected),
+      direction: directionLabel(selected),
+      confidence: confidenceLabel(selected),
+      reason: evidence[0]?.detail ?? evidence[0]?.title ?? "Selected trade setup",
+    }).toString()}`
+    : "/markets"
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3">
         <Card title="Active Trade Candidates" icon={<Zap className="h-3.5 w-3.5" />}>
-          {candidates.length === 0 && liveTrackedSetups.length === 0 ? (
+          {candidateListState === "loading" && liveTrackedSetups.length === 0 ? (
+            <EmptyState
+              title="Loading Trade Candidates"
+              reason="Keeping the workspace stable while tactical alerts refresh."
+            />
+          ) : candidateListState === "empty" && liveTrackedSetups.length === 0 ? (
             <EmptyState
               title="No Active Trade Candidates"
               reason={marketMovers?.notes?.[0] ?? moverState.error ?? "No tactical alerts currently meet quality threshold."}
@@ -611,7 +662,12 @@ export default function TradePage() {
                       <div className="text-2xl font-black leading-none text-white">{selected.symbol}</div>
                       <div className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-cyan-100">{setupLabel(selected)}</div>
                     </div>
-                    <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-200">{directionLabel(selected)}</span>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-200">{directionLabel(selected)}</span>
+                      <Link href={marketHref} className="rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:border-cyan-200/60">
+                        Inspect Market
+                      </Link>
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1 text-[9px] font-black uppercase tracking-[0.1em]">
                     <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-emerald-100">{confidenceLabel(selected)}</span>
@@ -720,10 +776,12 @@ export default function TradePage() {
           <Card title="Similar Past Setup / Recent Outcomes" icon={<History className="h-3.5 w-3.5" />}>
             <div className="grid gap-2">
               {historicalAnalog?.status !== "available" || !historicalAnalog.match ? (
-                <EmptyState
-                  title="No Verified Similar Setup"
-                  reason={historicalAnalog?.reason ?? historicalAnalog?.message ?? "Historical analog is unavailable or still verifying."}
-                />
+                <div className="grid gap-2">
+                  <EmptyState
+                    title="No Verified Similar Setup"
+                    reason={historicalAnalog?.reason ?? historicalAnalog?.message ?? "Historical analog is unavailable or still verifying."}
+                  />
+                </div>
               ) : (
                 <div className="grid gap-2">
                   <div className="rounded border border-zinc-900 bg-black/45 p-2">
@@ -740,6 +798,12 @@ export default function TradePage() {
                     Source: {historicalAnalog.sourceSymbol ?? historicalAnalog.match.symbol ?? selected?.symbol ?? "NO DATA"}
                     {historicalAnalog.benchmarkReason ? <span className="block text-amber-100/80">{historicalAnalog.benchmarkReason}</span> : null}
                   </div>
+                  <Link
+                    href={replayHref}
+                    className="rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60"
+                  >
+                    Open Case
+                  </Link>
                 </div>
               )}
               <div className="border-t border-zinc-900 pt-2">

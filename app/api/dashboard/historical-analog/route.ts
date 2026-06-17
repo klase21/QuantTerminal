@@ -14,10 +14,11 @@ import { filterHistoricalAnalogCandidates, findSimilarDashboardMarketStates, fin
 import { buildHistoricalAnalogRecord, buildVerdictRecords, calculateVerdictAccuracy } from "@/lib/historical-analog/verdictTracking"
 import { aggregateMarketMemory } from "@/lib/market-memory/aggregateMarketMemory"
 import { enrichWeakDashboardSnapshot } from "@/lib/market-memory/currentStateEnrichment"
-import type { DashboardHistoricalAnalogResponse, HistoricalInterval, HistoricalMarketSnapshot, VerdictAccuracyStats } from "@/types/historical"
+import type { DashboardHistoricalAnalogResponse, HistoricalAnalogSource, HistoricalInterval, HistoricalMarketSnapshot, VerdictAccuracyStats } from "@/types/historical"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
+const CRYPTOHFTDATA_COVERAGE_START = "2025-07-01"
 
 function dateFromTimestamp(value: number) {
   return new Date(value).toISOString().slice(0, 10)
@@ -33,6 +34,10 @@ function timestampFromSnapshot(value: number | string) {
   if (typeof value === "number") return value
   const timestamp = new Date(value).getTime()
   return Number.isFinite(timestamp) ? timestamp : null
+}
+
+function isCryptoHftDataReplayWindow(value: number | string) {
+  return dateFromSnapshot(value) >= CRYPTOHFTDATA_COVERAGE_START
 }
 
 function daysAgoFromSnapshot(value: number | string) {
@@ -181,7 +186,7 @@ function resolveSourceSymbol(requestedSymbol: string, counts: Map<string, number
 async function persistAnalogVerdict(input: {
   currentSnapshot: Awaited<ReturnType<typeof enrichWeakDashboardSnapshot>>
   interval: HistoricalInterval
-  source: "binance-vision" | "local-market-ohlcv-db" | "market-memory-snapshots"
+  source: HistoricalAnalogSource
   queryPath: string
   match: HistoricalMarketSnapshot | null
   matchedConditions: string[]
@@ -249,11 +254,28 @@ export async function GET(req: Request) {
       ...buildCurrentMarketState(enrichedSnapshot),
       symbol: sourceSymbol,
     }
-    const historicalSnapshots = allHistoricalSnapshots
+    const historicalSnapshots = allHistoricalSnapshots.filter((snapshot) => isCryptoHftDataReplayWindow(snapshot.timestamp))
     const filteredHistoricalSnapshots = filterHistoricalAnalogCandidates(historicalSnapshots)
     const range = timestampRange(filteredHistoricalSnapshots.map((snapshot) => snapshot.timestamp))
     const oldestCandidateSearched = range.oldest
     const newestCandidateSearched = range.newest
+    if (!filteredHistoricalSnapshots.length) {
+      return NextResponse.json({
+        status: "unavailable",
+        message: "NO VERIFIED REPLAY CASE",
+        reason: "No CryptoHFTData-compatible historical analog found.",
+        source: "cryptohftdata-compatible-replay-window",
+        requestedSymbol,
+        sourceSymbol,
+        benchmarkUsed: sourceSymbol !== requestedSymbol ? sourceSymbol : undefined,
+        benchmarkReason,
+        recordCountSearched: 0,
+        exclusionWindowDays: 30,
+        oldestCandidateSearched,
+        newestCandidateSearched,
+        currentDirection: current.direction,
+      } satisfies DashboardHistoricalAnalogResponse)
+    }
     const marketOutcomes = await listMarketOutcomes(interval)
     const aggregation = aggregateMarketMemory(current, filteredHistoricalSnapshots, marketOutcomes)
     const stats = aggregation.stats ? {
@@ -263,7 +285,7 @@ export async function GET(req: Request) {
       successRate: aggregation.stats.successRate7d,
       dominantOutcome: aggregation.stats.dominantOutcome,
     } : undefined
-    const historicalResult = findSimilarMarketStates(current, historicalSnapshots)
+    const historicalResult = findSimilarMarketStates(current, filteredHistoricalSnapshots)
     const memorySnapshots = await listDashboardSnapshots(sourceSymbol)
     const memoryResult = findSimilarDashboardMarketStates(current, memorySnapshots, enrichedSnapshot.id)
     const [memoryMatch, ...memoryAlternatives] = memoryResult.matches
@@ -274,11 +296,11 @@ export async function GET(req: Request) {
     const accuracyStats = await persistAnalogVerdict({
       currentSnapshot: enrichedSnapshot,
       interval,
-      source: historicalVerdictSnapshot ? "binance-vision" : "local-market-ohlcv-db",
-      queryPath: "market_ohlcv -> historical_market_snapshots -> verdict_tracking",
+      source: "cryptohftdata-compatible-replay-window",
+      queryPath: "historical_market_snapshots filtered to CryptoHFTData coverage -> verdict_tracking",
       match: historicalVerdictSnapshot,
       matchedConditions: historicalVerdictMatch?.matchedConditions ?? [],
-      historicalSnapshots,
+      historicalSnapshots: filteredHistoricalSnapshots,
     })
 
     if (aggregation.status !== "available") {
@@ -288,9 +310,9 @@ export async function GET(req: Request) {
         : aggregation.reason
       return NextResponse.json(withAccuracy({
         status: "unavailable",
-        message: "NO VERIFIED MEMORY",
+        message: "NO VERIFIED REPLAY CASE",
         reason: minimumReason ?? currentSnapshotReason ?? benchmarkReason,
-        source: "local-market-ohlcv-db",
+        source: "cryptohftdata-compatible-replay-window",
         requestedSymbol,
         sourceSymbol,
         benchmarkUsed: sourceSymbol !== requestedSymbol ? sourceSymbol : undefined,
@@ -346,9 +368,9 @@ export async function GET(req: Request) {
     if (!match) {
       return NextResponse.json(withAccuracy({
         status: "unavailable",
-        message: "NO VERIFIED MEMORY",
+        message: "NO VERIFIED REPLAY CASE",
         reason: aggregation.reason ?? memoryResult.reason ?? historicalResult.reason ?? currentSnapshotReason ?? benchmarkReason,
-        source: "local-market-ohlcv-db",
+        source: "cryptohftdata-compatible-replay-window",
         requestedSymbol,
         sourceSymbol,
         benchmarkUsed: sourceSymbol !== requestedSymbol ? sourceSymbol : undefined,
@@ -362,8 +384,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json(withAccuracy({
       status: "available",
-      source: "binance-vision",
-      queryPath: "market_ohlcv -> historical_market_snapshots -> rule_based_similarity",
+      source: "cryptohftdata-compatible-replay-window",
+      queryPath: "historical_market_snapshots filtered to CryptoHFTData coverage -> rule_based_similarity",
       requestedSymbol,
       sourceSymbol,
       benchmarkUsed: sourceSymbol !== requestedSymbol ? sourceSymbol : undefined,
