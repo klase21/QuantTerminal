@@ -1,130 +1,398 @@
-# QuantTerminal Agent Instructions
+# QuantTerminal AI Agent Guide
 
-## Project Identity
+IMPORTANT:
 
-QuantTerminal is a Tactical Decision OS and Market Intelligence Replay Platform for crypto markets.
+This repository contains AI agent instructions.
 
-The system should reduce decision fatigue and improve tactical decision-making. Prefer features that help users understand what matters now, why it matters, and how it may affect execution.
+Failure to follow AGENTS.md is considered a bug.
 
-## Project Direction
+---
 
-QuantTerminal is evolving into:
+# Before Making Any Changes
 
-- Realtime Tactical Decision OS
-- Market Intelligence Replay Platform
-- Historical Intelligence / Market Memory System
+Required Reading:
 
-Core product direction:
+* AGENTS.md
+* .skills/quantterminal-rules.md
+* Relevant files in .skills/
+* docs/decisions/
+* docs/investigations/
 
-- Macro -> Narrative -> Execution
-- Event Intelligence
-- Prediction Market Expectation Layer
-- Market Replay / Market Forensics
-- Setup Outcome Memory
+Before work:
 
-## Core Intelligence Layers
+1. Read AGENTS.md
+2. Read relevant skill files
+3. Review architecture decisions if changing behavior
+4. Review investigations if touching Replay or historical systems
 
-- Realtime Market Intelligence
-- Historical Intelligence
-- Event Memory
-- Replay Engine
-- Narrative vs Reality
-- Prediction Market Expectation Layer
-- Similar Historical Events
-- Setup Outcome Memory
+---
 
-## Replay Principles
+# Core Principles
 
-Replay is not just chart replay. `ReplayCase` is an event investigation.
+## Real Data Only
 
-Each `ReplayCase` should answer:
+* Never introduce mock data.
+* Never fabricate metrics.
+* If data is unavailable, show:
 
-- What happened?
-- What did people believe at the time?
-- What did prediction markets / expectations imply?
-- What actually happened?
-- Which drivers mattered?
-- Which narratives were unsupported?
-- What can be learned for future setups?
+  * NO DATA
+  * UNAVAILABLE
+  * explicit reason
 
-Keep Replay / Market Forensics compact, evidence-driven, and useful for tactical review.
+Correct:
 
-## Current Historical Intelligence Architecture
-
-The project now includes:
-
-- `core/replay`
-- `core/historical-intelligence`
-- mock Historical Intelligence repository
-- read-only `/api/replay`
-- `/replay` Market Forensics workspace
-
-Keep `/replay` mock-first until a task explicitly asks to connect real historical data or database-backed repositories.
-
-## Protected Architecture
-
-Do not change unless explicitly requested:
-
-- websocket/API endpoints
-- futures depth/orderbook implementation
-- orderbook/trade/liquidation sockets
-- `lib/websocket`
-- existing working dashboard routes
-- `ReplayCase` canonical model without a migration plan
-
-Do not remove existing working features.
-
-## Non-Negotiable Rules
-
-- Do not change websocket or API endpoints unless explicitly requested.
-- Do not change the current futures depth/orderbook implementation.
-- Do not create extra Markdown files except `README.md`, `AGENTS.md`, and required GitHub templates.
-- Do not remove existing working features.
-- Do not add noisy dashboard panels unless they improve tactical decision-making.
-- Preserve the premium dark fintech UI.
-- Prefer compact, high-density dashboard UX.
-
-## Product And UX Guidance
-
-- Optimize for tactical clarity over raw information volume.
-- Favor verdict-first, execution-aware workflows.
-- Keep dashboard surfaces dense, scannable, and calm.
-- New UI should feel like a professional trading terminal, not a marketing page.
-- Avoid decorative or low-signal panels. Every visible element should help explain market state, event context, narrative pressure, replay/forensics, execution risk, or historical memory.
-- Preserve existing working behavior unless the user directly asks for a change.
-
-## Engineering Guidance
-
-- This is a Next.js application. Use the existing structure, styling patterns, and component conventions.
-- Keep changes scoped to the user request.
-- Do not modify application logic when the task is documentation-only.
-- Treat market data, event intelligence, prediction expectations, replay state, and outcome memory as separate concerns unless the existing codebase already connects them.
-- Be especially careful around realtime data, websocket clients, API routes, futures depth, and orderbook code.
-- Keep mock-first Historical Intelligence work behind repository or adapter boundaries so later database-backed implementations can replace mocks without changing UI models.
-
-## Validation Policy
-
-Default for Codex tasks:
-
-```bash
-npx.cmd tsc --noEmit --pretty false --incremental false
+```text
+NO DATA
+Historical coverage unavailable
 ```
 
-Do not run `npm run build` by default in Codex because Codex build can timeout. The developer will run local final build validation before commit/merge.
+Incorrect:
 
-Only run `npm run build` when explicitly requested or when modifying:
+```text
+Bullish Score: 78
+```
 
-- `package.json`
-- `package-lock.json`
-- `next.config.js`
-- app route architecture
-- build tooling
-- dependency setup
+when no real data exists.
 
-## Documentation Rule
+---
 
-Do not create extra `.md` files except:
+## Responsiveness First
 
-- `README.md`
-- `AGENTS.md`
-- required GitHub templates
+Prefer:
+
+* responsiveness
+* graceful degradation
+* cached data
+
+Over:
+
+* blocking UI
+* long page loads
+* expensive synchronous processing
+
+Rule:
+
+Responsiveness > Completeness
+
+---
+
+## Build Rules
+
+Never run:
+
+```bash
+npm run build
+```
+
+Allowed:
+
+```bash
+npx tsc --noEmit
+```
+
+TypeScript validation only unless explicitly requested.
+
+---
+
+## Minimal Changes
+
+Prefer:
+
+* targeted fixes
+* minimal code changes
+
+Avoid:
+
+* unrelated refactors
+* architecture rewrites
+* broad cleanup work
+
+unless explicitly requested.
+
+---
+
+# Product Context
+
+QuantTerminal is a real-time crypto market intelligence platform.
+
+Primary Navigation:
+
+* Dashboard
+* Markets
+* Research
+* Replay
+* Scanner
+* Trade
+
+---
+
+# Page Responsibilities
+
+## Dashboard
+
+Purpose:
+
+Fast market summary.
+
+Priority order:
+
+1. Market Direction
+2. Why
+3. Prediction Markets
+4. Tactical Alerts
+
+Rules:
+
+* Conclusion ¡æ Reasons ¡æ Evidence
+* Keep lightweight
+* Never block page load
+
+Historical workflows do NOT belong here.
+
+---
+
+## Markets
+
+Purpose:
+
+Real-time trading intelligence.
+
+Examples:
+
+* Orderflow
+* OI
+* Funding
+* Futures intelligence
+* Market structure
+
+Rules:
+
+* Real-time first
+* No historical-heavy processing
+
+---
+
+## Research
+
+Purpose:
+
+Deep research workflows.
+
+Contains:
+
+* Narrative Intelligence
+* Information Flow
+* Prediction Markets
+* Historical systems
+
+Rules:
+
+* Historical systems are manual-load only
+* Auto polling should remain disabled
+
+Enabled:
+
+* Narratives
+* Prediction Markets
+* Information Flow
+
+Disabled:
+
+* Auto Historical Analog polling
+* Auto Market Memory polling
+
+---
+
+## Replay
+
+Purpose:
+
+Historical event replay.
+
+Priority:
+
+1. Chart
+2. Liquidations
+3. OI
+4. Funding
+5. Orderbook
+
+Rules:
+
+* Replay must remain responsive
+* Heavy datasets are optional
+* Failure must be graceful
+* Orderbook must never block Replay
+
+Allowed:
+
+* Binance fallback for OI/Funding
+
+---
+
+## Scanner
+
+Purpose:
+
+Opportunity discovery.
+
+Rules:
+
+* Fast loading
+* Lightweight analytics
+
+---
+
+## Trade
+
+Purpose:
+
+Execution planning.
+
+Rules:
+
+* Selected candidate drives execution plan
+* Trade candidate selection should remain stable
+
+---
+
+# Architecture Decisions
+
+## Dashboard Historical Analog
+
+Status:
+
+Removed intentionally.
+
+Reason:
+
+* Reduced load
+* Faster startup
+* Better user experience
+
+Do NOT restore Historical Analog to Dashboard.
+
+Historical workflows belong in:
+
+* Replay
+* Research
+
+Reference:
+
+docs/decisions/ADR-001-dashboard-historical-analog.md
+
+---
+
+## Replay Orderbook
+
+Status:
+
+Partially disabled.
+
+Known facts:
+
+* CryptoHFTData provider works
+* Download works
+* Decode works
+
+CryptoHFTData uses:
+
+CommonOrderbookEvent
+
+Orderbook files contain:
+
+* snapshot events
+* update events
+
+Example investigation:
+
+~4.19M rows for one hour of BTCUSDT orderbook data.
+
+Current issue:
+
+Full snapshot/update replay exceeds request runtime budget.
+
+Current behavior:
+
+Orderbook may display:
+
+```text
+Orderbook reconstruction requires full snapshot/update replay and exceeded runtime budget.
+```
+
+This is expected behavior.
+
+Do NOT re-enable expensive reconstruction inside request handlers.
+
+Future solution:
+
+* Background worker
+* Cached snapshots
+* Precomputed book state
+
+Reference:
+
+* docs/investigations/replay-orderbook-2026-06.md
+* docs/decisions/ADR-002-orderbook-runtime-budget.md
+
+---
+
+# Protected Systems
+
+Do not modify without explicit request.
+
+Protected areas:
+
+* websocket
+* realtime market infrastructure
+* replay ingestion
+* information intelligence core
+
+Extra caution:
+
+* orderbook infrastructure
+* historical replay pipeline
+* data ingestion systems
+
+---
+
+# Failure Handling
+
+Prefer:
+
+* graceful unavailable state
+* clear diagnostics
+* fallback behavior
+
+Avoid:
+
+* crashes
+* blocking UI
+* infinite loading
+* fake data
+
+Correct:
+
+```text
+UNAVAILABLE
+Reason: Historical data coverage missing
+```
+
+Incorrect:
+
+```text
+Loading forever...
+```
+
+---
+
+# When Uncertain
+
+Follow this order:
+
+1. Preserve responsiveness
+2. Preserve architecture decisions
+3. Preserve existing behavior
+4. Prefer unavailable state over incorrect data
+5. Prefer minimal changes over refactors
+6. Ask for clarification if uncertainty is high
