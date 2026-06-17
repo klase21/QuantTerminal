@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
   Activity,
   AlertTriangle,
@@ -9,7 +9,6 @@ import {
   Database,
   Droplets,
   Gauge,
-  History,
   Info,
   LineChart,
   Newspaper,
@@ -19,7 +18,6 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react"
-import type { DashboardHistoricalAnalogResponse, MarketStateDirection, PredictionBias } from "@/types/historical"
 
 type Bias = "Bullish" | "Bearish" | "Neutral"
 
@@ -193,8 +191,6 @@ type EtfFlowResponse = {
     staleReason?: string
   }>
 }
-
-type HistoricalAnalogState = DashboardHistoricalAnalogResponse | null
 
 const DASHBOARD_CACHE_KEY = "qt.dashboard.v1.cache"
 
@@ -695,127 +691,6 @@ function buildInformationFlow(macro?: MacroResponse | null, narratives?: Narrati
   return [...macroItems, ...narrativeItems]
 }
 
-function driverKey(cause: CauseTag): string | null {
-  const text = cause.label.toLowerCase()
-  if (text.includes("buying")) return "buying_pressure"
-  if (text.includes("selling")) return "selling_pressure"
-  if (text.includes("sector rotation")) return "sector_rotation"
-  if (text.includes("leverage")) return "leverage_risk"
-  if (text.includes("dollar strength")) return "dollar_strength"
-  if (text.includes("dollar weakness")) return "dollar_weakness"
-  if (text.includes("risk-off")) return "risk_off"
-  if (text.includes("risk-on")) return "risk_on"
-  if (text.includes("narrative")) return "narrative_heat"
-  if (text.includes("etf")) return "etf_narrative"
-  return null
-}
-
-function narrativeKey(value: string) {
-  const normalized = value.toLowerCase()
-  if (normalized.includes("bitcoin") || normalized === "btc") return "bitcoin"
-  if (normalized.includes("ethereum") || normalized === "eth") return "ethereum"
-  if (normalized.includes("solana") || normalized === "sol") return "solana"
-  if (normalized.includes("etf")) return "etf"
-  if (normalized.includes("ai")) return "ai"
-  if (normalized.includes("regulation")) return "regulation"
-  if (normalized.includes("macro")) return "macro"
-  return normalized.replace(/\s+/g, "_")
-}
-
-function snapshotDirection(mover?: MarketMoverCandidate) {
-  return marketStateFromScore(mover).toLowerCase() as MarketStateDirection
-}
-
-function snapshotLiquidity(futures: FuturesIntelligenceResponse | null) {
-  const condition = liquidityCondition(futures)
-  if (!condition) return "unknown"
-  if (condition.label.includes("Improving")) return "improving"
-  if (condition.label.includes("Weakening")) return "weakening"
-  return "stable"
-}
-
-function snapshotEtfFlow(etfFlow: EtfFlowResponse | null) {
-  const flows = etfFlow?.flows ?? []
-  if (!flows.length) return "unknown"
-  const net = flows.reduce((total, flow) => total + flow.netFlow, 0)
-  if (net > 0) return "positive"
-  if (net < 0) return "negative"
-  return "neutral"
-}
-
-function snapshotPredictionBias(predictionMarkets: PredictionMarketsResponse | null): PredictionBias {
-  const events = predictionMarkets?.marketEvents?.filter((event) => isRelevantPredictionMarket(event.title)) ?? []
-  if (!events.length) return "unknown"
-  const average = events.reduce((total, event) => total + event.probability, 0) / events.length
-  if (average >= 55) return "bullish"
-  if (average <= 45) return "bearish"
-  return "neutral"
-}
-
-function snapshotNarrativeHeat(items: NarrativeHeatItem[]) {
-  const top = items[0]
-  if (!top) return "unknown"
-  if (top.state === "Very Hot") return "very_hot"
-  if (top.state === "Hot") return "hot"
-  if (top.state === "Neutral") return "neutral"
-  return "quiet"
-}
-
-function snapshotSectorRotation(sectorRotation: SectorRotationResponse | null) {
-  const sectors = sectorRotation?.sectors ?? []
-  if (!sectors.length) return "unknown"
-  const inflows = sectors.filter((sector) => sector.direction === "INFLOW").length
-  const outflows = sectors.filter((sector) => sector.direction === "OUTFLOW").length
-  if (inflows > outflows) return "improving"
-  if (outflows > inflows) return "weakening"
-  return "mixed"
-}
-
-function buildDashboardSnapshot({
-  symbol,
-  mover,
-  causes,
-  narratives,
-  narrativeItems,
-  etfFlow,
-  predictionMarkets,
-  sectorRotation,
-  futures,
-}: {
-  symbol: string
-  mover?: MarketMoverCandidate
-  causes: CauseTag[]
-  narratives: NarrativesResponse | null
-  narrativeItems: NarrativeHeatItem[]
-  etfFlow: EtfFlowResponse | null
-  predictionMarkets: PredictionMarketsResponse | null
-  sectorRotation: SectorRotationResponse | null
-  futures: FuturesIntelligenceResponse | null
-}) {
-  const drivers = causes.map(driverKey).filter((item): item is string => Boolean(item))
-  const narrativeValues = [
-    ...(narratives?.topNarratives ?? []),
-    ...narrativeItems.map((item) => item.label),
-  ].map(narrativeKey)
-
-  return {
-    timestamp: new Date().toISOString(),
-    symbol,
-    direction: snapshotDirection(mover),
-    confidence: calibratedConfidence(mover, causes),
-    bullFactors: causes.filter((cause) => cause.tone === "positive").length,
-    bearFactors: causes.filter((cause) => cause.tone === "negative").length,
-    drivers: Array.from(new Set(drivers)),
-    liquidityState: snapshotLiquidity(futures),
-    narratives: Array.from(new Set(narrativeValues)).slice(0, 8),
-    narrativeHeat: snapshotNarrativeHeat(narrativeItems),
-    dominantNarrative: narrativeValues[0] ?? null,
-    sectorRotationState: snapshotSectorRotation(sectorRotation),
-    etfFlowState: snapshotEtfFlow(etfFlow),
-    predictionState: snapshotPredictionBias(predictionMarkets),
-  }
-}
-
 function biasClass(bias: Bias) {
   if (bias === "Bullish") return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
   if (bias === "Bearish") return "border-rose-400/25 bg-rose-400/10 text-rose-200"
@@ -1004,129 +879,6 @@ function TrendChangeRiskCard({ mover, causes }: { mover?: MarketMoverCandidate; 
   )
 }
 
-function formatAnalogDate(value: string) {
-  const timestamp = new Date(`${value}T00:00:00Z`).getTime()
-  if (!Number.isFinite(timestamp)) return value
-  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
-}
-
-function formatSignedPercent(value: number | null | undefined) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "NO DATA"
-  const sign = value > 0 ? "+" : ""
-  return `${sign}${value.toFixed(1)}%`
-}
-
-function pastResultLabel(direction?: string | null, currentDirection?: MarketStateDirection) {
-  if (currentDirection === "neutral") return "MIXED"
-  const normalized = direction?.toLowerCase() ?? ""
-  if (normalized.includes("bullish")) return "BULLISH"
-  if (normalized.includes("bearish")) return "BEARISH"
-  return "MIXED"
-}
-
-function HistoricalAnalogCard({ analog }: { analog: HistoricalAnalogState }) {
-  const match = analog?.status === "available" ? analog.match : null
-  const currentDirection = analog?.currentDirection
-  const stats = analog?.status === "available" && analog.stats
-    ? {
-      found: analog.similarCases ?? analog.stats.totalCases,
-      avg7d: analog.stats.avgReturn7d,
-      avg30d: analog.stats.avgReturn30d,
-      successRate: analog.stats.successRate,
-      dominantOutcome: analog.stats.dominantOutcome,
-    }
-    : match?.outcomeStats
-      ? { ...match.outcomeStats, dominantOutcome: null }
-      : undefined
-  const pastResult = pastResultLabel(stats?.dominantOutcome ?? match?.outcomeSummary, currentDirection)
-  const replayDate = match?.date?.slice(0, 10)
-  const replayHour = match?.date?.includes("T") ? String(new Date(match.date).getUTCHours()) : "0"
-  const replaySymbol = match?.symbol ?? analog?.sourceSymbol ?? analog?.requestedSymbol ?? "BTCUSDT"
-  const replayReady = Boolean(replayDate && replayDate >= "2025-07-01")
-  const replayHref = replayReady
-    ? `/replay?${new URLSearchParams({
-      exchange: "binance_futures",
-      symbol: replaySymbol,
-      date: replayDate!,
-      hour: replayHour,
-    }).toString()}`
-    : null
-
-  return (
-    <Card title="Historical Analog" icon={<History className="h-3.5 w-3.5" />} className="bg-zinc-950/65 p-2.5">
-      {!match ? (
-        <div className="rounded-md border border-zinc-900 bg-black/45 px-2 py-4 text-center text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">
-          <div>{analog ? "NO VERIFIED MEMORY" : "VERIFYING HISTORY"}</div>
-          {analog?.reason ? <div className="mt-2 text-[9px] tracking-[0.1em] text-zinc-600">{analog.reason}</div> : null}
-        </div>
-      ) : (
-        <div className="grid gap-2">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Most Similar Market Setup</div>
-            <div className="mt-1 text-lg font-black uppercase leading-tight text-white">{match.label}</div>
-            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">{formatAnalogDate(match.date)}</div>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {match.matchedConditions.slice(0, 3).map((condition) => (
-              <span key={condition} className="rounded border border-cyan-300/15 bg-cyan-400/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100">
-                {condition}
-              </span>
-            ))}
-          </div>
-          <div className="rounded border border-zinc-900 bg-black/45 p-2">
-            <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Outcome</div>
-            {stats ? (
-              <div className="mt-2 grid grid-cols-3 gap-1">
-                <div>
-                  <div className="text-lg font-black text-white">{stats.found ?? "NO DATA"}</div>
-                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Matched Cases</div>
-                </div>
-                <div>
-                  <div className="text-lg font-black uppercase text-white">{pastResult}</div>
-                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Past Result</div>
-                </div>
-                <div>
-                  <div className="text-lg font-black text-white">{formatSignedPercent(stats.avg7d)}</div>
-                  <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">Avg Return</div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-1 text-xs font-black uppercase text-white">{match.outcomeSummary}</div>
-            )}
-          </div>
-          {replayHref ? (
-            <Link
-              href={replayHref}
-              className="rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60"
-            >
-              Open Replay
-            </Link>
-          ) : (
-            <div className="rounded border border-zinc-900 bg-black/45 px-2 py-1.5 text-center text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
-              Replay unavailable: CryptoHFTData coverage starts 2025-07-01
-            </div>
-          )}
-          {(analog?.alternatives?.length ?? 0) > 0 && (
-            <div className="grid gap-1">
-              {analog?.alternatives?.slice(0, 2).map((item) => {
-                return (
-                  <div key={`${item.date}-${item.label}`} className="flex items-center justify-between gap-2 rounded border border-zinc-900 bg-black/35 px-2 py-1">
-                    <div className="min-w-0">
-                      <div className="truncate text-[10px] font-black uppercase tracking-[0.1em] text-zinc-200">{item.label}</div>
-                      <div className="text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">{formatAnalogDate(item.date)}</div>
-                    </div>
-                    <div className="text-xs font-black text-cyan-100">{item.outcomeSummary}</div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </Card>
-  )
-}
-
 function TopRowCard({ title, icon, primary, rows }: { title: string; icon: ReactNode; primary: string; rows: string[] }) {
   return (
     <Card title={title} icon={icon} className="bg-zinc-950/65 p-2.5">
@@ -1278,14 +1030,13 @@ function consistencyNote(mover: MarketMoverCandidate | undefined, causes: CauseT
   return null
 }
 
-function WhyThisSignal({ mover, causes, futures, analog, marketDirection }: { mover?: MarketMoverCandidate; causes: CauseTag[]; futures: FuturesIntelligenceResponse | null; analog: HistoricalAnalogState; marketDirection: Bias }) {
+function WhyThisSignal({ mover, causes, futures, marketDirection }: { mover?: MarketMoverCandidate; causes: CauseTag[]; futures: FuturesIntelligenceResponse | null; marketDirection: Bias }) {
   const evidence = topEvidence(mover)
   const evidenceRead = signalEvidenceSummary(evidence, marketDirection)
   const action = actionFromCandidate(mover)
   const levels = priceContext(mover)
   const failure = invalidationFromContext(mover, levels)
   const note = consistencyNote(mover, causes, futures)
-  const topAnalog = analog?.status === "available" ? analog.match : null
 
   if (!mover) {
     return (
@@ -1297,17 +1048,12 @@ function WhyThisSignal({ mover, causes, futures, analog, marketDirection }: { mo
 
   return (
     <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} className="border-cyan-300/20 bg-zinc-950/90 p-3">
-      <div className="grid gap-2 lg:grid-cols-4">
+      <div className="grid gap-2 lg:grid-cols-3">
         <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 p-3">
           <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Evidence</div>
           <div className="mt-1.5 text-xl font-black uppercase leading-tight text-white">{evidenceRead.headline}</div>
           {evidenceRead.support && <div className="mt-1 text-xs font-black uppercase leading-tight text-cyan-50/80">{evidenceRead.support}</div>}
           {(evidenceRead.note || note) && <div className="mt-2 rounded border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-amber-100">{evidenceRead.note ?? note}</div>}
-        </div>
-        <div className="rounded-lg border border-zinc-800 bg-black/50 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">History</div>
-          <div className="mt-1.5 text-xl font-black uppercase leading-tight text-white">{topAnalog?.label ?? "NO VERIFIED ANALOG"}</div>
-          {topAnalog && <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{formatAnalogDate(topAnalog.date)}</div>}
         </div>
         <div className="rounded-lg border border-rose-300/20 bg-rose-400/10 p-3">
           <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Invalidation</div>
@@ -1562,11 +1308,11 @@ export default function DashboardV1({
   const [etfFlow, setEtfFlow] = useState<EtfFlowResponse | null>(cachedDashboard?.etfFlow ?? null)
   const [sectorRotation, setSectorRotation] = useState<SectorRotationResponse | null>(cachedDashboard?.sectorRotation ?? null)
   const [futures, setFutures] = useState<FuturesIntelligenceResponse | null>(cachedDashboard?.futures ?? null)
-  const [historicalAnalog, setHistoricalAnalog] = useState<HistoricalAnalogState>(null)
-  const lastHistoricalRequestKey = useRef<string | null>(null)
 
   useEffect(() => {
     let active = true
+    const controllers: AbortController[] = []
+    let deferredTimer: ReturnType<typeof setTimeout> | null = null
     const nextCache: DashboardCache = {
       cachedAt: new Date().toISOString(),
       symbol,
@@ -1586,8 +1332,11 @@ export default function DashboardV1({
     }
 
     async function loadJson<T>(path: string, onValue: (value: T) => void, cacheKey: keyof Omit<DashboardCache, "cachedAt" | "symbol">) {
+      const controller = new AbortController()
+      controllers.push(controller)
+      const timeout = setTimeout(() => controller.abort(), 4500)
       try {
-        const response = await fetch(path, { cache: "no-store" })
+        const response = await fetch(path, { cache: "no-store", signal: controller.signal })
         if (!active || !response.ok) return
         const value = await response.json() as T
         if (!active) return
@@ -1596,23 +1345,30 @@ export default function DashboardV1({
         commitCache()
       } catch {
         // Keep cached or existing state visible.
+      } finally {
+        clearTimeout(timeout)
       }
     }
 
     async function loadDashboardData() {
       void loadJson<MarketMoversResponse>(`/api/market/movers?focus=${encodeURIComponent(symbol)}`, setMarketMovers, "marketMovers")
-      void loadJson<NarrativesResponse>("/api/narratives?range=24h", setNarratives, "narratives")
-      void loadJson<MacroResponse>("/api/macro", setMacro, "macro")
       void loadJson<PredictionMarketsResponse>("/api/prediction-markets", setPredictionMarkets, "predictionMarkets")
-      void loadJson<EtfFlowResponse>("/api/etf-flow", setEtfFlow, "etfFlow")
-      void loadJson<SectorRotationResponse>("/api/market/sector-rotation", setSectorRotation, "sectorRotation")
       void loadJson<FuturesIntelligenceResponse>("/api/market/futures-intelligence", setFutures, "futures")
+      deferredTimer = setTimeout(() => {
+        if (!active) return
+        void loadJson<NarrativesResponse>("/api/narratives?range=24h", setNarratives, "narratives")
+        void loadJson<MacroResponse>("/api/macro", setMacro, "macro")
+        void loadJson<EtfFlowResponse>("/api/etf-flow", setEtfFlow, "etfFlow")
+        void loadJson<SectorRotationResponse>("/api/market/sector-rotation", setSectorRotation, "sectorRotation")
+      }, 2500)
     }
 
     void loadDashboardData()
 
     return () => {
       active = false
+      if (deferredTimer) clearTimeout(deferredTimer)
+      controllers.forEach((controller) => controller.abort())
     }
   }, [cachedDashboard, symbol])
 
@@ -1640,131 +1396,21 @@ export default function DashboardV1({
   const causes = useMemo(() => buildCauses(topMover, macro, narratives, sectorRotation, futures), [topMover, macro, narratives, sectorRotation, futures])
   const narrativeItems = useMemo(() => buildNarrativeHeat(narratives), [narratives])
   const informationItems = useMemo(() => buildInformationFlow(macro, narratives), [macro, narratives])
-  const dashboardSnapshot = useMemo(() => buildDashboardSnapshot({
-    symbol,
-    mover: topMover,
-    causes,
-    narratives,
-    narrativeItems,
-    etfFlow,
-    predictionMarkets,
-    sectorRotation,
-    futures,
-  }), [symbol, topMover, causes, narratives, narrativeItems, etfFlow, predictionMarkets, sectorRotation, futures])
-  const historicalRequestKey = useMemo(() => JSON.stringify({
-    symbol,
-    mover: topMover?.symbol ?? null,
-    score: topMover?.score ?? null,
-    causes: causes.map((cause) => cause.label).slice(0, 4),
-    narratives: narrativeItems.map((item) => item.label).slice(0, 3),
-  }), [causes, narrativeItems, symbol, topMover?.score, topMover?.symbol])
-  const criticalDataReady = Boolean(marketMovers || narratives || macro)
-
-  useEffect(() => {
-    let active = true
-    let slowTimer: number | null = null
-    let timeoutTimer: number | null = null
-    const controller = new AbortController()
-    if (!criticalDataReady) return () => {
-      active = false
-      controller.abort()
-    }
-    if (lastHistoricalRequestKey.current === historicalRequestKey) return () => {
-      active = false
-      controller.abort()
-    }
-    slowTimer = window.setTimeout(() => {
-      if (!active) return
-      setHistoricalAnalog({
-        status: "unavailable",
-        message: "NO VERIFIED ANALOG",
-        reason: "Historical data loading in background",
-        recordCountSearched: 0,
-      })
-    }, 2500)
-    timeoutTimer = window.setTimeout(() => {
-      if (!active) return
-      controller.abort()
-      lastHistoricalRequestKey.current = null
-      setHistoricalAnalog({
-        status: "unavailable",
-        message: "NO VERIFIED ANALOG",
-        reason: "Request timed out.",
-        recordCountSearched: 0,
-      })
-    }, 9000)
-
-    async function loadHistoricalAnalog() {
-      try {
-        lastHistoricalRequestKey.current = historicalRequestKey
-        await fetch("/api/dashboard/snapshots", {
-          method: "POST",
-          cache: "no-store",
-          signal: controller.signal,
-          headers: {
-            "content-type": "application/json",
-          },
-          body: JSON.stringify(dashboardSnapshot),
-        })
-
-        const response = await fetch(`/api/dashboard/historical-analog?symbol=${encodeURIComponent(symbol)}&interval=1h`, { cache: "no-store", signal: controller.signal })
-        if (!active || controller.signal.aborted) return
-        if (!response.ok) {
-          lastHistoricalRequestKey.current = null
-          setHistoricalAnalog({
-            status: "unavailable",
-            message: "NO VERIFIED ANALOG",
-            reason: "API error",
-            recordCountSearched: 0,
-          })
-          return
-        }
-        setHistoricalAnalog(await response.json())
-      } catch (error) {
-        if (!active) return
-        lastHistoricalRequestKey.current = null
-        setHistoricalAnalog({
-          status: "unavailable",
-          message: "NO VERIFIED ANALOG",
-          reason: controller.signal.aborted ? "Request timed out." : error instanceof Error ? error.message : "API unavailable",
-          recordCountSearched: 0,
-        })
-      } finally {
-        if (slowTimer) window.clearTimeout(slowTimer)
-        if (timeoutTimer) window.clearTimeout(timeoutTimer)
-      }
-    }
-
-    const deferTimer = window.setTimeout(() => {
-      void loadHistoricalAnalog()
-    }, 800)
-
-    return () => {
-      active = false
-      controller.abort()
-      lastHistoricalRequestKey.current = null
-      window.clearTimeout(deferTimer)
-      if (slowTimer) window.clearTimeout(slowTimer)
-      if (timeoutTimer) window.clearTimeout(timeoutTimer)
-    }
-  }, [criticalDataReady, dashboardSnapshot, historicalRequestKey, symbol])
-
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="grid min-w-0 gap-3">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,.7fr)_minmax(0,.7fr)_minmax(0,.7fr)]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,.8fr)_minmax(0,.8fr)]">
             <MarketBrief
               mover={topMover}
               causes={causes}
             />
             <WhyCard causes={causes} />
-            <HistoricalAnalogCard analog={historicalAnalog} />
             <GuidanceCard mover={topMover} />
           </div>
 
           <TacticalAlerts alerts={alerts} />
-          <WhyThisSignal mover={topMover} causes={causes} futures={futures} analog={historicalAnalog} marketDirection={marketDirection} />
+          <WhyThisSignal mover={topMover} causes={causes} futures={futures} marketDirection={marketDirection} />
 
           <div className="grid gap-3 lg:grid-cols-4">
             <PredictionMarketsCard data={predictionMarkets} />

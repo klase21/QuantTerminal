@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server"
 
-import { latestDashboardSnapshot, listHistoricalSnapshotsByInterval, listMarketOutcomes } from "@/lib/historical-data/localHistoricalStore"
-import { buildCurrentMarketState } from "@/lib/historical-analog/buildCurrentMarketState"
-import { filterHistoricalAnalogCandidates, findSimilarMarketStates } from "@/lib/historical-analog/findSimilarMarketStates"
-import { aggregateMarketMemory } from "@/lib/market-memory/aggregateMarketMemory"
-import { enrichWeakDashboardSnapshot } from "@/lib/market-memory/currentStateEnrichment"
 import { scoreOpportunity, type ScannerSignalInput } from "@/lib/scanner/opportunityScoring"
 
 export const dynamic = "force-dynamic"
@@ -38,21 +33,12 @@ export async function GET(req: Request) {
     ...(movers?.focusCandidate ? [movers.focusCandidate] : []),
     ...(Array.isArray(movers?.candidates) ? movers.candidates : []),
   ].filter((item): item is ScannerSignalInput => Boolean(item?.symbol))
-  const firstSymbol = candidates[0]?.symbol ?? "BTCUSDT"
-  const dashboardSnapshot = await latestDashboardSnapshot(firstSymbol)
-  const current = dashboardSnapshot
-    ? buildCurrentMarketState(await enrichWeakDashboardSnapshot(dashboardSnapshot, origin))
-    : null
-  const historicalSnapshots = filterHistoricalAnalogCandidates(await listHistoricalSnapshotsByInterval("1h"))
-  const marketOutcomes = await listMarketOutcomes("1h")
-  const aggregation = current ? aggregateMarketMemory(current, historicalSnapshots, marketOutcomes) : null
-  const historicalResult = current ? findSimilarMarketStates(current, historicalSnapshots) : null
   const context = {
     narrativeHot: Array.isArray(narratives?.heatmap) && Number(narratives.heatmap[0]?.total ?? 0) >= 120,
     sectorRotationImproving: Array.isArray(rotation?.sectors) && rotation.sectors.some((sector: any) => sector.direction === "INFLOW"),
     leverageRiskElevated: Array.isArray(futures?.sectors) && futures.sectors.some((sector: any) => Number(sector.leveragePressure ?? 0) >= 70),
-    historicalAvailable: Boolean(historicalResult?.matches?.length),
-    marketMemoryStats: aggregation?.stats,
+    historicalAvailable: false,
+    marketMemoryStats: undefined,
   }
   const seen = new Set<string>()
   const opportunities = candidates

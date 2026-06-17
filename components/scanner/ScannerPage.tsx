@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Activity, Radar, Signal, Zap } from "lucide-react"
 
@@ -31,6 +31,17 @@ type ScannerCandidate = {
   score: number
   reason?: string
 }
+
+type RetainedMarketMoverCandidate = MarketMoverCandidate & {
+  displayState?: "ACTIVE" | "AGING"
+}
+
+type RetainedCandidateRecord = {
+  candidate: RetainedMarketMoverCandidate
+  lastSeenAt: number
+}
+
+const CANDIDATE_RETENTION_MS = 5 * 60 * 1000
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ")
@@ -98,7 +109,7 @@ function displayDirection(value?: string | null) {
   return "Neutral"
 }
 
-function moverToScannerCandidate(candidate: MarketMoverCandidate): ScannerCandidate {
+function moverToScannerCandidate(candidate: RetainedMarketMoverCandidate): ScannerCandidate {
   const qualityItems = quality(candidate)
   return {
     symbol: candidate.symbol,
@@ -108,7 +119,7 @@ function moverToScannerCandidate(candidate: MarketMoverCandidate): ScannerCandid
     grade: candidate.grade ?? "NO DATA",
     quality: qualityItems.find((item) => item.includes("Quality")) ?? candidate.qualityState.replaceAll("_", " "),
     rr: candidate.riskReward?.replace(/^TP1\s*/i, "").replace(/\s*\/\s*TP2\s*/i, " / ") || "NO DATA",
-    status: candidate.freshness ?? candidate.action ?? "WATCHLIST",
+    status: candidate.displayState === "AGING" ? "AGING" : candidate.freshness ?? candidate.action ?? "WATCHLIST",
     score: Number.isFinite(candidate.score) ? candidate.score : 0,
     reason: candidate.reason,
   }
@@ -121,7 +132,7 @@ function opportunityToScannerCandidate(item: Opportunity): ScannerCandidate {
     direction: displayDirection(item.direction),
     confidence: item.confidence || String(item.score),
     grade: item.score >= 85 ? "A" : item.score >= 70 ? "B" : "C",
-    quality: item.historicalSupport === null ? "NO HISTORY" : `${Math.round(item.historicalSupport)} History`,
+    quality: item.historicalSupport === null ? "LIVE SIGNAL" : `${Math.round(item.historicalSupport)} History`,
     rr: "NO DATA",
     status: item.priority,
     score: item.score,
@@ -202,7 +213,38 @@ function OpportunityRow({ item }: { item: ScannerCandidate }) {
 export default function ScannerPage() {
   const moverState = useMarketMovers(true)
   const movers = moverState.data
-  const candidates = useMemo(() => (movers?.candidates ?? []).slice(0, 25), [movers])
+  const liveCandidates = useMemo(() => (movers?.candidates ?? []).slice(0, 25), [movers])
+  const [retainedCandidates, setRetainedCandidates] = useState<RetainedCandidateRecord[]>([])
+  useEffect(() => {
+    const now = Date.now()
+    setRetainedCandidates((previous) => {
+      const liveKeys = new Set(liveCandidates.map((candidate) => `${candidate.symbol}:${candidate.setup}:${candidate.direction}`))
+      const merged = new Map<string, RetainedCandidateRecord>()
+      for (const record of previous) {
+        if (now - record.lastSeenAt <= CANDIDATE_RETENTION_MS) {
+          const key = `${record.candidate.symbol}:${record.candidate.setup}:${record.candidate.direction}`
+          merged.set(key, {
+            candidate: {
+              ...record.candidate,
+              displayState: liveKeys.has(key) ? "ACTIVE" : "AGING",
+            },
+            lastSeenAt: record.lastSeenAt,
+          })
+        }
+      }
+      for (const candidate of liveCandidates) {
+        const key = `${candidate.symbol}:${candidate.setup}:${candidate.direction}`
+        merged.set(key, {
+          candidate: { ...candidate, displayState: "ACTIVE" },
+          lastSeenAt: now,
+        })
+      }
+      return [...merged.values()]
+        .sort((left, right) => (right.candidate.score ?? 0) - (left.candidate.score ?? 0))
+        .slice(0, 25)
+    })
+  }, [liveCandidates])
+  const candidates = useMemo(() => retainedCandidates.map((record) => record.candidate), [retainedCandidates])
   const activeSetups = useActiveSetupMemory(candidates)
   const opportunitiesState = useSafePolling<Opportunity[]>("/api/scanner/opportunities", 45000, {
     timeoutMs: 9000,

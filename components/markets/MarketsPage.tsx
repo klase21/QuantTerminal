@@ -30,6 +30,20 @@ type FuturesResponse = {
   notes?: string[]
 }
 
+type FuturesSymbolContextResponse = {
+  ok?: boolean
+  symbol?: string | null
+  openInterest?: number | null
+  openInterestTime?: number | null
+  fundingRate?: number | null
+  markPrice?: number | null
+  indexPrice?: number | null
+  oiNotional?: number | null
+  nextFundingTime?: number | null
+  source?: "binance-direct"
+  reason?: string
+}
+
 type Candle = {
   time: number
   open: number
@@ -113,6 +127,12 @@ function displayDataReason(value?: string | null) {
   if (/not responded/i.test(text)) return "Source waiting"
   if (/unavailable/i.test(text)) return "Source unavailable"
   return text || "Source unavailable"
+}
+
+function normalizeMarketSymbol(value: string | null | undefined) {
+  const cleaned = value?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
+  if (!cleaned) return null
+  return cleaned.endsWith("USDT") ? cleaned : `${cleaned}USDT`
 }
 
 function replayDateDefault() {
@@ -551,6 +571,7 @@ export default function MarketsPage() {
   const searchParams = useSearchParams()
   const [symbol, setSymbol] = useState("BTCUSDT")
   const [futures, setFutures] = useState<FuturesResponse | null>(null)
+  const [directFutures, setDirectFutures] = useState<FuturesSymbolContextResponse | null>(null)
   const [ticker24h, setTicker24h] = useState<Ticker24h | null>(null)
   const [ticker24hReason, setTicker24hReason] = useState<string | null>(null)
   const [previousOi, setPreviousOi] = useState<Record<string, number>>({})
@@ -559,7 +580,7 @@ export default function MarketsPage() {
   const [liquidationLoadState, setLiquidationLoadState] = useState<LiquidationLoadState>("idle")
   const tickers = useMarketStore((state) => state.tickers)
   const orderbook = useMarketStore((state) => state.orderbook)
-  const requestedSymbol = searchParams.get("symbol")?.toUpperCase().trim() || null
+  const requestedSymbol = normalizeMarketSymbol(searchParams.get("symbol"))
   const signalSource = searchParams.get("source")
   const signalSetup = searchParams.get("setup")
   const signalDirection = searchParams.get("direction")
@@ -582,49 +603,124 @@ export default function MarketsPage() {
 
   useEffect(() => {
     let active = true
+    let currentController: AbortController | null = null
     async function loadTicker24h() {
+      const controller = new AbortController()
+      currentController = controller
+      const timeout = window.setTimeout(() => controller.abort(), 5000)
       try {
         setTicker24h(null)
         setTicker24hReason(null)
-        const response = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" })
+        const response = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store", signal: controller.signal })
         if (!response.ok) throw new Error(`Binance 24h ticker returned ${response.status}`)
         const payload = await response.json()
-        if (active) setTicker24h(payload)
+        if (active && !controller.signal.aborted) setTicker24h(payload)
       } catch (error) {
-        if (active) setTicker24hReason(displayDataReason(error instanceof Error ? error.message : "Binance 24h range unavailable"))
+        if (active && !controller.signal.aborted) setTicker24hReason(displayDataReason(error instanceof Error ? error.message : "Binance 24h range unavailable"))
+      } finally {
+        window.clearTimeout(timeout)
       }
     }
     void loadTicker24h()
     const timer = setInterval(loadTicker24h, 30000)
     return () => {
       active = false
+      currentController?.abort()
       clearInterval(timer)
     }
   }, [symbol])
 
   useEffect(() => {
     let active = true
+    let currentController: AbortController | null = null
     async function loadFutures() {
+      const controller = new AbortController()
+      currentController = controller
+      const timeout = window.setTimeout(() => controller.abort(), 5000)
       try {
-        const response = await fetch("/api/market/futures-intelligence", { cache: "no-store" })
+        const response = await fetch(`/api/market/futures-intelligence?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store", signal: controller.signal })
         const payload = await response.json()
-        if (active) setFutures(payload)
+        if (active && !controller.signal.aborted) setFutures(payload)
       } catch {
-        if (active) setFutures({ ok: false, notes: ["Futures intelligence unavailable"] })
+        if (active && !controller.signal.aborted) setFutures({ ok: false, notes: ["Futures intelligence unavailable"] })
+      } finally {
+        window.clearTimeout(timeout)
       }
     }
     void loadFutures()
     const timer = setInterval(loadFutures, 30000)
     return () => {
       active = false
+      currentController?.abort()
       clearInterval(timer)
     }
-  }, [])
+  }, [symbol])
 
   const futuresSymbol = futures?.symbols?.find((item) => item.symbol === symbol)
-  const liveFundingRate = futuresSymbol?.fundingRate ?? null
-  const liveOiNotional = futuresSymbol?.oiNotional ?? null
-  const liveOiReason = futuresSymbol ? "Binance futures" : missingFuturesReason(symbol, futures)
+  const aggregateFundingRate = Number.isFinite(futuresSymbol?.fundingRate) ? futuresSymbol?.fundingRate ?? null : null
+  const aggregateOiNotional = Number.isFinite(futuresSymbol?.oiNotional) ? futuresSymbol?.oiNotional ?? null : null
+  const needsDirectFutures = !futuresSymbol || aggregateFundingRate === null || aggregateOiNotional === null
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let active = true
+    setDirectFutures(null)
+
+    if (!needsDirectFutures) {
+      return () => {
+        active = false
+        controller.abort()
+      }
+    }
+
+    async function loadDirectFutures() {
+      const timeout = window.setTimeout(() => controller.abort(), 5000)
+      try {
+        const response = await fetch(`/api/market/futures-symbol-context?symbol=${encodeURIComponent(symbol)}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+        const payload = await response.json() as FuturesSymbolContextResponse
+        if (!active || controller.signal.aborted) return
+        setDirectFutures(payload)
+      } catch (error) {
+        if (!active || controller.signal.aborted) return
+        setDirectFutures({
+          ok: false,
+          symbol,
+          reason: displayDataReason(error instanceof Error ? error.message : "Funding/OI unavailable for selected symbol."),
+          source: "binance-direct",
+        })
+      } finally {
+        window.clearTimeout(timeout)
+      }
+    }
+
+    void loadDirectFutures()
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [aggregateFundingRate, aggregateOiNotional, needsDirectFutures, symbol])
+
+  const directMatchesSymbol = directFutures?.symbol === symbol
+  const directFundingRate = directMatchesSymbol && directFutures?.ok && Number.isFinite(directFutures.fundingRate)
+    ? directFutures.fundingRate ?? null
+    : null
+  const directOiNotional = directMatchesSymbol && directFutures?.ok && Number.isFinite(directFutures.oiNotional)
+    ? directFutures.oiNotional ?? null
+    : null
+  const liveFundingRate = aggregateFundingRate ?? directFundingRate
+  const liveOiNotional = aggregateOiNotional ?? directOiNotional
+  const liveFundingReason = liveFundingRate !== null
+    ? (aggregateFundingRate !== null ? "Binance futures" : "Binance direct")
+    : "Funding unavailable for selected symbol."
+  const liveOiSource = liveOiNotional !== null
+    ? (aggregateOiNotional !== null ? "Binance futures" : "Binance direct")
+    : null
+  const liveOiReason = liveOiNotional !== null
+    ? liveOiSource
+    : directFutures?.reason ?? missingFuturesReason(symbol, futures)
 
   useEffect(() => {
     console.debug("Markets futures trace", {
@@ -632,8 +728,12 @@ export default function MarketsPage() {
       requestSymbol: requestedSymbol ?? "BTCUSDT",
       responseSymbol: futuresSymbol?.symbol ?? null,
       responseSymbolCount: futures?.symbols?.length ?? 0,
+      directSymbol: directFutures?.symbol ?? null,
+      directOk: directFutures?.ok ?? null,
+      fundingSource: aggregateFundingRate !== null ? "aggregate" : directFundingRate !== null ? "direct" : "unavailable",
+      oiSource: aggregateOiNotional !== null ? "aggregate" : directOiNotional !== null ? "direct" : "unavailable",
     })
-  }, [futures?.symbols, futuresSymbol?.symbol, requestedSymbol, symbol])
+  }, [aggregateFundingRate, aggregateOiNotional, directFundingRate, directFutures?.ok, directFutures?.symbol, directOiNotional, futures?.symbols, futuresSymbol?.symbol, requestedSymbol, symbol])
   const buyVolume = trades.filter((trade) => trade.side === "buy").reduce((sum, trade) => sum + trade.qty, 0)
   const sellVolume = trades.filter((trade) => trade.side === "sell").reduce((sum, trade) => sum + trade.qty, 0)
   const cvd = buyVolume - sellVolume
@@ -642,10 +742,10 @@ export default function MarketsPage() {
       ticker ? "Binance Ticker Live" : "Binance Ticker No Data",
       orderbook ? "Orderbook Live" : "Orderbook No Data",
       trades.length ? "Trades Live" : "Trades Waiting",
-      futures?.ok ? "Funding/OI Live" : "Funding/OI No Data",
+      liveFundingRate !== null || liveOiNotional !== null ? "Funding/OI Live" : "Funding/OI No Data",
     ]
     return parts.join(" / ")
-  }, [ticker, orderbook, trades.length, futures?.ok])
+  }, [liveFundingRate, liveOiNotional, ticker, orderbook, trades.length])
   const rangeHigh = Number(ticker24h?.highPrice)
   const rangeLow = Number(ticker24h?.lowPrice)
   const rangeValue = Number.isFinite(rangeHigh) && Number.isFinite(rangeLow) ? `${fmt(rangeLow, 2)} - ${fmt(rangeHigh, 2)}` : "NO DATA"
@@ -704,8 +804,8 @@ export default function MarketsPage() {
           <div className="grid gap-2 md:grid-cols-3 2xl:grid-cols-6">
             <MetricCard label="Price" value={ticker ? fmt(ticker.price, 2) : "NO DATA"} sub="Binance realtime" tone="cyan" />
             <MetricCard label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
-            <MetricCard label="Funding" value={liveFundingRate !== null ? pct(liveFundingRate * 100, 4) : "NO DATA"} sub={liveFundingRate !== null ? "8h estimate" : displayDataReason(liveOiReason)} tone="amber" />
-            <MetricCard label="Open Int." value={compactUsd(liveOiNotional)} sub={liveOiNotional !== null ? "Binance futures" : displayDataReason(liveOiReason)} tone="cyan" />
+            <MetricCard label="Funding" value={liveFundingRate !== null ? pct(liveFundingRate * 100, 4) : "NO DATA"} sub={liveFundingRate !== null ? liveFundingReason : displayDataReason(liveFundingReason)} tone="amber" />
+            <MetricCard label="Open Int." value={compactUsd(liveOiNotional)} sub={liveOiNotional !== null ? liveOiSource ?? "Binance futures" : displayDataReason(liveOiReason)} tone="cyan" />
             <LiquidationBiasCard longNotional={liquidationSummary.longNotional} shortNotional={liquidationSummary.shortNotional} state={liquidationLoadState} />
             <MetricCard label="24h Range" value={rangeValue} sub={rangeValue === "NO DATA" ? displayDataReason(ticker24hReason ?? "Binance 24h range unavailable") : "High / Low"} tone="cyan" size="md" />
           </div>

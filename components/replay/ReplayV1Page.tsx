@@ -642,8 +642,8 @@ function orderbookMetrics(book?: CryptoReplayBookSnapshot) {
   }
 }
 
-function DepthCurve({ book }: { book?: CryptoReplayBookSnapshot }) {
-  if (!book || (!book.bids.length && !book.asks.length)) return <EmptyState title="Orderbook Unavailable" reason="Decoded orderbook snapshot has no usable levels." />
+function DepthCurve({ book, reason }: { book?: CryptoReplayBookSnapshot; reason?: string | null }) {
+  if (!book || (!book.bids.length && !book.asks.length)) return <EmptyState title="Orderbook Unavailable" reason={reason ?? "Decoded orderbook snapshot has no usable levels."} />
 
   const width = 440
   const height = 160
@@ -779,9 +779,13 @@ export default function ReplayV1Page() {
   const [chartCandles, setChartCandles] = useState<ReplayChartCandle[]>([])
   const [chartSource, setChartSource] = useState<string | null>(null)
   const [chartReason, setChartReason] = useState<string | null>(null)
+  const [orderbookLoading, setOrderbookLoading] = useState(false)
+  const [orderbookReason, setOrderbookReason] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const mountedRef = useRef(false)
   const abortControllersRef = useRef<AbortController[]>([])
+  const orderbookControllerRef = useRef<AbortController | null>(null)
+  const orderbookInFlightRef = useRef(false)
   const loadIdRef = useRef(0)
   const requestedDatasetsRef = useRef<Set<string>>(new Set())
 
@@ -850,6 +854,13 @@ export default function ReplayV1Page() {
   function abortReplayRequests() {
     for (const controller of abortControllersRef.current) controller.abort()
     abortControllersRef.current = []
+  }
+
+  function abortOrderbookRequest() {
+    orderbookControllerRef.current?.abort()
+    orderbookControllerRef.current = null
+    orderbookInFlightRef.current = false
+    if (mountedRef.current) setOrderbookLoading(false)
   }
 
   async function fetchReplayDatasets(datasets: string[], stage: string, signal: AbortSignal, loadId: number, foreground = false) {
@@ -922,23 +933,28 @@ export default function ReplayV1Page() {
   async function loadPositioning(loadId: number) {
     const controller = new AbortController()
     abortControllersRef.current.push(controller)
+    const timeout = window.setTimeout(() => controller.abort(), 12000)
     const cryptoData = await fetchReplayDatasets(["open_interest", "mark_price"], "open interest and funding", controller.signal, loadId)
-    if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
-    if (hasUsablePositioning(cryptoData)) {
-      setReplayData((previous) => mergeReplayData(previous, cryptoData!))
-      return
-    }
+    try {
+      if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+      if (hasUsablePositioning(cryptoData)) {
+        setReplayData((previous) => mergeReplayData(previous, cryptoData!))
+        return
+      }
 
-    const binanceData = await fetchBinancePositioningFallback(controller.signal, loadId)
-    if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
-    if (hasUsablePositioning(binanceData)) {
-      setReplayData((previous) => mergeReplayData(previous, binanceData!))
-      return
-    }
+      const binanceData = await fetchBinancePositioningFallback(controller.signal, loadId)
+      if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+      if (hasUsablePositioning(binanceData)) {
+        setReplayData((previous) => mergeReplayData(previous, binanceData!))
+        return
+      }
 
-    const currentData = await fetchCurrentPositioningFallback(controller.signal, loadId)
-    if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
-    setReplayData((previous) => mergeReplayData(previous, currentData ?? binanceData ?? cryptoData ?? buildPositioningReplayResponse(replayData, [], "No OI/Funding data returned.")))
+      const currentData = await fetchCurrentPositioningFallback(controller.signal, loadId)
+      if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+      setReplayData((previous) => mergeReplayData(previous, currentData ?? binanceData ?? cryptoData ?? buildPositioningReplayResponse(replayData, [], "No OI/Funding data returned.")))
+    } finally {
+      window.clearTimeout(timeout)
+    }
   }
 
   async function fetchReplayChartCandles(signal: AbortSignal, loadId: number) {
@@ -981,6 +997,7 @@ export default function ReplayV1Page() {
   }
 
   async function loadReplay() {
+    abortOrderbookRequest()
     abortReplayRequests()
     const loadId = loadIdRef.current + 1
     loadIdRef.current = loadId
@@ -992,9 +1009,11 @@ export default function ReplayV1Page() {
     setChartCandles([])
     setChartSource(null)
     setChartReason(null)
+    setOrderbookReason(null)
     setReplayData(emptyReplayResponse(exchange, symbol, date, hour))
     const chartController = new AbortController()
     abortControllersRef.current.push(chartController)
+    const chartTimeout = window.setTimeout(() => chartController.abort(), 6000)
     try {
       const klineChart = await fetchReplayChartCandles(chartController.signal, loadId)
       if (!mountedRef.current || loadIdRef.current !== loadId || chartController.signal.aborted) return
@@ -1012,12 +1031,16 @@ export default function ReplayV1Page() {
       for (const item of backgroundStages) {
         const controller = new AbortController()
         abortControllersRef.current.push(controller)
+        const timeout = window.setTimeout(() => controller.abort(), 10000)
         void fetchReplayDatasets(item.datasets, item.stage, controller.signal, loadId).then((data) => {
           if (!data || controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
           setReplayData((previous) => mergeReplayData(previous, data))
+        }).finally(() => {
+          window.clearTimeout(timeout)
         })
       }
     } finally {
+      window.clearTimeout(chartTimeout)
       if (mountedRef.current && loadIdRef.current === loadId) {
         setLoading(false)
         setLoadingStage(null)
@@ -1031,16 +1054,80 @@ export default function ReplayV1Page() {
     setHasLoaded(true)
     const controller = new AbortController()
     abortControllersRef.current.push(controller)
-    const data = await fetchReplayDatasets(datasets, stage, controller.signal, loadId, true)
-    if (!data || controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
-    setReplayData((previous) => mergeReplayData(previous, data))
-    setLoadingStage(null)
+    const timeout = window.setTimeout(() => controller.abort(), 15000)
+    try {
+      const data = await fetchReplayDatasets(datasets, stage, controller.signal, loadId, true)
+      if (!data || controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+      setReplayData((previous) => mergeReplayData(previous, data))
+      setLoadingStage(null)
+    } finally {
+      window.clearTimeout(timeout)
+    }
+  }
+
+  async function loadOrderbook() {
+    console.info("Replay orderbook click")
+    if (orderbookInFlightRef.current) {
+      orderbookControllerRef.current?.abort()
+      orderbookControllerRef.current = null
+      orderbookInFlightRef.current = false
+    }
+    const loadId = loadIdRef.current || 1
+    if (!loadIdRef.current) loadIdRef.current = loadId
+    orderbookInFlightRef.current = true
+    setHasLoaded(true)
+    setOrderbookLoading(true)
+    setOrderbookReason(null)
+
+    const controller = new AbortController()
+    orderbookControllerRef.current = controller
+    let timedOut = false
+    const timeout = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 12000)
+
+    const params = new URLSearchParams({
+      exchange,
+      symbol,
+      date,
+      hour,
+      datasets: "orderbook",
+    })
+    const requestUrl = `/api/replay/cryptohftdata?${params.toString()}`
+
+    try {
+      console.info("Replay orderbook request", requestUrl)
+      const response = await fetch(requestUrl, { cache: "no-store", signal: controller.signal })
+      const payload = await response.json() as CryptoReplayResponse | { reason?: string }
+      if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+      if (!response.ok) {
+        setOrderbookReason("Orderbook provider fetch failed.")
+        return
+      }
+
+      const data = payload as CryptoReplayResponse
+      const latest = data.book.at(-1)
+      setReplayData((previous) => mergeReplayData(previous, data))
+      if (!latest || (!latest.bids.length && !latest.asks.length)) {
+        setOrderbookReason(datasetReason(data, "orderbook") ?? "No usable orderbook levels.")
+      }
+    } catch {
+      if (controller.signal.aborted || !mountedRef.current) return
+      setOrderbookReason(timedOut ? "Orderbook request timed out." : "Orderbook provider fetch failed.")
+    } finally {
+      window.clearTimeout(timeout)
+      if (orderbookControllerRef.current === controller) orderbookControllerRef.current = null
+      orderbookInFlightRef.current = false
+      if (mountedRef.current) setOrderbookLoading(false)
+    }
   }
 
   useEffect(() => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      abortOrderbookRequest()
       abortReplayRequests()
     }
   }, [])
@@ -1156,12 +1243,13 @@ export default function ReplayV1Page() {
               <div className="grid gap-2 p-3">
                 <button
                   type="button"
-                  onClick={() => void loadManualDatasets(["orderbook"], "orderbook")}
+                  onClick={() => void loadOrderbook()}
+                  aria-busy={orderbookLoading}
                   className="w-fit border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300 hover:border-cyan-300/40 hover:text-cyan-100"
                 >
-                  Load Orderbook
+                  {orderbookLoading ? "Loading Orderbook" : "Load Orderbook"}
                 </button>
-                <DepthCurve book={latestBook} />
+                <DepthCurve book={latestBook} reason={orderbookReason} />
                 <div className="grid grid-cols-2 gap-2">
                   <SnapshotMetric label="Bid Liquidity" value={numberValue(bookMetrics.bidLiquidity, 4)} tone="green" />
                   <SnapshotMetric label="Ask Liquidity" value={numberValue(bookMetrics.askLiquidity, 4)} tone="red" />

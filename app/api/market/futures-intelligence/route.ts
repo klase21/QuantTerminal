@@ -151,15 +151,26 @@ async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T) => Pr
   return output
 }
 
-function requestedSymbols() {
+function normalizeRequestedSymbol(value: string | null) {
+  const cleaned = value?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
+  if (!cleaned) return null
+  return cleaned.endsWith("USDT") ? cleaned : `${cleaned}USDT`
+}
+
+function requestedSymbols(focusSymbol?: string | null) {
   return unique(
-    SECTOR_REGISTRY.flatMap((sector) => sector.symbols.map((symbol) => `${symbol}USDT`))
+    [
+      ...(focusSymbol ? [focusSymbol] : []),
+      ...SECTOR_REGISTRY.flatMap((sector) => sector.symbols.map((symbol) => `${symbol}USDT`)),
+    ]
   )
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const requested = requestedSymbols()
+    const { searchParams } = new URL(req.url)
+    const focusSymbol = normalizeRequestedSymbol(searchParams.get("symbol"))
+    const requested = requestedSymbols(focusSymbol)
     const connectors: FuturesConnectorTelemetry[] = []
     const failedSymbolFetches: FailedSymbolFetch[] = []
     const recordSymbolFailure = (failure: FailedSymbolFetch) => {
@@ -180,7 +191,11 @@ export async function GET() {
 
     const started = Date.now()
     const symbols = await mapLimit(validSymbols, CONCURRENCY, async (symbol) => {
-      const mapped = mapFuturesSymbol(symbol)
+      const mapped = mapFuturesSymbol(symbol) ?? (symbol === focusSymbol ? {
+        symbol,
+        baseAsset: symbol.replace(/USDT$/, "").toUpperCase(),
+        sector: "L1" as const,
+      } : null)
       if (!mapped) return null
 
       let openInterest: OpenInterestPayload

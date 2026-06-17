@@ -5,11 +5,15 @@
 import { NewsItem } from "../types"
 
 export async function fetchCoinnessNews(): Promise<NewsItem[]> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 3500)
+
   try {
     const res = await fetch(
       "https://api.coinness.com/feed/v1/breaking-news?languageCode=ko&limit=25",
       {
         cache: "no-store",
+        signal: controller.signal,
         headers: {
           accept: "application/json",
           "user-agent": "Mozilla/5.0",
@@ -97,5 +101,7 @@ export async function fetchCoinnessNews(): Promise<NewsItem[]> {
     )
 
     return []
+  } finally {
+    clearTimeout(timeout)
   }
 }

@@ -59,6 +59,11 @@ type DatasetDiagnostic = {
   columns: string[]
   rowCountBeforeSlice: number
   rowCountReturned: number
+  usableBidCount?: number
+  usableAskCount?: number
+  firstRawRow?: Record<string, unknown>
+  rawSample?: Record<string, unknown>[]
+  rejectionReason?: string
   decodeStatus: "decoded" | "downloaded_decode_failed" | "download_failed"
   error?: string
 }
@@ -199,6 +204,43 @@ function levels(value: unknown): Array<[number, number]> {
   }).filter((level): level is [number, number] => Boolean(level))
 }
 
+function parallelLevels(prices: unknown, sizes: unknown): Array<[number, number]> {
+  if (!Array.isArray(prices) || !Array.isArray(sizes)) return []
+  const length = Math.min(prices.length, sizes.length)
+  const output: Array<[number, number]> = []
+  for (let index = 0; index < length; index += 1) {
+    const price = numeric(prices[index])
+    const size = numeric(sizes[index])
+    if (price !== null && size !== null && size > 0) output.push([price, size])
+  }
+  return output
+}
+
+function numberedSideLevels(row: Record<string, unknown>, side: "bid" | "ask"): Array<[number, number]> {
+  const sidePattern = side === "bid" ? /\bbids?\b|^b(?:_|$)/i : /\basks?\b|^a(?:_|$)/i
+  const pricePattern = /price|px|rate/i
+  const sizePattern = /size|qty|quantity|amount|volume/i
+  const prices = new Map<string, number>()
+  const sizes = new Map<string, number>()
+
+  for (const [key, value] of Object.entries(row)) {
+    const normalized = key.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()
+    if (!sidePattern.test(normalized)) continue
+    const index = normalized.match(/\d+/)?.[0] ?? "0"
+    const parsed = numeric(value)
+    if (parsed === null) continue
+    if (pricePattern.test(normalized)) prices.set(index, parsed)
+    if (sizePattern.test(normalized)) sizes.set(index, parsed)
+  }
+
+  return [...prices.entries()]
+    .map(([index, price]) => {
+      const size = sizes.get(index)
+      return size !== undefined && size > 0 ? [price, size] as [number, number] : null
+    })
+    .filter((level): level is [number, number] => Boolean(level))
+}
+
 function normalizeTrades(rows: Record<string, unknown>[], exchange: string, symbol: string): ReplayTrade[] {
   return rows.map((row) => {
     const time = timestamp(pick(row, ["timestamp", "time", "ts", "T", "event_time"]))
@@ -219,14 +261,41 @@ function normalizeOrderbook(rows: Record<string, unknown>[], exchange: string, s
   }).filter((item): item is ReplayBookSnapshot => Boolean(item))
   if (snapshots.length) return snapshots.slice(-1)
 
+  const pairedSnapshots = rows.map((row) => {
+    const time = timestamp(pick(row, ["timestamp", "time", "ts", "T", "event_time", "transaction_time", "received_time"]))
+    const bidPrice = numeric(pick(row, ["bid_price", "bidPrice", "bid_px", "best_bid", "bestBid", "bp"]))
+    const bidSize = numeric(pick(row, ["bid_size", "bidSize", "bid_qty", "bidQty", "bid_quantity", "bid_amount", "bidAmount", "bid_volume", "bq"]))
+    const askPrice = numeric(pick(row, ["ask_price", "askPrice", "ask_px", "best_ask", "bestAsk", "ap"]))
+    const askSize = numeric(pick(row, ["ask_size", "askSize", "ask_qty", "askQty", "ask_quantity", "ask_amount", "askAmount", "ask_volume", "aq"]))
+    const bids = [
+      ...(bidPrice !== null && bidSize !== null && bidSize > 0 ? [[bidPrice, bidSize] as [number, number]] : []),
+      ...parallelLevels(pick(row, ["bid_prices", "bidPrices", "bids_price", "bid_px_array"]), pick(row, ["bid_sizes", "bidSizes", "bid_qtys", "bidQtys", "bid_quantities", "bid_amounts", "bidAmount"])),
+      ...numberedSideLevels(row, "bid"),
+    ]
+    const asks = [
+      ...(askPrice !== null && askSize !== null && askSize > 0 ? [[askPrice, askSize] as [number, number]] : []),
+      ...parallelLevels(pick(row, ["ask_prices", "askPrices", "asks_price", "ask_px_array"]), pick(row, ["ask_sizes", "askSizes", "ask_qtys", "askQtys", "ask_quantities", "ask_amounts", "askAmount"])),
+      ...numberedSideLevels(row, "ask"),
+    ]
+    if (!time || (!bids.length && !asks.length)) return null
+    return {
+      timestamp: time,
+      bids: [...new Map(bids.map((level) => [level[0], level[1]])).entries()].sort((left, right) => right[0] - left[0]).slice(0, 20),
+      asks: [...new Map(asks.map((level) => [level[0], level[1]])).entries()].sort((left, right) => left[0] - right[0]).slice(0, 20),
+      exchange,
+      symbol,
+    }
+  }).filter((item): item is ReplayBookSnapshot => Boolean(item))
+  if (pairedSnapshots.length) return pairedSnapshots.slice(-1)
+
   const bids = new Map<number, number>()
   const asks = new Map<number, number>()
   let latestTimestamp: string | null = null
   for (const row of rows) {
     const time = timestamp(pick(row, ["timestamp", "time", "ts", "T", "event_time", "transaction_time", "received_time"]))
     if (time) latestTimestamp = time
-    const price = numeric(pick(row, ["price", "px", "p"]))
-    const size = numeric(pick(row, ["size", "qty", "quantity", "q"]))
+    const price = numeric(pick(row, ["price", "px", "p", "price_level", "priceLevel", "level_price", "levelPrice"]))
+    const size = numeric(pick(row, ["size", "qty", "quantity", "amount", "volume", "q"]))
     if (price === null || size === null) continue
     const side = String(pick(row, ["side"]) ?? "").toLowerCase()
     const bookSide = side.includes("bid") || side === "b" || side === "buy"
@@ -344,6 +413,32 @@ function returnedCount(dataset: CryptoHftDataset, response: CryptoHftReplayRespo
   return response.funding.length
 }
 
+function orderbookUsability(response: CryptoHftReplayResponse) {
+  const latest = response.book.at(-1)
+  return {
+    usableBidCount: latest?.bids.length ?? 0,
+    usableAskCount: latest?.asks.length ?? 0,
+  }
+}
+
+function orderbookRawDiagnostics(rows: Record<string, unknown>[], response: CryptoHftReplayResponse) {
+  if (!rows.length) {
+    return {
+      firstRawRow: undefined,
+      rawSample: [],
+      rejectionReason: "Orderbook parquet decoded zero rows.",
+    }
+  }
+  const { usableBidCount, usableAskCount } = orderbookUsability(response)
+  return {
+    firstRawRow: rows[0],
+    rawSample: rows.slice(0, 3),
+    rejectionReason: usableBidCount || usableAskCount
+      ? undefined
+      : "Rows decoded, but no supported bid/ask level fields produced usable levels.",
+  }
+}
+
 function applyRows(dataset: CryptoHftDataset, rows: Record<string, unknown>[], response: CryptoHftReplayResponse, request: CryptoHftReplayRequest) {
   if (dataset === "trades") response.trades = normalizeTrades(rows, request.exchange, request.symbol)
   if (dataset === "orderbook") response.book = normalizeOrderbook(rows, request.exchange, request.symbol)
@@ -415,6 +510,8 @@ export async function loadCryptoHftDataReplay(request: CryptoHftReplayRequest): 
       const decoded = await decodeParquetZst(buffer)
       applyRows(dataset, decoded.rows, response, request)
       const count = returnedCount(dataset, response)
+      const orderbookCounts = dataset === "orderbook" ? orderbookUsability(response) : {}
+      const orderbookRaw = dataset === "orderbook" ? orderbookRawDiagnostics(decoded.rows, response) : {}
       diagnostics.downloaded.push(diagnostic({
         dataset,
         file,
@@ -424,6 +521,8 @@ export async function loadCryptoHftDataReplay(request: CryptoHftReplayRequest): 
         columns: decoded.columns,
         rowCountBeforeSlice: decoded.rows.length,
         rowCountReturned: count,
+        ...orderbookCounts,
+        ...orderbookRaw,
       }))
       if (count === 0) {
         diagnostics.unavailable.push({ dataset, reason: `${file} decoded, but no rows matched the replay normalizer. Columns: ${decoded.columns.join(", ") || "none"}` })

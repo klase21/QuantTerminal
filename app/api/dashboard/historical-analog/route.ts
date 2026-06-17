@@ -132,14 +132,6 @@ async function resolveCurrentDashboardSnapshot(symbol: string) {
   const exact = await latestDashboardSnapshot(symbol)
   if (exact) return { snapshot: exact, reason: undefined as string | undefined }
 
-  const benchmark = await latestDashboardSnapshot("BTCUSDT")
-  if (benchmark) {
-    return {
-      snapshot: { ...benchmark, id: `dashboard:benchmark-current:${symbol}:${benchmark.id}`, symbol },
-      reason: `Using BTCUSDT current market state because ${symbol} has no dashboard snapshot.`,
-    }
-  }
-
   return {
     snapshot: createMinimalDashboardSnapshot(symbol),
     reason: "Missing current dashboard snapshot; live enrichment attempted from existing dashboard sources.",
@@ -159,27 +151,9 @@ function resolveSourceSymbol(requestedSymbol: string, counts: Map<string, number
     return { sourceSymbol: requestedSymbol, benchmarkReason: undefined as string | undefined }
   }
 
-  const preferred = ETH_STYLE_SYMBOLS.has(requestedSymbol) ? "ETHUSDT" : "BTCUSDT"
-  if (hasCoverage(preferred)) {
-    return {
-      sourceSymbol: preferred,
-      benchmarkReason: `Using ${preferred} benchmark because ${requestedSymbol} has insufficient historical coverage.`,
-    }
-  }
-
-  if (hasCoverage("BTCUSDT")) {
-    return {
-      sourceSymbol: "BTCUSDT",
-      benchmarkReason: `Using BTCUSDT benchmark because ${requestedSymbol} has insufficient historical coverage.`,
-    }
-  }
-
-  const firstCovered = [...counts.entries()].find(([, count]) => count >= minimumCoverage)?.[0]
   return {
-    sourceSymbol: firstCovered ?? requestedSymbol,
-    benchmarkReason: firstCovered
-      ? `Using ${firstCovered} benchmark because ${requestedSymbol} has insufficient historical coverage.`
-      : `No historical benchmark has enough coverage for ${requestedSymbol}.`,
+    sourceSymbol: null,
+    benchmarkReason: `${requestedSymbol} has insufficient historical coverage.`,
   }
 }
 
@@ -247,6 +221,19 @@ export async function GET(req: Request) {
     const allHistoricalSnapshots = await listHistoricalSnapshotsByInterval(interval)
     const counts = snapshotCountBySymbol(allHistoricalSnapshots)
     const { sourceSymbol, benchmarkReason } = resolveSourceSymbol(requestedSymbol, counts)
+    if (!sourceSymbol) {
+      return NextResponse.json({
+        status: "unavailable",
+        message: "NO VERIFIED REPLAY CASE",
+        reason: "Insufficient historical coverage.",
+        source: "cryptohftdata-compatible-replay-window",
+        requestedSymbol,
+        recordCountSearched: 0,
+        exclusionWindowDays: 30,
+        oldestCandidateSearched: null,
+        newestCandidateSearched: null,
+      } satisfies DashboardHistoricalAnalogResponse)
+    }
     const { snapshot: dashboardSnapshot, reason: currentSnapshotReason } = await resolveCurrentDashboardSnapshot(sourceSymbol)
 
     const enrichedSnapshot = await enrichWeakDashboardSnapshot(dashboardSnapshot, new URL(req.url).origin)

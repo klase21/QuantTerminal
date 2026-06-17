@@ -1,9 +1,10 @@
 "use client"
 
-import Link from "next/link"
+import { useEffect, useRef, useState } from "react"
 import { Brain, History, Newspaper, PieChart, Search, Sparkles } from "lucide-react"
 
 import { useSafePolling } from "@/hooks/system/useSafePolling"
+import { safeFetchJson } from "@/lib/runtime/safeFetch"
 
 type NarrativeResponse = {
   updatedAt?: number
@@ -114,13 +115,64 @@ function attentionLabel(market: PredictionResponse["markets"][number] | undefine
 export default function ResearchPage() {
   const narratives = useSafePolling<NarrativeResponse>("/api/narratives?range=24h", 60000, { label: "research-narratives", timeoutMs: 12000, retries: 1 })
   const predictions = useSafePolling<PredictionResponse>("/api/research/prediction-markets", 60000, { label: "research-predictions", timeoutMs: 12000, retries: 1 })
-  const memory = useSafePolling<MarketMemoryResponse>("/api/dashboard/market-memory?symbol=BTCUSDT&interval=1h", 60000, { label: "research-memory", timeoutMs: 12000, retries: 1 })
-  const analogs = useSafePolling<HistoricalAnalogsResponse>("/api/research/historical-analogs?symbol=BTCUSDT&interval=1h&limit=12", 60000, { label: "research-analogs", timeoutMs: 12000, retries: 1 })
+  const memory = useSafePolling<MarketMemoryResponse>("/api/dashboard/market-memory?symbol=BTCUSDT&interval=1h", 60000, { label: "research-memory", timeoutMs: 12000, retries: 1, enabled: false })
+  const analogs = useSafePolling<HistoricalAnalogsResponse>("/api/research/historical-analogs?symbol=BTCUSDT&interval=1h&limit=12", 60000, { label: "research-analogs", timeoutMs: 12000, retries: 1, enabled: false })
   const macro = useSafePolling<MacroResponse>("/api/macro", 60000, { label: "research-macro", timeoutMs: 12000, retries: 1 })
+  const [manualMemory, setManualMemory] = useState<MarketMemoryResponse | null>(null)
+  const [manualMemoryLoading, setManualMemoryLoading] = useState(false)
+  const [manualMemoryError, setManualMemoryError] = useState<string | null>(null)
+  const [manualAnalogs, setManualAnalogs] = useState<HistoricalAnalogsResponse | null>(null)
+  const [manualAnalogsLoading, setManualAnalogsLoading] = useState(false)
+  const [manualAnalogsError, setManualAnalogsError] = useState<string | null>(null)
+  const manualControllers = useRef<AbortController[]>([])
+
+  useEffect(() => {
+    return () => {
+      manualControllers.current.forEach((controller) => controller.abort())
+      manualControllers.current = []
+    }
+  }, [])
+
+  async function loadMarketMemory() {
+    const controller = new AbortController()
+    manualControllers.current.push(controller)
+    setManualMemoryLoading(true)
+    setManualMemoryError(null)
+    const result = await safeFetchJson<MarketMemoryResponse>("/api/dashboard/market-memory?symbol=BTCUSDT&interval=1h", {
+      signal: controller.signal,
+      timeoutMs: 12000,
+      retries: 0,
+      label: "research-memory-manual",
+      cache: "no-store",
+    })
+    if (controller.signal.aborted) return
+    setManualMemoryLoading(false)
+    if (result.ok) setManualMemory(result.data)
+    else setManualMemoryError(result.error)
+  }
+
+  async function loadHistoricalExplorer() {
+    const controller = new AbortController()
+    manualControllers.current.push(controller)
+    setManualAnalogsLoading(true)
+    setManualAnalogsError(null)
+    const result = await safeFetchJson<HistoricalAnalogsResponse>("/api/research/historical-analogs?symbol=BTCUSDT&interval=1h&limit=12", {
+      signal: controller.signal,
+      timeoutMs: 12000,
+      retries: 0,
+      label: "research-analogs-manual",
+      cache: "no-store",
+    })
+    if (controller.signal.aborted) return
+    setManualAnalogsLoading(false)
+    if (result.ok) setManualAnalogs(result.data)
+    else setManualAnalogsError(result.error)
+  }
 
   const topNarratives = narratives.data?.heatmap?.slice(0, 8) ?? []
   const predictionMarkets = predictions.data?.markets?.slice(0, 8) ?? []
-  const analogRows = analogs.data?.analogs?.slice(0, 8) ?? []
+  const memoryData = manualMemory ?? memory.data
+  const analogRows = (manualAnalogs ?? analogs.data)?.analogs?.slice(0, 8) ?? []
   const informationItems = [
     ...(macro.data?.items?.slice(0, 3).map((item) => ({ label: `${item.symbol ?? "MACRO"} ${item.change ?? ""}`.trim(), tag: item.signal ?? item.tone ?? "MACRO", time: time(item.updatedAt ?? macro.data?.updatedAt) })) ?? []),
     ...(narratives.data?.topNarratives?.slice(0, 3).map((item) => ({ label: `${item} Heat`, tag: "NARRATIVE", time: time(narratives.data?.updatedAt) })) ?? []),
@@ -146,8 +198,8 @@ export default function ResearchPage() {
             </div>
             <div className="rounded border border-zinc-900 bg-black/45 p-2">
               <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Historical Signal</div>
-              <div className="mt-1 text-sm font-black uppercase text-white">{topAnalog?.dominantOutcome ?? memory.data?.dominantOutcome ?? "Unavailable"}</div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{topAnalog ? `${topAnalog.symbol} ${topAnalog.date}` : analogs.data?.reason ?? "No verified analog"}</div>
+              <div className="mt-1 text-sm font-black uppercase text-white">{topAnalog?.dominantOutcome ?? memoryData?.dominantOutcome ?? "Unavailable"}</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{topAnalog ? `${topAnalog.symbol} ${topAnalog.date}` : "Manual load disabled"}</div>
             </div>
             <div className="rounded border border-zinc-900 bg-black/45 p-2">
               <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Information Heat</div>
@@ -191,29 +243,41 @@ export default function ResearchPage() {
 
         <div className="grid gap-3 xl:grid-cols-[420px_minmax(0,1fr)]">
           <Card title="Market Memory" icon={<Brain className="h-3.5 w-3.5" />}>
-            {memory.data?.status === "available" ? (
+            {memoryData?.status === "available" ? (
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded border border-zinc-900 bg-black/45 p-2">
                   <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Similar Environments</div>
-                  <div className="mt-1 text-lg font-black text-white">{memory.data.similarCaseCount ?? "NO DATA"}</div>
+                  <div className="mt-1 text-lg font-black text-white">{memoryData.similarCaseCount ?? "NO DATA"}</div>
                 </div>
                 <div className="rounded border border-zinc-900 bg-black/45 p-2">
                   <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Success Rate</div>
-                  <div className="mt-1 text-lg font-black text-emerald-100">{memory.data.successRate === null || memory.data.successRate === undefined ? "NO DATA" : `${Math.round(memory.data.successRate)}%`}</div>
+                  <div className="mt-1 text-lg font-black text-emerald-100">{memoryData.successRate === null || memoryData.successRate === undefined ? "NO DATA" : `${Math.round(memoryData.successRate)}%`}</div>
                 </div>
                 <div className="rounded border border-zinc-900 bg-black/45 p-2">
                   <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Avg 7D</div>
-                  <div className="mt-1 text-lg font-black text-cyan-100">{pct(memory.data.avgReturn7d)}</div>
+                  <div className="mt-1 text-lg font-black text-cyan-100">{pct(memoryData.avgReturn7d)}</div>
                 </div>
                 <div className="rounded border border-zinc-900 bg-black/45 p-2">
                   <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Avg 30D</div>
-                  <div className="mt-1 text-lg font-black text-cyan-100">{pct(memory.data.avgReturn30d)}</div>
+                  <div className="mt-1 text-lg font-black text-cyan-100">{pct(memoryData.avgReturn30d)}</div>
                 </div>
                 <div className="col-span-2 rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">
-                  Context: {(memory.data.topMatchedContexts ?? []).slice(0, 3).join(" / ") || "NO DATA"}
+                  Context: {(memoryData.topMatchedContexts ?? []).slice(0, 3).join(" / ") || "NO DATA"}
                 </div>
               </div>
-            ) : <EmptyState title="Unavailable" reason={memory.data?.reason ?? memory.error ?? "Market memory did not return enough cases."} />}
+            ) : (
+              <div className="grid gap-2">
+                <EmptyState title="Manual Load Required" reason={manualMemoryError ?? "Market memory auto-load is disabled during stabilization."} />
+                <button
+                  type="button"
+                  onClick={() => void loadMarketMemory()}
+                  disabled={manualMemoryLoading}
+                  className="w-fit rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+                >
+                  {manualMemoryLoading ? "Loading Market Memory" : "Load Market Memory"}
+                </button>
+              </div>
+            )}
           </Card>
 
           <Card title="Historical Explorer" icon={<History className="h-3.5 w-3.5" />}>
@@ -230,16 +294,26 @@ export default function ResearchPage() {
                       <span className="text-cyan-100">7D {pct(item.avgReturn7d)}</span>
                       <span className="text-emerald-100">{item.successRate === null ? "NO RATE" : `${Math.round(item.successRate)}%`}</span>
                     </div>
-                    <Link
-                      href={`/replay?symbol=${encodeURIComponent(item.symbol)}&case=${encodeURIComponent(item.date)}`}
-                      className="mt-2 block rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-center text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60"
-                    >
-                      Open Case
-                    </Link>
+                    <div className="mt-2 rounded border border-zinc-900 bg-zinc-950 px-2 py-1 text-center text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+                      Replay Coordinates Required
+                    </div>
                   </div>
                 ))}
               </div>
-            ) : <EmptyState title="Unavailable" reason={analogs.data?.reason ?? analogs.error ?? "No verified historical analogs available."} />}
+            ) : <EmptyState title="Manual Load Required" reason={manualAnalogsError ?? "Historical context is disabled until loaded."} />}
+            {!analogRows.length ? (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => void loadHistoricalExplorer()}
+                  disabled={manualAnalogsLoading}
+                  className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+                >
+                  {manualAnalogsLoading ? "Loading Historical Explorer" : "Load Historical Explorer"}
+                </button>
+                {manualAnalogsError ? <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{manualAnalogsError}</div> : null}
+              </div>
+            ) : null}
           </Card>
         </div>
 
@@ -262,8 +336,8 @@ export default function ResearchPage() {
             <div className="grid gap-1.5 text-[10px] font-black uppercase tracking-[0.12em]">
               <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Narratives: {topNarratives[0]?.narrative ?? "Unavailable"}</div>
               <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Prediction Attention: {predictionMarkets[0]?.title ?? "Unavailable"}</div>
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Memory Cases: {memory.data?.similarCaseCount ?? "Unavailable"}</div>
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Historical Analogs: {analogs.data?.totalCandidates ?? "Unavailable"}</div>
+              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Memory Cases: Disabled</div>
+              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Historical Analogs: Disabled</div>
             </div>
           </Card>
         </div>
