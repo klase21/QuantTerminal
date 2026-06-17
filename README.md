@@ -1,23 +1,30 @@
 # QuantTerminal
 
-QuantTerminal is an execution-aware tactical intelligence terminal for crypto markets.
+**Execution-Aware Crypto Market Intelligence Platform**
 
-It is designed to move beyond a traditional symbol-centric trading dashboard and evolve into a Tactical Decision OS: a system that compresses live market data, flow, macro context, narratives, and execution risk into actionable trading guidance.
+QuantTerminal is an open-source crypto market intelligence platform designed to help traders, researchers, and builders understand what is happening in the market, why it is happening, and how similar environments evolved in the past.
 
-## Core Direction
+Unlike traditional trading terminals that focus primarily on charts and indicators, QuantTerminal combines market structure, information flow, positioning, prediction markets, narratives, and historical context into a unified decision and research workflow.
 
-QuantTerminal is not intended to simply show more indicators.
+---
 
-The core goal is to reduce decision fatigue.
+# Vision
 
-The system should help answer:
+Most crypto participants face the same problem:
 
-- Is this market tradable right now?
-- Where should attention be focused?
-- Should execution be aggressive, selective, defensive, or avoided?
-- What possible narrative or macro drivers may explain the move?
+Information is everywhere, but intelligence is fragmented.
 
-## Product Philosophy
+Price action, funding rates, open interest, liquidations, prediction markets, narratives, news, and macro events are scattered across dozens of platforms.
+
+QuantTerminal aims to reduce this information asymmetry by transforming fragmented signals into actionable market intelligence.
+
+The goal is not to display more data.
+
+The goal is to help users make better tactical decisions faster.
+
+---
+
+# Core Direction
 
 Traditional exchange interfaces usually follow this flow:
 
@@ -32,28 +39,415 @@ QuantTerminal aims to reverse that flow:
 ```txt
 System detects tactical opportunities
 → System ranks attention areas
+→ User verifies market structure
 → User evaluates execution
-→ User acts with better context
+→ User researches context and outcomes
 ```
 
-## Tactical Decision OS
+The platform prioritizes workflow-first and decision-first UX instead of indicator-first UX.
 
-The long-term architecture is centered around:
+---
+
+# Product Philosophy
+
+QuantTerminal is built around the following framework:
 
 ```txt
 Market Data
 → Tactical Synthesis
-→ Narrative Reasoning
+→ Market Structure Verification
 → Execution Guidance
+→ Historical / Research Context
 ```
 
-The system should prioritize verdict-first UX rather than map-first or indicator-first UX.
+The platform should help answer:
 
-## Key Concepts
+* What is happening right now?
+* Which opportunities deserve attention?
+* Is this setup actually confirmed by market structure?
+* What might be driving the move?
+* What did similar market environments look like?
+* How did expectations, positioning, and narratives affect outcomes?
 
-### Tactical Verdict
+---
 
-A simplified execution-oriented market read.
+# Core Product Flow
+
+```txt
+Dashboard
+→ Scanner
+→ Markets
+→ Trade
+→ Replay
+→ Research
+```
+
+Each module has a distinct role.
+
+```txt
+Dashboard = real-time overview
+
+Scanner = opportunity discovery
+
+Markets = selected symbol verification
+
+Trade = execution planning
+
+Replay = historical market reconstruction
+
+Research = deep market intelligence
+```
+
+---
+
+# Modules
+
+## Dashboard
+
+The Dashboard should remain lightweight and fast.
+
+Primary responsibilities:
+
+* Market Brief
+* Tactical Alerts
+* Information Flow
+* Prediction Market Highlights
+* System Status
+
+The Dashboard is intentionally focused on current market awareness.
+
+Heavy historical analysis should not run inside Dashboard.
+
+---
+
+## Markets
+
+Markets is the real-time verification workspace.
+
+Its purpose is simple:
+
+```txt
+Is this selected opportunity actually confirmed by live market structure?
+```
+
+Features:
+
+* Advanced Candlestick Chart
+* Orderbook Depth
+* Trade Flow
+* Funding Context
+* Open Interest Context
+* Selected Symbol Liquidations
+* Market Structure Analysis
+
+Typical flows:
+
+```txt
+Dashboard Tactical Alert
+→ Markets
+
+Scanner Candidate
+→ Markets
+
+Trade Setup
+→ Markets
+```
+
+---
+
+## Scanner
+
+Scanner is the discovery engine.
+
+Its role is to surface what deserves attention now.
+
+Examples:
+
+```txt
+Breakout Continuations
+Liquidity Watch
+Funding Reversals
+Retest Opportunities
+Sector Momentum
+High Activity Symbols
+```
+
+Supported actions:
+
+```txt
+Inspect Market
+→ Markets
+
+Open Trade
+→ Trade
+```
+
+---
+
+## Trade
+
+Trade is the execution planning workspace.
+
+Features:
+
+* Current Candidates
+* Entry Planning
+* Stop Levels
+* Targets
+* Risk / Reward
+* Setup Tracking
+* Outcome Monitoring
+
+Trade converts market opportunities into structured execution plans.
+
+---
+
+## Replay
+
+Replay is one of QuantTerminal's core differentiators.
+
+Replay is user-driven.
+
+The user selects:
+
+```txt
+Exchange
+Symbol
+Date
+Hour
+```
+
+Then loads a historical market environment.
+
+Replay should answer:
+
+```txt
+What did the market look like at that exact moment?
+```
+
+Replay combines:
+
+* Price Action
+* Liquidations
+* Funding
+* Open Interest
+* Orderbook Snapshots
+* Trade Activity
+* News Context
+* Market Expectations
+
+### Replay Data Architecture
+
+```txt
+Replay Price Chart
+→ Binance OHLCV / Klines
+
+Replay Microstructure
+→ CryptoHFTData
+    - trades
+    - orderbook
+    - liquidations
+    - open interest
+    - funding / mark price
+```
+
+This separation allows reliable price reconstruction while preserving deep microstructure analysis.
+
+---
+
+## Research
+
+Research is the heavy analytics layer.
+
+The Dashboard stays lightweight.
+
+Research handles historical analysis, market intelligence, and outcome exploration.
+
+Planned modules:
+
+* Historical Explorer
+* Prediction Markets Research
+* Market State Explorer
+* Narrative Intelligence
+* News Impact Explorer
+* Outcome Analysis
+* Event Database
+* Replay Library
+
+Research should help answer questions such as:
+
+* How do prediction markets move before price?
+* Which news categories historically moved BTC the most?
+* What happens after similar funding and OI regimes?
+* Which market states produce favorable outcomes?
+* How do expectations, positioning, and narratives interact?
+
+---
+
+# Data Strategy
+
+QuantTerminal separates data by purpose.
+
+## Real-Time Market Data
+
+Used by:
+
+* Dashboard
+* Markets
+* Scanner
+* Trade
+
+Examples:
+
+* Binance Futures WebSockets
+* Trade Flow
+* Orderbooks
+* Funding
+* Open Interest
+* Liquidations
+
+---
+
+## Replay Price Data
+
+Used by:
+
+* Replay
+* Historical Price Exploration
+
+Sources:
+
+* Binance OHLCV
+* Binance Historical Klines
+* Historical Parquet Archives
+
+---
+
+## Replay Microstructure Data
+
+Used by:
+
+* Liquidations
+* Funding
+* Open Interest
+* Orderbook Snapshots
+* Historical Trades
+
+Source:
+
+* CryptoHFTData
+
+---
+
+## Prediction Market Data
+
+Used by:
+
+* Research
+* Replay Context
+* Market Expectations
+
+Sources:
+
+* Polymarket Snapshots
+* Prediction Market Archives
+
+---
+
+## News & Event Data
+
+Used by:
+
+* News Impact Explorer
+* Narrative Intelligence
+* Replay News Context
+* Event Outcome Analysis
+
+Potential datasets:
+
+* Bitcoin News vs Price Action
+* Event-Labeled Crypto News
+
+---
+
+## Quant Feature Data
+
+Used by:
+
+* Market State Explorer
+* Regime Analysis
+* Historical Similarity Search
+
+Examples:
+
+* Funding
+* Open Interest
+* Liquidations
+* ETF Flow
+* Prediction Market Probabilities
+* Sentiment
+* Volume Regimes
+* Market Breadth
+
+---
+
+# Modern Market Regime Focus
+
+QuantTerminal prioritizes modern crypto market structures.
+
+Today's market is increasingly driven by:
+
+* Perpetual Futures
+* Funding Rates
+* Open Interest
+* Liquidations
+* ETF Flows
+* Prediction Markets
+* Institutional Positioning
+* Macro Liquidity
+
+For this reason, modern datasets (2023+) generally provide more value than early spot-driven market cycles.
+
+---
+
+# Market State Explorer
+
+Historical Analog is being reimagined as Market State Explorer.
+
+Instead of asking:
+
+```txt
+When did the chart look similar?
+```
+
+The platform should ask:
+
+```txt
+When did market structure, positioning, expectations, and information flow look similar?
+```
+
+Potential state vector:
+
+```txt
+Price Structure
+Funding
+Open Interest
+Liquidations
+Volume
+ETF Flow
+Prediction Markets
+News Sentiment
+Narrative Activity
+Market Breadth
+```
+
+This functionality belongs inside Research rather than Dashboard.
+
+---
+
+# Tactical Decision OS
+
+QuantTerminal remains aligned with the Tactical Decision OS concept.
 
 Examples:
 
@@ -65,11 +459,7 @@ HIGH EXECUTION RISK
 SELECTIVE LONGS ONLY
 ```
 
-### Execution Guidance
-
-Actionable guidance derived from market structure, flow, liquidity, volatility, and macro/narrative context.
-
-Examples:
+Execution guidance examples:
 
 ```txt
 Selective longs favored.
@@ -78,113 +468,13 @@ Wait for liquidity stabilization.
 Do not chase late breakout entries.
 ```
 
-### Possible Drivers
+QuantTerminal should explain market behavior without pretending to know more than the data supports.
 
-Narrative reasoning should explain why a move may be happening without making overconfident claims.
+---
 
-Preferred wording:
+# Realtime Runtime
 
-```txt
-Possible Drivers
-Likely Catalysts
-Potential Macro Influence
-```
-
-### Execution Risk
-
-ATTENTION should function as an execution risk indicator, not as a generic button.
-
-Examples of risk conditions:
-
-```txt
-Spread instability
-Thin passive liquidity
-High slippage risk
-Weak continuation quality
-Funding overheating
-```
-
-### Adaptive Execution
-
-MIXED should be treated as an adaptive execution mode, not as a strategy label.
-
-It may represent a combination of passive, limit, liquidity-aware, or adaptive execution behavior depending on market conditions.
-
-## UX Direction
-
-The interface should remain decision-first.
-
-Default UI should emphasize:
-
-```txt
-Tactical Verdict
-Execution Guidance
-Possible Drivers
-Execution Risks
-Live Tactical Alerts
-```
-
-Advanced visualizations such as flow maps, sector pressure, lane analysis, smart money overlays, and threat overlays should be available on demand through Advanced Mode rather than occupying the primary decision area.
-
-## Tactical Opportunity Router
-
-The symbol selector should evolve into a Tactical Opportunity Router.
-
-Instead of only asking users to choose a symbol, the system should surface opportunity categories such as:
-
-```txt
-High Quality Scalps
-Breakout Continuations
-Liquidity Traps
-Funding Reversals
-Whale Accumulation
-Sector Momentum
-Smart Money Rotation
-```
-
-The long-term goal is for users to discover what is worth watching now, not manually search every symbol.
-
-## Macro Intelligence Direction
-
-Macro Intelligence should not remain a static data panel.
-
-It should follow this structure:
-
-```txt
-Macro Signal
-→ Narrative Reasoning
-→ Execution Impact
-```
-
-Example:
-
-```txt
-Macro Read:
-Risk-on conditions are improving, but DXY strength may cap aggressive alt continuation.
-
-Execution Impact:
-Selective longs favored. Avoid chasing weak sectors.
-```
-
-## Narrative Reasoning Engine
-
-Narrative intelligence should connect:
-
-```txt
-Market events
-Volume expansion
-Price movement
-Flow changes
-Macro context
-News catalysts
-Regional narratives
-```
-
-The goal is not just to show news, but to explain why a move may be happening using tentative reasoning.
-
-## Realtime Runtime
-
-QuantTerminal uses Binance Futures websocket streams and should preserve the following endpoint mapping:
+Binance Futures endpoint mapping:
 
 ```txt
 trade           → /ws
@@ -195,7 +485,7 @@ forceOrder      → /market/ws
 depth/orderbook → /public/ws
 ```
 
-The realtime runtime should move toward:
+Long-term runtime architecture:
 
 ```txt
 Shared WS Manager
@@ -204,62 +494,87 @@ Shared WS Manager
 → Widgets
 ```
 
-This avoids duplicate websocket subscriptions and improves consistency across widgets.
+---
 
-## Flow and CVD Semantics
+# Roadmap
 
-For Binance `aggTrade`:
+## Sprint 0 — Stabilization
+
+* Remove Historical Analog from Dashboard
+* Keep Dashboard lightweight
+* Stabilize Markets workflows
+* Stabilize Trade candidates
+* Replay manual loading
+* Replay chart migration to Binance OHLCV
+
+---
+
+## Sprint 1 — Replay V2
+
+* Binance OHLCV Replay Chart
+* CryptoHFTData Replay
+* Liquidation Timeline
+* Funding / OI Context
+* Orderbook Snapshots
+* Event Timeline
+* News Context
+* Market Expectations
+
+---
+
+## Sprint 2 — Research V1
+
+* Prediction Markets Research
+* News Impact Explorer
+* Event Outcome Analysis
+* Replay Library Foundation
+
+---
+
+## Sprint 3 — Market State Explorer
+
+* Multi-Factor Similarity Search
+* Funding/OI Regimes
+* Market State Vectors
+* Outcome Statistics
+* Forward Return Analysis
+
+---
+
+## Sprint 4 — Intelligence Layer
+
+* Narrative Intelligence
+* Expectation vs Reality
+* News → Price Analysis
+* Prediction Markets → Price Analysis
+* Regime Detection
+* AI-Assisted Research
+
+---
+
+# Tech Stack
+
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+* Zustand
+* Binance Futures Streams
+* CryptoHFTData
+* Parquet Datasets
+* DuckDB-style Analytics
+* Shared Realtime Runtime
+
+---
+
+# Project Identity
 
 ```txt
-m === true  → buyer is maker → sell-initiated trade
-m === false → buyer is taker → buy-initiated trade
-```
-
-Expected flow behavior:
-
-```txt
-Buy Volume  = session accumulated buy-initiated volume
-Sell Volume = session accumulated sell-initiated volume
-Delta       = Buy Volume - Sell Volume
-CVD         = cumulative signed delta
-```
-
-Buy Volume and Sell Volume should not decrease during the same session. CVD may rise or fall depending on signed trade flow.
-
-## Current Development Focus
-
-Near-term implementation priorities:
-
-```txt
-Tactical Verdict Engine V1
-Tactical Opportunity Router
-Narrative Reasoning Engine
-Macro Reasoning Integration
-Actionable Tactical Alerts
-Sector and Flow Intelligence
-Advanced Overlay System
-Realtime Runtime Finalization
-```
-
-## Tech Stack
-
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-- Zustand
-- Binance Futures websocket streams
-- Shared realtime websocket manager
-- Tactical routing/context architecture
-
-## Project Identity
-
-QuantTerminal should remain aligned with this identity:
-
-```txt
-Execution-Aware Tactical Intelligence OS
+Execution-Aware Crypto Market Intelligence Platform
 ```
 
 The main goal is not to display more data.
 
-The main goal is to help users make better tactical decisions faster.
+The main goal is to help traders, researchers, and builders understand markets faster, verify opportunities more clearly, and learn from historical market environments with better context.
+
+QuantTerminal is built around the belief that market intelligence should be accessible to everyone.
