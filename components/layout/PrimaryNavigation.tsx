@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart3, Gauge, History, Radar, Search, Settings, SlidersHorizontal, ClipboardCheck } from "lucide-react"
+import { BarChart3, Database, Gauge, History, Radar, Search, Settings, SlidersHorizontal, ClipboardCheck } from "lucide-react"
 import type { ReactNode } from "react"
 
 const NAV_ITEMS = [
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: "Markets", href: "/markets", icon: BarChart3, active: true },
   { label: "Scanner", href: "/scanner", icon: Radar, active: true },
   { label: "Trade", href: "/trade", icon: ClipboardCheck, active: true },
+  { label: "Intelligence", href: "/historical-intelligence", icon: Database, active: true },
   { label: "Research", href: "/research", icon: Search, active: true },
   { label: "Replay", href: "/replay", icon: History, active: true },
   { label: "Settings", icon: Settings, active: false },
