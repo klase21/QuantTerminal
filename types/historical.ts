@@ -202,6 +202,13 @@ export type VerdictAccuracyStats = {
 
 export type DashboardHistoricalAnalogResponse = {
   status: "available" | "unavailable"
+  diagnostics?: {
+    cacheStatus: string
+    generatedAt: string | null
+    source: string | null
+    schemaVersion: string
+    analogCount: number
+  }
   source?: HistoricalAnalogSource
   queryPath?: string
   requestedSymbol?: string

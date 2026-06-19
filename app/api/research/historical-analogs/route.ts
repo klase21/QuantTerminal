@@ -1,71 +1,82 @@
 import { NextResponse } from "next/server"
 
-import { latestDashboardSnapshot, listHistoricalSnapshotsByInterval, listMarketOutcomes } from "@/lib/historical-data/localHistoricalStore"
-import { buildCurrentMarketState } from "@/lib/historical-analog/buildCurrentMarketState"
-import { filterHistoricalAnalogCandidates } from "@/lib/historical-analog/findSimilarMarketStates"
-import { historicalSnapshotScore, matchedContexts } from "@/lib/market-memory/aggregateMarketMemory"
-import { enrichWeakDashboardSnapshot } from "@/lib/market-memory/currentStateEnrichment"
-import { summarizeOutcomes } from "@/lib/research/marketOutcomeAnalytics"
+import { HISTORICAL_ANALOG_CACHE_SCHEMA_VERSION } from "@/core/historical-intelligence/analog-v2/historicalAnalogCache"
+import { readHistoricalAnalogCacheV2 } from "@/lib/historical-intelligence/analog-v2/readHistoricalAnalogCache"
 import type { HistoricalInterval } from "@/types/historical"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-function dateFromTimestamp(value: number) {
-  return new Date(value).toISOString().slice(0, 10)
+function validInterval(value: string): value is HistoricalInterval {
+  return value === "1h" || value === "4h" || value === "1d"
 }
 
-function daysAgo(value: number) {
-  return Math.max(0, Math.floor((Date.now() - value) / 86400000))
+function unavailableReason(state: string, reason: string) {
+  if (state === "missing") return "Historical Analog V2 cache not generated."
+  if (state === "corrupted") return "Historical Analog V2 cache is corrupted."
+  if (state === "expired") return "Historical Analog V2 cache has expired."
+  if (state === "version_mismatch") return "Historical Analog V2 cache schema is incompatible."
+  if (state === "partial") return "Historical Analog V2 cache generation is incomplete."
+  if (state === "generation_failed") return `Historical Analog V2 cache generation failed: ${reason}`
+  return reason
 }
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
-  const symbol = searchParams.get("symbol") || "BTCUSDT"
-  const interval = (searchParams.get("interval") || "1h") as HistoricalInterval
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const symbol = (searchParams.get("symbol") ?? "BTCUSDT").trim().toUpperCase()
+  const intervalValue = searchParams.get("interval") ?? "1h"
   const limit = Math.max(1, Math.min(100, Number(searchParams.get("limit") ?? 25) || 25))
-  const dashboardSnapshot = await latestDashboardSnapshot(symbol)
-
-  if (!dashboardSnapshot) {
+  if (!validInterval(intervalValue)) {
     return NextResponse.json({
       status: "unavailable",
-      reason: "missing_current_dashboard_snapshot",
+      reason: "Unsupported interval.",
       totalCandidates: 0,
       analogs: [],
     })
   }
 
-  const current = buildCurrentMarketState(await enrichWeakDashboardSnapshot(dashboardSnapshot, new URL(req.url).origin))
-  const snapshots = filterHistoricalAnalogCandidates(await listHistoricalSnapshotsByInterval(interval))
-  const outcomes = await listMarketOutcomes(interval)
-  const outcomesBySnapshotId = new Map(outcomes.map((outcome) => [outcome.snapshotId, outcome]))
-  const ranked = snapshots
-    .map((snapshot) => ({
-      snapshot,
-      score: historicalSnapshotScore(current, snapshot),
-      contexts: matchedContexts(current, snapshot),
-    }))
-    .filter((item) => item.score >= 50)
-    .sort((left, right) => right.score - left.score)
-  const analogs = ranked.slice(0, limit).map((item) => {
-    const outcome = outcomesBySnapshotId.get(item.snapshot.id)
-    const summary = outcome ? summarizeOutcomes([outcome]) : summarizeOutcomes([])
-    return {
-      symbol: item.snapshot.symbol,
-      matchedSymbol: item.snapshot.symbol,
-      date: dateFromTimestamp(item.snapshot.timestamp),
-      daysAgo: daysAgo(item.snapshot.timestamp),
-      matchedContexts: item.contexts,
-      avgReturn7d: summary.avgReturn7d,
-      avgReturn30d: summary.avgReturn30d,
-      successRate: current.direction === "neutral" ? null : summary.successRate,
-      dominantOutcome: summary.dominantOutcome,
-    }
-  })
+  const result = await readHistoricalAnalogCacheV2({ symbol, interval: intervalValue })
+  if (!result.ok) {
+    const reason = "reason" in result ? result.reason : "Historical Analog V2 cache unavailable."
+    return NextResponse.json({
+      status: "unavailable",
+      reason: unavailableReason(result.state, reason),
+      totalCandidates: 0,
+      analogs: [],
+      diagnostics: {
+        cacheStatus: result.state,
+        generatedAt: result.manifest?.generatedAt ?? null,
+        schemaVersion: result.manifest?.schemaVersion ?? HISTORICAL_ANALOG_CACHE_SCHEMA_VERSION,
+        analogCount: 0,
+      },
+    })
+  }
+
+  const sevenDay = result.data.statistics.byHorizon["7d"]
+  const analogs = result.data.cases.slice(0, limit).map((item) => ({
+    symbol: item.state.symbol,
+    matchedSymbol: item.state.symbol,
+    date: new Date(item.state.timestamp).toISOString().slice(0, 10),
+    matchedContexts: [
+      `${item.state.trendRegime} regime`,
+      `${item.similarity.toFixed(1)}% similarity`,
+    ],
+    avgReturn7d: item.outcome.returns["7d"],
+    avgReturn30d: null,
+    successRate: sevenDay.winRate,
+    dominantOutcome: result.data.statistics.dominantOutcome,
+  }))
 
   return NextResponse.json({
     status: analogs.length ? "available" : "unavailable",
-    totalCandidates: ranked.length,
+    reason: analogs.length ? undefined : "No cached historical analog cases matched the current market state.",
+    totalCandidates: result.data.search.candidateCount,
     analogs,
+    diagnostics: {
+      cacheStatus: "ready",
+      generatedAt: result.manifest.generatedAt,
+      schemaVersion: result.manifest.schemaVersion,
+      analogCount: result.data.cases.length,
+    },
   })
 }
