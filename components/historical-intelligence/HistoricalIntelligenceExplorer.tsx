@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   Activity,
   BarChart3,
@@ -13,6 +14,13 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react"
+
+import {
+  buildInvestigationHref,
+  createInvestigationContext,
+  readInvestigationContext,
+  toHistoricalTimeframe,
+} from "@/lib/investigation/context"
 
 type Horizon = "1h" | "4h" | "24h" | "7d"
 type Interval = "1h" | "4h" | "1d"
@@ -214,8 +222,22 @@ function Unavailable({ reason }: { reason: string }) {
 }
 
 export default function HistoricalIntelligenceExplorer() {
-  const [symbolInput, setSymbolInput] = useState("BTCUSDT")
-  const [interval, setInterval] = useState<Interval>("1h")
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const investigationContext = readInvestigationContext(
+    searchParams,
+    createInvestigationContext({
+      symbol: "BTCUSDT",
+      exchange: "binance_futures",
+      timeframe: "1h",
+      investigationType: "historical_analog",
+      source: "historical-intelligence",
+    }),
+  )
+  const contextInterval = toHistoricalTimeframe(investigationContext.timeframe)
+  const [symbolInput, setSymbolInput] = useState(investigationContext.symbol)
+  const [interval, setInterval] = useState<Interval>(contextInterval)
   const [data, setData] = useState<ExplorerResponse | null>(null)
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -248,7 +270,10 @@ export default function HistoricalIntelligenceExplorer() {
       }
       setData(payload)
       setSymbolInput(payload.symbol ?? normalizedSymbol)
-      setSelectedCaseId(payload.cases?.[0]?.state.id ?? null)
+      const requestedCaseId = investigationContext.selectedHistoricalCase?.id
+      setSelectedCaseId(payload.cases?.some((item) => item.state.id === requestedCaseId)
+        ? requestedCaseId ?? null
+        : payload.cases?.[0]?.state.id ?? null)
     } catch {
       if (!controller.signal.aborted) setReason("cache request failed")
       else setReason("cache request timed out")
@@ -256,11 +281,13 @@ export default function HistoricalIntelligenceExplorer() {
       window.clearTimeout(timeout)
       setLoading(false)
     }
-  }, [])
+  }, [investigationContext.selectedHistoricalCase?.id])
 
   useEffect(() => {
-    void loadCache("BTCUSDT", "1h")
-  }, [loadCache])
+    setSymbolInput(investigationContext.symbol)
+    setInterval(contextInterval)
+    void loadCache(investigationContext.symbol, contextInterval)
+  }, [contextInterval, investigationContext.symbol, loadCache])
 
   const cases = data?.cases ?? []
   const selectedCase = cases.find((item) => item.state.id === selectedCaseId) ?? cases[0] ?? null
@@ -272,6 +299,26 @@ export default function HistoricalIntelligenceExplorer() {
   const matchReasons = currentState && selectedCase
     ? similarityReasons(currentState, selectedCase.state)
     : []
+
+  function selectCase(caseId: string) {
+    const selected = cases.find((item) => item.state.id === caseId)
+    setSelectedCaseId(caseId)
+    if (!selected) return
+    router.replace(buildInvestigationHref(pathname, {
+      ...investigationContext,
+      symbol: selected.state.symbol,
+      timeframe: selected.state.interval,
+      investigationType: "historical_case",
+      selectedHistoricalCase: {
+        id: selected.state.id,
+        symbol: selected.state.symbol,
+        timeframe: selected.state.interval,
+        timestamp: new Date(selected.state.timestamp).toISOString(),
+        source: data?.source ?? data?.diagnostics?.source ?? "historical-analog-v2",
+        exchange: investigationContext.exchange,
+      },
+    }), { scroll: false })
+  }
 
   return (
     <main className="box-border min-h-screen w-full max-w-full overflow-x-hidden bg-black px-3 py-3 text-white lg:px-4">
@@ -381,7 +428,7 @@ export default function HistoricalIntelligenceExplorer() {
                         <button
                           type="button"
                           key={item.state.id}
-                          onClick={() => setSelectedCaseId(item.state.id)}
+                          onClick={() => selectCase(item.state.id)}
                           className={cn(
                             "grid w-full grid-cols-[38px_minmax(150px,1fr)_90px_repeat(4,minmax(62px,.5fr))] items-center gap-2 border-b border-zinc-900 px-3 py-2 text-left transition",
                             selected ? "bg-cyan-400/10" : "bg-black/25 hover:bg-zinc-900/45",

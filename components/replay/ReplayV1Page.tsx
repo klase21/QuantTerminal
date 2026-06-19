@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { Activity, BarChart3, Droplets, LineChart, RadioTower, Zap } from "lucide-react"
 
 import MarketCandleChart from "@/components/charts/MarketCandleChart"
+import { createInvestigationContext, readInvestigationContext } from "@/lib/investigation/context"
 
 type CryptoReplayTrade = {
   timestamp: string
@@ -771,10 +772,20 @@ function whatHappenedLines(symbol: string, priceChange: number | null, oiChange:
 
 export default function ReplayV1Page() {
   const searchParams = useSearchParams()
-  const initialExchange = searchParams.get("exchange") ?? "binance_futures"
-  const initialSymbol = searchParams.get("symbol")?.toUpperCase() ?? "BTCUSDT"
-  const initialDate = searchParams.get("date") ?? replayDateDefault()
-  const initialHour = searchParams.get("hour") ?? replayHourDefault()
+  const investigationContext = readInvestigationContext(
+    searchParams,
+    createInvestigationContext({
+      symbol: "BTCUSDT",
+      exchange: "binance_futures",
+      timeframe: "1h",
+      investigationType: "replay",
+      source: "replay",
+    }),
+  )
+  const initialExchange = investigationContext.selectedReplayWindow?.exchange ?? investigationContext.exchange
+  const initialSymbol = investigationContext.selectedReplayWindow?.symbol ?? investigationContext.symbol
+  const initialDate = investigationContext.selectedReplayWindow?.date ?? replayDateDefault()
+  const initialHour = investigationContext.selectedReplayWindow?.hour ?? replayHourDefault()
   const [exchange, setExchange] = useState(initialExchange)
   const [symbol, setSymbol] = useState(initialSymbol)
   const [date, setDate] = useState(initialDate)

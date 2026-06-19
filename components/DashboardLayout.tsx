@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
+
 import useMarketSocket from "@/hooks/useMarketSocket";
 import useOrderbookSocket from "@/hooks/useOrderbookSocket";
 import useTradeSocket from "@/hooks/useTradeSocket";
@@ -15,10 +18,13 @@ import GlobalTacticalContextBridge from "@/components/context/GlobalTacticalCont
 
 import AlertCenter from "@/components/AlertCenter";
 import DashboardV1 from "@/components/product/DashboardV1";
+import { buildInvestigationHref, createInvestigationContext, toHistoricalTimeframe } from "@/lib/investigation/context";
 
 export default function DashboardLayout() {
   useMarketSocket();
 
+  const pathname = usePathname();
+  const router = useRouter();
   const route = useTacticalRoute();
   const symbol = route.symbol;
   const marketMode = route.marketMode;
@@ -45,6 +51,24 @@ export default function DashboardLayout() {
     liquidityEvents,
     liquidations,
   });
+
+  const investigationContext = useMemo(
+    () => createInvestigationContext({
+      symbol,
+      exchange: route.venue === "BINANCE_SPOT" ? "binance_spot" : "binance_futures",
+      timeframe: toHistoricalTimeframe(route.timeframe),
+      investigationType: "market_state",
+      source: "dashboard",
+    }),
+    [route.timeframe, route.venue, symbol],
+  );
+
+  useEffect(() => {
+    const href = buildInvestigationHref(pathname, investigationContext);
+    if (`${window.location.pathname}${window.location.search}` !== href) {
+      router.replace(href, { scroll: false });
+    }
+  }, [investigationContext, pathname, router]);
 
   return (
     <div className="min-h-screen bg-black text-white">

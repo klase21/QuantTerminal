@@ -1,9 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { BarChart3, Database, Gauge, History, Radar, Search, Settings, SlidersHorizontal, ClipboardCheck } from "lucide-react"
-import type { ReactNode } from "react"
+import { Suspense, type ReactNode } from "react"
+
+import { buildInvestigationHref, createInvestigationContext, readInvestigationContext } from "@/lib/investigation/context"
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge, active: true },
@@ -22,8 +24,32 @@ function navClass(active: boolean, selected: boolean) {
   return "border-zinc-900 bg-black/35 text-zinc-500 hover:border-zinc-700 hover:text-zinc-200"
 }
 
-export function TerminalAppShell({ children }: { children: ReactNode }) {
+const CONTEXT_ROUTES = new Set(["/dashboard", "/research", "/historical-intelligence", "/replay"])
+
+function TerminalAppShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const context = readInvestigationContext(
+    searchParams,
+    createInvestigationContext({
+      symbol: "BTCUSDT",
+      exchange: "binance_futures",
+      timeframe: "1h",
+      investigationType: pathname === "/replay" ? "replay" : pathname === "/historical-intelligence" ? "historical_analog" : "market_state",
+      source: pathname.slice(1) || "dashboard",
+    }),
+  )
+  const itemHref = (href?: string) => {
+    if (!href || !CONTEXT_ROUTES.has(href)) return href
+    const investigationType = href === "/replay"
+      ? "replay"
+      : href === "/historical-intelligence"
+        ? "historical_analog"
+        : href === "/research"
+          ? context.investigationType
+          : "market_state"
+    return buildInvestigationHref(href, { ...context, investigationType, source: pathname.slice(1) || "dashboard" })
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -47,7 +73,7 @@ export function TerminalAppShell({ children }: { children: ReactNode }) {
             }
 
             return (
-              <Link key={item.label} href={item.href} aria-label={item.label}>
+              <Link key={item.label} href={itemHref(item.href) ?? item.href} aria-label={item.label}>
                 {content}
               </Link>
             )
@@ -68,12 +94,20 @@ export function TerminalAppShell({ children }: { children: ReactNode }) {
                 </div>
               )
               if (!item.active || !item.href) return <div key={item.label} aria-disabled="true">{content}</div>
-              return <Link key={item.label} href={item.href}>{content}</Link>
+              return <Link key={item.label} href={itemHref(item.href) ?? item.href}>{content}</Link>
             })}
           </nav>
         </div>
         {children}
       </div>
     </div>
+  )
+}
+
+export function TerminalAppShell({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black text-white">{children}</div>}>
+      <TerminalAppShellContent>{children}</TerminalAppShellContent>
+    </Suspense>
   )
 }

@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Brain, History, Newspaper, PieChart, Search, Sparkles } from "lucide-react"
 
 import { useSafePolling } from "@/hooks/system/useSafePolling"
+import { createInvestigationContext, readInvestigationContext, toHistoricalTimeframe } from "@/lib/investigation/context"
 import { safeFetchJson } from "@/lib/runtime/safeFetch"
 
 type NarrativeResponse = {
@@ -113,10 +115,23 @@ function attentionLabel(market: PredictionResponse["markets"][number] | undefine
 }
 
 export default function ResearchPage() {
+  const searchParams = useSearchParams()
+  const investigationContext = readInvestigationContext(
+    searchParams,
+    createInvestigationContext({
+      symbol: "BTCUSDT",
+      exchange: "binance_futures",
+      timeframe: "1h",
+      investigationType: "market_state",
+      source: "research",
+    }),
+  )
+  const historicalTimeframe = toHistoricalTimeframe(investigationContext.timeframe)
+  const historicalQuery = `symbol=${encodeURIComponent(investigationContext.symbol)}&interval=${historicalTimeframe}`
   const narratives = useSafePolling<NarrativeResponse>("/api/narratives?range=24h", 60000, { label: "research-narratives", timeoutMs: 12000, retries: 1 })
   const predictions = useSafePolling<PredictionResponse>("/api/research/prediction-markets", 60000, { label: "research-predictions", timeoutMs: 12000, retries: 1 })
-  const memory = useSafePolling<MarketMemoryResponse>("/api/dashboard/market-memory?symbol=BTCUSDT&interval=1h", 60000, { label: "research-memory", timeoutMs: 12000, retries: 1, enabled: false })
-  const analogs = useSafePolling<HistoricalAnalogsResponse>("/api/research/historical-analogs?symbol=BTCUSDT&interval=1h&limit=12", 60000, { label: "research-analogs", timeoutMs: 12000, retries: 1, enabled: false })
+  const memory = useSafePolling<MarketMemoryResponse>(`/api/dashboard/market-memory?${historicalQuery}`, 60000, { label: "research-memory", timeoutMs: 12000, retries: 1, enabled: false })
+  const analogs = useSafePolling<HistoricalAnalogsResponse>(`/api/research/historical-analogs?${historicalQuery}&limit=12`, 60000, { label: "research-analogs", timeoutMs: 12000, retries: 1, enabled: false })
   const macro = useSafePolling<MacroResponse>("/api/macro", 60000, { label: "research-macro", timeoutMs: 12000, retries: 1 })
   const [manualMemory, setManualMemory] = useState<MarketMemoryResponse | null>(null)
   const [manualMemoryLoading, setManualMemoryLoading] = useState(false)
@@ -133,12 +148,19 @@ export default function ResearchPage() {
     }
   }, [])
 
+  useEffect(() => {
+    setManualMemory(null)
+    setManualMemoryError(null)
+    setManualAnalogs(null)
+    setManualAnalogsError(null)
+  }, [investigationContext.symbol, historicalTimeframe])
+
   async function loadMarketMemory() {
     const controller = new AbortController()
     manualControllers.current.push(controller)
     setManualMemoryLoading(true)
     setManualMemoryError(null)
-    const result = await safeFetchJson<MarketMemoryResponse>("/api/dashboard/market-memory?symbol=BTCUSDT&interval=1h", {
+    const result = await safeFetchJson<MarketMemoryResponse>(`/api/dashboard/market-memory?${historicalQuery}`, {
       signal: controller.signal,
       timeoutMs: 12000,
       retries: 0,
@@ -156,7 +178,7 @@ export default function ResearchPage() {
     manualControllers.current.push(controller)
     setManualAnalogsLoading(true)
     setManualAnalogsError(null)
-    const result = await safeFetchJson<HistoricalAnalogsResponse>("/api/research/historical-analogs?symbol=BTCUSDT&interval=1h&limit=12", {
+    const result = await safeFetchJson<HistoricalAnalogsResponse>(`/api/research/historical-analogs?${historicalQuery}&limit=12`, {
       signal: controller.signal,
       timeoutMs: 12000,
       retries: 0,
