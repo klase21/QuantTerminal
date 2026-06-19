@@ -71,14 +71,26 @@ type MarketMoversResponse = {
 
 type NarrativeHeatmapRow = {
   narrative: string
+  kr: number
+  cn: number
+  en: number
   total: number
+  divergence: number
 }
 
 type NarrativesResponse = {
   heatmap?: NarrativeHeatmapRow[]
   topNarratives?: string[]
+  regionalLeaders?: {
+    kr: string
+    cn: string
+    en: string
+  }
+  divergenceScore?: number
   updatedAt?: number
 }
+
+type NarrativeLoadState = "loading" | "ready" | "empty" | "unavailable"
 
 type MacroItem = {
   symbol?: string
@@ -1365,6 +1377,10 @@ export default function DashboardV1({
   const [cacheUpdatedAt, setCacheUpdatedAt] = useState<string | null>(cachedDashboard?.cachedAt ?? null)
   const [marketMovers, setMarketMovers] = useState<MarketMoversResponse | null>(cachedDashboard?.marketMovers ?? null)
   const [narratives, setNarratives] = useState<NarrativesResponse | null>(cachedDashboard?.narratives ?? null)
+  const [narrativeLoadState, setNarrativeLoadState] = useState<NarrativeLoadState>(
+    cachedDashboard?.narratives?.heatmap?.length ? "ready" : "loading"
+  )
+  const [narrativeUnavailableReason, setNarrativeUnavailableReason] = useState<string | null>(null)
   const [macro, setMacro] = useState<MacroResponse | null>(cachedDashboard?.macro ?? null)
   const [predictionMarkets, setPredictionMarkets] = useState<PredictionMarketsResponse | null>(cachedDashboard?.predictionMarkets ?? null)
   const [etfFlow, setEtfFlow] = useState<EtfFlowResponse | null>(cachedDashboard?.etfFlow ?? null)
@@ -1420,7 +1436,6 @@ export default function DashboardV1({
       void loadJson<FuturesIntelligenceResponse>("/api/market/futures-intelligence", setFutures, "futures")
       deferredTimer = setTimeout(() => {
         if (!active) return
-        void loadJson<NarrativesResponse>("/api/narratives?range=24h", setNarratives, "narratives")
         void loadJson<MacroResponse>("/api/macro", setMacro, "macro")
         void loadJson<EtfFlowResponse>("/api/etf-flow", setEtfFlow, "etfFlow")
         void loadJson<SectorRotationResponse>("/api/market/sector-rotation", setSectorRotation, "sectorRotation")
@@ -1435,6 +1450,55 @@ export default function DashboardV1({
       controllers.forEach((controller) => controller.abort())
     }
   }, [cachedDashboard, symbol])
+
+  useEffect(() => {
+    let active = true
+    let timedOut = false
+    const controller = new AbortController()
+    const timeout = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 12000)
+
+    setNarrativeLoadState(narratives?.heatmap?.length ? "ready" : "loading")
+    setNarrativeUnavailableReason(null)
+
+    void fetch("/api/narratives?range=24h", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Narrative request failed (${response.status})`)
+        return response.json() as Promise<NarrativesResponse>
+      })
+      .then((value) => {
+        if (!active || controller.signal.aborted) return
+        const heatmap = Array.isArray(value.heatmap) ? value.heatmap : []
+        const normalized = { ...value, heatmap }
+        setNarratives(normalized)
+        setNarrativeLoadState(heatmap.length > 0 ? "ready" : "empty")
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        setNarrativeLoadState("unavailable")
+        setNarrativeUnavailableReason(
+          timedOut
+            ? "Narrative request timed out."
+            : error instanceof Error
+              ? error.message
+              : "Narrative request failed."
+        )
+      })
+      .finally(() => {
+        clearTimeout(timeout)
+      })
+
+    return () => {
+      active = false
+      clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [symbol])
 
   useEffect(() => {
     let active = true
@@ -1512,9 +1576,7 @@ export default function DashboardV1({
             <EtfFlowCard data={etfFlow} />
             <LiquidityConditionsCard futures={futures} />
             <BottomCard title="Narrative Heatmap" icon={<Database className="h-3.5 w-3.5" />}>
-              {narrativeItems.length === 0 ? (
-                <div className="text-sm font-black uppercase tracking-[0.16em] text-zinc-500">NO NARRATIVE DATA</div>
-              ) : (
+              {narrativeItems.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {narrativeItems.map((item) => (
                     <span key={item.label} className={cn("rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em]", item.tone)}>
@@ -1524,6 +1586,17 @@ export default function DashboardV1({
                     </span>
                   ))}
                 </div>
+              ) : narrativeLoadState === "loading" ? (
+                <div className="text-sm font-black uppercase tracking-[0.16em] text-zinc-500">LOADING NARRATIVE DATA</div>
+              ) : narrativeLoadState === "unavailable" ? (
+                <div className="text-sm font-black uppercase tracking-[0.16em] text-zinc-500">
+                  NARRATIVE DATA UNAVAILABLE
+                  <span className="ml-2 text-[10px] tracking-[0.08em] text-zinc-600">
+                    Reason: {narrativeUnavailableReason ?? "Narrative request failed."}
+                  </span>
+                </div>
+              ) : (
+                <div className="text-sm font-black uppercase tracking-[0.16em] text-zinc-500">NO NARRATIVE DATA</div>
               )}
             </BottomCard>
           </div>
