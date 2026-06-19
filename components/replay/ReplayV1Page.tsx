@@ -55,7 +55,7 @@ type ReplayChartCandle = {
 
 type CryptoReplayResponse = {
   ok: boolean
-  source: "cryptohftdata"
+  source: "cryptohftdata" | "replay-cache"
   exchange: string
   symbol: string
   window?: {
@@ -68,6 +68,12 @@ type CryptoReplayResponse = {
   funding: CryptoReplayFundingPoint[]
   candles: CryptoReplayCandle[]
   diagnostics?: {
+    cache?: {
+      status: string
+      generatedAt: string | null
+      source: string | null
+      schemaVersion: string
+    }
     downloaded?: Array<unknown>
     unavailable?: Array<{ dataset: string; reason: string }>
     errors?: Array<{ dataset: string; message: string }>
@@ -401,6 +407,7 @@ function mergeReplayData(previous: CryptoReplayResponse | null, next: CryptoRepl
     funding: next.funding.length ? [...base.funding, ...next.funding] : base.funding,
     candles: next.candles.length ? next.candles : base.candles,
     diagnostics: {
+      cache: next.diagnostics?.cache ?? base.diagnostics?.cache,
       downloaded: [...(base.diagnostics?.downloaded ?? []), ...(next.diagnostics?.downloaded ?? [])],
       unavailable: [...(base.diagnostics?.unavailable ?? []), ...(next.diagnostics?.unavailable ?? [])],
       errors: [...(base.diagnostics?.errors ?? []), ...(next.diagnostics?.errors ?? [])],
@@ -1066,7 +1073,6 @@ export default function ReplayV1Page() {
   }
 
   async function loadOrderbook() {
-    console.info("Replay orderbook click")
     if (orderbookInFlightRef.current) {
       orderbookControllerRef.current?.abort()
       orderbookControllerRef.current = null
@@ -1092,12 +1098,10 @@ export default function ReplayV1Page() {
       symbol,
       date,
       hour,
-      datasets: "orderbook",
     })
-    const requestUrl = `/api/replay/cryptohftdata?${params.toString()}`
+    const requestUrl = `/api/replay/orderbook-cache?${params.toString()}`
 
     try {
-      console.info("Replay orderbook request", requestUrl)
       const response = await fetch(requestUrl, { cache: "no-store", signal: controller.signal })
       const payload = await response.json() as CryptoReplayResponse | { reason?: string }
       if (controller.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return

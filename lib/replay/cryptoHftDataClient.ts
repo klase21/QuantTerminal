@@ -106,7 +106,7 @@ export type CryptoHftReplayRequest = {
 
 const COVERAGE_START = "2025-07-01"
 const DOWNLOAD_BASE_URL = "https://api.cryptohftdata.com/download"
-const DATASETS: CryptoHftDataset[] = ["trades", "orderbook", "liquidations", "open_interest", "mark_price", "ticker"]
+const DATASETS: CryptoHftDataset[] = ["trades", "liquidations", "open_interest", "mark_price", "ticker"]
 const ORDERBOOK_RECONSTRUCTION_ROW_BUDGET = 500_000
 const ORDERBOOK_COLUMNS = ["received_time", "event_time", "transaction_time", "event_type", "side", "price", "quantity"]
 
@@ -657,7 +657,14 @@ export async function loadCryptoHftDataReplay(request: CryptoHftReplayRequest): 
   }
 
   const requestedDatasets = request.datasets?.length ? request.datasets : DATASETS
-  const results = await Promise.allSettled(requestedDatasets.map((dataset) => downloadDataset(dataset, request, apiKey)))
+  if (requestedDatasets.includes("orderbook")) {
+    diagnostics.unavailable.push({
+      dataset: "orderbook",
+      reason: "Replay orderbook is cache-only. Generate the replay cache before loading this dataset.",
+    })
+  }
+  const providerDatasets = requestedDatasets.filter((dataset) => dataset !== "orderbook")
+  const results = await Promise.allSettled(providerDatasets.map((dataset) => downloadDataset(dataset, request, apiKey)))
   for (const result of results) {
     if (result.status === "rejected") {
       diagnostics.errors.push({ dataset: "provider", message: result.reason instanceof Error ? result.reason.message : "Dataset download failed." })
