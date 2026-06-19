@@ -14,3 +14,37 @@ coverage
 # temp files
 *.tmp
 *.bak
+
+# Historical datasets
+*.parquet
+*.parquet.zst
+*.feather
+*.arrow
+
+# Screenshots
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Local databases (future)
+*.duckdb
+*.db
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.vscode/tasks.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Generated artifacts
+.cache/
+tmp/

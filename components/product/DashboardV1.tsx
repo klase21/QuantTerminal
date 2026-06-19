@@ -9,6 +9,7 @@ import {
   Database,
   Droplets,
   Gauge,
+  History,
   Info,
   LineChart,
   Newspaper,
@@ -190,6 +191,30 @@ type EtfFlowResponse = {
     isStale?: boolean
     staleReason?: string
   }>
+}
+
+type HistoricalEvidenceResponse = {
+  ok?: boolean
+  status?: "available" | "unavailable"
+  source?: string
+  statistics?: {
+    totalCases?: number
+    dominantOutcome?: string
+    byHorizon?: {
+      "24h"?: {
+        averageReturn?: number | null
+        winRate?: number | null
+      }
+    }
+  }
+  diagnostics?: {
+    cacheStatus?: string
+    generatedAt?: string | null
+    source?: string | null
+    schemaVersion?: string | null
+    analogCount?: number
+  }
+  reason?: string
 }
 
 const DASHBOARD_CACHE_KEY = "qt.dashboard.v1.cache"
@@ -1120,6 +1145,43 @@ function SystemStatus({ liquidationCount, alertCount, cacheUpdatedAt }: { liquid
   )
 }
 
+function HistoricalEvidenceStrip({ data, loading }: { data: HistoricalEvidenceResponse | null; loading: boolean }) {
+  const horizon = data?.statistics?.byHorizon?.["24h"]
+  const available = data?.ok === true && data.status === "available" && (data.diagnostics?.analogCount ?? 0) > 0
+  const generatedAt = data?.diagnostics?.generatedAt
+  const source = data?.diagnostics?.source ?? data?.source
+  const reason = data?.diagnostics?.cacheStatus === "missing"
+    ? "cache not generated"
+    : data?.reason ?? "cached evidence unavailable"
+
+  return (
+    <section className="border border-zinc-900 bg-zinc-950/70 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
+          <History className="h-3.5 w-3.5" />
+          Historical Evidence
+        </div>
+        {available ? (
+          <>
+            <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">Similar Cases <span className="ml-1 text-zinc-100">{data?.statistics?.totalCases ?? data?.diagnostics?.analogCount}</span></div>
+            <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">24h Avg <span className={cn("ml-1", (horizon?.averageReturn ?? 0) >= 0 ? "text-emerald-100" : "text-rose-100")}>{horizon?.averageReturn === null || horizon?.averageReturn === undefined ? "NO DATA" : `${horizon.averageReturn > 0 ? "+" : ""}${horizon.averageReturn.toFixed(2)}%`}</span></div>
+            <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">Win Rate <span className="ml-1 text-zinc-100">{horizon?.winRate === null || horizon?.winRate === undefined ? "NO DATA" : `${horizon.winRate.toFixed(1)}%`}</span></div>
+            <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">Outcome <span className="ml-1 text-amber-100">{data?.statistics?.dominantOutcome?.toUpperCase() ?? "NO DATA"}</span></div>
+            <div className="ml-auto text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
+              {source ?? "UNKNOWN SOURCE"} · {generatedAt ? new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "NO GENERATED TIME"}
+            </div>
+          </>
+        ) : (
+          <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">
+            {loading ? "Historical Evidence Loading" : "Historical Evidence Unavailable"}
+            {!loading ? <span className="ml-2 text-zinc-600">Reason: {reason}</span> : null}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function BottomCard({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
     <Card title={title} icon={icon} className="min-h-[92px]">
@@ -1308,6 +1370,8 @@ export default function DashboardV1({
   const [etfFlow, setEtfFlow] = useState<EtfFlowResponse | null>(cachedDashboard?.etfFlow ?? null)
   const [sectorRotation, setSectorRotation] = useState<SectorRotationResponse | null>(cachedDashboard?.sectorRotation ?? null)
   const [futures, setFutures] = useState<FuturesIntelligenceResponse | null>(cachedDashboard?.futures ?? null)
+  const [historicalEvidence, setHistoricalEvidence] = useState<HistoricalEvidenceResponse | null>(null)
+  const [historicalEvidenceLoading, setHistoricalEvidenceLoading] = useState(true)
 
   useEffect(() => {
     let active = true
@@ -1372,6 +1436,36 @@ export default function DashboardV1({
     }
   }, [cachedDashboard, symbol])
 
+  useEffect(() => {
+    let active = true
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3500)
+    setHistoricalEvidence(null)
+    setHistoricalEvidenceLoading(true)
+
+    void fetch(`/api/historical-analog?symbol=${encodeURIComponent(symbol)}&interval=1h`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => response.ok ? response.json() as Promise<HistoricalEvidenceResponse> : null)
+      .then((value) => {
+        if (active && !controller.signal.aborted) setHistoricalEvidence(value)
+      })
+      .catch(() => {
+        // Historical evidence is optional and must never block Dashboard.
+      })
+      .finally(() => {
+        clearTimeout(timeout)
+        if (active) setHistoricalEvidenceLoading(false)
+      })
+
+    return () => {
+      active = false
+      clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [symbol])
+
   const moverCandidates = useMemo(() => {
     const focus = marketMovers?.focusCandidate ? [marketMovers.focusCandidate] : []
     const candidates = marketMovers?.candidates ?? []
@@ -1409,6 +1503,7 @@ export default function DashboardV1({
             <GuidanceCard mover={topMover} />
           </div>
 
+          <HistoricalEvidenceStrip data={historicalEvidence} loading={historicalEvidenceLoading} />
           <TacticalAlerts alerts={alerts} />
           <WhyThisSignal mover={topMover} causes={causes} futures={futures} marketDirection={marketDirection} />
 
