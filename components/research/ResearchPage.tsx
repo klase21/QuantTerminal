@@ -1,52 +1,53 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Brain, History, Newspaper, PieChart, Search, Sparkles } from "lucide-react"
+import {
+  Activity,
+  BarChart3,
+  Brain,
+  CalendarDays,
+  Database,
+  History,
+  Newspaper,
+  PieChart,
+  Play,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Target,
+} from "lucide-react"
 
+import type {
+  HistoricalAnalogCachePayloadV2,
+  HistoricalAnalogCase,
+  HistoricalAnalogHorizon,
+} from "@/core/historical-intelligence/analog-v2/historicalAnalogTypes"
 import { useSafePolling } from "@/hooks/system/useSafePolling"
-import { createInvestigationContext, readInvestigationContext, toHistoricalTimeframe } from "@/lib/investigation/context"
+import {
+  buildInvestigationHref,
+  createInvestigationContext,
+  readInvestigationContext,
+  toHistoricalTimeframe,
+} from "@/lib/investigation/context"
 import { safeFetchJson } from "@/lib/runtime/safeFetch"
 
 type NarrativeResponse = {
   updatedAt?: number
   heatmap?: Array<{ narrative: string; total: number }>
   topNarratives?: string[]
-  counts?: Record<string, number>
-  sources?: string[]
 }
 
 type PredictionResponse = {
   status?: string
-  source?: string
-  markets?: Array<{ title: string; probability: number | null; volume: number | null; liquidity: number | null; category: string; attentionRank: number }>
-}
-
-type MarketMemoryResponse = {
-  status?: string
-  reason?: string
-  similarCaseCount?: number
-  avgReturn7d?: number | null
-  avgReturn30d?: number | null
-  successRate?: number | null
-  dominantOutcome?: string | null
-  topMatchedContexts?: string[]
-  topSymbolsInMatches?: string[]
-  dataCoverage?: { historicalSnapshots?: number; marketOutcomes?: number; symbolsCovered?: number }
-}
-
-type HistoricalAnalogsResponse = {
-  status?: string
-  totalCandidates?: number
-  reason?: string
-  analogs?: Array<{
-    symbol: string
-    date: string
-    matchedContexts: string[]
-    avgReturn7d: number | null
-    avgReturn30d: number | null
-    successRate: number | null
-    dominantOutcome: string | null
+  markets?: Array<{
+    title: string
+    probability: number | null
+    volume: number | null
+    liquidity: number | null
+    category: string
+    attentionRank: number
   }>
 }
 
@@ -54,6 +55,21 @@ type MacroResponse = {
   updatedAt?: number
   items?: Array<{ symbol?: string; change?: string; signal?: string; tone?: string; updatedAt?: number }>
 }
+
+type HistoricalAnalogResponse = Partial<HistoricalAnalogCachePayloadV2> & {
+  ok: boolean
+  status: "available" | "unavailable"
+  reason?: string
+  diagnostics?: {
+    cacheStatus: string
+    generatedAt: string | null
+    source: string | null
+    schemaVersion: string | null
+    analogCount: number
+  }
+}
+
+const HORIZONS: HistoricalAnalogHorizon[] = ["1h", "4h", "24h", "7d"]
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ")
@@ -80,10 +96,18 @@ function EmptyState({ title, reason }: { title: string; reason: string }) {
   )
 }
 
+function Metric({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded border border-zinc-900 bg-black/45 p-2">
+      <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</div>
+      <div className={cn("mt-1 text-sm font-black uppercase text-white", tone)}>{value}</div>
+    </div>
+  )
+}
+
 function pct(value: number | null | undefined, digits = 1) {
   if (value === null || value === undefined || !Number.isFinite(value)) return "NO DATA"
-  const sign = value > 0 ? "+" : ""
-  return `${sign}${value.toFixed(digits)}%`
+  return `${value > 0 ? "+" : ""}${value.toFixed(digits)}%`
 }
 
 function compactUsd(value: number | null | undefined) {
@@ -102,6 +126,20 @@ function heatState(total: number) {
   return "Quiet"
 }
 
+function dateTime(value?: number | string | null) {
+  if (value === null || value === undefined) return "NO DATA"
+  const timestamp = typeof value === "number" ? value : Date.parse(value)
+  if (!Number.isFinite(timestamp)) return "NO DATA"
+  return new Date(timestamp).toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+}
+
 function time(value?: number) {
   if (!value) return "NO DATA"
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
@@ -112,6 +150,41 @@ function attentionLabel(market: PredictionResponse["markets"][number] | undefine
   if ((market.volume ?? 0) >= 1_000_000 || (market.liquidity ?? 0) >= 1_000_000) return "High Attention"
   if ((market.volume ?? 0) >= 100_000 || (market.liquidity ?? 0) >= 100_000) return "Active"
   return "Developing"
+}
+
+function outcomeTone(value: number | null | undefined) {
+  if (value === null || value === undefined) return "text-zinc-500"
+  return value > 0 ? "text-emerald-200" : value < 0 ? "text-rose-200" : "text-zinc-200"
+}
+
+function replayContextForCase(
+  context: ReturnType<typeof readInvestigationContext>,
+  selectedCase: HistoricalAnalogCase,
+  source: string,
+) {
+  const caseDate = new Date(selectedCase.state.timestamp)
+  const timestamp = caseDate.toISOString()
+  return {
+    ...context,
+    symbol: selectedCase.state.symbol,
+    timeframe: selectedCase.state.interval,
+    investigationType: "historical_case" as const,
+    source: "research",
+    selectedHistoricalCase: {
+      id: selectedCase.state.id,
+      symbol: selectedCase.state.symbol,
+      timeframe: selectedCase.state.interval,
+      timestamp,
+      source,
+      exchange: context.exchange,
+    },
+    selectedReplayWindow: {
+      exchange: context.exchange,
+      symbol: selectedCase.state.symbol,
+      date: timestamp.slice(0, 10),
+      hour: String(caseDate.getUTCHours()),
+    },
+  }
 }
 
 export default function ResearchPage() {
@@ -127,112 +200,108 @@ export default function ResearchPage() {
     }),
   )
   const historicalTimeframe = toHistoricalTimeframe(investigationContext.timeframe)
-  const historicalQuery = `symbol=${encodeURIComponent(investigationContext.symbol)}&interval=${historicalTimeframe}`
   const narratives = useSafePolling<NarrativeResponse>("/api/narratives?range=24h", 60000, { label: "research-narratives", timeoutMs: 12000, retries: 1 })
   const predictions = useSafePolling<PredictionResponse>("/api/research/prediction-markets", 60000, { label: "research-predictions", timeoutMs: 12000, retries: 1 })
-  const memory = useSafePolling<MarketMemoryResponse>(`/api/dashboard/market-memory?${historicalQuery}`, 60000, { label: "research-memory", timeoutMs: 12000, retries: 1, enabled: false })
-  const analogs = useSafePolling<HistoricalAnalogsResponse>(`/api/research/historical-analogs?${historicalQuery}&limit=12`, 60000, { label: "research-analogs", timeoutMs: 12000, retries: 1, enabled: false })
   const macro = useSafePolling<MacroResponse>("/api/macro", 60000, { label: "research-macro", timeoutMs: 12000, retries: 1 })
-  const [manualMemory, setManualMemory] = useState<MarketMemoryResponse | null>(null)
-  const [manualMemoryLoading, setManualMemoryLoading] = useState(false)
-  const [manualMemoryError, setManualMemoryError] = useState<string | null>(null)
-  const [manualAnalogs, setManualAnalogs] = useState<HistoricalAnalogsResponse | null>(null)
-  const [manualAnalogsLoading, setManualAnalogsLoading] = useState(false)
-  const [manualAnalogsError, setManualAnalogsError] = useState<string | null>(null)
-  const manualControllers = useRef<AbortController[]>([])
+  const [historical, setHistorical] = useState<HistoricalAnalogResponse | null>(null)
+  const [historicalLoading, setHistoricalLoading] = useState(false)
+  const [historicalError, setHistoricalError] = useState<string | null>(null)
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
+  const historicalController = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    return () => {
-      manualControllers.current.forEach((controller) => controller.abort())
-      manualControllers.current = []
-    }
+    return () => historicalController.current?.abort()
   }, [])
 
   useEffect(() => {
-    setManualMemory(null)
-    setManualMemoryError(null)
-    setManualAnalogs(null)
-    setManualAnalogsError(null)
+    historicalController.current?.abort()
+    historicalController.current = null
+    setHistorical(null)
+    setHistoricalError(null)
+    setHistoricalLoading(false)
+    setSelectedCaseId(null)
   }, [investigationContext.symbol, historicalTimeframe])
 
-  async function loadMarketMemory() {
+  async function loadHistoricalIntelligence() {
+    historicalController.current?.abort()
     const controller = new AbortController()
-    manualControllers.current.push(controller)
-    setManualMemoryLoading(true)
-    setManualMemoryError(null)
-    const result = await safeFetchJson<MarketMemoryResponse>(`/api/dashboard/market-memory?${historicalQuery}`, {
+    historicalController.current = controller
+    setHistoricalLoading(true)
+    setHistoricalError(null)
+    const query = new URLSearchParams({
+      symbol: investigationContext.symbol,
+      interval: historicalTimeframe,
+    })
+    const result = await safeFetchJson<HistoricalAnalogResponse>(`/api/historical-analog?${query.toString()}`, {
       signal: controller.signal,
-      timeoutMs: 12000,
+      timeoutMs: 8000,
       retries: 0,
-      label: "research-memory-manual",
+      label: "research-historical-analog-v2",
       cache: "no-store",
     })
     if (controller.signal.aborted) return
-    setManualMemoryLoading(false)
-    if (result.ok) setManualMemory(result.data)
-    else setManualMemoryError(result.error)
-  }
-
-  async function loadHistoricalExplorer() {
-    const controller = new AbortController()
-    manualControllers.current.push(controller)
-    setManualAnalogsLoading(true)
-    setManualAnalogsError(null)
-    const result = await safeFetchJson<HistoricalAnalogsResponse>(`/api/research/historical-analogs?${historicalQuery}&limit=12`, {
-      signal: controller.signal,
-      timeoutMs: 12000,
-      retries: 0,
-      label: "research-analogs-manual",
-      cache: "no-store",
-    })
-    if (controller.signal.aborted) return
-    setManualAnalogsLoading(false)
-    if (result.ok) setManualAnalogs(result.data)
-    else setManualAnalogsError(result.error)
+    setHistoricalLoading(false)
+    if (!result.ok) {
+      setHistoricalError(result.error)
+      return
+    }
+    setHistorical(result.data)
+    const requestedCase = investigationContext.selectedHistoricalCase?.id
+    const nextCase = result.data.cases?.find((item) => item.state.id === requestedCase)
+      ?? result.data.cases?.[0]
+      ?? null
+    setSelectedCaseId(nextCase?.state.id ?? null)
   }
 
   const topNarratives = narratives.data?.heatmap?.slice(0, 8) ?? []
-  const predictionMarkets = predictions.data?.markets?.slice(0, 8) ?? []
-  const memoryData = manualMemory ?? memory.data
-  const analogRows = (manualAnalogs ?? analogs.data)?.analogs?.slice(0, 8) ?? []
+  const predictionMarkets = predictions.data?.markets?.slice(0, 5) ?? []
   const informationItems = [
-    ...(macro.data?.items?.slice(0, 3).map((item) => ({ label: `${item.symbol ?? "MACRO"} ${item.change ?? ""}`.trim(), tag: item.signal ?? item.tone ?? "MACRO", time: time(item.updatedAt ?? macro.data?.updatedAt) })) ?? []),
-    ...(narratives.data?.topNarratives?.slice(0, 3).map((item) => ({ label: `${item} Heat`, tag: "NARRATIVE", time: time(narratives.data?.updatedAt) })) ?? []),
+    ...(macro.data?.items?.slice(0, 3).map((item) => ({
+      label: `${item.symbol ?? "MACRO"} ${item.change ?? ""}`.trim(),
+      tag: item.signal ?? item.tone ?? "MACRO",
+      time: time(item.updatedAt ?? macro.data?.updatedAt),
+    })) ?? []),
+    ...(narratives.data?.topNarratives?.slice(0, 3).map((item) => ({
+      label: `${item} Heat`,
+      tag: "NARRATIVE",
+      time: time(narratives.data?.updatedAt),
+    })) ?? []),
   ]
-  const strongestNarrative = topNarratives[0]
-  const topPrediction = predictionMarkets[0]
-  const topAnalog = analogRows[0]
+  const cases = historical?.cases ?? []
+  const selectedCase = cases.find((item) => item.state.id === selectedCaseId) ?? cases[0] ?? null
+  const statistics = historical?.statistics
+  const currentState = historical?.currentState
+  const summaryHorizon = statistics?.byHorizon["24h"]
+  const source = historical?.diagnostics?.source ?? historical?.source ?? "historical-analog-v2"
+  const replayHref = selectedCase
+    ? buildInvestigationHref("/replay", replayContextForCase(investigationContext, selectedCase, source))
+    : null
+  const explorerHref = buildInvestigationHref("/historical-intelligence", {
+    ...investigationContext,
+    timeframe: historicalTimeframe,
+    investigationType: selectedCase ? "historical_case" : "historical_analog",
+    source: "research",
+    selectedHistoricalCase: selectedCase
+      ? replayContextForCase(investigationContext, selectedCase, source).selectedHistoricalCase
+      : undefined,
+  })
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3">
-        <Card title="Research Brief" icon={<Brain className="h-3.5 w-3.5" />}>
-          <div className="grid gap-2 md:grid-cols-4">
-            <div className="rounded border border-zinc-900 bg-black/45 p-2">
-              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Strongest Narrative</div>
-              <div className="mt-1 text-sm font-black uppercase text-white">{strongestNarrative?.narrative ?? "Unavailable"}</div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{strongestNarrative ? heatState(strongestNarrative.total) : narratives.error ?? "No narrative heat"}</div>
-            </div>
-            <div className="rounded border border-zinc-900 bg-black/45 p-2">
-              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Prediction Attention</div>
-              <div className="mt-1 truncate text-sm font-black uppercase text-white">{topPrediction?.title ?? "Unavailable"}</div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{attentionLabel(topPrediction)}</div>
-            </div>
-            <div className="rounded border border-zinc-900 bg-black/45 p-2">
-              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Historical Signal</div>
-              <div className="mt-1 text-sm font-black uppercase text-white">{topAnalog?.dominantOutcome ?? memoryData?.dominantOutcome ?? "Unavailable"}</div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{topAnalog ? `${topAnalog.symbol} ${topAnalog.date}` : "Manual load disabled"}</div>
-            </div>
-            <div className="rounded border border-zinc-900 bg-black/45 p-2">
-              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Information Heat</div>
-              <div className="mt-1 text-sm font-black uppercase text-white">{informationItems.length ? `${informationItems.length} Active Items` : "Unavailable"}</div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{informationItems[0]?.time ?? "No flow data"}</div>
-            </div>
+        <Card title="Current State" icon={<Activity className="h-3.5 w-3.5" />}>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
+            <Metric label="Symbol" value={investigationContext.symbol} />
+            <Metric label="Exchange" value={investigationContext.exchange.replaceAll("_", " ")} />
+            <Metric label="Timeframe" value={investigationContext.timeframe} />
+            <Metric label="Investigation Time" value={dateTime(investigationContext.investigationTimestamp)} />
+            <Metric label="Market Regime" value={currentState?.trendRegime ?? "Load historical context"} />
+            <Metric label="State Return 24H" value={pct(currentState?.features.return24h)} tone={outcomeTone(currentState?.features.return24h)} />
           </div>
         </Card>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_460px]">
-          <Card title="Narrative Intelligence" icon={<Newspaper className="h-3.5 w-3.5" />}>
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
+          <Card title="Narrative Context" icon={<Newspaper className="h-3.5 w-3.5" />}>
             {topNarratives.length ? (
               <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                 {topNarratives.map((item) => (
@@ -249,11 +318,13 @@ export default function ResearchPage() {
           <Card title="Prediction Markets" icon={<PieChart className="h-3.5 w-3.5" />}>
             {predictionMarkets.length ? (
               <div className="grid gap-1.5">
-                {predictionMarkets.slice(0, 5).map((market) => (
+                {predictionMarkets.map((market) => (
                   <div key={`${market.attentionRank}-${market.title}`} className="grid grid-cols-[1fr_auto] gap-2 rounded border border-zinc-900 bg-black/45 p-2">
                     <div>
                       <div className="text-xs font-black uppercase text-white">{market.title}</div>
-                      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">{market.category} / {compactUsd(market.volume ?? market.liquidity)}</div>
+                      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                        {attentionLabel(market)} / {compactUsd(market.volume ?? market.liquidity)}
+                      </div>
                     </div>
                     <div className="text-lg font-black text-emerald-100">{market.probability === null ? "NO DATA" : `${Math.round(market.probability)}%`}</div>
                   </div>
@@ -263,79 +334,127 @@ export default function ResearchPage() {
           </Card>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[420px_minmax(0,1fr)]">
-          <Card title="Market Memory" icon={<Brain className="h-3.5 w-3.5" />}>
-            {memoryData?.status === "available" ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded border border-zinc-900 bg-black/45 p-2">
-                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Similar Environments</div>
-                  <div className="mt-1 text-lg font-black text-white">{memoryData.similarCaseCount ?? "NO DATA"}</div>
+        <Card title="Historical Analog Summary" icon={<History className="h-3.5 w-3.5" />}>
+          {!historical ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <EmptyState
+                title="Manual Load Required"
+                reason={historicalError ?? `Read cached ${investigationContext.symbol} / ${historicalTimeframe} intelligence when needed.`}
+              />
+              <button
+                type="button"
+                onClick={() => void loadHistoricalIntelligence()}
+                disabled={historicalLoading}
+                className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+              >
+                {historicalLoading ? "Reading Cached Intelligence" : "Load Historical Intelligence"}
+              </button>
+            </div>
+          ) : historical.status !== "available" || !statistics ? (
+            <EmptyState title="Historical Intelligence Unavailable" reason={historical.reason ?? historical.diagnostics?.cacheStatus ?? "cache unavailable"} />
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              <Metric label="Similar Cases" value={String(statistics.totalCases)} />
+              <Metric label="24H Average Return" value={pct(summaryHorizon?.averageReturn)} tone={outcomeTone(summaryHorizon?.averageReturn)} />
+              <Metric label="24H Win Rate" value={pct(summaryHorizon?.winRate)} />
+              <Metric label="Best Case" value={pct(summaryHorizon?.bestCase?.return)} tone="text-emerald-200" />
+              <Metric label="Worst Case" value={pct(summaryHorizon?.worstCase?.return)} tone="text-rose-200" />
+            </div>
+          )}
+        </Card>
+
+        {historical?.status === "available" && statistics ? (
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,.65fr)]">
+            <Card title="Selected Analog Cases" icon={<BarChart3 className="h-3.5 w-3.5" />}>
+              {cases.length ? (
+                <div className="grid gap-1.5">
+                  {cases.slice(0, 8).map((item, index) => {
+                    const selected = item.state.id === selectedCase?.state.id
+                    return (
+                      <button
+                        type="button"
+                        key={item.state.id}
+                        onClick={() => setSelectedCaseId(item.state.id)}
+                        className={cn(
+                          "grid grid-cols-[32px_minmax(0,1fr)_80px_repeat(2,70px)] items-center gap-2 rounded border px-2 py-2 text-left",
+                          selected ? "border-cyan-300/35 bg-cyan-400/10" : "border-zinc-900 bg-black/45 hover:bg-zinc-900/55",
+                        )}
+                      >
+                        <span className="text-[9px] font-black text-zinc-600">#{index + 1}</span>
+                        <span>
+                          <span className="block text-xs font-black text-white">{dateTime(item.state.timestamp)}</span>
+                          <span className="block text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{item.state.trendRegime} / {item.comparableFeatures} comparable features</span>
+                        </span>
+                        <span className="text-sm font-black text-cyan-200">{item.similarity.toFixed(1)}%</span>
+                        <span className={cn("text-xs font-black", outcomeTone(item.outcome.returns["24h"]))}>{pct(item.outcome.returns["24h"])}</span>
+                        <span className={cn("text-xs font-black", outcomeTone(item.outcome.returns["7d"]))}>{pct(item.outcome.returns["7d"])}</span>
+                      </button>
+                    )
+                  })}
                 </div>
-                <div className="rounded border border-zinc-900 bg-black/45 p-2">
-                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Success Rate</div>
-                  <div className="mt-1 text-lg font-black text-emerald-100">{memoryData.successRate === null || memoryData.successRate === undefined ? "NO DATA" : `${Math.round(memoryData.successRate)}%`}</div>
+              ) : <EmptyState title="Unavailable" reason="Valid cache contains no analog cases." />}
+            </Card>
+
+            <Card title="Outcome Summary" icon={<Target className="h-3.5 w-3.5" />}>
+              {selectedCase ? (
+                <div className="grid gap-2">
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2">
+                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500">Selected Historical Case</div>
+                    <div className="mt-1 text-sm font-black text-white">{dateTime(selectedCase.state.timestamp)}</div>
+                    <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{selectedCase.similarity.toFixed(1)}% similarity</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {HORIZONS.map((horizon) => (
+                      <Metric
+                        key={horizon}
+                        label={`${horizon} Outcome`}
+                        value={pct(selectedCase.outcome.returns[horizon])}
+                        tone={outcomeTone(selectedCase.outcome.returns[horizon])}
+                      />
+                    ))}
+                  </div>
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">
+                    Dominant outcome: <span className="text-amber-200">{statistics.dominantOutcome}</span>
+                  </div>
                 </div>
-                <div className="rounded border border-zinc-900 bg-black/45 p-2">
-                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Avg 7D</div>
-                  <div className="mt-1 text-lg font-black text-cyan-100">{pct(memoryData.avgReturn7d)}</div>
+              ) : <EmptyState title="Unavailable" reason="No cached case selected." />}
+            </Card>
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <Card title="Replay Access" icon={<Play className="h-3.5 w-3.5" />}>
+            {selectedCase && replayHref ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black uppercase text-white">{selectedCase.state.symbol} / {dateTime(selectedCase.state.timestamp)}</div>
+                  <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+                    Replay inherits exchange, symbol, timeframe, date, hour, and selected case. Loading remains manual.
+                  </div>
                 </div>
-                <div className="rounded border border-zinc-900 bg-black/45 p-2">
-                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Avg 30D</div>
-                  <div className="mt-1 text-lg font-black text-cyan-100">{pct(memoryData.avgReturn30d)}</div>
-                </div>
-                <div className="col-span-2 rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">
-                  Context: {(memoryData.topMatchedContexts ?? []).slice(0, 3).join(" / ") || "NO DATA"}
+                <div className="flex gap-2">
+                  <Link href={explorerHref} className="rounded border border-zinc-800 bg-black px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300">
+                    Open Full Explorer
+                  </Link>
+                  <Link href={replayHref} className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                    Open Replay
+                  </Link>
                 </div>
               </div>
             ) : (
-              <div className="grid gap-2">
-                <EmptyState title="Manual Load Required" reason={manualMemoryError ?? "Market memory auto-load is disabled during stabilization."} />
-                <button
-                  type="button"
-                  onClick={() => void loadMarketMemory()}
-                  disabled={manualMemoryLoading}
-                  className="w-fit rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
-                >
-                  {manualMemoryLoading ? "Loading Market Memory" : "Load Market Memory"}
-                </button>
-              </div>
+              <EmptyState title="Replay Coordinates Required" reason="Load Historical Intelligence and select a cached case first." />
             )}
           </Card>
 
-          <Card title="Historical Explorer" icon={<History className="h-3.5 w-3.5" />}>
-            {analogRows.length ? (
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                {analogRows.map((item) => (
-                  <div key={`${item.symbol}-${item.date}`} className="rounded border border-zinc-900 bg-black/45 p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-black text-white">{item.symbol}</div>
-                      <div className="text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{item.date}</div>
-                    </div>
-                    <div className="mt-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">{item.matchedContexts.slice(0, 3).join(" / ") || "NO CONTEXT"}</div>
-                    <div className="mt-2 flex justify-between text-[10px] font-black uppercase tracking-[0.1em]">
-                      <span className="text-cyan-100">7D {pct(item.avgReturn7d)}</span>
-                      <span className="text-emerald-100">{item.successRate === null ? "NO RATE" : `${Math.round(item.successRate)}%`}</span>
-                    </div>
-                    <div className="mt-2 rounded border border-zinc-900 bg-zinc-950 px-2 py-1 text-center text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
-                      Replay Coordinates Required
-                    </div>
-                  </div>
-                ))}
+          <Card title="Evidence" icon={<ShieldCheck className="h-3.5 w-3.5" />}>
+            {historical ? (
+              <div className="grid gap-1.5">
+                <Metric label="Source" value={source} />
+                <Metric label="Generated" value={dateTime(historical.diagnostics?.generatedAt)} />
+                <Metric label="Cache Status" value={historical.diagnostics?.cacheStatus ?? "UNAVAILABLE"} />
+                <Metric label="Schema Version" value={historical.diagnostics?.schemaVersion ?? "NO DATA"} />
               </div>
-            ) : <EmptyState title="Manual Load Required" reason={manualAnalogsError ?? "Historical context is disabled until loaded."} />}
-            {!analogRows.length ? (
-              <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => void loadHistoricalExplorer()}
-                  disabled={manualAnalogsLoading}
-                  className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
-                >
-                  {manualAnalogsLoading ? "Loading Historical Explorer" : "Load Historical Explorer"}
-                </button>
-                {manualAnalogsError ? <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{manualAnalogsError}</div> : null}
-              </div>
-            ) : null}
+            ) : <EmptyState title="Evidence Pending" reason="Historical cache has not been requested." />}
           </Card>
         </div>
 
@@ -354,12 +473,12 @@ export default function ResearchPage() {
             ) : <EmptyState title="Unavailable" reason="Macro and narrative flow returned no current items." />}
           </Card>
 
-          <Card title="Research Summary" icon={<Search className="h-3.5 w-3.5" />}>
+          <Card title="Investigation Status" icon={<Brain className="h-3.5 w-3.5" />}>
             <div className="grid gap-1.5 text-[10px] font-black uppercase tracking-[0.12em]">
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Narratives: {topNarratives[0]?.narrative ?? "Unavailable"}</div>
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Prediction Attention: {predictionMarkets[0]?.title ?? "Unavailable"}</div>
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Memory Cases: Disabled</div>
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Historical Analogs: Disabled</div>
+              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Subject: {investigationContext.symbol} / {investigationContext.timeframe}</div>
+              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Narrative: {topNarratives[0]?.narrative ?? "Unavailable"}</div>
+              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Market Attention: {predictionMarkets[0]?.title ?? "Unavailable"}</div>
+              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Historical Evidence: {statistics ? `${statistics.totalCases} cached cases` : "Manual load required"}</div>
             </div>
           </Card>
         </div>
