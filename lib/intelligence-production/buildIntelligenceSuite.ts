@@ -16,6 +16,8 @@ import {
   type IntelligenceProductionMessage,
   type IntelligenceProductionOutput,
   type IntelligenceProductionReport,
+  type IntelligenceProductionRunReport,
+  type IntelligenceProductionRunReportStore,
   type IntelligenceProductionStage,
   type IntelligenceProductionStageResult,
   type IntelligenceProductionStageStatus,
@@ -33,6 +35,10 @@ import {
 } from "@/lib/intelligence-artifacts/productionRegistry"
 import { buildMarketMemoryCatalog } from "@/lib/market-memory/buildMarketMemoryCatalog"
 import {
+  FileIntelligenceProductionRunReportStore,
+  createIntelligenceProductionRunId,
+} from "@/lib/intelligence-production/productionRunReportStore"
+import {
   buildEventImpactCache,
   type EventImpactCacheBuildInput,
 } from "@/workers/event-impact/buildEventImpactCache"
@@ -49,6 +55,8 @@ export interface IntelligenceSuiteBuildInput {
 export interface IntelligenceSuiteBuildOptions {
   artifactRegistry?: IntelligenceArtifactRegistry
   publicationTarget?: string
+  reportStore?: IntelligenceProductionRunReportStore
+  runId?: string
 }
 
 interface StageExecution {
@@ -135,6 +143,27 @@ function suiteStatus(stages: IntelligenceProductionStageResult[]): IntelligenceP
   return "succeeded"
 }
 
+function initialRunReport(runId: string, startedAt: string): IntelligenceProductionRunReport {
+  return {
+    schemaVersion: 1,
+    runId,
+    startedAt,
+    completedAt: null,
+    duration: 0,
+    overallStatus: "running",
+    stages: INTELLIGENCE_PRODUCTION_STAGES.map((stage) => ({
+      stage,
+      status: "pending",
+      startedAt: null,
+      completedAt: null,
+      duration: 0,
+      outputs: [],
+      warnings: [],
+      errors: [],
+    })),
+  }
+}
+
 export async function buildIntelligenceSuite(
   input: IntelligenceSuiteBuildInput = DEFAULT_INPUT,
   options: IntelligenceSuiteBuildOptions = {},
@@ -145,8 +174,49 @@ export async function buildIntelligenceSuite(
   const artifactRegistry = options.artifactRegistry ?? productionIntelligenceArtifactRegistry
   const artifactReader = new IntelligenceArtifactReader(artifactRegistry)
   const publicationTarget = options.publicationTarget ?? "in-memory"
+  const reportStore = options.reportStore ?? new FileIntelligenceProductionRunReportStore()
+  const runReport = initialRunReport(
+    options.runId ?? createIntelligenceProductionRunId(new Date(suiteStarted)),
+    new Date(suiteStarted).toISOString(),
+  )
 
-  stages.push(await executeStage("historical_analog", async () => {
+  const persistStageStart = async (stage: IntelligenceProductionStage) => {
+    const reportStage = runReport.stages.find((candidate) => candidate.stage === stage)
+    if (!reportStage) throw new Error(`Production report stage ${stage} is unavailable.`)
+    reportStage.status = "running"
+    reportStage.startedAt = new Date().toISOString()
+    runReport.duration = Date.now() - suiteStarted
+    await reportStore.writeRun(runReport)
+  }
+
+  const persistStageResult = async (result: IntelligenceProductionStageResult) => {
+    const reportStage = runReport.stages.find((candidate) => candidate.stage === result.stage)
+    if (!reportStage) throw new Error(`Production report stage ${result.stage} is unavailable.`)
+    reportStage.status = result.status
+    reportStage.startedAt = result.startedAt
+    reportStage.completedAt = result.completedAt
+    reportStage.duration = result.duration
+    reportStage.outputs = result.outputs
+    reportStage.warnings = result.warnings
+    reportStage.errors = result.errors
+    runReport.duration = Date.now() - suiteStarted
+    await reportStore.writeRun(runReport)
+  }
+
+  const runStage = async (
+    stage: IntelligenceProductionStage,
+    execute: () => Promise<StageExecution>,
+  ) => {
+    await persistStageStart(stage)
+    const result = await executeStage(stage, execute)
+    stages.push(result)
+    await persistStageResult(result)
+    return result
+  }
+
+  await reportStore.writeRun(runReport)
+
+  await runStage("historical_analog", async () => {
     const result = await buildHistoricalAnalogCacheV2(input.historicalAnalog)
     const identity = historicalAnalogCacheIdentity({
       symbol: result.payload.symbol,
@@ -176,9 +246,9 @@ export async function buildIntelligenceSuite(
         },
       ],
     }
-  }))
+  })
 
-  stages.push(await executeStage("event_impact", async () => {
+  await runStage("event_impact", async () => {
     const result = await buildEventImpactCache(input.eventImpact)
     const identity = eventImpactCategoryCacheIdentity({
       category: result.categoryPayload.category,
@@ -208,9 +278,9 @@ export async function buildIntelligenceSuite(
         },
       ],
     }
-  }))
+  })
 
-  stages.push(await executeStage("market_memory", async () => {
+  await runStage("market_memory", async () => {
     if (!preparedArtifacts.length) {
       return {
         status: "skipped",
@@ -246,9 +316,9 @@ export async function buildIntelligenceSuite(
         })),
       ],
     }
-  }))
+  })
 
-  stages.push(await executeStage("artifact_publication", async () => {
+  await runStage("artifact_publication", async () => {
     if (!preparedArtifacts.length) {
       return {
         status: "skipped",
@@ -294,12 +364,13 @@ export async function buildIntelligenceSuite(
       outputs,
       errors,
     }
-  }))
+  })
 
   const completed = Date.now()
-  return {
+  const status = suiteStatus(stages)
+  const report: IntelligenceProductionReport = {
     schemaVersion: INTELLIGENCE_PRODUCTION_SCHEMA_VERSION,
-    status: suiteStatus(stages),
+    status,
     startedAt: new Date(suiteStarted).toISOString(),
     completedAt: new Date(completed).toISOString(),
     totalDuration: completed - suiteStarted,
@@ -308,6 +379,11 @@ export async function buildIntelligenceSuite(
     warningCount: stages.reduce((total, stage) => total + stage.warnings.length, 0),
     failureCount: stages.reduce((total, stage) => total + stage.errors.length, 0),
   }
+  runReport.completedAt = report.completedAt
+  runReport.duration = report.totalDuration
+  runReport.overallStatus = status
+  await reportStore.writeRun(runReport)
+  return report
 }
 
 export function intelligenceProductionStageOrder() {

@@ -52,6 +52,7 @@ Optional arguments include:
 --event-exchange
 --durable
 --artifact-root
+--report-root
 ```
 
 The default run uses the existing local canonical historical file, `BTCUSDT`, `1h`, the `macro` event category, and `binance_futures`.
@@ -115,6 +116,14 @@ The suite report records:
 - warning count;
 - failure count;
 - overall status.
+
+Every suite invocation also writes a durable production run report under:
+
+```text
+.data/intelligence/reports/
+```
+
+The report is created before the first stage, updated when each stage starts and completes, and finalized with the overall status.
 
 ## Failure Isolation
 

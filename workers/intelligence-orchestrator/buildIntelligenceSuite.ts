@@ -8,6 +8,8 @@ import {
   FileBackedIntelligenceArtifactRegistry,
 } from "@/lib/intelligence-artifacts/fileBackedArtifactRegistry"
 import {
+  DEFAULT_INTELLIGENCE_REPORT_ROOT,
+  FileIntelligenceProductionRunReportStore,
   buildIntelligenceSuite,
   type IntelligenceSuiteBuildInput,
 } from "@/lib/intelligence-production"
@@ -44,14 +46,18 @@ function inputFromArguments(): IntelligenceSuiteBuildInput {
 async function main() {
   const durable = process.argv.includes("--durable")
   const artifactRoot = argument("artifact-root") ?? DEFAULT_DURABLE_ARTIFACT_ROOT
+  const reportRoot = argument("report-root") ?? DEFAULT_INTELLIGENCE_REPORT_ROOT
   const report = await buildIntelligenceSuite(
     inputFromArguments(),
-    durable
-      ? {
-          artifactRegistry: new FileBackedIntelligenceArtifactRegistry(artifactRoot),
-          publicationTarget: `file:${path.resolve(artifactRoot)}`,
-        }
-      : undefined,
+    {
+      reportStore: new FileIntelligenceProductionRunReportStore(reportRoot),
+      ...(durable
+        ? {
+            artifactRegistry: new FileBackedIntelligenceArtifactRegistry(artifactRoot),
+            publicationTarget: `file:${path.resolve(artifactRoot)}`,
+          }
+        : {}),
+    },
   )
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
   if (report.status === "failed") process.exitCode = 1
