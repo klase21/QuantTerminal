@@ -125,6 +125,8 @@ Recent runs are ordered deterministically by:
 
 Limits are bounded between 1 and 100.
 
+Corrupted or incompatible report files are skipped so one damaged run does not suppress valid reports.
+
 ## Production API
 
 The read-only endpoint is:

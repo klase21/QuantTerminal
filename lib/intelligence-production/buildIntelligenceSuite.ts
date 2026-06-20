@@ -138,7 +138,10 @@ async function executeStage(
 function suiteStatus(stages: IntelligenceProductionStageResult[]): IntelligenceProductionStageStatus {
   const succeeded = stages.filter((stage) => stage.status === "succeeded").length
   const failed = stages.filter((stage) => stage.status === "failed").length
-  if (failed === stages.length) return "failed"
+  const partial = stages.filter((stage) => stage.status === "partial").length
+  const skipped = stages.filter((stage) => stage.status === "skipped").length
+  if (succeeded === 0 && partial === 0 && failed > 0) return "failed"
+  if (skipped === stages.length) return "skipped"
   if (failed > 0 || succeeded < stages.length) return "partial"
   return "succeeded"
 }

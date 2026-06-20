@@ -15,9 +15,14 @@ function validConfidence(value: number) {
 
 function validEvidence(evidence: IntelligenceSupportingEvidence) {
   return (
-    Boolean(evidence.id.trim())
+    Boolean(evidence)
+    && typeof evidence.id === "string"
+    && Boolean(evidence.id.trim())
+    && typeof evidence.kind === "string"
     && Boolean(evidence.kind)
+    && typeof evidence.title === "string"
     && Boolean(evidence.title.trim())
+    && typeof evidence.source === "string"
     && Boolean(evidence.source.trim())
     && (evidence.observedAt === undefined || validDate(evidence.observedAt))
     && (evidence.confidence === undefined || validConfidence(evidence.confidence))
@@ -26,16 +31,30 @@ function validEvidence(evidence: IntelligenceSupportingEvidence) {
 
 export function validateIntelligenceArtifact(artifact: IntelligenceArtifact) {
   const errors: string[] = []
+  if (!artifact || typeof artifact !== "object") {
+    return { valid: false, errors: ["Artifact must be an object."] }
+  }
   if (artifact.schemaVersion !== INTELLIGENCE_ARTIFACT_SCHEMA_VERSION) {
     errors.push(`Unsupported artifact schema version ${artifact.schemaVersion}.`)
   }
-  if (!artifact.id.trim()) errors.push("Artifact id is required.")
+  if (typeof artifact.id !== "string" || !artifact.id.trim()) errors.push("Artifact id is required.")
   if (!artifact.type) errors.push("Artifact type is required.")
-  if (!artifact.title.trim()) errors.push("Artifact title is required.")
-  if (!artifact.summary.trim()) errors.push("Artifact summary is required.")
+  if (typeof artifact.title !== "string" || !artifact.title.trim()) errors.push("Artifact title is required.")
+  if (typeof artifact.summary !== "string" || !artifact.summary.trim()) errors.push("Artifact summary is required.")
   if (!validConfidence(artifact.confidence)) errors.push("Artifact confidence must be between 0 and 100.")
-  if (!artifact.source.system.trim()) errors.push("Artifact source system is required.")
-  if (!artifact.source.producerVersion.trim()) errors.push("Artifact producer version is required.")
+  if (!artifact.source || typeof artifact.source !== "object") {
+    errors.push("Artifact source is required.")
+  } else {
+    if (typeof artifact.source.system !== "string" || !artifact.source.system.trim()) {
+      errors.push("Artifact source system is required.")
+    }
+    if (
+      typeof artifact.source.producerVersion !== "string"
+      || !artifact.source.producerVersion.trim()
+    ) {
+      errors.push("Artifact producer version is required.")
+    }
+  }
   if (!validDate(artifact.generatedAt)) errors.push("Artifact generatedAt must be a valid date.")
   if (artifact.expiresAt !== null && !validDate(artifact.expiresAt)) errors.push("Artifact expiresAt must be null or a valid date.")
   if (

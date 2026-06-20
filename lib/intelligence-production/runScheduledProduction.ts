@@ -51,7 +51,23 @@ export async function runScheduledProduction(
 ): Promise<IntelligenceScheduledProductionResult> {
   const now = options.now ?? new Date()
   const schedulerStore = options.schedulerStore ?? new FileIntelligenceSchedulerStore()
-  let state = await schedulerStore.readState()
+  let state
+  try {
+    state = await schedulerStore.readState()
+  } catch {
+    await schedulerStore.recordSkip(skipRecord(
+      "state_unavailable",
+      "Scheduler state is corrupted or unreadable; production was not started.",
+      now,
+    ))
+    return {
+      jobId: options.jobId ?? "intelligence-production-default",
+      status: "skipped",
+      reason: "state_unavailable",
+      runId: null,
+      nextRun: null,
+    }
+  }
   if (!state) {
     state = createDefaultSchedulerState(now, {
       jobId: options.jobId,

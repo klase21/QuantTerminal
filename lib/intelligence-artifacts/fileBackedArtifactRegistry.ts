@@ -110,7 +110,10 @@ async function writeJsonAtomic(file: string, value: unknown) {
   await rename(tempFile, file)
 }
 
-async function readIndex(root: string): Promise<DurableArtifactIndex> {
+async function readIndex(
+  root: string,
+  options: { tolerateCorruption?: boolean } = {},
+): Promise<DurableArtifactIndex> {
   try {
     const raw = await readFile(registryIndexPath(root), "utf8")
     const parsed: unknown = JSON.parse(raw)
@@ -118,6 +121,7 @@ async function readIndex(root: string): Promise<DurableArtifactIndex> {
     return parsed
   } catch (error) {
     if (isMissingFile(error)) return emptyIndex()
+    if (options.tolerateCorruption) return emptyIndex()
     throw error
   }
 }
@@ -253,7 +257,7 @@ export class FileBackedIntelligenceArtifactRegistry implements IntelligenceArtif
   }
 
   async get(id: string) {
-    const index = await readIndex(this.root)
+    const index = await readIndex(this.root, { tolerateCorruption: true })
     const entry = index.artifacts.find((candidate) => candidate.artifactId === id)
     if (!entry) return null
     const artifact = await this.readArtifact(entry)
@@ -273,14 +277,14 @@ export class FileBackedIntelligenceArtifactRegistry implements IntelligenceArtif
   }
 
   async isArchived(id: string) {
-    const index = await readIndex(this.root)
+    const index = await readIndex(this.root, { tolerateCorruption: true })
     return index.artifacts.some((entry) => (
       entry.artifactId === id && entry.status === "archived"
     ))
   }
 
   async list(options: DurableArtifactListOptions = {}) {
-    const index = await readIndex(this.root)
+    const index = await readIndex(this.root, { tolerateCorruption: true })
     const artifacts: IntelligenceArtifact[] = []
     for (const entry of index.artifacts) {
       const status = effectiveStatus(entry)
@@ -317,7 +321,7 @@ export class FileBackedIntelligenceArtifactRegistry implements IntelligenceArtif
   async search(query: IntelligenceArtifactQuery = {}): Promise<IntelligenceArtifactSearchResult> {
     const offset = Math.max(0, query.offset ?? 0)
     const limit = Math.max(1, Math.min(500, query.limit ?? 50))
-    const index = await readIndex(this.root)
+    const index = await readIndex(this.root, { tolerateCorruption: true })
     const ids = query.ids ? new Set(query.ids) : null
     const types = query.types ? new Set(query.types) : null
     const sourceSystems = query.sourceSystems?.map(normalized)

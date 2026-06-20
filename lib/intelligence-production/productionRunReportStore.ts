@@ -87,7 +87,7 @@ async function readRunFile(file: string) {
     return parsed
   } catch (error) {
     if (isMissingFile(error)) return null
-    throw error
+    return null
   }
 }
 

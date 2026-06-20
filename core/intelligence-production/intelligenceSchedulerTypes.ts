@@ -27,7 +27,7 @@ export interface IntelligenceSchedulerRunReference {
 
 export interface IntelligenceSchedulerSkipRecord {
   recordedAt: string
-  reason: "disabled" | "not_due" | "concurrent_run"
+  reason: "disabled" | "not_due" | "concurrent_run" | "state_unavailable"
   detail: string
 }
 

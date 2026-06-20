@@ -76,9 +76,9 @@ function validArtifactIndex(value: unknown): value is DurableArtifactIndex {
   )
 }
 
-async function readArtifactIndexMetadata() {
+async function readArtifactIndexMetadata(root: string) {
   const file = path.join(
-    DEFAULT_DURABLE_ARTIFACT_ROOT,
+    root,
     "registry",
     "artifact-index.json",
   )
@@ -102,10 +102,10 @@ function artifactCount(index: DurableArtifactIndex | null, type: IntelligenceArt
   return index.artifacts.filter((entry) => entry.artifactType === type).length
 }
 
-async function lockExists() {
+async function lockExists(root: string) {
   try {
     const parsed: unknown = JSON.parse(await readFile(
-      path.join(DEFAULT_INTELLIGENCE_SCHEDULER_ROOT, "production.lock"),
+      path.join(root, "production.lock"),
       "utf8",
     ))
     return (
@@ -119,11 +119,19 @@ async function lockExists() {
   }
 }
 
-export async function readIntelligenceOperationsSnapshot(): Promise<IntelligenceOperationsSnapshot> {
-  const reportStore = new FileIntelligenceProductionRunReportStore()
-  const schedulerStore = new FileIntelligenceSchedulerStore()
+export async function readIntelligenceOperationsSnapshot(
+  roots: {
+    artifactRoot?: string
+    reportRoot?: string
+    schedulerRoot?: string
+  } = {},
+): Promise<IntelligenceOperationsSnapshot> {
+  const artifactRoot = roots.artifactRoot ?? DEFAULT_DURABLE_ARTIFACT_ROOT
+  const reportStore = new FileIntelligenceProductionRunReportStore(roots.reportRoot)
+  const schedulerRoot = roots.schedulerRoot ?? DEFAULT_INTELLIGENCE_SCHEDULER_ROOT
+  const schedulerStore = new FileIntelligenceSchedulerStore(schedulerRoot)
 
-  const artifactResultPromise = readArtifactIndexMetadata()
+  const artifactResultPromise = readArtifactIndexMetadata(artifactRoot)
   const reportPromise = Promise.all([
     reportStore.getLatestRun(),
     reportStore.getLatestSuccessfulRun(),
@@ -142,7 +150,7 @@ export async function readIntelligenceOperationsSnapshot(): Promise<Intelligence
   const schedulerPromise = Promise.all([
     schedulerStore.readState(),
     schedulerStore.readLastSkip(),
-    lockExists(),
+    lockExists(schedulerRoot),
   ]).then(([state, lastSkip, locked]) => ({
     health: state ? "healthy" as const : "empty" as const,
     state,

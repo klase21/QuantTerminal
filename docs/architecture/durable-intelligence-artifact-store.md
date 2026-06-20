@@ -113,7 +113,9 @@ Registry search supports the same public filters as the in-memory registry:
 
 Index fields narrow candidates before payload reads. Filters requiring full artifact content are applied after payload validation.
 
-Missing or invalid payloads are not returned. A missing index behaves as an empty store. An invalid index is treated as a store error rather than being silently overwritten.
+Missing or invalid payloads are not returned. A missing index behaves as an empty store.
+
+Read-only registry operations degrade a corrupted index to an empty result so consumers remain available. Mutation operations remain strict and refuse to overwrite a corrupted index. The Operations Console validates index metadata independently and reports corruption as unavailable.
 
 ## Expiration and Archive Behavior
 

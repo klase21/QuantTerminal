@@ -133,9 +133,12 @@ Durable skip reasons are:
 
 - `disabled`;
 - `not_due`;
-- `concurrent_run`.
+- `concurrent_run`;
+- `state_unavailable`.
 
 Disabled and not-due decisions update scheduler state. Concurrent skips do not overwrite the active runner's scheduler state; they are recorded separately in `last-skip.json`.
+
+If scheduler state is corrupted or unreadable, production is not started. The runner records `state_unavailable` and preserves the state file for operator diagnosis.
 
 ## Run Report Integration
 
