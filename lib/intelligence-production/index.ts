@@ -16,6 +16,8 @@ export {
 } from "./intelligenceSchedulerStore"
 export { runScheduledProduction } from "./runScheduledProduction"
 export type { ScheduledProductionOptions } from "./runScheduledProduction"
+export { readIntelligenceOperationsSnapshot } from "./intelligenceOperationsSnapshot"
+export type { IntelligenceOperationsSnapshot } from "./intelligenceOperationsSnapshot"
 export type {
   IntelligenceSuiteBuildInput,
   IntelligenceSuiteBuildOptions,
