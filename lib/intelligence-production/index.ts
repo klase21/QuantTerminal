@@ -8,6 +8,14 @@ export {
   createIntelligenceProductionRunId,
   summarizeIntelligenceProductionRun,
 } from "./productionRunReportStore"
+export {
+  DEFAULT_INTELLIGENCE_SCHEDULER_ROOT,
+  FileIntelligenceSchedulerStore,
+  createDefaultSchedulerState,
+  nextScheduledRun,
+} from "./intelligenceSchedulerStore"
+export { runScheduledProduction } from "./runScheduledProduction"
+export type { ScheduledProductionOptions } from "./runScheduledProduction"
 export type {
   IntelligenceSuiteBuildInput,
   IntelligenceSuiteBuildOptions,

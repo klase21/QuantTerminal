@@ -187,3 +187,5 @@ The production report and canonical artifacts prepare the path for:
 - Research Copilot consumption.
 
 None of these systems are implemented by this orchestrator.
+
+The scheduled production runner is a separate one-shot schedule and locking layer. It invokes this orchestrator directly and does not duplicate any production stage.
