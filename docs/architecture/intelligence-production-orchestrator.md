@@ -32,6 +32,12 @@ Run the default production chain manually:
 npx.cmd tsx workers/intelligence-orchestrator/buildIntelligenceSuite.ts
 ```
 
+Publish the resulting artifacts to the durable file-backed registry:
+
+```powershell
+npx.cmd tsx workers/intelligence-orchestrator/buildIntelligenceSuite.ts --durable
+```
+
 Optional arguments include:
 
 ```text
@@ -44,6 +50,8 @@ Optional arguments include:
 --event-category
 --event-symbol
 --event-exchange
+--durable
+--artifact-root
 ```
 
 The default run uses the existing local canonical historical file, `BTCUSDT`, `1h`, the `macro` event category, and `binance_futures`.
@@ -134,9 +142,9 @@ The orchestrator does not fabricate data, confidence, outcomes, or memories.
 
 Historical Analog and Event Impact use the existing file cache.
 
-The Market Memory catalog and Intelligence Artifact Registry remain process-local and in-memory. The manual orchestrator proves the complete production chain within one process, but its registry publications are not durable across processes.
+The Market Memory catalog remains process-local and in-memory.
 
-This limitation is explicit and unchanged.
+Artifact publication defaults to the existing in-memory registry. Manual runs may opt into the file-backed durable registry with `--durable`. Durable artifact publication survives process restarts; the process-local Market Memory catalog does not.
 
 ## Future Scheduler Compatibility
 
@@ -156,9 +164,9 @@ These fields are sufficient for future scheduling and monitoring adapters withou
 
 ## Future Durable Store Compatibility
 
-A future durable artifact store can replace the existing in-memory registry behind the established registry interface.
+The file-backed durable artifact store implements the established registry interface and is available as an optional manual publication target.
 
-The orchestrator publishes canonical artifacts and does not depend on registry implementation details. Historical caches and memory generation therefore do not require redesign when durable publication is introduced.
+The orchestrator publishes canonical artifacts and does not depend on registry implementation details. A future SQLite or other durable adapter can replace the file implementation without redesigning historical caches or memory generation.
 
 ## Future Consumers
 

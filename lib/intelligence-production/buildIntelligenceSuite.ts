@@ -23,11 +23,12 @@ import {
 import {
   createEventImpactArtifact,
   createHistoricalAnalogArtifact,
+  IntelligenceArtifactReader,
   type IntelligenceArtifact,
+  type IntelligenceArtifactRegistry,
 } from "@/core/intelligence-artifacts"
 import { createMarketMemoryArtifact } from "@/core/market-memory"
 import {
-  productionIntelligenceArtifactReader,
   productionIntelligenceArtifactRegistry,
 } from "@/lib/intelligence-artifacts/productionRegistry"
 import { buildMarketMemoryCatalog } from "@/lib/market-memory/buildMarketMemoryCatalog"
@@ -43,6 +44,11 @@ import {
 export interface IntelligenceSuiteBuildInput {
   historicalAnalog: HistoricalAnalogCacheBuildInput
   eventImpact: EventImpactCacheBuildInput
+}
+
+export interface IntelligenceSuiteBuildOptions {
+  artifactRegistry?: IntelligenceArtifactRegistry
+  publicationTarget?: string
 }
 
 interface StageExecution {
@@ -131,10 +137,14 @@ function suiteStatus(stages: IntelligenceProductionStageResult[]): IntelligenceP
 
 export async function buildIntelligenceSuite(
   input: IntelligenceSuiteBuildInput = DEFAULT_INPUT,
+  options: IntelligenceSuiteBuildOptions = {},
 ): Promise<IntelligenceProductionReport> {
   const suiteStarted = Date.now()
   const preparedArtifacts: IntelligenceArtifact[] = []
   const stages: IntelligenceProductionStageResult[] = []
+  const artifactRegistry = options.artifactRegistry ?? productionIntelligenceArtifactRegistry
+  const artifactReader = new IntelligenceArtifactReader(artifactRegistry)
+  const publicationTarget = options.publicationTarget ?? "in-memory"
 
   stages.push(await executeStage("historical_analog", async () => {
     const result = await buildHistoricalAnalogCacheV2(input.historicalAnalog)
@@ -253,15 +263,19 @@ export async function buildIntelligenceSuite(
     const errors: IntelligenceProductionMessage[] = []
     for (const artifact of preparedArtifacts) {
       try {
-        await productionIntelligenceArtifactRegistry.publish(artifact)
-        const read = await productionIntelligenceArtifactReader.read(artifact.id)
+        await artifactRegistry.publish(artifact)
+        const read = await artifactReader.read(artifact.id)
         if (!read.ok) {
           throw new Error("reason" in read ? read.reason : `Artifact read failed: ${read.state}`)
         }
         outputs.push({
           kind: "artifact",
           id: artifact.id,
-          metadata: { state: "published", type: artifact.type },
+          metadata: {
+            state: "published",
+            type: artifact.type,
+            target: publicationTarget,
+          },
         })
       } catch (error) {
         errors.push({

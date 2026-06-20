@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url"
 import type { VerifiedEventCategory } from "@/core/event-catalog"
 import type { CanonicalExchange } from "@/core/historical-intelligence/market-data"
 import {
+  DEFAULT_DURABLE_ARTIFACT_ROOT,
+  FileBackedIntelligenceArtifactRegistry,
+} from "@/lib/intelligence-artifacts/fileBackedArtifactRegistry"
+import {
   buildIntelligenceSuite,
   type IntelligenceSuiteBuildInput,
 } from "@/lib/intelligence-production"
@@ -38,7 +42,17 @@ function inputFromArguments(): IntelligenceSuiteBuildInput {
 }
 
 async function main() {
-  const report = await buildIntelligenceSuite(inputFromArguments())
+  const durable = process.argv.includes("--durable")
+  const artifactRoot = argument("artifact-root") ?? DEFAULT_DURABLE_ARTIFACT_ROOT
+  const report = await buildIntelligenceSuite(
+    inputFromArguments(),
+    durable
+      ? {
+          artifactRegistry: new FileBackedIntelligenceArtifactRegistry(artifactRoot),
+          publicationTarget: `file:${path.resolve(artifactRoot)}`,
+        }
+      : undefined,
+  )
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
   if (report.status === "failed") process.exitCode = 1
 }
