@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:intelligence": "tsx workers/intelligence-tests/runIntelligenceSmokeTest.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -39,6 +40,7 @@
     "autoprefixer": "^10.5.0",
     "postcss": "^8.5.14",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.22.4",
     "typescript": "5.5.4"
   }
 }
