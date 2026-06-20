@@ -1,4 +1,5 @@
 export { buildMarketMemories } from "./buildMarketMemories"
+export { createMarketMemoryArtifact } from "./marketMemoryArtifact"
 export { InMemoryMarketMemoryCatalog } from "./marketMemoryCatalog"
 export {
   MARKET_MEMORY_CATALOG_VERSION,
@@ -12,3 +13,4 @@ export type {
   MarketMemoryCatalogReader,
   MarketMemoryType,
 } from "./marketMemoryTypes"
+export type { MarketMemoryArtifactMetadata } from "./marketMemoryArtifact"
