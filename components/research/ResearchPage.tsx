@@ -10,6 +10,7 @@ import {
   CalendarDays,
   Database,
   History,
+  Landmark,
   Newspaper,
   PieChart,
   Play,
@@ -24,6 +25,8 @@ import type {
   HistoricalAnalogCase,
   HistoricalAnalogHorizon,
 } from "@/core/historical-intelligence/analog-v2/historicalAnalogTypes"
+import type { EventImpactResult } from "@/core/event-impact"
+import type { MarketMemory } from "@/core/market-memory"
 import { useSafePolling } from "@/hooks/system/useSafePolling"
 import {
   buildInvestigationHref,
@@ -67,6 +70,14 @@ type HistoricalAnalogResponse = Partial<HistoricalAnalogCachePayloadV2> & {
     schemaVersion: string | null
     analogCount: number
   }
+}
+
+type MarketMemoryResponse = {
+  ok: boolean
+  status: "available" | "unavailable"
+  reason?: string
+  generatedAt: string | null
+  memories: MarketMemory[]
 }
 
 const HORIZONS: HistoricalAnalogHorizon[] = ["1h", "4h", "24h", "7d"]
@@ -207,10 +218,22 @@ export default function ResearchPage() {
   const [historicalLoading, setHistoricalLoading] = useState(false)
   const [historicalError, setHistoricalError] = useState<string | null>(null)
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
+  const [eventImpact, setEventImpact] = useState<EventImpactResult | null>(null)
+  const [eventImpactLoading, setEventImpactLoading] = useState(false)
+  const [eventImpactError, setEventImpactError] = useState<string | null>(null)
+  const [marketMemory, setMarketMemory] = useState<MarketMemoryResponse | null>(null)
+  const [marketMemoryLoading, setMarketMemoryLoading] = useState(false)
+  const [marketMemoryError, setMarketMemoryError] = useState<string | null>(null)
   const historicalController = useRef<AbortController | null>(null)
+  const eventImpactController = useRef<AbortController | null>(null)
+  const marketMemoryController = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    return () => historicalController.current?.abort()
+    return () => {
+      historicalController.current?.abort()
+      eventImpactController.current?.abort()
+      marketMemoryController.current?.abort()
+    }
   }, [])
 
   useEffect(() => {
@@ -221,6 +244,27 @@ export default function ResearchPage() {
     setHistoricalLoading(false)
     setSelectedCaseId(null)
   }, [investigationContext.symbol, historicalTimeframe])
+
+  useEffect(() => {
+    eventImpactController.current?.abort()
+    eventImpactController.current = null
+    setEventImpact(null)
+    setEventImpactError(null)
+    setEventImpactLoading(false)
+  }, [
+    investigationContext.exchange,
+    investigationContext.selectedEvent?.category,
+    investigationContext.selectedEvent?.id,
+    investigationContext.symbol,
+  ])
+
+  useEffect(() => {
+    marketMemoryController.current?.abort()
+    marketMemoryController.current = null
+    setMarketMemory(null)
+    setMarketMemoryError(null)
+    setMarketMemoryLoading(false)
+  }, [investigationContext.exchange, investigationContext.symbol, investigationContext.timeframe])
 
   async function loadHistoricalIntelligence() {
     historicalController.current?.abort()
@@ -251,6 +295,60 @@ export default function ResearchPage() {
       ?? result.data.cases?.[0]
       ?? null
     setSelectedCaseId(nextCase?.state.id ?? null)
+  }
+
+  async function loadEventImpact() {
+    eventImpactController.current?.abort()
+    const controller = new AbortController()
+    eventImpactController.current = controller
+    setEventImpactLoading(true)
+    setEventImpactError(null)
+    const query = new URLSearchParams({
+      symbol: investigationContext.symbol,
+      exchange: investigationContext.exchange,
+    })
+    if (investigationContext.selectedEvent?.id) {
+      query.set("eventId", investigationContext.selectedEvent.id)
+    } else {
+      query.set("category", investigationContext.selectedEvent?.category ?? "macro")
+    }
+    const result = await safeFetchJson<EventImpactResult>(`/api/event-impact?${query.toString()}`, {
+      signal: controller.signal,
+      timeoutMs: 8000,
+      retries: 0,
+      label: "research-event-impact-v1",
+      cache: "no-store",
+    })
+    if (controller.signal.aborted) return
+    setEventImpactLoading(false)
+    if (!result.ok) {
+      setEventImpactError(result.error)
+      return
+    }
+    setEventImpact(result.data)
+  }
+
+  async function loadMarketMemory() {
+    marketMemoryController.current?.abort()
+    const controller = new AbortController()
+    marketMemoryController.current = controller
+    setMarketMemoryLoading(true)
+    setMarketMemoryError(null)
+    const query = new URLSearchParams({ symbol: investigationContext.symbol })
+    const result = await safeFetchJson<MarketMemoryResponse>(`/api/research/market-memory?${query.toString()}`, {
+      signal: controller.signal,
+      timeoutMs: 5000,
+      retries: 0,
+      label: "research-market-memory-v1",
+      cache: "no-store",
+    })
+    if (controller.signal.aborted) return
+    setMarketMemoryLoading(false)
+    if (!result.ok) {
+      setMarketMemoryError(result.error)
+      return
+    }
+    setMarketMemory(result.data)
   }
 
   const topNarratives = narratives.data?.heatmap?.slice(0, 8) ?? []
@@ -285,6 +383,8 @@ export default function ResearchPage() {
       ? replayContextForCase(investigationContext, selectedCase, source).selectedHistoricalCase
       : undefined,
   })
+  const eventImpact24h = eventImpact?.statistics.byHorizon["24h"]
+  const memories = marketMemory?.memories ?? []
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
@@ -421,6 +521,88 @@ export default function ResearchPage() {
             </Card>
           </div>
         ) : null}
+
+        <Card title="Event Impact" icon={<Landmark className="h-3.5 w-3.5" />}>
+          {eventImpact?.status === "available" && eventImpact24h?.sampleCount ? (
+            <div className="grid gap-3 xl:grid-cols-[minmax(260px,.8fr)_minmax(0,1.2fr)_320px]">
+              <div className="rounded border border-zinc-900 bg-black/45 p-3">
+                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500">Verified Event Sample</div>
+                <div className="mt-1 text-sm font-black uppercase text-white">{eventImpact.events[0]?.title ?? eventImpact.query.category}</div>
+                <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">
+                  {eventImpact.events.length} verified events / {eventImpact.sampleCount} market observations
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+                <Metric label="24H Average" value={pct(eventImpact24h.averageReturn)} tone={outcomeTone(eventImpact24h.averageReturn)} />
+                <Metric label="24H Median" value={pct(eventImpact24h.medianReturn)} tone={outcomeTone(eventImpact24h.medianReturn)} />
+                <Metric label="Win Rate" value={pct(eventImpact24h.winRate)} />
+                <Metric label="Best Case" value={pct(eventImpact24h.bestCase?.return)} tone="text-emerald-200" />
+                <Metric label="Worst Case" value={pct(eventImpact24h.worstCase?.return)} tone="text-rose-200" />
+              </div>
+              <div className="grid gap-1.5">
+                <Metric
+                  label="Source"
+                  value={[eventImpact.source.eventCatalog, ...eventImpact.source.marketData].filter(Boolean).join(" / ") || "NO DATA"}
+                />
+                <Metric label="Generated" value={dateTime(eventImpact.source.generatedAt)} />
+                <Metric label="Event Count" value={String(eventImpact.events.length)} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <EmptyState
+                title={eventImpact ? "Event Impact Unavailable" : "Manual Load Required"}
+                reason={eventImpact?.reason ?? eventImpactError ?? "Read verified event outcomes from canonical OHLCV when needed."}
+              />
+              <button
+                type="button"
+                onClick={() => void loadEventImpact()}
+                disabled={eventImpactLoading}
+                className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+              >
+                {eventImpactLoading ? "Reading Event Outcomes" : "Load Event Impact"}
+              </button>
+            </div>
+          )}
+        </Card>
+
+        <Card title="Market Memory" icon={<Brain className="h-3.5 w-3.5" />}>
+          {memories.length ? (
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {memories.slice(0, 6).map((memory) => (
+                <div key={memory.memoryId} className="rounded border border-zinc-900 bg-black/45 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-black uppercase text-white">{memory.title}</div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{memory.memoryType}</div>
+                  </div>
+                  <div className="mt-2 text-[10px] font-bold leading-5 text-zinc-400">{memory.summary}</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-zinc-900 pt-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
+                    <span>{memory.supportingArtifacts.length} supporting artifacts</span>
+                    <span>{dateTime(memory.generatedAt)}</span>
+                  </div>
+                  <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
+                    Sources: {memory.supportingArtifacts.map((artifact) => artifact.artifactId).join(" / ")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <EmptyState
+                title={marketMemory ? "Market Memory Unavailable" : "Manual Load Required"}
+                reason={marketMemory?.reason ?? marketMemoryError ?? "Read evidence-backed memories from the artifact catalog when needed."}
+              />
+              <button
+                type="button"
+                onClick={() => void loadMarketMemory()}
+                disabled={marketMemoryLoading}
+                className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+              >
+                {marketMemoryLoading ? "Reading Market Memory" : "Load Market Memory"}
+              </button>
+            </div>
+          )}
+        </Card>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
           <Card title="Replay Access" icon={<Play className="h-3.5 w-3.5" />}>

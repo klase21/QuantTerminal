@@ -1,71 +1,54 @@
 import { NextResponse } from "next/server"
 
-import { listMarketOutcomes } from "@/lib/historical-data/localHistoricalStore"
-import { parseTags, summarizeOutcomes } from "@/lib/research/marketOutcomeAnalytics"
-import type { HistoricalInterval, MarketOutcome } from "@/types/historical"
+import {
+  MARKET_MEMORY_TYPES,
+  type MarketMemoryType,
+} from "@/core/market-memory"
+import { productionMarketMemoryCatalog } from "@/lib/market-memory/productionMarketMemoryCatalog"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-function dateFromTimestamp(value: number) {
-  return new Date(value).toISOString().slice(0, 10)
-}
+const MEMORY_TYPES = new Set<MarketMemoryType>(MARKET_MEMORY_TYPES)
 
-function matches(value: string | null, candidate?: string) {
-  return !value || candidate === value
-}
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const memoryId = searchParams.get("memoryId")?.trim()
+  const category = searchParams.get("category")?.trim()
+  const symbol = searchParams.get("symbol")?.trim()
+  if (category && !MEMORY_TYPES.has(category as MarketMemoryType)) {
+    return NextResponse.json({
+      ok: false,
+      status: "unavailable",
+      reason: "Unsupported Market Memory category.",
+      memories: [],
+    }, { status: 400 })
+  }
 
-function setupContext(outcome: MarketOutcome) {
-  return [
-    outcome.direction,
-    outcome.momentumState,
-    outcome.breakoutState,
-    outcome.volatilityState,
-    ...parseTags(outcome.narrativeTagsJson),
-    outcome.liquidityState !== "unknown" ? outcome.liquidityState : null,
-    outcome.sectorRotationState !== "unknown" ? outcome.sectorRotationState : null,
-  ].filter((item): item is string => Boolean(item)).slice(0, 4)
-}
+  const status = productionMarketMemoryCatalog.status()
+  if (!status.generatedAt) {
+    return NextResponse.json({
+      ok: false,
+      status: "unavailable",
+      reason: "Market Memory catalog not generated in this process.",
+      generatedAt: null,
+      memories: [],
+    })
+  }
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
-  const interval = (searchParams.get("interval") || "1h") as HistoricalInterval
-  const symbol = searchParams.get("symbol")
-  const direction = searchParams.get("direction")
-  const narrative = searchParams.get("narrative")
-  const breakoutState = searchParams.get("breakoutState")
-  const momentumState = searchParams.get("momentumState")
-  const liquidityState = searchParams.get("liquidityState")
-  const outcomes = (await listMarketOutcomes(interval)).filter((outcome) => {
-    if (!matches(symbol, outcome.symbol)) return false
-    if (!matches(direction, outcome.direction)) return false
-    if (!matches(breakoutState, outcome.breakoutState)) return false
-    if (!matches(momentumState, outcome.momentumState)) return false
-    if (!matches(liquidityState, outcome.liquidityState)) return false
-    if (narrative && !parseTags(outcome.narrativeTagsJson).includes(narrative)) return false
-    return true
-  })
-  const summary = summarizeOutcomes(outcomes)
-  const grouped = new Map<string, MarketOutcome[]>()
-  outcomes.forEach((outcome) => {
-    const key = `${outcome.symbol}:${dateFromTimestamp(outcome.timestamp)}:${outcome.setupKey}`
-    grouped.set(key, [...(grouped.get(key) ?? []), outcome])
-  })
+  const memories = memoryId
+    ? [productionMarketMemoryCatalog.getById(memoryId)].filter(Boolean)
+    : category
+      ? productionMarketMemoryCatalog.findByCategory(category as MarketMemoryType)
+      : symbol
+        ? productionMarketMemoryCatalog.findBySymbol(symbol)
+        : []
 
   return NextResponse.json({
-    ...summary,
-    setups: [...grouped.values()].slice(0, 100).map((items) => {
-      const [first] = items
-      const itemSummary = summarizeOutcomes(items)
-      return {
-        symbol: first.symbol,
-        date: dateFromTimestamp(first.timestamp),
-        direction: first.direction,
-        matchedContexts: setupContext(first),
-        avgReturn7d: itemSummary.avgReturn7d,
-        avgReturn30d: itemSummary.avgReturn30d,
-        dominantOutcome: itemSummary.dominantOutcome,
-      }
-    }),
+    ok: memories.length > 0,
+    status: memories.length ? "available" : "unavailable",
+    reason: memories.length ? undefined : "No compatible Market Memory found.",
+    generatedAt: status.generatedAt,
+    memories,
   })
 }
