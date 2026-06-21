@@ -4,6 +4,7 @@ import type {
   ReplayEvidenceArtifactMetadata,
 } from "@/core/intelligence-artifacts/preparedArtifactPublications"
 import type { IntelligenceArtifact } from "@/core/intelligence-artifacts"
+import type { ReplayLearningArtifactMetadata } from "@/core/replay-learning"
 import {
   MARKET_MEMORY_SCHEMA_VERSION,
   type MarketMemory,
@@ -173,12 +174,77 @@ function replayStructuralMemories(artifacts: IntelligenceArtifact[]): MarketMemo
   })
 }
 
+function replayLearningMemories(artifacts: IntelligenceArtifact[]): MarketMemory[] {
+  const groups = new Map<string, IntelligenceArtifact<ReplayLearningArtifactMetadata>[]>()
+  for (const artifact of artifacts) {
+    const metadata = artifact.metadata as Partial<ReplayLearningArtifactMetadata>
+    if (
+      typeof metadata.symbol !== "string"
+      || typeof metadata.exchange !== "string"
+      || typeof metadata.observationCount !== "number"
+      || typeof metadata.outcomeCount !== "number"
+    ) {
+      continue
+    }
+    const key = `${metadata.exchange}:${metadata.symbol}`
+    groups.set(key, [
+      ...(groups.get(key) ?? []),
+      artifact as IntelligenceArtifact<ReplayLearningArtifactMetadata>,
+    ])
+  }
+
+  return [...groups.values()].flatMap((group) => {
+    if (group.length < 2) return []
+    const [{ metadata }] = group
+    const observationCount = group.reduce(
+      (total, artifact) => total + artifact.metadata.observationCount,
+      0,
+    )
+    const outcomeCount = group.reduce(
+      (total, artifact) => total + artifact.metadata.outcomeCount,
+      0,
+    )
+    const generatedAt = group.map((artifact) => artifact.generatedAt).sort().at(-1) as string
+    const thesisIds = [...new Set(group.map((artifact) => artifact.thesis?.thesisId).filter(Boolean))]
+    const briefIds = [...new Set(group.map((artifact) => artifact.decisionBrief?.decisionBriefId).filter(Boolean))]
+    const memory: MarketMemory = {
+      schemaVersion: MARKET_MEMORY_SCHEMA_VERSION,
+      memoryId: `memory:setup:replay-learning:${metadata.exchange}:${metadata.symbol}`,
+      title: `${metadata.symbol} Replay Learning Memory`,
+      memoryType: "setup",
+      summary: `${group.length} Replay Learning artifacts recorded ${observationCount} factual observations and ${outcomeCount} factual outcomes.`,
+      supportingArtifacts: group.map(artifactReference),
+      generatedAt,
+      validity: aggregateEvidenceValidity(
+        group.map((artifact) => artifact.validity),
+        generatedAt,
+        "Replay Learning memory uses the most conservative validity state of its source artifacts.",
+      ),
+      thesis: thesisIds.length === 1
+        ? group.find((artifact) => artifact.thesis?.thesisId === thesisIds[0])?.thesis
+        : undefined,
+      decisionBrief: briefIds.length === 1
+        ? group.find((artifact) => artifact.decisionBrief?.decisionBriefId === briefIds[0])?.decisionBrief
+        : undefined,
+      tags: ["setup", "replay-learning"],
+      symbols: [metadata.symbol],
+      exchanges: [metadata.exchange],
+    }
+    memory.contradiction = marketMemoryContradiction({
+      memory,
+      sourceArtifacts: group,
+    })
+    return [memory]
+  })
+}
+
 export function buildMarketMemories(artifacts: IntelligenceArtifact[]): MarketMemory[] {
   const eligible = artifacts
     .filter((artifact) => (
       artifact.type === "historical_analog"
       || artifact.type === "event_impact"
       || artifact.type === "replay_intelligence"
+      || artifact.type === "replay_learning"
     ))
     .sort((left, right) => left.id.localeCompare(right.id))
 
@@ -195,6 +261,9 @@ export function buildMarketMemories(artifacts: IntelligenceArtifact[]): MarketMe
   })
   memories.push(...replayStructuralMemories(
     eligible.filter((artifact) => artifact.type === "replay_intelligence"),
+  ))
+  memories.push(...replayLearningMemories(
+    eligible.filter((artifact) => artifact.type === "replay_learning"),
   ))
 
   return memories.sort((left, right) => (

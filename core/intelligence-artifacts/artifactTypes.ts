@@ -8,6 +8,7 @@ export const INTELLIGENCE_ARTIFACT_SCHEMA_VERSION = 1
 export type IntelligenceArtifactType =
   | "historical_analog"
   | "replay_intelligence"
+  | "replay_learning"
   | "dashboard_evidence"
   | "event_impact"
   | "market_memory"
