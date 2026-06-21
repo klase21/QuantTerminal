@@ -67,19 +67,17 @@ Current durable inventory:
 
 Durable BTCUSDT Market Memory artifacts exist.
 
-Research still reads:
+Research now reads:
 
 ```text
-productionMarketMemoryCatalog
+FileBackedIntelligenceArtifactRegistry
 ```
 
-which is process-local and in-memory. After a process restart, `/api/research/market-memory` reports:
+through the durable Market Memory reader. The process-local catalog remains a fallback only.
 
-```text
-Market Memory catalog not generated in this process.
-```
-
-This is primarily a consumption-path gap, not a missing BTC artifact gap.
+- BTCUSDT: available from two durable artifacts.
+- ETHUSDT: unavailable because no durable memory artifact exists.
+- SOLUSDT: unavailable because no durable memory artifact exists.
 
 ### Replay Orderbook
 
@@ -132,7 +130,7 @@ No canonical local prediction-market snapshot exists. The audit reports Predicti
 | Prediction Markets | Live Polymarket attention markets | Not locally inspectable | No prepared fallback exists when live filtering returns zero markets. |
 | Historical Analog Summary | Historical Analog V2 cache by symbol/1h | Partial: BTC only | ETH and SOL cannot enter the analog-case workflow. |
 | Event Impact | Verified events, canonical OHLCV, Event Impact cache | Partial: BTC only | ETH has supported events but no prepared outcomes; SOL has no verified event scope. |
-| Market Memory | Durable memory artifacts plus durable Research reader | Unavailable in Research after restart | Durable BTC memories exist but the page reads an empty process-local catalog. |
+| Market Memory | Durable `market_memory` artifacts | Partial: BTC only | BTC survives process restarts; ETH and SOL require prepared durable artifacts. |
 | Replay Access | Selected Historical Analog case | Partial: BTC only | ETH and SOL have no exact historical case handoff. |
 | Orderbook | Replay orderbook snapshot cache for selected case window | Missing | Replay can load other sections, but orderbook evidence remains unavailable. |
 
@@ -186,7 +184,7 @@ npx.cmd tsx workers/event-impact/buildEventImpactCache.ts `
 
 SOLUSDT has no applicable verified event in the current catalog. Do not fabricate event coverage. A verified SOL event catalog entry is required before Event Impact backfill.
 
-### P0: Market Memory Visibility
+### P0: Market Memory Coverage
 
 The production orchestrator can create and durably publish Market Memory artifacts:
 
@@ -200,7 +198,7 @@ npx.cmd tsx workers/intelligence-orchestrator/buildIntelligenceSuite.ts `
   --event-exchange binance_futures
 ```
 
-This does not fix Research visibility by itself. The Research API has no durable Market Memory catalog adapter. That is a command and consumption gap requiring a focused reliability sprint.
+Research can consume durable artifacts after the command completes. No process-local catalog initialization is required.
 
 ### P1: Replay Orderbook
 
@@ -240,15 +238,14 @@ Before backfill is possible, each needs a canonical snapshot/coverage contract. 
 1. Verify ETHUSDT and SOLUSDT source OHLCV coverage without changing algorithms.
 2. Generate Historical Analog 1h caches for ETHUSDT and SOLUSDT.
 3. Generate canonical ETHUSDT OHLCV and ETHUSDT macro Event Impact.
-4. Make Research read durable Market Memory artifacts or a durable catalog adapter.
-5. Run durable production for BTCUSDT and ETHUSDT after upstream caches are valid.
+4. Run durable production for ETHUSDT after upstream caches are valid.
+5. Preserve BTCUSDT durable Market Memory and verify it remains readable after restart.
 6. Select actual analog cases and generate Replay orderbook caches only where source files exist.
 7. Add a manual Replay Learning publication command, then capture evidence-backed learning artifacts.
 8. Add local Narrative and Prediction Market coverage metadata only after the core historical workflow is healthy.
 
 ## Missing Builder or Command Gaps
 
-- No durable Market Memory catalog reader is connected to Research.
 - No Replay Learning CLI publication command exists.
 - No canonical Narrative snapshot builder exists.
 - No canonical Prediction Market snapshot builder exists.
@@ -257,15 +254,12 @@ Before backfill is possible, each needs a canonical snapshot/coverage contract. 
 
 ## Recommended Next Sprint
 
-Implement **Durable Market Memory Research Consumption**.
+Implement **ETH/SOL Historical Coverage Backfill Preparation**.
 
 Scope:
 
-- read existing durable `market_memory` artifacts by symbol;
-- adapt them to the existing Research response;
-- preserve manual loading;
-- do not regenerate memories;
-- do not add a new store;
-- do not modify Market Memory algorithms.
-
-This closes the largest current gap where valid prepared intelligence exists but Research cannot consume it after process restart.
+- verify ETHUSDT and SOLUSDT source OHLCV rows;
+- generate no data automatically;
+- prepare exact manual builder inputs;
+- identify verified Event Catalog gaps for SOLUSDT;
+- preserve current algorithms and cache contracts.

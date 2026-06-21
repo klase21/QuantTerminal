@@ -379,15 +379,15 @@ export async function auditResearchCoverage() {
       historicalAnalog: historical.item,
       eventImpact,
       marketMemory: {
-        state: "unavailable",
+        state: marketMemoryArtifacts.length ? "available" : "missing",
         reason: marketMemoryArtifacts.length
-          ? `${marketMemoryArtifacts.length} durable Market Memory artifacts exist, but Research reads a process-local catalog that is not durable across restarts.`
-          : "No durable Market Memory artifact exists and Research reads a process-local catalog.",
-        source: "durable-artifact-store+process-local-market-memory-catalog",
+          ? `${marketMemoryArtifacts.length} durable Market Memory artifacts are available to Research.`
+          : "No durable Market Memory artifact exists for this symbol.",
+        source: "durable-artifact-store",
         details: {
           durableArtifactCount: marketMemoryArtifacts.length,
           durableArtifactIds: marketMemoryArtifacts.map((artifact) => artifact.id),
-          researchCatalogDurable: false,
+          researchCatalogDurable: true,
         },
       },
       replayAccess: historical.payload?.cases.length
@@ -465,7 +465,7 @@ export async function auditResearchCoverage() {
       section: "Market Memory",
       dependency: "Durable market_memory artifacts plus a durable Research catalog reader",
       status: aggregateState(targets.map((target) => target.marketMemory)),
-      userImpact: "Research reports the catalog as unavailable after process restart even when durable memory artifacts exist.",
+      userImpact: "Durable memories survive process restarts; symbols without prepared artifacts remain unavailable.",
     },
     {
       section: "Replay Access",
@@ -491,7 +491,9 @@ export async function auditResearchCoverage() {
         && target.eventImpact.state !== "not_applicable"
       ))
       .map((target) => `Event Impact ${target.symbol} supported verified-event categories`),
-    "Durable Market Memory catalog consumption for Research",
+    ...targets
+      .filter((target) => target.marketMemory.state !== "available")
+      .map((target) => `Durable Market Memory ${target.symbol}`),
   ]
 
   return {
@@ -533,7 +535,7 @@ export async function auditResearchCoverage() {
     recommendedBackfillOrder: [
       "Generate Historical Analog 1h caches for ETHUSDT and SOLUSDT after verifying source OHLCV coverage.",
       "Generate canonical ETHUSDT 1h OHLCV and macro Event Impact; SOLUSDT requires verified event catalog expansion before Event Impact.",
-      "Make Research consume durable Market Memory artifacts or add a durable catalog adapter; existing process-local catalog generation is not sufficient.",
+      "Generate durable Market Memory artifacts for symbols after Historical Analog and Event Impact coverage is prepared.",
       "Generate Replay orderbook caches only for selected analog windows with available CryptoHFTData source files.",
       "Add a manual Replay Learning publication command before attempting Replay Learning backfill.",
       "Treat Narrative and Prediction Markets as live-source operational coverage until canonical local snapshot contracts exist.",
