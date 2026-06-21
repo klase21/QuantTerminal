@@ -28,6 +28,10 @@ import type {
 import type { EventImpactResult } from "@/core/event-impact"
 import type { MarketMemory } from "@/core/market-memory"
 import type { EvidenceValidity } from "@/core/evidence-validity"
+import {
+  buildDecisionBrief,
+  type DecisionBriefEvidenceSource,
+} from "@/core/decision-brief"
 import { useSafePolling } from "@/hooks/system/useSafePolling"
 import {
   buildInvestigationHref,
@@ -391,7 +395,53 @@ export default function ResearchPage() {
       : undefined,
   })
   const eventImpact24h = eventImpact?.statistics.byHorizon["24h"]
-  const memories = marketMemory?.memories ?? []
+  const memories = useMemo(() => marketMemory?.memories ?? [], [marketMemory])
+  const decisionBrief = useMemo(() => {
+    const thesis = investigationContext.thesis
+    if (!thesis) return null
+    const sources: DecisionBriefEvidenceSource[] = []
+    if (historical?.validity) {
+      sources.push({
+        artifactId: historical.contradiction?.sourceArtifactIds[0]
+          ?? `historical-analog:${investigationContext.symbol}:${historicalTimeframe}`,
+        validity: historical.validity,
+        contradiction: historical.contradiction,
+      })
+    }
+    if (eventImpact?.validity) {
+      sources.push({
+        artifactId: eventImpact.contradiction?.sourceArtifactIds[0]
+          ?? `event-impact:${eventImpact.query.category ?? "unknown"}:${investigationContext.exchange}:${investigationContext.symbol}`,
+        validity: eventImpact.validity,
+        contradiction: eventImpact.contradiction,
+      })
+    }
+    for (const memory of memories) {
+      sources.push({
+        artifactId: `market-memory:${memory.memoryId}`,
+        validity: memory.validity,
+        contradiction: memory.contradiction,
+      })
+    }
+    const generatedAt = [
+      thesis.updatedAt,
+      historical?.diagnostics?.generatedAt,
+      eventImpact?.source.generatedAt,
+      ...memories.map((memory) => memory.generatedAt),
+    ].filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1)
+      ?? thesis.updatedAt
+    return buildDecisionBrief({ thesis, sources, generatedAt })
+  }, [
+    eventImpact,
+    historical,
+    historicalTimeframe,
+    investigationContext.exchange,
+    investigationContext.symbol,
+    investigationContext.thesis,
+    memories,
+  ])
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
@@ -691,6 +741,25 @@ export default function ResearchPage() {
               <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Narrative: {topNarratives[0]?.narrative ?? "Unavailable"}</div>
               <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Market Attention: {predictionMarkets[0]?.title ?? "Unavailable"}</div>
               <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Historical Evidence: {statistics ? `${statistics.totalCases} cached cases` : "Manual load required"}</div>
+              {decisionBrief ? (
+                <>
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
+                    Decision Brief: {decisionBrief.currentView.replaceAll("_", " ")}
+                  </div>
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
+                    Evidence: {decisionBrief.supportingEvidenceCount} supporting / {decisionBrief.contradictingEvidenceCount} contradicting
+                  </div>
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
+                    Key Support: {decisionBrief.keySupportingFactors[0] ?? "NO DATA"}
+                  </div>
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
+                    Key Contradiction: {decisionBrief.keyContradictingFactors[0] ?? "NO DATA"}
+                  </div>
+                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
+                    Next Validation: {decisionBrief.requiredNextValidation[0] ?? "No additional validation identified."}
+                  </div>
+                </>
+              ) : null}
             </div>
           </Card>
         </div>

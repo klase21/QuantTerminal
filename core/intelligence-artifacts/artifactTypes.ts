@@ -1,6 +1,7 @@
 import type { EvidenceValidity } from "@/core/evidence-validity"
 import type { InvestigationThesis } from "@/types/investigationThesis"
 import type { ContradictionAnalysis } from "@/core/contradiction"
+import type { DecisionBrief } from "@/core/decision-brief"
 
 export const INTELLIGENCE_ARTIFACT_SCHEMA_VERSION = 1
 
@@ -59,6 +60,7 @@ export interface IntelligenceArtifact<
   validity: EvidenceValidity
   thesis?: InvestigationThesis
   contradiction?: ContradictionAnalysis
+  decisionBrief?: DecisionBrief
   supportingEvidence: IntelligenceSupportingEvidence[]
   metadata: TMetadata
   tags?: string[]
@@ -83,6 +85,7 @@ export interface IntelligenceArtifactSummary {
   validity: EvidenceValidity
   thesis?: InvestigationThesis
   contradiction?: ContradictionAnalysis
+  decisionBrief?: DecisionBrief
   status: IntelligenceArtifactStatus
   evidenceCount: number
   tags: string[]

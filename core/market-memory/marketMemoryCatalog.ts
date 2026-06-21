@@ -7,6 +7,7 @@ import {
   type MarketMemoryType,
 } from "./marketMemoryTypes"
 import { isEvidenceValidity } from "@/core/evidence-validity"
+import { isDecisionBrief } from "@/core/decision-brief"
 
 function normalizeSymbol(value: string) {
   return value.replace("/", "").trim().toUpperCase()
@@ -24,6 +25,7 @@ function validMemory(memory: MarketMemory) {
     && Boolean(memory.summary.trim())
     && Number.isFinite(Date.parse(memory.generatedAt))
     && isEvidenceValidity(memory.validity)
+    && (memory.decisionBrief === undefined || isDecisionBrief(memory.decisionBrief))
     && memory.supportingArtifacts.length > 0
   )
 }

@@ -54,6 +54,7 @@ function summary(artifact: IntelligenceArtifact, archived: boolean): Intelligenc
     validity: artifact.validity,
     thesis: artifact.thesis,
     contradiction: artifact.contradiction,
+    decisionBrief: artifact.decisionBrief,
     status: intelligenceArtifactStatus(artifact, { archived }),
     evidenceCount: artifact.supportingEvidence.length,
     tags: artifact.tags ?? [],

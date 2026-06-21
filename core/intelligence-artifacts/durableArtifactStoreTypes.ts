@@ -6,6 +6,7 @@ import type {
 import type { EvidenceValidity } from "@/core/evidence-validity"
 import type { InvestigationThesis } from "@/types/investigationThesis"
 import type { ContradictionAnalysis } from "@/core/contradiction"
+import type { DecisionBrief } from "@/core/decision-brief"
 
 export const DURABLE_ARTIFACT_STORE_VERSION = 1
 
@@ -23,6 +24,7 @@ export interface DurableArtifactIndexEntry {
   validity?: EvidenceValidity
   thesis?: InvestigationThesis
   contradiction?: ContradictionAnalysis
+  decisionBrief?: DecisionBrief
 }
 
 export interface DurableArtifactIndex {

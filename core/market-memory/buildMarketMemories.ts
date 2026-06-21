@@ -28,6 +28,7 @@ function artifactReference(artifact: IntelligenceArtifact): MarketMemoryArtifact
     validity: artifact.validity,
     thesis: artifact.thesis,
     contradiction: artifact.contradiction,
+    decisionBrief: artifact.decisionBrief,
   }
 }
 
@@ -62,6 +63,7 @@ function historicalAnalogMemory(artifact: IntelligenceArtifact): MarketMemory | 
       "Regime memory inherits validity from its Historical Analog artifact.",
     ),
     thesis: artifact.thesis,
+    decisionBrief: artifact.decisionBrief,
     tags: ["regime", "historical-analog", metadata.timeframe],
     symbols: [metadata.symbol],
     exchanges: artifact.subjects?.exchanges,
@@ -101,6 +103,7 @@ function eventImpactMemory(artifact: IntelligenceArtifact): MarketMemory | null 
       "Event memory inherits validity from its Event Impact artifact.",
     ),
     thesis: artifact.thesis,
+    decisionBrief: artifact.decisionBrief,
     tags: ["event", "event-impact", metadata.category],
     symbols: [metadata.symbol],
     exchanges: [metadata.exchange],
@@ -138,6 +141,7 @@ function replayStructuralMemories(artifacts: IntelligenceArtifact[]): MarketMemo
     const averageSpread = group.reduce((sum, artifact) => sum + artifact.metadata.spread, 0) / group.length
     const generatedAt = group.map((artifact) => artifact.generatedAt).sort().at(-1) as string
     const thesisIds = [...new Set(group.map((artifact) => artifact.thesis?.thesisId).filter(Boolean))]
+    const briefIds = [...new Set(group.map((artifact) => artifact.decisionBrief?.decisionBriefId).filter(Boolean))]
     const memory: MarketMemory = {
       schemaVersion: MARKET_MEMORY_SCHEMA_VERSION,
       memoryId: `memory:structural:orderbook:${metadata.exchange}:${metadata.symbol}`,
@@ -153,6 +157,9 @@ function replayStructuralMemories(artifacts: IntelligenceArtifact[]): MarketMemo
       ),
       thesis: thesisIds.length === 1
         ? group.find((artifact) => artifact.thesis?.thesisId === thesisIds[0])?.thesis
+        : undefined,
+      decisionBrief: briefIds.length === 1
+        ? group.find((artifact) => artifact.decisionBrief?.decisionBriefId === briefIds[0])?.decisionBrief
         : undefined,
       tags: ["structural", "replay", "orderbook"],
       symbols: [metadata.symbol],

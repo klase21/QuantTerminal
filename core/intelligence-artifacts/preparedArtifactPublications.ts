@@ -13,6 +13,7 @@ import {
   eventImpactContradiction,
   historicalAnalogContradiction,
 } from "@/core/contradiction"
+import type { DecisionBrief } from "@/core/decision-brief"
 
 export interface HistoricalAnalogArtifactMetadata extends Record<string, unknown> {
   confidenceStatus: "not_calibrated"
@@ -62,6 +63,7 @@ export function createHistoricalAnalogArtifact(input: {
   cacheIdentity: string
   cacheSchemaVersion: string
   thesis?: InvestigationThesis
+  decisionBrief?: DecisionBrief
 }): IntelligenceArtifact<HistoricalAnalogArtifactMetadata> {
   const { payload } = input
   const stats24h = payload.statistics.byHorizon["24h"]
@@ -89,6 +91,7 @@ export function createHistoricalAnalogArtifact(input: {
       generatedAt: input.generatedAt,
       sourceArtifactId: `historical-analog:${payload.symbol}:${payload.interval}`,
     }),
+    decisionBrief: input.decisionBrief,
     supportingEvidence: [
       {
         id: `${payload.symbol}:${payload.interval}:24h-outcome`,
@@ -135,6 +138,7 @@ export function createEventImpactArtifact(input: {
   cacheIdentity: string
   cacheSchemaVersion: string
   thesis?: InvestigationThesis
+  decisionBrief?: DecisionBrief
 }): IntelligenceArtifact<EventImpactArtifactMetadata> {
   const result = input.payload.result
   const stats24h = result.statistics.byHorizon["24h"]
@@ -165,6 +169,7 @@ export function createEventImpactArtifact(input: {
       generatedAt: input.payload.generatedAt,
       sourceArtifactId: `event-impact:${input.payload.category}:${input.payload.exchange}:${input.payload.symbol}`,
     }),
+    decisionBrief: input.decisionBrief,
     supportingEvidence: [
       ...result.events.map((event) => ({
         id: event.eventId,
@@ -208,6 +213,7 @@ export function createReplayEvidenceArtifact(input: {
   cacheSchemaVersion: string
   source: string
   thesis?: InvestigationThesis
+  decisionBrief?: DecisionBrief
 }): IntelligenceArtifact<ReplayEvidenceArtifactMetadata> {
   const { payload } = input
   const windowId = `${payload.window.date}:${String(payload.window.hour).padStart(2, "0")}`
@@ -232,6 +238,7 @@ export function createReplayEvidenceArtifact(input: {
       reason: "Replay evidence contains one prepared orderbook snapshot for the selected window.",
     }),
     thesis: input.thesis,
+    decisionBrief: input.decisionBrief,
     supportingEvidence: [{
       id: `${payload.exchange}:${payload.symbol}:${windowId}:orderbook`,
       kind: "market_data",

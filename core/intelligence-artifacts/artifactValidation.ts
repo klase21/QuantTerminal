@@ -10,6 +10,7 @@ import {
   INVESTIGATION_THESIS_VERSION,
 } from "@/types/investigationThesis"
 import { isContradictionAnalysis } from "@/core/contradiction"
+import { isDecisionBrief } from "@/core/decision-brief"
 
 function validDate(value: string) {
   return Number.isFinite(Date.parse(value))
@@ -87,6 +88,17 @@ export function validateIntelligenceArtifact(artifact: IntelligenceArtifact) {
   if (!validThesis(artifact.thesis)) errors.push("Artifact thesis metadata is invalid.")
   if (artifact.contradiction !== undefined && !isContradictionAnalysis(artifact.contradiction)) {
     errors.push("Artifact contradiction metadata is invalid.")
+  }
+  if (artifact.decisionBrief !== undefined && !isDecisionBrief(artifact.decisionBrief)) {
+    errors.push("Artifact decision brief metadata is invalid.")
+  } else if (artifact.decisionBrief !== undefined && artifact.thesis === undefined) {
+    errors.push("Artifact decision brief requires artifact thesis metadata.")
+  } else if (
+    artifact.decisionBrief !== undefined
+    && artifact.thesis !== undefined
+    && artifact.decisionBrief.investigationThesisId !== artifact.thesis.thesisId
+  ) {
+    errors.push("Artifact decision brief must reference the artifact thesis.")
   }
   if (artifact.expiresAt !== null && !validDate(artifact.expiresAt)) errors.push("Artifact expiresAt must be null or a valid date.")
   if (
