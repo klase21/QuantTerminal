@@ -247,6 +247,7 @@ export default function IntelligenceOperationsConsole() {
                   <Metric label="Replay Learning" value={String(data?.artifactInventory.replayLearning ?? 0)} />
                   <Metric label="Market Memory" value={String(data?.artifactInventory.marketMemory ?? 0)} />
                   <Metric label="Discoverable" value={String(data?.artifactDiscovery.total ?? 0)} />
+                  <Metric label="Eligibility Groups" value={String(data?.memoryEligibility.groups ?? 0)} />
                 </div>
                 <div className="grid grid-cols-2 gap-px border-t border-zinc-900 bg-zinc-900 sm:grid-cols-5 lg:grid-cols-2">
                   {([
@@ -259,6 +260,21 @@ export default function IntelligenceOperationsConsole() {
                     <div key={label} className="bg-black px-3 py-2">
                       <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-600">
                         {label} Candidates
+                      </div>
+                      <div className="mt-0.5 text-xs font-black text-zinc-300">{value ?? 0}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-px border-t border-zinc-900 bg-zinc-900">
+                  {([
+                    ["Candidate", data?.memoryEligibility.statuses.candidate],
+                    ["Eligible", data?.memoryEligibility.statuses.eligible],
+                    ["Population Ready", data?.memoryEligibility.statuses.population_ready],
+                    ["Insufficient", data?.memoryEligibility.statuses.insufficient_evidence],
+                  ] as const).map(([label, value]) => (
+                    <div key={label} className="bg-black px-3 py-2">
+                      <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-600">
+                        {label}
                       </div>
                       <div className="mt-0.5 text-xs font-black text-zinc-300">{value ?? 0}</div>
                     </div>

@@ -20,9 +20,15 @@ import type {
 } from "@/core/intelligence-production"
 import {
   ARTIFACT_DISCOVERY_CATEGORIES,
+  createArtifactDiscoveryRecord,
   artifactDiscoveryCategoryForType,
   type ArtifactDiscoveryCategory,
 } from "@/core/artifact-discovery"
+import {
+  MEMORY_ELIGIBILITY_STATUSES,
+  evaluateMemoryEligibility,
+  type MemoryEligibilityStatus,
+} from "@/core/memory-eligibility"
 import {
   DEFAULT_DURABLE_ARTIFACT_ROOT,
 } from "@/lib/intelligence-artifacts/fileBackedArtifactRegistry"
@@ -59,6 +65,10 @@ export interface IntelligenceOperationsSnapshot {
   artifactDiscovery: {
     total: number
     categories: Record<ArtifactDiscoveryCategory, number>
+  }
+  memoryEligibility: {
+    groups: number
+    statuses: Record<MemoryEligibilityStatus, number>
   }
   artifactValidity: {
     freshness: Record<EvidenceFreshnessStatus, number>
@@ -157,6 +167,49 @@ function artifactDiscoveryCounts(index: DurableArtifactIndex | null) {
   }
 }
 
+function memoryEligibilityCounts(
+  index: DurableArtifactIndex | null,
+  evaluatedAt: string,
+) {
+  const statuses = Object.fromEntries(
+    MEMORY_ELIGIBILITY_STATUSES.map((status) => [status, 0]),
+  ) as Record<MemoryEligibilityStatus, number>
+  const records = evaluateMemoryEligibility(
+    (index?.artifacts ?? []).map((entry) => ({
+      discovery: createArtifactDiscoveryRecord({
+        id: entry.artifactId,
+        schemaVersion: entry.schemaVersion,
+        type: entry.artifactType,
+        title: entry.artifactId,
+        summary: "",
+        confidence: 0,
+        source: entry.source,
+        generatedAt: entry.generatedAt,
+        expiresAt: entry.expiresAt,
+        validity: isEvidenceValidity(entry.validity)
+          ? entry.validity
+          : {
+              schemaVersion: 1,
+              observedAt: null,
+              generatedAt: entry.generatedAt,
+              freshnessStatus: "UNKNOWN",
+              coverageStatus: "UNKNOWN",
+            },
+        status: entry.status,
+        evidenceCount: 0,
+        tags: [],
+        subjects: { symbols: entry.symbols },
+      }, evaluatedAt),
+      coverageStatus: isEvidenceValidity(entry.validity)
+        ? entry.validity.coverageStatus
+        : "UNKNOWN",
+    })),
+    evaluatedAt,
+  )
+  for (const record of records) statuses[record.eligibilityStatus] += 1
+  return { groups: records.length, statuses }
+}
+
 async function lockExists(root: string) {
   try {
     const parsed: unknown = JSON.parse(await readFile(
@@ -181,6 +234,7 @@ export async function readIntelligenceOperationsSnapshot(
     schedulerRoot?: string
   } = {},
 ): Promise<IntelligenceOperationsSnapshot> {
+  const checkedAt = new Date().toISOString()
   const artifactRoot = roots.artifactRoot ?? DEFAULT_DURABLE_ARTIFACT_ROOT
   const reportStore = new FileIntelligenceProductionRunReportStore(roots.reportRoot)
   const schedulerRoot = roots.schedulerRoot ?? DEFAULT_INTELLIGENCE_SCHEDULER_ROOT
@@ -225,7 +279,7 @@ export async function readIntelligenceOperationsSnapshot(
   ])
 
   return {
-    checkedAt: new Date().toISOString(),
+    checkedAt,
     production: {
       latestRun: reportResult.latest
         ? summarizeIntelligenceProductionRun(reportResult.latest)
@@ -248,6 +302,7 @@ export async function readIntelligenceOperationsSnapshot(
       marketMemory: artifactCount(artifactResult.index, "market_memory"),
     },
     artifactDiscovery: artifactDiscoveryCounts(artifactResult.index),
+    memoryEligibility: memoryEligibilityCounts(artifactResult.index, checkedAt),
     artifactValidity: artifactValidityCounts(artifactResult.index),
     stores: {
       artifactStore: artifactResult.health,
