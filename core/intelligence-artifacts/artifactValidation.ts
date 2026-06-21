@@ -9,6 +9,7 @@ import {
   INVESTIGATION_THESIS_STATUSES,
   INVESTIGATION_THESIS_VERSION,
 } from "@/types/investigationThesis"
+import { isContradictionAnalysis } from "@/core/contradiction"
 
 function validDate(value: string) {
   return Number.isFinite(Date.parse(value))
@@ -84,6 +85,9 @@ export function validateIntelligenceArtifact(artifact: IntelligenceArtifact) {
     errors.push("Artifact validity generatedAt must match artifact generatedAt.")
   }
   if (!validThesis(artifact.thesis)) errors.push("Artifact thesis metadata is invalid.")
+  if (artifact.contradiction !== undefined && !isContradictionAnalysis(artifact.contradiction)) {
+    errors.push("Artifact contradiction metadata is invalid.")
+  }
   if (artifact.expiresAt !== null && !validDate(artifact.expiresAt)) errors.push("Artifact expiresAt must be null or a valid date.")
   if (
     artifact.expiresAt !== null

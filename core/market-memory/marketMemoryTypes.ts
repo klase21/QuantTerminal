@@ -4,6 +4,7 @@ import type {
 } from "@/core/intelligence-artifacts"
 import type { EvidenceValidity } from "@/core/evidence-validity"
 import type { InvestigationThesis } from "@/types/investigationThesis"
+import type { ContradictionAnalysis } from "@/core/contradiction"
 
 export const MARKET_MEMORY_SCHEMA_VERSION = 1
 export const MARKET_MEMORY_CATALOG_VERSION = 1
@@ -28,6 +29,7 @@ export interface MarketMemoryArtifactReference {
   generatedAt: string
   validity: EvidenceValidity
   thesis?: InvestigationThesis
+  contradiction?: ContradictionAnalysis
 }
 
 export interface MarketMemory {
@@ -40,6 +42,7 @@ export interface MarketMemory {
   generatedAt: string
   validity: EvidenceValidity
   thesis?: InvestigationThesis
+  contradiction?: ContradictionAnalysis
   tags?: string[]
   symbols?: string[]
   exchanges?: string[]

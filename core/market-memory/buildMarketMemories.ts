@@ -10,6 +10,7 @@ import {
   type MarketMemoryArtifactReference,
 } from "./marketMemoryTypes"
 import { aggregateEvidenceValidity } from "@/core/evidence-validity"
+import { marketMemoryContradiction } from "@/core/contradiction"
 
 function pct(value: unknown) {
   return typeof value === "number" && Number.isFinite(value)
@@ -26,6 +27,7 @@ function artifactReference(artifact: IntelligenceArtifact): MarketMemoryArtifact
     generatedAt: artifact.generatedAt,
     validity: artifact.validity,
     thesis: artifact.thesis,
+    contradiction: artifact.contradiction,
   }
 }
 
@@ -46,7 +48,7 @@ function historicalAnalogMemory(artifact: IntelligenceArtifact): MarketMemory | 
   const dominantOutcome = typeof metadata.dominantOutcome === "string"
     ? metadata.dominantOutcome
     : "unavailable"
-  return {
+  const memory: MarketMemory = {
     schemaVersion: MARKET_MEMORY_SCHEMA_VERSION,
     memoryId: `memory:regime:${metadata.symbol}:${metadata.timeframe}`,
     title: `${metadata.symbol} ${metadata.timeframe} Regime Memory`,
@@ -64,6 +66,11 @@ function historicalAnalogMemory(artifact: IntelligenceArtifact): MarketMemory | 
     symbols: [metadata.symbol],
     exchanges: artifact.subjects?.exchanges,
   }
+  memory.contradiction = marketMemoryContradiction({
+    memory,
+    sourceArtifacts: [artifact],
+  })
+  return memory
 }
 
 function eventImpactMemory(artifact: IntelligenceArtifact): MarketMemory | null {
@@ -80,7 +87,7 @@ function eventImpactMemory(artifact: IntelligenceArtifact): MarketMemory | null 
   ) {
     return null
   }
-  return {
+  const memory: MarketMemory = {
     schemaVersion: MARKET_MEMORY_SCHEMA_VERSION,
     memoryId: `memory:event:${metadata.category}:${metadata.exchange}:${metadata.symbol}`,
     title: `${metadata.symbol} ${metadata.category} Event Memory`,
@@ -98,6 +105,11 @@ function eventImpactMemory(artifact: IntelligenceArtifact): MarketMemory | null 
     symbols: [metadata.symbol],
     exchanges: [metadata.exchange],
   }
+  memory.contradiction = marketMemoryContradiction({
+    memory,
+    sourceArtifacts: [artifact],
+  })
+  return memory
 }
 
 function replayStructuralMemories(artifacts: IntelligenceArtifact[]): MarketMemory[] {
@@ -126,7 +138,7 @@ function replayStructuralMemories(artifacts: IntelligenceArtifact[]): MarketMemo
     const averageSpread = group.reduce((sum, artifact) => sum + artifact.metadata.spread, 0) / group.length
     const generatedAt = group.map((artifact) => artifact.generatedAt).sort().at(-1) as string
     const thesisIds = [...new Set(group.map((artifact) => artifact.thesis?.thesisId).filter(Boolean))]
-    return [{
+    const memory: MarketMemory = {
       schemaVersion: MARKET_MEMORY_SCHEMA_VERSION,
       memoryId: `memory:structural:orderbook:${metadata.exchange}:${metadata.symbol}`,
       title: `${metadata.symbol} Orderbook Structural Memory`,
@@ -145,7 +157,12 @@ function replayStructuralMemories(artifacts: IntelligenceArtifact[]): MarketMemo
       tags: ["structural", "replay", "orderbook"],
       symbols: [metadata.symbol],
       exchanges: [metadata.exchange],
-    }]
+    }
+    memory.contradiction = marketMemoryContradiction({
+      memory,
+      sourceArtifacts: group,
+    })
+    return [memory]
   })
 }
 

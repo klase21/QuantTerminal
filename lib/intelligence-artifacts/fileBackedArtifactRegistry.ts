@@ -21,6 +21,7 @@ import {
   ensureEvidenceValidity,
   isEvidenceValidity,
 } from "@/core/evidence-validity"
+import { isContradictionAnalysis } from "@/core/contradiction"
 
 export const DEFAULT_DURABLE_ARTIFACT_ROOT = path.join(
   process.cwd(),
@@ -66,6 +67,7 @@ function isIndexEntry(value: unknown): value is DurableArtifactIndexEntry {
     && Array.isArray(value.symbols)
     && value.symbols.every((symbol) => typeof symbol === "string")
     && (value.validity === undefined || isEvidenceValidity(value.validity))
+    && (value.contradiction === undefined || isContradictionAnalysis(value.contradiction))
   )
 }
 
@@ -154,6 +156,7 @@ function entryFor(
     symbols: artifact.subjects?.symbols ?? [],
     validity: artifact.validity,
     thesis: artifact.thesis,
+    contradiction: artifact.contradiction,
   }
 }
 
@@ -198,6 +201,8 @@ function summary(
     generatedAt: artifact.generatedAt,
     expiresAt: artifact.expiresAt,
     validity: artifact.validity,
+    thesis: artifact.thesis,
+    contradiction: artifact.contradiction,
     status,
     evidenceCount: artifact.supportingEvidence.length,
     tags: artifact.tags ?? [],

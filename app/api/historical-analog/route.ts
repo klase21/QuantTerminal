@@ -5,6 +5,7 @@ import {
   createEvidenceValidity,
   historicalAnalogEvidenceValidity,
 } from "@/core/evidence-validity"
+import { historicalAnalogContradiction } from "@/core/contradiction"
 import { readHistoricalAnalogCacheV2 } from "@/lib/historical-intelligence/analog-v2/readHistoricalAnalogCache"
 import type { HistoricalInterval } from "@/types/historical"
 
@@ -60,11 +61,16 @@ async function read(request: Request) {
     generatedAt: result.manifest.generatedAt,
     expiresAt: result.manifest.expiresAt,
   })
+  const contradiction = historicalAnalogContradiction({
+    payload: result.data,
+    generatedAt: result.manifest.generatedAt,
+  })
   return NextResponse.json({
     ok: true,
     status: result.data.cases.length ? "available" : "unavailable",
     ...result.data,
     validity,
+    contradiction,
     diagnostics: {
       cacheStatus: "ready",
       generatedAt: result.manifest.generatedAt,

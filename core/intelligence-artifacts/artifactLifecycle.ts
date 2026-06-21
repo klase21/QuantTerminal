@@ -11,6 +11,7 @@ import {
   type EvidenceValidityInput,
 } from "@/core/evidence-validity"
 import type { InvestigationThesis } from "@/types/investigationThesis"
+import type { ContradictionAnalysis } from "@/core/contradiction"
 
 export interface CreateIntelligenceArtifactInput<
   TMetadata extends Record<string, unknown> = Record<string, unknown>,
@@ -25,6 +26,7 @@ export interface CreateIntelligenceArtifactInput<
   expiresAt?: string | Date | null
   validity?: EvidenceValidity | Omit<EvidenceValidityInput, "generatedAt" | "expiresAt">
   thesis?: InvestigationThesis
+  contradiction?: ContradictionAnalysis
   supportingEvidence?: IntelligenceSupportingEvidence[]
   metadata?: TMetadata
   tags?: string[]
@@ -70,6 +72,7 @@ export function createIntelligenceArtifact<
     expiresAt,
     validity,
     thesis: input.thesis,
+    contradiction: input.contradiction,
     supportingEvidence: input.supportingEvidence ?? [],
     metadata: (input.metadata ?? {}) as TMetadata,
     tags: input.tags,

@@ -39,6 +39,7 @@ export function createMarketMemoryArtifact(
     expiresAt: null,
     validity: memory.validity,
     thesis: memory.thesis,
+    contradiction: memory.contradiction,
     supportingEvidence: memory.supportingArtifacts.map((artifact) => ({
       id: artifact.artifactId,
       kind: evidenceKind(artifact.artifactType),

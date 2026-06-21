@@ -1,5 +1,6 @@
 import type { VerifiedEventCategory, VerifiedEventSource } from "@/core/event-catalog"
 import type { EvidenceValidity } from "@/core/evidence-validity"
+import type { ContradictionAnalysis } from "@/core/contradiction"
 
 export const EVENT_IMPACT_SCHEMA_VERSION = 1
 
@@ -71,6 +72,7 @@ export interface EventImpactResult {
   sampleCount: number
   source: EventImpactSourceMetadata
   validity?: EvidenceValidity
+  contradiction?: ContradictionAnalysis
 }
 
 export interface EventImpactReaderOptions {

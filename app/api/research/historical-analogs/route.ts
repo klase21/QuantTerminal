@@ -5,6 +5,7 @@ import {
   createEvidenceValidity,
   historicalAnalogEvidenceValidity,
 } from "@/core/evidence-validity"
+import { historicalAnalogContradiction } from "@/core/contradiction"
 import { readHistoricalAnalogCacheV2 } from "@/lib/historical-intelligence/analog-v2/readHistoricalAnalogCache"
 import type { HistoricalInterval } from "@/types/historical"
 
@@ -70,6 +71,10 @@ export async function GET(request: Request) {
     generatedAt: result.manifest.generatedAt,
     expiresAt: result.manifest.expiresAt,
   })
+  const contradiction = historicalAnalogContradiction({
+    payload: result.data,
+    generatedAt: result.manifest.generatedAt,
+  })
   const sevenDay = result.data.statistics.byHorizon["7d"]
   const analogs = result.data.cases.slice(0, limit).map((item) => ({
     symbol: item.state.symbol,
@@ -91,6 +96,7 @@ export async function GET(request: Request) {
     totalCandidates: result.data.search.candidateCount,
     analogs,
     validity,
+    contradiction,
     diagnostics: {
       cacheStatus: "ready",
       generatedAt: result.manifest.generatedAt,

@@ -473,6 +473,8 @@ export default function ResearchPage() {
               <Metric label="24H Win Rate" value={pct(summaryHorizon?.winRate)} />
               <Metric label="Best Case" value={pct(summaryHorizon?.bestCase?.return)} tone="text-emerald-200" />
               <Metric label="Worst Case" value={pct(summaryHorizon?.worstCase?.return)} tone="text-rose-200" />
+              <Metric label="Supporting Evidence" value={String(historical.contradiction?.supportingEvidence.length ?? 0)} />
+              <Metric label="Contradicting Evidence" value={String(historical.contradiction?.contradictingEvidence.length ?? 0)} />
             </div>
           )}
         </Card>
@@ -565,6 +567,8 @@ export default function ResearchPage() {
                   value={`${eventImpact.validity?.freshnessStatus ?? "UNKNOWN"} / ${eventImpact.validity?.coverageStatus ?? "UNKNOWN"}`}
                 />
                 <Metric label="Event Count" value={String(eventImpact.events.length)} />
+                <Metric label="Supporting Evidence" value={String(eventImpact.contradiction?.supportingEvidence.length ?? 0)} />
+                <Metric label="Contradicting Evidence" value={String(eventImpact.contradiction?.contradictingEvidence.length ?? 0)} />
               </div>
             </div>
           ) : (
@@ -599,6 +603,7 @@ export default function ResearchPage() {
                     <span>{memory.supportingArtifacts.length} supporting artifacts</span>
                     <span>{dateTime(memory.generatedAt)}</span>
                     <span>{memory.validity.freshnessStatus} / {memory.validity.coverageStatus}</span>
+                    <span>{memory.contradiction?.supportingEvidence.length ?? 0} support / {memory.contradiction?.contradictingEvidence.length ?? 0} contradict</span>
                   </div>
                   <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
                     Sources: {memory.supportingArtifacts.map((artifact) => artifact.artifactId).join(" / ")}

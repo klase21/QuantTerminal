@@ -20,6 +20,7 @@ import {
 } from "@/core/event-impact/eventImpactTypes"
 import { consumeHistoricalCache } from "@/lib/historical-intelligence/cache/cacheFirst"
 import { eventImpactEvidenceValidity } from "@/core/evidence-validity"
+import { eventImpactContradiction } from "@/core/contradiction"
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -124,6 +125,7 @@ function unavailable(
     },
   }
   result.validity = eventImpactEvidenceValidity({ result, generatedAt })
+  result.contradiction = eventImpactContradiction({ result, generatedAt })
   return result
 }
 
@@ -153,10 +155,17 @@ async function readCache(
     return unavailable(query, "Event Impact cache payload is invalid.", result.manifest.generatedAt)
   }
   const prepared = result.data.result
-  return {
+  const preparedResult = {
     ...prepared,
     validity: eventImpactEvidenceValidity({
       result: prepared,
+      generatedAt: result.manifest.generatedAt,
+    }),
+  }
+  return {
+    ...preparedResult,
+    contradiction: eventImpactContradiction({
+      result: preparedResult,
       generatedAt: result.manifest.generatedAt,
     }),
   }

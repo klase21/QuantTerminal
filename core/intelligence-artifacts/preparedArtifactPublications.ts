@@ -9,6 +9,10 @@ import {
   historicalAnalogEvidenceValidity,
 } from "@/core/evidence-validity"
 import type { InvestigationThesis } from "@/types/investigationThesis"
+import {
+  eventImpactContradiction,
+  historicalAnalogContradiction,
+} from "@/core/contradiction"
 
 export interface HistoricalAnalogArtifactMetadata extends Record<string, unknown> {
   confidenceStatus: "not_calibrated"
@@ -80,6 +84,11 @@ export function createHistoricalAnalogArtifact(input: {
       generatedAt: input.generatedAt,
     }),
     thesis: input.thesis,
+    contradiction: historicalAnalogContradiction({
+      payload,
+      generatedAt: input.generatedAt,
+      sourceArtifactId: `historical-analog:${payload.symbol}:${payload.interval}`,
+    }),
     supportingEvidence: [
       {
         id: `${payload.symbol}:${payload.interval}:24h-outcome`,
@@ -151,6 +160,11 @@ export function createEventImpactArtifact(input: {
       generatedAt: input.payload.generatedAt,
     }),
     thesis: input.thesis,
+    contradiction: eventImpactContradiction({
+      result,
+      generatedAt: input.payload.generatedAt,
+      sourceArtifactId: `event-impact:${input.payload.category}:${input.payload.exchange}:${input.payload.symbol}`,
+    }),
     supportingEvidence: [
       ...result.events.map((event) => ({
         id: event.eventId,
