@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:intelligence": "tsx workers/intelligence-tests/runIntelligenceSmokeTest.ts"
+    "test:intelligence": "tsx workers/intelligence-tests/runIntelligenceSmokeTest.ts",
+    "audit:research-coverage": "tsx workers/intelligence-tests/auditResearchCoverage.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
