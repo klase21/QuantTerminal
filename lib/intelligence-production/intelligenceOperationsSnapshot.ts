@@ -19,6 +19,11 @@ import type {
   IntelligenceSchedulerState,
 } from "@/core/intelligence-production"
 import {
+  ARTIFACT_DISCOVERY_CATEGORIES,
+  artifactDiscoveryCategoryForType,
+  type ArtifactDiscoveryCategory,
+} from "@/core/artifact-discovery"
+import {
   DEFAULT_DURABLE_ARTIFACT_ROOT,
 } from "@/lib/intelligence-artifacts/fileBackedArtifactRegistry"
 import {
@@ -48,7 +53,12 @@ export interface IntelligenceOperationsSnapshot {
     historicalAnalog: number
     eventImpact: number
     replayEvidence: number
+    replayLearning: number
     marketMemory: number
+  }
+  artifactDiscovery: {
+    total: number
+    categories: Record<ArtifactDiscoveryCategory, number>
   }
   artifactValidity: {
     freshness: Record<EvidenceFreshnessStatus, number>
@@ -131,6 +141,20 @@ function artifactValidityCounts(index: DurableArtifactIndex | null) {
     }
   }
   return { freshness, coverage }
+}
+
+function artifactDiscoveryCounts(index: DurableArtifactIndex | null) {
+  const categories = Object.fromEntries(
+    ARTIFACT_DISCOVERY_CATEGORIES.map((category) => [category, 0]),
+  ) as Record<ArtifactDiscoveryCategory, number>
+
+  for (const entry of index?.artifacts ?? []) {
+    categories[artifactDiscoveryCategoryForType(entry.artifactType)] += 1
+  }
+  return {
+    total: index?.artifacts.length ?? 0,
+    categories,
+  }
 }
 
 async function lockExists(root: string) {
@@ -220,8 +244,10 @@ export async function readIntelligenceOperationsSnapshot(
       historicalAnalog: artifactCount(artifactResult.index, "historical_analog"),
       eventImpact: artifactCount(artifactResult.index, "event_impact"),
       replayEvidence: artifactCount(artifactResult.index, "replay_intelligence"),
+      replayLearning: artifactCount(artifactResult.index, "replay_learning"),
       marketMemory: artifactCount(artifactResult.index, "market_memory"),
     },
+    artifactDiscovery: artifactDiscoveryCounts(artifactResult.index),
     artifactValidity: artifactValidityCounts(artifactResult.index),
     stores: {
       artifactStore: artifactResult.health,
