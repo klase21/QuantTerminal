@@ -3,6 +3,8 @@ import type {
   IntelligenceArtifactStatus,
   IntelligenceArtifactType,
 } from "./artifactTypes"
+import type { EvidenceValidity } from "@/core/evidence-validity"
+import type { InvestigationThesis } from "@/types/investigationThesis"
 
 export const DURABLE_ARTIFACT_STORE_VERSION = 1
 
@@ -17,6 +19,8 @@ export interface DurableArtifactIndexEntry {
   schemaVersion: number
   status: IntelligenceArtifactStatus
   symbols: string[]
+  validity?: EvidenceValidity
+  thesis?: InvestigationThesis
 }
 
 export interface DurableArtifactIndex {

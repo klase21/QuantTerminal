@@ -24,6 +24,7 @@ import {
 } from "@/core/event-impact/eventImpactTypes"
 import type { CanonicalExchange } from "@/core/historical-intelligence/market-data"
 import type { HistoricalIngestionJob } from "@/core/historical-intelligence/ingestion/ingestionJobTypes"
+import { eventImpactEvidenceValidity } from "@/core/evidence-validity"
 import {
   writeHistoricalCache,
   writeHistoricalCacheFailure,
@@ -91,7 +92,7 @@ function resultFor(
   eventId?: string,
 ): EventImpactResult {
   const usable = outcomes.filter(usableOutcome)
-  return {
+  const result: EventImpactResult = {
     schemaVersion: EVENT_IMPACT_SCHEMA_VERSION,
     ok: usable.length > 0,
     status: usable.length ? "available" : "unavailable",
@@ -107,6 +108,8 @@ function resultFor(
     sampleCount: usable.length,
     source: sourceMetadata(generatedAt, marketDataSource),
   }
+  result.validity = eventImpactEvidenceValidity({ result, generatedAt })
+  return result
 }
 
 function cachePayload(

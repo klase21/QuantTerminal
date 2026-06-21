@@ -4,6 +4,11 @@ import {
   type IntelligenceArtifactStatus,
   type IntelligenceSupportingEvidence,
 } from "@/core/intelligence-artifacts/artifactTypes"
+import { isEvidenceValidity } from "@/core/evidence-validity"
+import {
+  INVESTIGATION_THESIS_STATUSES,
+  INVESTIGATION_THESIS_VERSION,
+} from "@/types/investigationThesis"
 
 function validDate(value: string) {
   return Number.isFinite(Date.parse(value))
@@ -26,6 +31,24 @@ function validEvidence(evidence: IntelligenceSupportingEvidence) {
     && Boolean(evidence.source.trim())
     && (evidence.observedAt === undefined || validDate(evidence.observedAt))
     && (evidence.confidence === undefined || validConfidence(evidence.confidence))
+  )
+}
+
+function validThesis(value: IntelligenceArtifact["thesis"]) {
+  if (value === undefined) return true
+  return (
+    value.thesisVersion === INVESTIGATION_THESIS_VERSION
+    && typeof value.thesisId === "string"
+    && Boolean(value.thesisId.trim())
+    && typeof value.title === "string"
+    && Boolean(value.title.trim())
+    && typeof value.question === "string"
+    && Boolean(value.question.trim())
+    && typeof value.decisionHorizon === "string"
+    && Boolean(value.decisionHorizon.trim())
+    && INVESTIGATION_THESIS_STATUSES.includes(value.status)
+    && validDate(value.createdAt)
+    && validDate(value.updatedAt)
   )
 }
 
@@ -56,6 +79,11 @@ export function validateIntelligenceArtifact(artifact: IntelligenceArtifact) {
     }
   }
   if (!validDate(artifact.generatedAt)) errors.push("Artifact generatedAt must be a valid date.")
+  if (!isEvidenceValidity(artifact.validity)) errors.push("Artifact validity metadata is invalid.")
+  else if (artifact.validity.generatedAt !== artifact.generatedAt) {
+    errors.push("Artifact validity generatedAt must match artifact generatedAt.")
+  }
+  if (!validThesis(artifact.thesis)) errors.push("Artifact thesis metadata is invalid.")
   if (artifact.expiresAt !== null && !validDate(artifact.expiresAt)) errors.push("Artifact expiresAt must be null or a valid date.")
   if (
     artifact.expiresAt !== null

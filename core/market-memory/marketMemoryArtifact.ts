@@ -37,11 +37,13 @@ export function createMarketMemoryArtifact(
     },
     generatedAt: memory.generatedAt,
     expiresAt: null,
+    validity: memory.validity,
+    thesis: memory.thesis,
     supportingEvidence: memory.supportingArtifacts.map((artifact) => ({
       id: artifact.artifactId,
       kind: evidenceKind(artifact.artifactType),
       title: artifact.title,
-      observedAt: artifact.generatedAt,
+      observedAt: artifact.validity.observedAt ?? undefined,
       source: artifact.source.system,
       metadata: {
         artifactId: artifact.artifactId,

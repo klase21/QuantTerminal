@@ -6,6 +6,7 @@ import {
   type MarketMemoryCatalogReader,
   type MarketMemoryType,
 } from "./marketMemoryTypes"
+import { isEvidenceValidity } from "@/core/evidence-validity"
 
 function normalizeSymbol(value: string) {
   return value.replace("/", "").trim().toUpperCase()
@@ -22,6 +23,7 @@ function validMemory(memory: MarketMemory) {
     && Boolean(memory.title.trim())
     && Boolean(memory.summary.trim())
     && Number.isFinite(Date.parse(memory.generatedAt))
+    && isEvidenceValidity(memory.validity)
     && memory.supportingArtifacts.length > 0
   )
 }

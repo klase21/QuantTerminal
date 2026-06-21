@@ -27,6 +27,7 @@ import type {
 } from "@/core/historical-intelligence/analog-v2/historicalAnalogTypes"
 import type { EventImpactResult } from "@/core/event-impact"
 import type { MarketMemory } from "@/core/market-memory"
+import type { EvidenceValidity } from "@/core/evidence-validity"
 import { useSafePolling } from "@/hooks/system/useSafePolling"
 import {
   buildInvestigationHref,
@@ -34,6 +35,7 @@ import {
   readInvestigationContext,
   toHistoricalTimeframe,
 } from "@/lib/investigation/context"
+import { withInvestigationThesisView } from "@/lib/investigation/thesis"
 import { safeFetchJson } from "@/lib/runtime/safeFetch"
 
 type NarrativeResponse = {
@@ -69,7 +71,9 @@ type HistoricalAnalogResponse = Partial<HistoricalAnalogCachePayloadV2> & {
     source: string | null
     schemaVersion: string | null
     analogCount: number
+    validity?: EvidenceValidity | null
   }
+  validity?: EvidenceValidity
 }
 
 type MarketMemoryResponse = {
@@ -78,6 +82,7 @@ type MarketMemoryResponse = {
   reason?: string
   generatedAt: string | null
   memories: MarketMemory[]
+  validity?: EvidenceValidity
 }
 
 const HORIZONS: HistoricalAnalogHorizon[] = ["1h", "4h", "24h", "7d"]
@@ -181,6 +186,7 @@ function replayContextForCase(
     timeframe: selectedCase.state.interval,
     investigationType: "historical_case" as const,
     source: "research",
+    thesis: withInvestigationThesisView(context.thesis, "replay"),
     selectedHistoricalCase: {
       id: selectedCase.state.id,
       symbol: selectedCase.state.symbol,
@@ -379,6 +385,7 @@ export default function ResearchPage() {
     timeframe: historicalTimeframe,
     investigationType: selectedCase ? "historical_case" : "historical_analog",
     source: "research",
+    thesis: withInvestigationThesisView(investigationContext.thesis, "historical-intelligence"),
     selectedHistoricalCase: selectedCase
       ? replayContextForCase(investigationContext, selectedCase, source).selectedHistoricalCase
       : undefined,
@@ -398,6 +405,13 @@ export default function ResearchPage() {
             <Metric label="Market Regime" value={currentState?.trendRegime ?? "Load historical context"} />
             <Metric label="State Return 24H" value={pct(currentState?.features.return24h)} tone={outcomeTone(currentState?.features.return24h)} />
           </div>
+          {investigationContext.thesis ? (
+            <div className="mt-2 grid gap-2 border-t border-zinc-900 pt-2 md:grid-cols-[minmax(0,.8fr)_minmax(0,1.6fr)_180px]">
+              <Metric label="Current Thesis" value={investigationContext.thesis.title} />
+              <Metric label="Current Question" value={investigationContext.thesis.question} />
+              <Metric label="Decision Horizon" value={investigationContext.thesis.decisionHorizon} />
+            </div>
+          ) : null}
         </Card>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
@@ -545,6 +559,11 @@ export default function ResearchPage() {
                   value={[eventImpact.source.eventCatalog, ...eventImpact.source.marketData].filter(Boolean).join(" / ") || "NO DATA"}
                 />
                 <Metric label="Generated" value={dateTime(eventImpact.source.generatedAt)} />
+                <Metric label="Observed" value={dateTime(eventImpact.validity?.observedAt)} />
+                <Metric
+                  label="Validity"
+                  value={`${eventImpact.validity?.freshnessStatus ?? "UNKNOWN"} / ${eventImpact.validity?.coverageStatus ?? "UNKNOWN"}`}
+                />
                 <Metric label="Event Count" value={String(eventImpact.events.length)} />
               </div>
             </div>
@@ -579,6 +598,7 @@ export default function ResearchPage() {
                   <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-zinc-900 pt-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
                     <span>{memory.supportingArtifacts.length} supporting artifacts</span>
                     <span>{dateTime(memory.generatedAt)}</span>
+                    <span>{memory.validity.freshnessStatus} / {memory.validity.coverageStatus}</span>
                   </div>
                   <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
                     Sources: {memory.supportingArtifacts.map((artifact) => artifact.artifactId).join(" / ")}
@@ -633,6 +653,11 @@ export default function ResearchPage() {
               <div className="grid gap-1.5">
                 <Metric label="Source" value={source} />
                 <Metric label="Generated" value={dateTime(historical.diagnostics?.generatedAt)} />
+                <Metric label="Observed" value={dateTime(historical.validity?.observedAt)} />
+                <Metric
+                  label="Validity"
+                  value={`${historical.validity?.freshnessStatus ?? "UNKNOWN"} / ${historical.validity?.coverageStatus ?? "UNKNOWN"}`}
+                />
                 <Metric label="Cache Status" value={historical.diagnostics?.cacheStatus ?? "UNAVAILABLE"} />
                 <Metric label="Schema Version" value={historical.diagnostics?.schemaVersion ?? "NO DATA"} />
               </div>

@@ -5,6 +5,11 @@ import {
   type InvestigationTimeframe,
   type InvestigationType,
 } from "@/types/investigation"
+import {
+  appendInvestigationThesisParams,
+  readInvestigationThesis,
+} from "@/lib/investigation/thesis"
+import type { InvestigationThesis } from "@/types/investigationThesis"
 
 type SearchParamsReader = Pick<URLSearchParams, "get">
 
@@ -59,6 +64,7 @@ export function createInvestigationContext(input: {
   investigationTimestamp?: string
   investigationType?: InvestigationType
   source?: string
+  thesis?: InvestigationThesis
 }): InvestigationContext {
   return {
     contextVersion: INVESTIGATION_CONTEXT_VERSION,
@@ -68,6 +74,7 @@ export function createInvestigationContext(input: {
     investigationTimestamp: validTimestamp(input.investigationTimestamp) ?? new Date().toISOString(),
     investigationType: input.investigationType,
     source: input.source,
+    thesis: input.thesis,
   }
 }
 
@@ -124,6 +131,7 @@ export function readInvestigationContext(
           source: params.get("eventSource")?.trim() || undefined,
         }
       : fallback.selectedEvent,
+    thesis: readInvestigationThesis(params) ?? fallback.thesis,
   }
 }
 
@@ -156,7 +164,7 @@ export function investigationContextParams(context: InvestigationContext) {
     if (context.selectedEvent.source) params.set("eventSource", context.selectedEvent.source)
   }
 
-  return params
+  return appendInvestigationThesisParams(params, context.thesis)
 }
 
 export function buildInvestigationHref(pathname: string, context: InvestigationContext) {

@@ -6,6 +6,13 @@ import {
   type DurableArtifactIndex,
   type IntelligenceArtifactType,
 } from "@/core/intelligence-artifacts"
+import {
+  EVIDENCE_COVERAGE_STATUSES,
+  EVIDENCE_FRESHNESS_STATUSES,
+  isEvidenceValidity,
+  type EvidenceCoverageStatus,
+  type EvidenceFreshnessStatus,
+} from "@/core/evidence-validity"
 import type {
   IntelligenceProductionRunSummary,
   IntelligenceSchedulerSkipRecord,
@@ -42,6 +49,10 @@ export interface IntelligenceOperationsSnapshot {
     eventImpact: number
     replayEvidence: number
     marketMemory: number
+  }
+  artifactValidity: {
+    freshness: Record<EvidenceFreshnessStatus, number>
+    coverage: Record<EvidenceCoverageStatus, number>
   }
   stores: {
     artifactStore: StoreHealth
@@ -100,6 +111,26 @@ async function readArtifactIndexMetadata(root: string) {
 function artifactCount(index: DurableArtifactIndex | null, type: IntelligenceArtifactType) {
   if (!index) return 0
   return index.artifacts.filter((entry) => entry.artifactType === type).length
+}
+
+function artifactValidityCounts(index: DurableArtifactIndex | null) {
+  const freshness = Object.fromEntries(
+    EVIDENCE_FRESHNESS_STATUSES.map((status) => [status, 0]),
+  ) as Record<EvidenceFreshnessStatus, number>
+  const coverage = Object.fromEntries(
+    EVIDENCE_COVERAGE_STATUSES.map((status) => [status, 0]),
+  ) as Record<EvidenceCoverageStatus, number>
+
+  for (const entry of index?.artifacts ?? []) {
+    if (isEvidenceValidity(entry.validity)) {
+      freshness[entry.validity.freshnessStatus] += 1
+      coverage[entry.validity.coverageStatus] += 1
+    } else {
+      freshness.UNKNOWN += 1
+      coverage.UNKNOWN += 1
+    }
+  }
+  return { freshness, coverage }
 }
 
 async function lockExists(root: string) {
@@ -191,6 +222,7 @@ export async function readIntelligenceOperationsSnapshot(
       replayEvidence: artifactCount(artifactResult.index, "replay_intelligence"),
       marketMemory: artifactCount(artifactResult.index, "market_memory"),
     },
+    artifactValidity: artifactValidityCounts(artifactResult.index),
     stores: {
       artifactStore: artifactResult.health,
       runReportStore: reportResult.health,

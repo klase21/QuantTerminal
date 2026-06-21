@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 
 import { HISTORICAL_ANALOG_CACHE_SCHEMA_VERSION } from "@/core/historical-intelligence/analog-v2/historicalAnalogCache"
+import {
+  createEvidenceValidity,
+  historicalAnalogEvidenceValidity,
+} from "@/core/evidence-validity"
 import { readHistoricalAnalogCacheV2 } from "@/lib/historical-intelligence/analog-v2/readHistoricalAnalogCache"
 import type { HistoricalInterval } from "@/types/historical"
 
@@ -26,32 +30,48 @@ async function read(request: Request) {
   const result = await readHistoricalAnalogCacheV2({ symbol, interval: intervalValue })
   if (!result.ok) {
     const reason = "reason" in result ? result.reason : "Historical Analog V2 cache unavailable."
+    const validity = createEvidenceValidity({
+      observedAt: null,
+      generatedAt: result.manifest?.generatedAt ?? new Date(0).toISOString(),
+      expiresAt: result.manifest?.expiresAt,
+      coverageStatus: "UNAVAILABLE",
+      reason,
+    })
     return NextResponse.json({
       ok: false,
       status: "unavailable",
       symbol,
       interval: intervalValue,
       reason,
+      validity,
       diagnostics: {
         cacheStatus: result.state,
         generatedAt: result.manifest?.generatedAt ?? null,
         source: result.manifest?.source.id ?? null,
         schemaVersion: result.manifest?.schemaVersion ?? HISTORICAL_ANALOG_CACHE_SCHEMA_VERSION,
         analogCount: 0,
+        validity,
       },
     })
   }
 
+  const validity = historicalAnalogEvidenceValidity({
+    payload: result.data,
+    generatedAt: result.manifest.generatedAt,
+    expiresAt: result.manifest.expiresAt,
+  })
   return NextResponse.json({
     ok: true,
     status: result.data.cases.length ? "available" : "unavailable",
     ...result.data,
+    validity,
     diagnostics: {
       cacheStatus: "ready",
       generatedAt: result.manifest.generatedAt,
       source: result.manifest.source.id,
       schemaVersion: result.manifest.schemaVersion,
       analogCount: result.data.cases.length,
+      validity,
     },
   })
 }

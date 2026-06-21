@@ -1,3 +1,4 @@
+import type { EvidenceValidity } from "@/core/evidence-validity"
 import type { HistoricalInterval } from "@/types/historical"
 
 export type HistoricalAnalogTrendRegime = "uptrend" | "downtrend" | "sideways" | "unknown"
@@ -89,4 +90,5 @@ export interface HistoricalAnalogCachePayloadV2 {
     minimumComparableFeatures: number
     exclusionWindowMs: number
   }
+  validity?: EvidenceValidity
 }

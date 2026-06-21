@@ -24,6 +24,7 @@ import {
 import { readHistoricalAnalogCacheV2 } from "@/lib/historical-intelligence/analog-v2/readHistoricalAnalogCache"
 import { consumeHistoricalCache } from "@/lib/historical-intelligence/cache/cacheFirst"
 import { productionIntelligenceArtifactRegistry } from "./productionRegistry"
+import type { InvestigationThesis } from "@/types/investigationThesis"
 
 function cacheIdentity(value: ReturnType<typeof historicalAnalogCacheIdentity>) {
   const partition = Object.entries(value.partition ?? {})
@@ -36,6 +37,7 @@ function cacheIdentity(value: ReturnType<typeof historicalAnalogCacheIdentity>) 
 export async function publishHistoricalAnalogArtifact(input: {
   symbol: string
   interval: "1h" | "4h" | "1d"
+  thesis?: InvestigationThesis
 }): Promise<IntelligenceArtifactPublicationResult> {
   const coordinates = {
     symbol: input.symbol.trim().toUpperCase(),
@@ -50,6 +52,7 @@ export async function publishHistoricalAnalogArtifact(input: {
     generatedAt: result.manifest.generatedAt,
     cacheIdentity: cacheIdentity(historicalAnalogCacheIdentity(coordinates)),
     cacheSchemaVersion: result.manifest.schemaVersion,
+    thesis: input.thesis,
   }))
 }
 
@@ -57,6 +60,7 @@ export async function publishEventImpactArtifact(input: {
   category: string
   symbol: string
   exchange: string
+  thesis?: InvestigationThesis
 }): Promise<IntelligenceArtifactPublicationResult> {
   const coordinates = {
     category: input.category.trim().toLowerCase(),
@@ -75,11 +79,13 @@ export async function publishEventImpactArtifact(input: {
     payload: result.data,
     cacheIdentity: cacheIdentity(identity),
     cacheSchemaVersion: result.manifest.schemaVersion,
+    thesis: input.thesis,
   }))
 }
 
 export async function publishReplayEvidenceArtifact(
   coordinates: ReplayOrderbookCacheCoordinates,
+  thesis?: InvestigationThesis,
 ): Promise<IntelligenceArtifactPublicationResult> {
   const identity = replayOrderbookCacheIdentity(coordinates)
   const result = await consumeHistoricalCache<ReplayOrderbookCachePayload, ReplayOrderbookCacheMetadata>({
@@ -95,5 +101,6 @@ export async function publishReplayEvidenceArtifact(
     cacheIdentity: cacheIdentity(identity),
     cacheSchemaVersion: result.manifest.schemaVersion,
     source: result.manifest.source.id,
+    thesis,
   }))
 }

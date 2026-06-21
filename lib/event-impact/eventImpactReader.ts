@@ -19,6 +19,7 @@ import {
   type EventImpactStatistics,
 } from "@/core/event-impact/eventImpactTypes"
 import { consumeHistoricalCache } from "@/lib/historical-intelligence/cache/cacheFirst"
+import { eventImpactEvidenceValidity } from "@/core/evidence-validity"
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -106,7 +107,7 @@ function unavailable(
   reason: string,
   generatedAt = new Date(0).toISOString(),
 ): EventImpactResult {
-  return {
+  const result: EventImpactResult = {
     schemaVersion: EVENT_IMPACT_SCHEMA_VERSION,
     ok: false,
     status: "unavailable",
@@ -122,6 +123,8 @@ function unavailable(
       generatedAt,
     },
   }
+  result.validity = eventImpactEvidenceValidity({ result, generatedAt })
+  return result
 }
 
 function cacheReason(state: string, reason: string) {
@@ -149,7 +152,14 @@ async function readCache(
   if (!validPayload(result.data)) {
     return unavailable(query, "Event Impact cache payload is invalid.", result.manifest.generatedAt)
   }
-  return result.data.result
+  const prepared = result.data.result
+  return {
+    ...prepared,
+    validity: eventImpactEvidenceValidity({
+      result: prepared,
+      generatedAt: result.manifest.generatedAt,
+    }),
+  }
 }
 
 export class CachedEventImpactReader implements EventImpactReader {

@@ -9,6 +9,7 @@ import {
   type MarketMemory,
   type MarketMemoryArtifactReference,
 } from "./marketMemoryTypes"
+import { aggregateEvidenceValidity } from "@/core/evidence-validity"
 
 function pct(value: unknown) {
   return typeof value === "number" && Number.isFinite(value)
@@ -23,6 +24,8 @@ function artifactReference(artifact: IntelligenceArtifact): MarketMemoryArtifact
     title: artifact.title,
     source: artifact.source,
     generatedAt: artifact.generatedAt,
+    validity: artifact.validity,
+    thesis: artifact.thesis,
   }
 }
 
@@ -51,6 +54,12 @@ function historicalAnalogMemory(artifact: IntelligenceArtifact): MarketMemory | 
     summary: `${metadata.totalCases} historical analog cases had a 24h average return of ${pct(stats24h.averageReturn)} and a win rate of ${pct(stats24h.winRate)}. Dominant outcome: ${dominantOutcome}.`,
     supportingArtifacts: [artifactReference(artifact)],
     generatedAt: artifact.generatedAt,
+    validity: aggregateEvidenceValidity(
+      [artifact.validity],
+      artifact.generatedAt,
+      "Regime memory inherits validity from its Historical Analog artifact.",
+    ),
+    thesis: artifact.thesis,
     tags: ["regime", "historical-analog", metadata.timeframe],
     symbols: [metadata.symbol],
     exchanges: artifact.subjects?.exchanges,
@@ -79,6 +88,12 @@ function eventImpactMemory(artifact: IntelligenceArtifact): MarketMemory | null 
     summary: `${metadata.sampleCount} verified event observations had a 24h average return of ${pct(stats24h.averageReturn)}, median return of ${pct(stats24h.medianReturn)}, and win rate of ${pct(stats24h.winRate)}.`,
     supportingArtifacts: [artifactReference(artifact)],
     generatedAt: artifact.generatedAt,
+    validity: aggregateEvidenceValidity(
+      [artifact.validity],
+      artifact.generatedAt,
+      "Event memory inherits validity from its Event Impact artifact.",
+    ),
+    thesis: artifact.thesis,
     tags: ["event", "event-impact", metadata.category],
     symbols: [metadata.symbol],
     exchanges: [metadata.exchange],
@@ -110,6 +125,7 @@ function replayStructuralMemories(artifacts: IntelligenceArtifact[]): MarketMemo
     const averageImbalance = group.reduce((sum, artifact) => sum + artifact.metadata.imbalance, 0) / group.length
     const averageSpread = group.reduce((sum, artifact) => sum + artifact.metadata.spread, 0) / group.length
     const generatedAt = group.map((artifact) => artifact.generatedAt).sort().at(-1) as string
+    const thesisIds = [...new Set(group.map((artifact) => artifact.thesis?.thesisId).filter(Boolean))]
     return [{
       schemaVersion: MARKET_MEMORY_SCHEMA_VERSION,
       memoryId: `memory:structural:orderbook:${metadata.exchange}:${metadata.symbol}`,
@@ -118,6 +134,14 @@ function replayStructuralMemories(artifacts: IntelligenceArtifact[]): MarketMemo
       summary: `${group.length} prepared replay snapshots had an average orderbook imbalance of ${pct(averageImbalance)} and an average spread of ${averageSpread.toFixed(4)}.`,
       supportingArtifacts: group.map(artifactReference),
       generatedAt,
+      validity: aggregateEvidenceValidity(
+        group.map((artifact) => artifact.validity),
+        generatedAt,
+        "Structural memory uses the most conservative validity state of its Replay evidence.",
+      ),
+      thesis: thesisIds.length === 1
+        ? group.find((artifact) => artifact.thesis?.thesisId === thesisIds[0])?.thesis
+        : undefined,
       tags: ["structural", "replay", "orderbook"],
       symbols: [metadata.symbol],
       exchanges: [metadata.exchange],

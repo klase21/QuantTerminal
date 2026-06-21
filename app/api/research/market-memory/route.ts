@@ -5,6 +5,10 @@ import {
   type MarketMemoryType,
 } from "@/core/market-memory"
 import { productionMarketMemoryCatalog } from "@/lib/market-memory/productionMarketMemoryCatalog"
+import {
+  aggregateEvidenceValidity,
+  createEvidenceValidity,
+} from "@/core/evidence-validity"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -27,12 +31,19 @@ export async function GET(request: Request) {
 
   const status = productionMarketMemoryCatalog.status()
   if (!status.generatedAt) {
+    const reason = "Market Memory catalog not generated in this process."
     return NextResponse.json({
       ok: false,
       status: "unavailable",
-      reason: "Market Memory catalog not generated in this process.",
+      reason,
       generatedAt: null,
       memories: [],
+      validity: createEvidenceValidity({
+        observedAt: null,
+        generatedAt: new Date(0).toISOString(),
+        coverageStatus: "UNAVAILABLE",
+        reason,
+      }),
     })
   }
 
@@ -44,11 +55,24 @@ export async function GET(request: Request) {
         ? productionMarketMemoryCatalog.findBySymbol(symbol)
         : []
 
+  const reason = memories.length ? undefined : "No compatible Market Memory found."
   return NextResponse.json({
     ok: memories.length > 0,
     status: memories.length ? "available" : "unavailable",
-    reason: memories.length ? undefined : "No compatible Market Memory found.",
+    reason,
     generatedAt: status.generatedAt,
     memories,
+    validity: memories.length
+      ? aggregateEvidenceValidity(
+          memories.map((memory) => memory!.validity),
+          status.generatedAt,
+          "Market Memory response uses the most conservative selected-memory validity.",
+        )
+      : createEvidenceValidity({
+          observedAt: null,
+          generatedAt: status.generatedAt,
+          coverageStatus: "UNAVAILABLE",
+          reason,
+        }),
   })
 }

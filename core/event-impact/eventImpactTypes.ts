@@ -1,4 +1,5 @@
 import type { VerifiedEventCategory, VerifiedEventSource } from "@/core/event-catalog"
+import type { EvidenceValidity } from "@/core/evidence-validity"
 
 export const EVENT_IMPACT_SCHEMA_VERSION = 1
 
@@ -69,6 +70,7 @@ export interface EventImpactResult {
   statistics: EventImpactStatistics
   sampleCount: number
   source: EventImpactSourceMetadata
+  validity?: EvidenceValidity
 }
 
 export interface EventImpactReaderOptions {

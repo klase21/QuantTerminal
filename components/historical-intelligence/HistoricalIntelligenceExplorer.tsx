@@ -21,6 +21,7 @@ import {
   readInvestigationContext,
   toHistoricalTimeframe,
 } from "@/lib/investigation/context"
+import { withInvestigationThesisView } from "@/lib/investigation/thesis"
 
 type Horizon = "1h" | "4h" | "24h" | "7d"
 type Interval = "1h" | "4h" | "1d"
@@ -309,6 +310,10 @@ export default function HistoricalIntelligenceExplorer() {
       symbol: selected.state.symbol,
       timeframe: selected.state.interval,
       investigationType: "historical_case",
+      thesis: withInvestigationThesisView(
+        investigationContext.thesis,
+        "historical-intelligence",
+      ),
       selectedHistoricalCase: {
         id: selected.state.id,
         symbol: selected.state.symbol,
@@ -333,6 +338,13 @@ export default function HistoricalIntelligenceExplorer() {
               <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">
                 When has this happened before, and what usually happened next?
               </div>
+              {investigationContext.thesis ? (
+                <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                  Thesis: <span className="text-zinc-300">{investigationContext.thesis.title}</span>
+                  <span className="mx-2 text-zinc-700">/</span>
+                  Horizon: <span className="text-zinc-300">{investigationContext.thesis.decisionHorizon}</span>
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <label className="grid gap-1">

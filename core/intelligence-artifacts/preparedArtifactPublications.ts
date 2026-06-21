@@ -3,6 +3,12 @@ import type { HistoricalAnalogCachePayloadV2 } from "@/core/historical-intellige
 import { createIntelligenceArtifact } from "@/core/intelligence-artifacts/artifactLifecycle"
 import type { IntelligenceArtifact } from "@/core/intelligence-artifacts/artifactTypes"
 import type { ReplayOrderbookCachePayload } from "@/core/replay/replayOrderbookCache"
+import {
+  createEvidenceValidity,
+  eventImpactEvidenceValidity,
+  historicalAnalogEvidenceValidity,
+} from "@/core/evidence-validity"
+import type { InvestigationThesis } from "@/types/investigationThesis"
 
 export interface HistoricalAnalogArtifactMetadata extends Record<string, unknown> {
   confidenceStatus: "not_calibrated"
@@ -51,6 +57,7 @@ export function createHistoricalAnalogArtifact(input: {
   generatedAt: string
   cacheIdentity: string
   cacheSchemaVersion: string
+  thesis?: InvestigationThesis
 }): IntelligenceArtifact<HistoricalAnalogArtifactMetadata> {
   const { payload } = input
   const stats24h = payload.statistics.byHorizon["24h"]
@@ -68,6 +75,11 @@ export function createHistoricalAnalogArtifact(input: {
     },
     generatedAt: input.generatedAt,
     expiresAt: null,
+    validity: historicalAnalogEvidenceValidity({
+      payload,
+      generatedAt: input.generatedAt,
+    }),
+    thesis: input.thesis,
     supportingEvidence: [
       {
         id: `${payload.symbol}:${payload.interval}:24h-outcome`,
@@ -113,6 +125,7 @@ export function createEventImpactArtifact(input: {
   payload: EventImpactCachePayload
   cacheIdentity: string
   cacheSchemaVersion: string
+  thesis?: InvestigationThesis
 }): IntelligenceArtifact<EventImpactArtifactMetadata> {
   const result = input.payload.result
   const stats24h = result.statistics.byHorizon["24h"]
@@ -133,6 +146,11 @@ export function createEventImpactArtifact(input: {
     },
     generatedAt: input.payload.generatedAt,
     expiresAt: null,
+    validity: eventImpactEvidenceValidity({
+      result,
+      generatedAt: input.payload.generatedAt,
+    }),
+    thesis: input.thesis,
     supportingEvidence: [
       ...result.events.map((event) => ({
         id: event.eventId,
@@ -175,6 +193,7 @@ export function createReplayEvidenceArtifact(input: {
   cacheIdentity: string
   cacheSchemaVersion: string
   source: string
+  thesis?: InvestigationThesis
 }): IntelligenceArtifact<ReplayEvidenceArtifactMetadata> {
   const { payload } = input
   const windowId = `${payload.window.date}:${String(payload.window.hour).padStart(2, "0")}`
@@ -192,6 +211,13 @@ export function createReplayEvidenceArtifact(input: {
     },
     generatedAt: input.generatedAt,
     expiresAt: null,
+    validity: createEvidenceValidity({
+      observedAt: payload.timestamp,
+      generatedAt: input.generatedAt,
+      coverageStatus: "FULL",
+      reason: "Replay evidence contains one prepared orderbook snapshot for the selected window.",
+    }),
+    thesis: input.thesis,
     supportingEvidence: [{
       id: `${payload.exchange}:${payload.symbol}:${windowId}:orderbook`,
       kind: "market_data",

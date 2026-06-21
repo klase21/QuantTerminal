@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import useMarketSocket from "@/hooks/useMarketSocket";
 import useOrderbookSocket from "@/hooks/useOrderbookSocket";
@@ -18,13 +18,15 @@ import GlobalTacticalContextBridge from "@/components/context/GlobalTacticalCont
 
 import AlertCenter from "@/components/AlertCenter";
 import DashboardV1 from "@/components/product/DashboardV1";
-import { buildInvestigationHref, createInvestigationContext, toHistoricalTimeframe } from "@/lib/investigation/context";
+import { buildInvestigationHref, createInvestigationContext, readInvestigationContext, toHistoricalTimeframe } from "@/lib/investigation/context";
+import { createInvestigationThesis, withInvestigationThesisView } from "@/lib/investigation/thesis";
 
 export default function DashboardLayout() {
   useMarketSocket();
 
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const route = useTacticalRoute();
   const symbol = route.symbol;
   const marketMode = route.marketMode;
@@ -53,14 +55,33 @@ export default function DashboardLayout() {
   });
 
   const investigationContext = useMemo(
-    () => createInvestigationContext({
-      symbol,
-      exchange: route.venue === "BINANCE_SPOT" ? "binance_spot" : "binance_futures",
-      timeframe: toHistoricalTimeframe(route.timeframe),
-      investigationType: "market_state",
-      source: "dashboard",
-    }),
-    [route.timeframe, route.venue, symbol],
+    () => {
+      const investigationTimestamp = new Date().toISOString();
+      const timeframe = toHistoricalTimeframe(route.timeframe);
+      const fallback = createInvestigationContext({
+        symbol,
+        exchange: route.venue === "BINANCE_SPOT" ? "binance_spot" : "binance_futures",
+        timeframe,
+        investigationTimestamp,
+        investigationType: "market_state",
+        source: "dashboard",
+        thesis: createInvestigationThesis({
+          thesisId: `market-state:${symbol}:${timeframe}:${investigationTimestamp}`,
+          title: `${symbol} Market Investigation`,
+          question: `What is driving ${symbol} over the ${timeframe} decision horizon?`,
+          decisionHorizon: timeframe,
+          createdAt: investigationTimestamp,
+          currentView: "dashboard",
+          tags: ["market-state", symbol.toLowerCase()],
+        }),
+      });
+      const incoming = readInvestigationContext(searchParams, fallback);
+      return {
+        ...fallback,
+        thesis: withInvestigationThesisView(incoming.thesis, "dashboard"),
+      };
+    },
+    [route.timeframe, route.venue, searchParams, symbol],
   );
 
   useEffect(() => {

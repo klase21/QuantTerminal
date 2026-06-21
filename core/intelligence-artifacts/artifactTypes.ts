@@ -1,3 +1,6 @@
+import type { EvidenceValidity } from "@/core/evidence-validity"
+import type { InvestigationThesis } from "@/types/investigationThesis"
+
 export const INTELLIGENCE_ARTIFACT_SCHEMA_VERSION = 1
 
 export type IntelligenceArtifactType =
@@ -52,6 +55,8 @@ export interface IntelligenceArtifact<
   source: IntelligenceArtifactSource
   generatedAt: string
   expiresAt: string | null
+  validity: EvidenceValidity
+  thesis?: InvestigationThesis
   supportingEvidence: IntelligenceSupportingEvidence[]
   metadata: TMetadata
   tags?: string[]
@@ -73,6 +78,8 @@ export interface IntelligenceArtifactSummary {
   source: IntelligenceArtifactSource
   generatedAt: string
   expiresAt: string | null
+  validity: EvidenceValidity
+  thesis?: InvestigationThesis
   status: IntelligenceArtifactStatus
   evidenceCount: number
   tags: string[]

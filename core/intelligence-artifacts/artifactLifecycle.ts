@@ -5,6 +5,12 @@ import type {
   IntelligenceArtifactType,
 } from "@/core/intelligence-artifacts/artifactTypes"
 import { INTELLIGENCE_ARTIFACT_SCHEMA_VERSION } from "@/core/intelligence-artifacts/artifactTypes"
+import {
+  createEvidenceValidity,
+  type EvidenceValidity,
+  type EvidenceValidityInput,
+} from "@/core/evidence-validity"
+import type { InvestigationThesis } from "@/types/investigationThesis"
 
 export interface CreateIntelligenceArtifactInput<
   TMetadata extends Record<string, unknown> = Record<string, unknown>,
@@ -17,6 +23,8 @@ export interface CreateIntelligenceArtifactInput<
   source: IntelligenceArtifactSource
   generatedAt?: string | Date
   expiresAt?: string | Date | null
+  validity?: EvidenceValidity | Omit<EvidenceValidityInput, "generatedAt" | "expiresAt">
+  thesis?: InvestigationThesis
   supportingEvidence?: IntelligenceSupportingEvidence[]
   metadata?: TMetadata
   tags?: string[]
@@ -40,6 +48,15 @@ export function createIntelligenceArtifact<
     : input.expiresAt === undefined
       ? null
       : isoDate(input.expiresAt, new Date(generatedAt))
+  const validity = input.validity && "schemaVersion" in input.validity
+    ? input.validity
+    : createEvidenceValidity({
+        ...(input.validity ?? {}),
+        generatedAt,
+        expiresAt,
+        reason: input.validity?.reason
+          ?? "Producer did not provide an explicit evidence validity policy.",
+      })
 
   return {
     schemaVersion: INTELLIGENCE_ARTIFACT_SCHEMA_VERSION,
@@ -51,6 +68,8 @@ export function createIntelligenceArtifact<
     source: input.source,
     generatedAt,
     expiresAt,
+    validity,
+    thesis: input.thesis,
     supportingEvidence: input.supportingEvidence ?? [],
     metadata: (input.metadata ?? {}) as TMetadata,
     tags: input.tags,

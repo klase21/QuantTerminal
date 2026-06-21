@@ -2,6 +2,8 @@ import type {
   IntelligenceArtifactType,
   IntelligenceArtifactSource,
 } from "@/core/intelligence-artifacts"
+import type { EvidenceValidity } from "@/core/evidence-validity"
+import type { InvestigationThesis } from "@/types/investigationThesis"
 
 export const MARKET_MEMORY_SCHEMA_VERSION = 1
 export const MARKET_MEMORY_CATALOG_VERSION = 1
@@ -24,6 +26,8 @@ export interface MarketMemoryArtifactReference {
   title: string
   source: IntelligenceArtifactSource
   generatedAt: string
+  validity: EvidenceValidity
+  thesis?: InvestigationThesis
 }
 
 export interface MarketMemory {
@@ -34,6 +38,8 @@ export interface MarketMemory {
   summary: string
   supportingArtifacts: MarketMemoryArtifactReference[]
   generatedAt: string
+  validity: EvidenceValidity
+  thesis?: InvestigationThesis
   tags?: string[]
   symbols?: string[]
   exchanges?: string[]

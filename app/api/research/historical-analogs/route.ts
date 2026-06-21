@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 
 import { HISTORICAL_ANALOG_CACHE_SCHEMA_VERSION } from "@/core/historical-intelligence/analog-v2/historicalAnalogCache"
+import {
+  createEvidenceValidity,
+  historicalAnalogEvidenceValidity,
+} from "@/core/evidence-validity"
 import { readHistoricalAnalogCacheV2 } from "@/lib/historical-intelligence/analog-v2/readHistoricalAnalogCache"
 import type { HistoricalInterval } from "@/types/historical"
 
@@ -38,9 +42,17 @@ export async function GET(request: Request) {
   const result = await readHistoricalAnalogCacheV2({ symbol, interval: intervalValue })
   if (!result.ok) {
     const reason = "reason" in result ? result.reason : "Historical Analog V2 cache unavailable."
+    const validity = createEvidenceValidity({
+      observedAt: null,
+      generatedAt: result.manifest?.generatedAt ?? new Date(0).toISOString(),
+      expiresAt: result.manifest?.expiresAt,
+      coverageStatus: "UNAVAILABLE",
+      reason,
+    })
     return NextResponse.json({
       status: "unavailable",
       reason: unavailableReason(result.state, reason),
+      validity,
       totalCandidates: 0,
       analogs: [],
       diagnostics: {
@@ -48,10 +60,16 @@ export async function GET(request: Request) {
         generatedAt: result.manifest?.generatedAt ?? null,
         schemaVersion: result.manifest?.schemaVersion ?? HISTORICAL_ANALOG_CACHE_SCHEMA_VERSION,
         analogCount: 0,
+        validity,
       },
     })
   }
 
+  const validity = historicalAnalogEvidenceValidity({
+    payload: result.data,
+    generatedAt: result.manifest.generatedAt,
+    expiresAt: result.manifest.expiresAt,
+  })
   const sevenDay = result.data.statistics.byHorizon["7d"]
   const analogs = result.data.cases.slice(0, limit).map((item) => ({
     symbol: item.state.symbol,
@@ -72,11 +90,13 @@ export async function GET(request: Request) {
     reason: analogs.length ? undefined : "No cached historical analog cases matched the current market state.",
     totalCandidates: result.data.search.candidateCount,
     analogs,
+    validity,
     diagnostics: {
       cacheStatus: "ready",
       generatedAt: result.manifest.generatedAt,
       schemaVersion: result.manifest.schemaVersion,
       analogCount: result.data.cases.length,
+      validity,
     },
   })
 }

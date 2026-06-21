@@ -6,6 +6,7 @@ import { BarChart3, Database, Gauge, History, Radar, Search, Settings, SlidersHo
 import { Suspense, type ReactNode } from "react"
 
 import { buildInvestigationHref, createInvestigationContext, readInvestigationContext } from "@/lib/investigation/context"
+import { withInvestigationThesisView } from "@/lib/investigation/thesis"
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge, active: true },
@@ -48,7 +49,12 @@ function TerminalAppShellContent({ children }: { children: ReactNode }) {
         : href === "/research"
           ? context.investigationType
           : "market_state"
-    return buildInvestigationHref(href, { ...context, investigationType, source: pathname.slice(1) || "dashboard" })
+    return buildInvestigationHref(href, {
+      ...context,
+      investigationType,
+      source: pathname.slice(1) || "dashboard",
+      thesis: withInvestigationThesisView(context.thesis, href.slice(1) || "dashboard"),
+    })
   }
 
   return (

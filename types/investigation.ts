@@ -1,3 +1,5 @@
+import type { InvestigationThesis } from "@/types/investigationThesis"
+
 export const INVESTIGATION_CONTEXT_VERSION = 1
 
 export type InvestigationTimeframe = "1m" | "3m" | "5m" | "15m" | "1h" | "4h" | "1d"
@@ -46,4 +48,5 @@ export interface InvestigationContext {
   selectedHistoricalCase?: InvestigationHistoricalCase
   selectedReplayWindow?: InvestigationReplayWindow
   selectedEvent?: InvestigationEvent
+  thesis?: InvestigationThesis
 }

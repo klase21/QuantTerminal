@@ -17,6 +17,10 @@ import {
   type IntelligenceArtifactSummary,
   type IntelligenceArtifactType,
 } from "@/core/intelligence-artifacts"
+import {
+  ensureEvidenceValidity,
+  isEvidenceValidity,
+} from "@/core/evidence-validity"
 
 export const DEFAULT_DURABLE_ARTIFACT_ROOT = path.join(
   process.cwd(),
@@ -61,6 +65,7 @@ function isIndexEntry(value: unknown): value is DurableArtifactIndexEntry {
     && (value.status === "active" || value.status === "expired" || value.status === "archived")
     && Array.isArray(value.symbols)
     && value.symbols.every((symbol) => typeof symbol === "string")
+    && (value.validity === undefined || isEvidenceValidity(value.validity))
   )
 }
 
@@ -147,6 +152,8 @@ function entryFor(
     schemaVersion: artifact.schemaVersion,
     status: intelligenceArtifactStatus(artifact),
     symbols: artifact.subjects?.symbols ?? [],
+    validity: artifact.validity,
+    thesis: artifact.thesis,
   }
 }
 
@@ -190,6 +197,7 @@ function summary(
     source: artifact.source,
     generatedAt: artifact.generatedAt,
     expiresAt: artifact.expiresAt,
+    validity: artifact.validity,
     status,
     evidenceCount: artifact.supportingEvidence.length,
     tags: artifact.tags ?? [],
@@ -213,7 +221,20 @@ export class FileBackedIntelligenceArtifactRegistry implements IntelligenceArtif
       const raw = await readFile(resolvedPayloadPath(this.root, entry.payloadPath), "utf8")
       const parsed: unknown = JSON.parse(raw)
       if (!isRecord(parsed)) return null
-      const artifact = parsed as unknown as IntelligenceArtifact
+      const legacy = parsed as unknown as IntelligenceArtifact
+      const latestObservedAt = Array.isArray(legacy.supportingEvidence)
+        ? legacy.supportingEvidence
+            .map((evidence) => Date.parse(evidence.observedAt ?? ""))
+            .filter(Number.isFinite)
+            .sort((left, right) => right - left)[0]
+        : undefined
+      const artifact: IntelligenceArtifact = {
+        ...legacy,
+        validity: ensureEvidenceValidity(legacy.validity, {
+          generatedAt: legacy.generatedAt,
+          observedAt: latestObservedAt,
+        }),
+      }
       const validation = validateIntelligenceArtifact(artifact)
       if (
         !validation.valid

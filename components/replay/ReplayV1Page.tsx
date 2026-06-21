@@ -1151,9 +1151,18 @@ export default function ReplayV1Page() {
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1900px] gap-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.2em] text-teal-300">
-            <RadioTower className="h-4 w-4" />
-            Advanced Market Replay
+          <div>
+            <div className="flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.2em] text-teal-300">
+              <RadioTower className="h-4 w-4" />
+              Advanced Market Replay
+            </div>
+            {investigationContext.thesis ? (
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                Thesis: <span className="text-zinc-300">{investigationContext.thesis.title}</span>
+                <span className="mx-2 text-zinc-700">/</span>
+                Horizon: <span className="text-zinc-300">{investigationContext.thesis.decisionHorizon}</span>
+              </div>
+            ) : null}
           </div>
           <div className="border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">How it works</div>
         </div>
