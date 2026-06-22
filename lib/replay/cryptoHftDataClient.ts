@@ -481,6 +481,50 @@ function normalizeLiquidations(rows: Record<string, unknown>[], exchange: string
   }).filter((item): item is ReplayLiquidation => Boolean(item)).slice(-100)
 }
 
+function normalizeAllLiquidations(
+  rows: Record<string, unknown>[],
+  exchange: string,
+  symbol: string,
+): ReplayLiquidation[] {
+  return rows.map((row) => {
+    const time = timestamp(pick(row, ["timestamp", "time", "ts", "T", "event_time"]))
+    if (!time) return null
+    const orderSide = String(pick(row, ["side"]) ?? "").toLowerCase()
+    const explicitPositionSide = String(
+      pick(row, ["position_side", "direction"]) ?? "",
+    ).toLowerCase()
+    const side = explicitPositionSide.includes("long")
+      ? "long" as const
+      : explicitPositionSide.includes("short")
+        ? "short" as const
+        : orderSide.includes("sell")
+          ? "long" as const
+          : orderSide.includes("buy")
+            ? "short" as const
+            : "unknown" as const
+    const price = numeric(pick(row, ["average_price", "avg_price", "price", "px", "p"]))
+    const size = numeric(pick(row, [
+      "filled_quantity",
+      "last_filled_quantity",
+      "size",
+      "qty",
+      "quantity",
+      "q",
+    ]))
+    const notional = numeric(pick(row, ["notional", "value", "usd_value"]))
+      ?? (price !== null && size !== null ? price * size : null)
+    return {
+      timestamp: time,
+      side,
+      price,
+      size,
+      notional,
+      exchange,
+      symbol,
+    }
+  }).filter((item): item is ReplayLiquidation => Boolean(item))
+}
+
 function normalizeOpenInterest(rows: Record<string, unknown>[], exchange: string, symbol: string): ReplayFundingPoint[] {
   return rows.map((row) => {
     const time = timestamp(pick(row, ["timestamp", "time", "ts", "T", "event_time"]))
@@ -766,4 +810,62 @@ export async function loadCryptoHftDataReplay(request: CryptoHftReplayRequest): 
   }
 
   return response
+}
+
+export async function loadCryptoHftDataLiquidations(
+  request: Omit<CryptoHftReplayRequest, "datasets">,
+) {
+  const apiKey = process.env.CRYPTOHFTDATA_API_KEY
+  const file = replayFilePath(request, "liquidations")
+  if (!apiKey) {
+    return {
+      ok: false as const,
+      source: "cryptohftdata" as const,
+      file,
+      events: [] as ReplayLiquidation[],
+      reason: "CryptoHFTData API key is not configured.",
+      diagnostics: { rowCount: 0, columns: [] as string[] },
+    }
+  }
+  const download = await downloadDataset("liquidations", request, apiKey)
+  if (download.error || !download.buffer) {
+    return {
+      ok: false as const,
+      source: "cryptohftdata" as const,
+      file,
+      events: [] as ReplayLiquidation[],
+      reason: download.error ?? "Liquidation download failed.",
+      diagnostics: { rowCount: 0, columns: [] as string[] },
+    }
+  }
+  try {
+    const decoded = await decodeParquetZst(download.buffer, "liquidations")
+    const events = normalizeAllLiquidations(
+      decoded.rows,
+      request.exchange,
+      request.symbol,
+    )
+    return {
+      ok: events.length > 0,
+      source: "cryptohftdata" as const,
+      file,
+      events,
+      reason: events.length
+        ? null
+        : "Liquidation dataset decoded without usable events.",
+      diagnostics: {
+        rowCount: decoded.rows.length,
+        columns: decoded.columns,
+      },
+    }
+  } catch (error) {
+    return {
+      ok: false as const,
+      source: "cryptohftdata" as const,
+      file,
+      events: [] as ReplayLiquidation[],
+      reason: error instanceof Error ? error.message : "Liquidation decode failed.",
+      diagnostics: { rowCount: 0, columns: [] as string[] },
+    }
+  }
 }

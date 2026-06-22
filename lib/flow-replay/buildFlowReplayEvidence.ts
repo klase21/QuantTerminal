@@ -12,6 +12,7 @@ import {
   type FlowReplaySourceQuality,
   type FlowReplayStructureObservation,
 } from "@/core/flow-replay"
+import { readLiquidationEvidence } from "@/core/liquidation-intelligence"
 import type {
   CanonicalExchange,
   CanonicalMarketInterval,
@@ -289,10 +290,17 @@ async function derivativeEvidence(
     exchange: context.exchange as CanonicalExchange,
     symbol: context.symbol,
   }
-  const [funding, openInterest, liquidations] = await Promise.all([
+  const [funding, openInterest, liquidations, liquidationEvidence] = await Promise.all([
     readCanonicalFundingCache(coordinates),
     readCanonicalOpenInterestCache(coordinates),
     readCanonicalLiquidationCache(coordinates),
+    readLiquidationEvidence({
+      exchange: context.exchange,
+      symbol: context.symbol,
+      date: context.date,
+      hour: context.hour,
+      scope: "symbol",
+    }),
   ])
   const start = Date.parse(context.windowStart)
   const end = Date.parse(context.windowEnd)
@@ -448,6 +456,42 @@ async function derivativeEvidence(
             ),
           ],
         })
+      : liquidationEvidence.ok
+        ? source({
+            sourceId: "flow-replay:liquidations",
+            kind: "liquidation",
+            quality: liquidationEvidence.data.sourceQuality,
+            source: liquidationEvidence.data.source,
+            observedAt: liquidationEvidence.data.symbols.at(-1)?.lastTimestamp ?? null,
+            summary: `${liquidationEvidence.data.totals.eventCount} prepared liquidation event(s) exist for the selected window.`,
+            reason: liquidationEvidence.data.reason,
+            metrics: [
+              metric(
+                "event_count",
+                "Liquidation events",
+                liquidationEvidence.data.totals.eventCount,
+                "count",
+              ),
+              metric(
+                "long_notional",
+                "Long liquidation notional",
+                liquidationEvidence.data.totals.longLiquidation,
+                "price",
+              ),
+              metric(
+                "short_notional",
+                "Short liquidation notional",
+                liquidationEvidence.data.totals.shortLiquidation,
+                "price",
+              ),
+              metric(
+                "notional",
+                "Liquidation notional",
+                liquidationEvidence.data.totals.totalLiquidation,
+                "price",
+              ),
+            ],
+          })
       : unavailable(
           "liquidation",
           liquidations.ok
