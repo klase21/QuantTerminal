@@ -17,7 +17,8 @@
     "audit:flow-replay": "tsx workers/intelligence-tests/auditFlowReplay.ts",
     "audit:flow-replay-coverage": "tsx workers/intelligence-tests/auditFlowReplayCoverage.ts",
     "audit:liquidation-coverage": "tsx workers/intelligence-tests/auditLiquidationCoverage.ts",
-    "audit:exchange-flow-coverage": "tsx workers/intelligence-tests/auditExchangeFlowCoverage.ts"
+    "audit:exchange-flow-coverage": "tsx workers/intelligence-tests/auditExchangeFlowCoverage.ts",
+    "audit:treasury-coverage": "tsx workers/intelligence-tests/auditTreasuryCoverage.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

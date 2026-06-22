@@ -13,6 +13,7 @@ export type IntelligenceArtifactType =
   | "event_impact"
   | "market_memory"
   | "exchange_flow"
+  | "treasury_snapshot"
   | `custom:${string}`
 
 export type IntelligenceArtifactStatus = "active" | "expired" | "archived"
