@@ -12,9 +12,9 @@ import {
 
 type FailureCategory =
   | "unavailable_source"
-  | "unsupported_asset"
+  | "malformed_record"
   | "incomplete_data"
-  | "unknown"
+  | "validation_failure"
 
 function validSnapshot(value: unknown): value is ExchangeFlowSnapshot {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false
@@ -93,9 +93,9 @@ export async function auditExchangeFlowCoverage() {
   }))
   const failureCategories: Record<FailureCategory, number> = {
     unavailable_source: latest.length ? 0 : 1,
-    unsupported_asset: 0,
-    incomplete_data: invalidArtifacts,
-    unknown: 0,
+    malformed_record: 0,
+    incomplete_data: 0,
+    validation_failure: invalidArtifacts,
   }
   return {
     schemaVersion: 1,

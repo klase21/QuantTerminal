@@ -189,9 +189,9 @@ It reports:
 Failure categories:
 
 - `unavailable_source`;
-- `unsupported_asset`;
+- `malformed_record`;
 - `incomplete_data`;
-- `unknown`.
+- `validation_failure`.
 
 ## Current Coverage
 
@@ -221,15 +221,24 @@ Current:
 | Category | Count |
 | --- | ---: |
 | unavailable_source | 1 |
-| unsupported_asset | 0 |
+| malformed_record | 0 |
 | incomplete_data | 0 |
-| unknown | 0 |
+| validation_failure | 0 |
 
 ## Source Adapter Strategy
 
-Future adapters may target providers such as CMC-compatible exchange asset
-snapshots, verified exchange transparency feeds, or institutional on-chain
-flow vendors.
+The first adapter targets an authenticated CMC-compatible exchange asset-flow
+endpoint. See:
+
+```text
+docs/operations/exchange-flow-adapter-v1.md
+```
+
+The official holdings-oriented response is accepted only when the configured
+compatible endpoint also supplies explicit inflow and outflow fields.
+Reserves-only records are rejected rather than converted into synthetic flow.
+Future adapters may target verified exchange transparency feeds or
+institutional on-chain flow vendors.
 
 An adapter must establish:
 
@@ -254,9 +263,8 @@ directly.
 
 ## Recommended Next Sprint
 
-Implement one authenticated CMC-compatible or institutional exchange-flow
-adapter and ingest at least two timestamped snapshots for the same
-exchange/asset pair.
+Configure an authenticated flow-capable endpoint and ingest at least two
+timestamped snapshots for the same exchange/asset pair.
 
 Success should require:
 

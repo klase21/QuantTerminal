@@ -13,6 +13,10 @@ import {
 import {
   FileBackedIntelligenceArtifactRegistry,
 } from "@/lib/intelligence-artifacts/fileBackedArtifactRegistry"
+import {
+  fetchCmcExchangeFlow,
+  type CmcExchangeFlowAdapterReport,
+} from "@/lib/exchange-flow/cmcExchangeFlowAdapter"
 
 function argument(name: string) {
   const index = process.argv.indexOf(`--${name}`)
@@ -20,11 +24,16 @@ function argument(name: string) {
 }
 
 export async function buildExchangeFlowSnapshots(input: {
-  file: string
+  file?: string
+  sourceFile?: unknown
+  adapterReport?: CmcExchangeFlowAdapterReport
   artifactRoot?: string
 }) {
-  const raw = await readFile(path.resolve(input.file), "utf8")
-  const parsed: unknown = JSON.parse(raw)
+  const parsed: unknown = input.sourceFile ?? (
+    input.file
+      ? JSON.parse(await readFile(path.resolve(input.file), "utf8"))
+      : null
+  )
   if (!isExchangeFlowSourceFile(parsed)) {
     throw new Error("Exchange Flow source file does not match schema version 1.")
   }
@@ -72,20 +81,51 @@ export async function buildExchangeFlowSnapshots(input: {
       timestamp: snapshot.timestamp,
     })
   }
-  return { source: parsed.source, generatedAt, published }
+  return {
+    source: parsed.source,
+    generatedAt,
+    adapterReport: input.adapterReport,
+    published,
+  }
 }
 
 async function main() {
   const file = argument("file")
-  if (!file) {
+  const useCmc = process.argv.includes("--cmc")
+  if (!file && !useCmc) {
     throw new Error(
-      "Usage: --file <versioned-exchange-flow-source.json> [--artifact-root <path>]",
+      "Usage: --file <versioned-exchange-flow-source.json> or --cmc --exchange <name> --exchange-id <id> [--asset <symbol>] [--endpoint <url>] [--artifact-root <path>]",
     )
   }
-  const result = await buildExchangeFlowSnapshots({
-    file,
-    artifactRoot: argument("artifact-root"),
-  })
+  let result
+  if (useCmc) {
+    const apiKey = process.env.CMC_API_KEY ?? process.env.CMC_PRO_API_KEY
+    if (!apiKey) {
+      throw new Error("CMC_API_KEY or CMC_PRO_API_KEY is not configured.")
+    }
+    const exchange = argument("exchange")
+    const exchangeId = argument("exchange-id")
+    if (!exchange || !exchangeId) {
+      throw new Error("CMC ingestion requires --exchange <name> and --exchange-id <id>.")
+    }
+    const adapted = await fetchCmcExchangeFlow({
+      apiKey,
+      endpoint: argument("endpoint"),
+      exchange,
+      exchangeId,
+      asset: argument("asset"),
+    })
+    result = await buildExchangeFlowSnapshots({
+      sourceFile: adapted.sourceFile,
+      adapterReport: adapted.report,
+      artifactRoot: argument("artifact-root"),
+    })
+  } else {
+    result = await buildExchangeFlowSnapshots({
+      file,
+      artifactRoot: argument("artifact-root"),
+    })
+  }
   process.stdout.write("EXCHANGE FLOW BUILD\n")
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
 }
