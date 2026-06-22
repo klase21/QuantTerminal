@@ -12,6 +12,7 @@ export type IntelligenceArtifactType =
   | "dashboard_evidence"
   | "event_impact"
   | "market_memory"
+  | "exchange_flow"
   | `custom:${string}`
 
 export type IntelligenceArtifactStatus = "active" | "expired" | "archived"
