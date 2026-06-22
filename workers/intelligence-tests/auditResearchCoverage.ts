@@ -495,6 +495,15 @@ export async function auditResearchCoverage() {
       .filter((target) => target.marketMemory.state !== "available")
       .map((target) => `Durable Market Memory ${target.symbol}`),
   ]
+  const historicalAnalogMissing = targets
+    .filter((target) => target.historicalAnalog.state !== "available")
+    .map((target) => target.symbol)
+  const eventImpactMissing = targets
+    .filter((target) => target.eventImpact.state === "missing")
+    .map((target) => target.symbol)
+  const marketMemoryMissing = targets
+    .filter((target) => target.marketMemory.state !== "available")
+    .map((target) => target.symbol)
 
   return {
     schemaVersion: 1,
@@ -533,9 +542,15 @@ export async function auditResearchCoverage() {
       ],
     },
     recommendedBackfillOrder: [
-      "Generate Historical Analog 1h caches for ETHUSDT and SOLUSDT after verifying source OHLCV coverage.",
-      "Generate canonical ETHUSDT 1h OHLCV and macro Event Impact; SOLUSDT requires verified event catalog expansion before Event Impact.",
-      "Generate durable Market Memory artifacts for symbols after Historical Analog and Event Impact coverage is prepared.",
+      historicalAnalogMissing.length > 0
+        ? `Generate Historical Analog 1h caches for ${historicalAnalogMissing.join(", ")} after verifying source OHLCV coverage.`
+        : "Historical Analog target coverage is complete.",
+      eventImpactMissing.length > 0
+        ? `Generate Event Impact caches for supported targets: ${eventImpactMissing.join(", ")}.`
+        : "Event Impact cache coverage is complete for all catalog-supported targets.",
+      marketMemoryMissing.length > 0
+        ? `Generate durable Market Memory artifacts for eligible targets: ${marketMemoryMissing.join(", ")}.`
+        : "Durable Market Memory target coverage is complete.",
       "Generate Replay orderbook caches only for selected analog windows with available CryptoHFTData source files.",
       "Add a manual Replay Learning publication command before attempting Replay Learning backfill.",
       "Treat Narrative and Prediction Markets as live-source operational coverage until canonical local snapshot contracts exist.",
