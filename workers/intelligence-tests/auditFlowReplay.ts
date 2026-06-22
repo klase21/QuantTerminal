@@ -60,6 +60,15 @@ export async function auditFlowReplay() {
   const orderbook = contractValid
     ? flowReplay.sources.find((item) => item.kind === "orderbook_flow")
     : undefined
+  const price = contractValid
+    ? flowReplay.sources.find((item) => item.kind === "price")
+    : undefined
+  const funding = contractValid
+    ? flowReplay.sources.find((item) => item.kind === "funding")
+    : undefined
+  const openInterest = contractValid
+    ? flowReplay.sources.find((item) => item.kind === "open_interest")
+    : undefined
   return {
     schemaVersion: 1,
     auditedAt: new Date().toISOString(),
@@ -70,8 +79,17 @@ export async function auditFlowReplay() {
     artifactType: artifact.type,
     artifactGeneratedAt: artifact.generatedAt,
     artifactCoverage: artifact.validity.coverageStatus,
+    flowReplayCoverage: contractValid ? flowReplay.coverageState ?? "PARTIAL" : null,
     contractValid,
     whatMoved: contractValid ? flowReplay.whatMoved : null,
+    quality: {
+      price: price?.quality ?? "unknown",
+      orderbook: orderbook?.quality ?? "unknown",
+      funding: funding?.quality ?? "unknown",
+      openInterest: openInterest?.quality ?? "unknown",
+    },
+    fundingEvidence: contractValid ? flowReplay.fundingEvidence ?? null : null,
+    openInterestEvidence: contractValid ? flowReplay.openInterestEvidence ?? null : null,
     sourceQuality: contractValid
       ? Object.fromEntries(flowReplay.sources.map((item) => [item.kind, item.quality]))
       : {},

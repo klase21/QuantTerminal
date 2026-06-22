@@ -18,6 +18,16 @@ export type FlowReplayEvidenceKind =
   | "trades"
   | "orderbook_flow"
 
+export const FLOW_REPLAY_COVERAGE_STATES = [
+  "MINIMAL",
+  "PARTIAL",
+  "ENRICHED",
+  "COMPREHENSIVE",
+] as const
+
+export type FlowReplayCoverageState =
+  typeof FLOW_REPLAY_COVERAGE_STATES[number]
+
 export interface FlowReplayContext {
   exchange: string
   symbol: string
@@ -65,12 +75,29 @@ export interface FlowReplayStructureObservation {
   metrics: FlowReplayMetric[]
 }
 
+export interface FlowReplayPositioningEvidence {
+  availability: "available" | "unavailable" | "unknown"
+  source: string | null
+  coverage: {
+    windowStart: string
+    windowEnd: string
+    pointCount: number
+  }
+  observedValue: number | null
+  observedAt: string | null
+  quality: FlowReplaySourceQuality
+  reason?: string
+}
+
 export interface FlowReplayEvidence {
   schemaVersion: typeof FLOW_REPLAY_SCHEMA_VERSION
   flowReplayId: string
   context: FlowReplayContext
   generatedAt: string
+  coverageState?: FlowReplayCoverageState
   whatMoved: FlowReplayPriceMovement | null
+  fundingEvidence?: FlowReplayPositioningEvidence
+  openInterestEvidence?: FlowReplayPositioningEvidence
   marketStructureChanges: FlowReplayStructureObservation[]
   sources: FlowReplayEvidenceSource[]
   supportingEvidence: FlowReplayEvidenceSource[]

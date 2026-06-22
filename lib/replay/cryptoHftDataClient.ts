@@ -1,5 +1,22 @@
 import { decompress } from "fzstd"
-import { parquetMetadataAsync, parquetReadObjects, parquetSchema } from "hyparquet"
+
+type HyparquetModule = typeof import("hyparquet")
+type ParquetMetadataValue = Awaited<
+  ReturnType<HyparquetModule["parquetMetadataAsync"]>
+>
+
+let hyparquetModule: Promise<HyparquetModule> | null = null
+
+function loadHyparquet() {
+  if (!hyparquetModule) {
+    const nativeImport = new Function(
+      "specifier",
+      "return import(specifier)",
+    ) as (specifier: string) => Promise<HyparquetModule>
+    hyparquetModule = nativeImport("hyparquet")
+  }
+  return hyparquetModule
+}
 
 export type CryptoHftDataset = "trades" | "orderbook" | "liquidations" | "open_interest" | "mark_price" | "ticker"
 
@@ -152,7 +169,8 @@ function columnsFrom(rows: Record<string, unknown>[]) {
   return [...columns]
 }
 
-function columnsFromMetadata(metadata: Awaited<ReturnType<typeof parquetMetadataAsync>>) {
+async function columnsFromMetadata(metadata: ParquetMetadataValue) {
+  const { parquetSchema } = await loadHyparquet()
   const schema = parquetSchema(metadata)
   return schema.children.map((child) => child.element.name).filter(Boolean)
 }
@@ -514,9 +532,10 @@ type DecodedParquetRows = {
 }
 
 async function decodeOrderbookParquet(file: ArrayBuffer, decompressedBytes: number): Promise<DecodedParquetRows> {
+  const { parquetMetadataAsync, parquetReadObjects } = await loadHyparquet()
   const metadata = await parquetMetadataAsync(file)
   const totalRows = Number(metadata.num_rows)
-  const columns = columnsFromMetadata(metadata)
+  const columns = await columnsFromMetadata(metadata)
   if (Number.isFinite(totalRows) && totalRows > ORDERBOOK_RECONSTRUCTION_ROW_BUDGET) {
     return {
       decompressedBytes,
@@ -537,6 +556,7 @@ async function decodeOrderbookParquet(file: ArrayBuffer, decompressedBytes: numb
 }
 
 async function decodeParquetZst(buffer: ArrayBuffer, dataset: CryptoHftDataset): Promise<DecodedParquetRows> {
+  const { parquetReadObjects } = await loadHyparquet()
   const decompressed = decompress(new Uint8Array(buffer))
   const file = decompressed.buffer.slice(decompressed.byteOffset, decompressed.byteOffset + decompressed.byteLength)
   if (dataset === "orderbook") return decodeOrderbookParquet(file, decompressed.byteLength)

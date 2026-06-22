@@ -25,6 +25,13 @@ function required(name: string, fallback?: string) {
 }
 
 export async function buildAndPublishFlowReplay() {
+  if (!process.env.CRYPTOHFTDATA_API_KEY) {
+    try {
+      process.loadEnvFile(path.join(process.cwd(), ".env.local"))
+    } catch {
+      // Binance historical fallback remains available without provider credentials.
+    }
+  }
   const hour = Number(required("hour", "12"))
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
     throw new Error("Flow Replay hour must be an integer from 0 through 23.")
@@ -43,7 +50,10 @@ export async function buildAndPublishFlowReplay() {
     artifactId: publication.artifact.id,
     replaced: publication.replaced,
     generatedAt: publication.artifact.generatedAt,
+    coverageState: flowReplay.coverageState,
     whatMoved: flowReplay.whatMoved,
+    fundingEvidence: flowReplay.fundingEvidence,
+    openInterestEvidence: flowReplay.openInterestEvidence,
     sourceQuality: Object.fromEntries(
       flowReplay.sources.map((item) => [item.kind, item.quality]),
     ),
