@@ -3,7 +3,6 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { decompress } from "fzstd"
-import { parquetMetadataAsync, parquetReadObjects, parquetSchema } from "hyparquet"
 
 import type { HistoricalIngestionJob } from "@/core/historical-intelligence/ingestion/ingestionJobTypes"
 import {
@@ -137,6 +136,11 @@ export async function buildReplayOrderbookCache(
   })
 
   try {
+    const {
+      parquetMetadataAsync,
+      parquetReadObjects,
+      parquetSchema,
+    } = await import("hyparquet")
     const file = await readParquetFile(input.file)
     const parquetMetadata = await parquetMetadataAsync(file)
     const columns = parquetSchema(parquetMetadata).children.map((child) => child.element.name)

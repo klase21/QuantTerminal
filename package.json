@@ -8,7 +8,8 @@
     "start": "next start",
     "test:intelligence": "tsx workers/intelligence-tests/runIntelligenceSmokeTest.ts",
     "audit:research-coverage": "tsx workers/intelligence-tests/auditResearchCoverage.ts",
-    "audit:replay-coverage": "tsx workers/intelligence-tests/auditReplayCoverage.ts"
+    "audit:replay-coverage": "tsx workers/intelligence-tests/auditReplayCoverage.ts",
+    "audit:orderbook-coverage": "tsx workers/intelligence-tests/auditOrderbookCoverage.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
