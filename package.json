@@ -11,7 +11,10 @@
     "audit:replay-coverage": "tsx workers/intelligence-tests/auditReplayCoverage.ts",
     "audit:orderbook-coverage": "tsx workers/intelligence-tests/auditOrderbookCoverage.ts",
     "audit:orderbook-quality": "tsx workers/intelligence-tests/auditOrderbookQuality.ts",
-    "audit:replay-cache-v2": "tsx workers/intelligence-tests/auditReplayCacheV2.ts"
+    "audit:replay-cache-v2": "tsx workers/intelligence-tests/auditReplayCacheV2.ts",
+    "audit:replay-initialization": "tsx workers/intelligence-tests/auditReplayInitialization.ts",
+    "audit:provider-semantics": "tsx workers/intelligence-tests/auditProviderSemantics.ts",
+    "audit:flow-replay": "tsx workers/intelligence-tests/auditFlowReplay.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
