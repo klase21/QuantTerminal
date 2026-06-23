@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 2,
+  "snapshotId": "latest-market-drivers",
+  "metadata": {
+    "artifactType": "market_driver",
+    "scope": {
+      "kind": "multi_symbol",
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT"
+      ],
+      "exchange": "binance_futures"
+    },
+    "timeframe": "1d",
+    "partitionKey": "market-driver/multi/1d/latest",
+    "source": "market-driver-engine-v2",
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "observedAt": "2026-06-23T06:44:39.000Z",
+    "sourceHash": "d6e584d044a5f4c969c9fbf75711c554eeb5e3bd1dd8f7f7e779c076ef34f1cb",
+    "recordCount": 2,
+    "payloadSizeBytes": 7472,
+    "freshness": "current",
+    "coverage": "full",
+    "storageClass": "deployable_snapshot"
+  },
+  "data": [
+    {
+      "schemaVersion": 2,
+      "symbol": "BTCUSDT",
+      "timestamp": "2026-06-23T06:44:39.000Z",
+      "marketDirection": "positive",
+      "confidence": 48.75,
+      "drivers": [
+        {
+          "category": "etf",
+          "title": "BTC ETF net flow",
+          "evidence": {
+            "sourceArtifactId": "etf-snapshot:BTC:2026-06-21T15-00-00-000Z",
+            "source": "farside-investors",
+            "observedAt": "2026-06-21T15:00:00.000Z",
+            "value": 39200000,
+            "unit": "USD",
+            "direction": "positive",
+            "summary": "BTC ETF net flow was 39200000 USD."
+          },
+          "impactScore": 94.92,
+          "quality": "verified"
+        },
+        {
+          "category": "funding",
+          "title": "BTCUSDT current funding",
+          "evidence": {
+            "sourceArtifactId": "binance-current-funding:BTCUSDT",
+            "source": "binance-futures-premium-index",
+            "observedAt": "2026-06-23T06:44:39.000Z",
+            "value": 0.00002257,
+            "unit": "rate",
+            "direction": "positive",
+            "summary": "Current Binance Futures funding rate was 0.00002257."
+          },
+          "impactScore": 22.57,
+          "quality": "verified"
+        },
+        {
+          "category": "open_interest",
+          "title": "BTCUSDT open interest and price",
+          "evidence": {
+            "sourceArtifactId": "binance-current-open-interest:BTCUSDT",
+            "source": "binance-futures-open-interest-history",
+            "observedAt": "2026-06-23T06:40:00.000Z",
+            "value": -0.8328673762301089,
+            "unit": "percent change",
+            "direction": "neutral",
+            "summary": "Open interest changed -0.8329% while price changed 0.2802% over the sampled 5m observations."
+          },
+          "impactScore": 19.46,
+          "quality": "verified"
+        },
+        {
+          "category": "historical_analog",
+          "title": "Historical analog context",
+          "evidence": {
+            "sourceArtifactId": "historical-analog:BTCUSDT:1h",
+            "source": "historical-analog-v2",
+            "observedAt": "2026-05-31T23:00:00.000Z",
+            "value": -0.2231,
+            "unit": "percent",
+            "direction": "negative",
+            "summary": "25 comparable cases averaged -0.2231% over 24h."
+          },
+          "impactScore": 4.46,
+          "quality": "degraded"
+        },
+        {
+          "category": "event_impact",
+          "title": "macro event context",
+          "evidence": {
+            "sourceArtifactId": "event-impact:macro:binance_futures:BTCUSDT",
+            "source": "event-impact-category-v1",
+            "observedAt": "2024-03-20T18:00:00.000Z",
+            "value": 0.5045148472561937,
+            "unit": "percent",
+            "direction": "positive",
+            "summary": "2 verified event outcomes averaged 0.5045148472561937% over 24h."
+          },
+          "impactScore": 2.02,
+          "quality": "unknown"
+        }
+      ],
+      "availableCategories": [
+        "etf",
+        "funding",
+        "open_interest",
+        "historical_analog",
+        "event_impact"
+      ],
+      "missingCategories": [
+        "liquidation",
+        "exchange_flow",
+        "treasury"
+      ],
+      "staleCategories": [
+        "liquidation"
+      ],
+      "quality": "degraded"
+    },
+    {
+      "schemaVersion": 2,
+      "symbol": "ETHUSDT",
+      "timestamp": "2026-06-23T06:44:39.000Z",
+      "marketDirection": "positive",
+      "confidence": 48.75,
+      "drivers": [
+        {
+          "category": "etf",
+          "title": "ETH ETF net flow",
+          "evidence": {
+            "sourceArtifactId": "etf-snapshot:ETH:2026-06-21T15-00-00-000Z",
+            "source": "farside-investors",
+            "observedAt": "2026-06-21T15:00:00.000Z",
+            "value": 300000,
+            "unit": "USD",
+            "direction": "positive",
+            "summary": "ETH ETF net flow was 300000 USD."
+          },
+          "impactScore": 68.46,
+          "quality": "verified"
+        },
+        {
+          "category": "funding",
+          "title": "ETHUSDT current funding",
+          "evidence": {
+            "sourceArtifactId": "binance-current-funding:ETHUSDT",
+            "source": "binance-futures-premium-index",
+            "observedAt": "2026-06-23T06:44:39.000Z",
+            "value": 0.00003465,
+            "unit": "rate",
+            "direction": "positive",
+            "summary": "Current Binance Futures funding rate was 0.00003465."
+          },
+          "impactScore": 34.65,
+          "quality": "verified"
+        },
+        {
+          "category": "historical_analog",
+          "title": "Historical analog context",
+          "evidence": {
+            "sourceArtifactId": "historical-analog:ETHUSDT:1h",
+            "source": "historical-analog-v2",
+            "observedAt": "2026-05-31T23:00:00.000Z",
+            "value": -1.2131,
+            "unit": "percent",
+            "direction": "negative",
+            "summary": "25 comparable cases averaged -1.2131% over 24h."
+          },
+          "impactScore": 24.26,
+          "quality": "degraded"
+        },
+        {
+          "category": "event_impact",
+          "title": "macro event context",
+          "evidence": {
+            "sourceArtifactId": "event-impact:macro:binance_futures:ETHUSDT",
+            "source": "event-impact-category-v1",
+            "observedAt": "2024-03-20T18:00:00.000Z",
+            "value": 1.7937436121962909,
+            "unit": "percent",
+            "direction": "positive",
+            "summary": "2 verified event outcomes averaged 1.7937436121962909% over 24h."
+          },
+          "impactScore": 7.17,
+          "quality": "unknown"
+        },
+        {
+          "category": "open_interest",
+          "title": "ETHUSDT open interest and price",
+          "evidence": {
+            "sourceArtifactId": "binance-current-open-interest:ETHUSDT",
+            "source": "binance-futures-open-interest-history",
+            "observedAt": "2026-06-23T06:40:00.000Z",
+            "value": 0.06447725580846257,
+            "unit": "percent change",
+            "direction": "positive",
+            "summary": "Open interest changed 0.0645% while price changed 0.1743% over the sampled 5m observations."
+          },
+          "impactScore": 3.03,
+          "quality": "verified"
+        }
+      ],
+      "availableCategories": [
+        "etf",
+        "funding",
+        "historical_analog",
+        "event_impact",
+        "open_interest"
+      ],
+      "missingCategories": [
+        "liquidation",
+        "exchange_flow",
+        "treasury"
+      ],
+      "staleCategories": [],
+      "quality": "degraded"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "snapshotId": "exchange-flow-latest",
+  "metadata": {
+    "artifactType": "exchange_flow",
+    "scope": {
+      "kind": "multi_symbol",
+      "assets": []
+    },
+    "timeframe": "1d",
+    "partitionKey": "exchange-flow/multi/1d/latest",
+    "source": "unavailable",
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "observedAt": null,
+    "sourceHash": "5562935ea15fea4c488b930dee60703b1b28491f88a9ed9be98ff0fc6fc7e4fb",
+    "recordCount": 0,
+    "payloadSizeBytes": 690,
+    "freshness": "missing",
+    "coverage": "unavailable",
+    "storageClass": "deployable_snapshot",
+    "reason": "No prepared Exchange Flow artifacts are available."
+  },
+  "data": []
+}

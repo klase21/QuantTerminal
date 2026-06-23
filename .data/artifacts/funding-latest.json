@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "snapshotId": "funding-latest",
+  "metadata": {
+    "artifactType": "funding",
+    "scope": {
+      "kind": "multi_symbol",
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT"
+      ],
+      "exchange": "binance_futures"
+    },
+    "timeframe": "1h",
+    "partitionKey": "funding/multi/1h/latest",
+    "source": "binance-futures-premium-index",
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "observedAt": "2026-06-23T06:44:39.000Z",
+    "sourceHash": "dcd21838608bfa659770ef556f58bf4939fa5e896d97605732b94f3e8d677e18",
+    "recordCount": 2,
+    "payloadSizeBytes": 1060,
+    "freshness": "current",
+    "coverage": "full",
+    "storageClass": "deployable_snapshot"
+  },
+  "data": [
+    {
+      "symbol": "BTCUSDT",
+      "fundingRate": 0.00002257,
+      "observedAt": "2026-06-23T06:44:39.000Z",
+      "source": "binance-futures-premium-index"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "fundingRate": 0.00003465,
+      "observedAt": "2026-06-23T06:44:39.000Z",
+      "source": "binance-futures-premium-index"
+    }
+  ]
+}

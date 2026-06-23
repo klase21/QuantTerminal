@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "snapshotId": "etf-latest",
+  "metadata": {
+    "artifactType": "etf",
+    "scope": {
+      "kind": "multi_symbol",
+      "assets": [
+        "BTC",
+        "ETH"
+      ]
+    },
+    "timeframe": "1d",
+    "partitionKey": "etf/multi/1d/latest",
+    "source": "farside-investors",
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "observedAt": "2026-06-21T15:00:00.000Z",
+    "sourceHash": "de6c34dee2e6c3ef396ed9013f2053bde789fa8ef2445ce65c511a9ae833f63a",
+    "recordCount": 2,
+    "payloadSizeBytes": 1931,
+    "freshness": "current",
+    "coverage": "full",
+    "storageClass": "deployable_snapshot"
+  },
+  "data": [
+    {
+      "schemaVersion": 1,
+      "snapshotId": "etf-snapshot:BTC:2026-06-21T15-00-00-000Z",
+      "asset": "BTC",
+      "timestamp": "2026-06-21T15:00:00.000Z",
+      "netInflowUsd": 39200000,
+      "inflowUsd": null,
+      "outflowUsd": null,
+      "holdings": null,
+      "holdingsValueUsd": null,
+      "source": "farside-investors",
+      "quality": "verified",
+      "generatedAt": "2026-06-22T23:48:22.635Z",
+      "metadata": {
+        "adapter": "farside-etf-flow-v1",
+        "sourceUrl": "https://farside.co.uk/btc/",
+        "sourceUnit": "USD millions",
+        "sourceValue": 39.2,
+        "trend1d": "DOWN"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "snapshotId": "etf-snapshot:ETH:2026-06-21T15-00-00-000Z",
+      "asset": "ETH",
+      "timestamp": "2026-06-21T15:00:00.000Z",
+      "netInflowUsd": 300000,
+      "inflowUsd": null,
+      "outflowUsd": null,
+      "holdings": null,
+      "holdingsValueUsd": null,
+      "source": "farside-investors",
+      "quality": "verified",
+      "generatedAt": "2026-06-22T23:48:22.635Z",
+      "metadata": {
+        "adapter": "farside-etf-flow-v1",
+        "sourceUrl": "https://farside.co.uk/eth/",
+        "sourceUnit": "USD millions",
+        "sourceValue": 0.3,
+        "trend1d": "DOWN"
+      }
+    }
+  ]
+}

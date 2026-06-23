@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-23T06:44:38.617Z",
+  "entries": [
+    {
+      "artifactType": "coverage_index",
+      "partitionKey": "coverage/global/latest",
+      "path": "coverage-index.json",
+      "generatedAt": "2026-06-23T06:44:38.617Z",
+      "freshness": "current",
+      "payloadSizeBytes": 5366,
+      "recordCount": 22,
+      "sourceHash": "8cd8161c945a694847fd4ce88e35330d544ec6b004ab79580323f9aa101c0b4c"
+    },
+    {
+      "artifactType": "etf",
+      "partitionKey": "etf/multi/1d/latest",
+      "path": "etf-latest.json",
+      "generatedAt": "2026-06-23T06:44:38.617Z",
+      "freshness": "current",
+      "payloadSizeBytes": 1931,
+      "recordCount": 2,
+      "sourceHash": "de6c34dee2e6c3ef396ed9013f2053bde789fa8ef2445ce65c511a9ae833f63a"
+    },
+    {
+      "artifactType": "exchange_flow",
+      "partitionKey": "exchange-flow/multi/1d/latest",
+      "path": "exchange-flow-latest.json",
+      "generatedAt": "2026-06-23T06:44:38.617Z",
+      "freshness": "missing",
+      "payloadSizeBytes": 690,
+      "recordCount": 0,
+      "sourceHash": "5562935ea15fea4c488b930dee60703b1b28491f88a9ed9be98ff0fc6fc7e4fb"
+    },
+    {
+      "artifactType": "funding",
+      "partitionKey": "funding/multi/1h/latest",
+      "path": "funding-latest.json",
+      "generatedAt": "2026-06-23T06:44:38.617Z",
+      "freshness": "current",
+      "payloadSizeBytes": 1060,
+      "recordCount": 2,
+      "sourceHash": "dcd21838608bfa659770ef556f58bf4939fa5e896d97605732b94f3e8d677e18"
+    },
+    {
+      "artifactType": "liquidation",
+      "partitionKey": "liquidation/multi/1h/latest",
+      "path": "liquidation-latest.json",
+      "generatedAt": "2026-06-23T06:44:38.617Z",
+      "freshness": "stale",
+      "payloadSizeBytes": 1819,
+      "recordCount": 1,
+      "sourceHash": "7fe6d39e359add8070033d2128b1470b3ca43cd89c7287489f70c59233e93d52"
+    },
+    {
+      "artifactType": "market_driver",
+      "partitionKey": "market-driver/multi/1d/latest",
+      "path": "latest-market-drivers.json",
+      "generatedAt": "2026-06-23T06:44:38.617Z",
+      "freshness": "current",
+      "payloadSizeBytes": 7472,
+      "recordCount": 2,
+      "sourceHash": "d6e584d044a5f4c969c9fbf75711c554eeb5e3bd1dd8f7f7e779c076ef34f1cb"
+    },
+    {
+      "artifactType": "open_interest",
+      "partitionKey": "open-interest/multi/1h/latest",
+      "path": "open-interest-latest.json",
+      "generatedAt": "2026-06-23T06:44:38.617Z",
+      "freshness": "current",
+      "payloadSizeBytes": 1124,
+      "recordCount": 2,
+      "sourceHash": "aa463056cc865b67942b4e2c6352073d33153e1ce32bf55c9d2b721cc93e459d"
+    },
+    {
+      "artifactType": "treasury",
+      "partitionKey": "treasury/multi/1d/latest",
+      "path": "treasury-latest.json",
+      "generatedAt": "2026-06-23T06:44:38.617Z",
+      "freshness": "missing",
+      "payloadSizeBytes": 670,
+      "recordCount": 0,
+      "sourceHash": "5562935ea15fea4c488b930dee60703b1b28491f88a9ed9be98ff0fc6fc7e4fb"
+    }
+  ]
+}

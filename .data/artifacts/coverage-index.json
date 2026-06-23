@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 2,
+  "snapshotId": "coverage-index",
+  "metadata": {
+    "artifactType": "coverage_index",
+    "scope": {
+      "kind": "global"
+    },
+    "timeframe": null,
+    "partitionKey": "coverage/global/latest",
+    "source": "deployable-snapshot-builder-v1",
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "observedAt": "2026-06-23T06:44:38.617Z",
+    "sourceHash": "8cd8161c945a694847fd4ce88e35330d544ec6b004ab79580323f9aa101c0b4c",
+    "recordCount": 22,
+    "payloadSizeBytes": 5366,
+    "freshness": "current",
+    "coverage": "full",
+    "storageClass": "deployable_snapshot"
+  },
+  "data": {
+    "schemaVersion": 2,
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "entries": [
+      {
+        "surface": "Dashboard",
+        "type": "ETF",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "etf-latest.json"
+      },
+      {
+        "surface": "Dashboard",
+        "type": "funding",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "funding-latest.json"
+      },
+      {
+        "surface": "Dashboard",
+        "type": "open_interest",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "open-interest-latest.json"
+      },
+      {
+        "surface": "Dashboard",
+        "type": "liquidation",
+        "freshness": "stale",
+        "coverage": "partial",
+        "artifact": "liquidation-latest.json"
+      },
+      {
+        "surface": "Dashboard",
+        "type": "exchange_flow",
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "exchange-flow-latest.json",
+        "reason": "No prepared Exchange Flow artifacts are available."
+      },
+      {
+        "surface": "Dashboard",
+        "type": "treasury",
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "treasury-latest.json",
+        "reason": "No prepared Treasury artifacts are available."
+      },
+      {
+        "surface": "Dashboard",
+        "type": "market_drivers",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "latest-market-drivers.json"
+      },
+      {
+        "surface": "Markets",
+        "type": "OHLCV",
+        "freshness": "stale",
+        "coverage": "full",
+        "artifact": null,
+        "reason": "Canonical OHLCV cache coverage is indexed without embedding candle payloads."
+      },
+      {
+        "surface": "Markets",
+        "type": "funding",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "funding-latest.json"
+      },
+      {
+        "surface": "Markets",
+        "type": "open_interest",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "open-interest-latest.json"
+      },
+      {
+        "surface": "Markets",
+        "type": "liquidation",
+        "freshness": "stale",
+        "coverage": "partial",
+        "artifact": "liquidation-latest.json"
+      },
+      {
+        "surface": "Research",
+        "type": "OHLCV",
+        "freshness": "stale",
+        "coverage": "full",
+        "artifact": null,
+        "reason": "Canonical OHLCV cache coverage is indexed without embedding candle payloads."
+      },
+      {
+        "surface": "Research",
+        "type": "ETF",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "etf-latest.json"
+      },
+      {
+        "surface": "Research",
+        "type": "exchange_flow",
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "exchange-flow-latest.json",
+        "reason": "No prepared Exchange Flow artifacts are available."
+      },
+      {
+        "surface": "Research",
+        "type": "treasury",
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "treasury-latest.json",
+        "reason": "No prepared Treasury artifacts are available."
+      },
+      {
+        "surface": "Research",
+        "type": "market_drivers",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "latest-market-drivers.json"
+      },
+      {
+        "surface": "Replay",
+        "type": "OHLCV",
+        "freshness": "stale",
+        "coverage": "full",
+        "artifact": null,
+        "reason": "Canonical OHLCV cache coverage is indexed without embedding candle payloads."
+      },
+      {
+        "surface": "Replay",
+        "type": "funding",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "funding-latest.json"
+      },
+      {
+        "surface": "Replay",
+        "type": "open_interest",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "open-interest-latest.json"
+      },
+      {
+        "surface": "Replay",
+        "type": "liquidation",
+        "freshness": "stale",
+        "coverage": "partial",
+        "artifact": "liquidation-latest.json"
+      },
+      {
+        "surface": "Historical Intelligence",
+        "type": "OHLCV",
+        "freshness": "stale",
+        "coverage": "full",
+        "artifact": null,
+        "reason": "Canonical OHLCV cache coverage is indexed without embedding candle payloads."
+      },
+      {
+        "surface": "Historical Intelligence",
+        "type": "market_drivers",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "latest-market-drivers.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "snapshotId": "treasury-latest",
+  "metadata": {
+    "artifactType": "treasury",
+    "scope": {
+      "kind": "multi_symbol",
+      "assets": []
+    },
+    "timeframe": "1d",
+    "partitionKey": "treasury/multi/1d/latest",
+    "source": "unavailable",
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "observedAt": null,
+    "sourceHash": "5562935ea15fea4c488b930dee60703b1b28491f88a9ed9be98ff0fc6fc7e4fb",
+    "recordCount": 0,
+    "payloadSizeBytes": 670,
+    "freshness": "missing",
+    "coverage": "unavailable",
+    "storageClass": "deployable_snapshot",
+    "reason": "No prepared Treasury artifacts are available."
+  },
+  "data": []
+}

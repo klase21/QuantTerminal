@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "snapshotId": "open-interest-latest",
+  "metadata": {
+    "artifactType": "open_interest",
+    "scope": {
+      "kind": "multi_symbol",
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT"
+      ],
+      "exchange": "binance_futures"
+    },
+    "timeframe": "1h",
+    "partitionKey": "open-interest/multi/1h/latest",
+    "source": "binance-futures-open-interest-history",
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "observedAt": "2026-06-23T06:40:00.000Z",
+    "sourceHash": "aa463056cc865b67942b4e2c6352073d33153e1ce32bf55c9d2b721cc93e459d",
+    "recordCount": 2,
+    "payloadSizeBytes": 1124,
+    "freshness": "current",
+    "coverage": "full",
+    "storageClass": "deployable_snapshot"
+  },
+  "data": [
+    {
+      "symbol": "BTCUSDT",
+      "changePercent": -0.8328673762301089,
+      "observedAt": "2026-06-23T06:40:00.000Z",
+      "source": "binance-futures-open-interest-history"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "changePercent": 0.06447725580846257,
+      "observedAt": "2026-06-23T06:40:00.000Z",
+      "source": "binance-futures-open-interest-history"
+    }
+  ]
+}

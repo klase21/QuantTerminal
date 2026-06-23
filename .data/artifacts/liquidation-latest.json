@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "snapshotId": "liquidation-latest",
+  "metadata": {
+    "artifactType": "liquidation",
+    "scope": {
+      "kind": "multi_symbol",
+      "symbols": [
+        "BTCUSDT"
+      ],
+      "exchange": "binance_futures"
+    },
+    "timeframe": "1h",
+    "partitionKey": "liquidation/multi/1h/latest",
+    "source": "cryptohftdata",
+    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "observedAt": "2026-04-05T12:52:31.862Z",
+    "sourceHash": "7fe6d39e359add8070033d2128b1470b3ca43cd89c7287489f70c59233e93d52",
+    "recordCount": 1,
+    "payloadSizeBytes": 1819,
+    "freshness": "stale",
+    "coverage": "partial",
+    "storageClass": "deployable_snapshot"
+  },
+  "data": [
+    {
+      "schemaVersion": 1,
+      "evidenceId": "liquidation-evidence:binance_futures:BTCUSDT:2026-04-05:12",
+      "scope": "symbol",
+      "exchange": "binance_futures",
+      "symbol": "BTCUSDT",
+      "window": {
+        "date": "2026-04-05",
+        "hour": 12,
+        "start": "2026-04-05T12:00:00.000Z",
+        "end": "2026-04-05T13:00:00.000Z"
+      },
+      "source": "cryptohftdata",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-22T12:51:27.947Z",
+      "totals": {
+        "longLiquidation": 264578.59369999997,
+        "shortLiquidation": 8086.7726999999995,
+        "unknownLiquidation": 0,
+        "totalLiquidation": 272665.36639999994,
+        "eventCount": 50
+      },
+      "symbols": [
+        {
+          "symbol": "BTCUSDT",
+          "longLiquidation": 264578.59369999997,
+          "shortLiquidation": 8086.7726999999995,
+          "unknownLiquidation": 0,
+          "totalLiquidation": 272665.36639999994,
+          "eventCount": 50,
+          "firstTimestamp": "2026-04-05T12:03:53.745Z",
+          "lastTimestamp": "2026-04-05T12:52:31.862Z"
+        }
+      ]
+    }
+  ]
+}
