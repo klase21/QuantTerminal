@@ -1,4 +1,4 @@
-export const MARKET_DRIVER_SCHEMA_VERSION = 1
+export const MARKET_DRIVER_SCHEMA_VERSION = 2
 
 export const MARKET_DRIVER_CATEGORIES = [
   "funding",
@@ -46,5 +46,6 @@ export interface MarketDriverSummary {
   drivers: MarketDriver[]
   availableCategories: MarketDriverCategory[]
   missingCategories: MarketDriverCategory[]
+  staleCategories: MarketDriverCategory[]
   quality: MarketDriverQuality
 }
