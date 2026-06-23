@@ -9,18 +9,18 @@
     "timeframe": null,
     "partitionKey": "coverage/global/latest",
     "source": "deployable-snapshot-builder-v1",
-    "generatedAt": "2026-06-23T06:44:38.617Z",
-    "observedAt": "2026-06-23T06:44:38.617Z",
-    "sourceHash": "8cd8161c945a694847fd4ce88e35330d544ec6b004ab79580323f9aa101c0b4c",
-    "recordCount": 22,
-    "payloadSizeBytes": 5366,
+    "generatedAt": "2026-06-23T12:50:57.066Z",
+    "observedAt": "2026-06-23T12:50:57.066Z",
+    "sourceHash": "a7ef8d162a26805b9bed448dd835f2f4b5395800f024299f793418c650225e7c",
+    "recordCount": 25,
+    "payloadSizeBytes": 5761,
     "freshness": "current",
     "coverage": "full",
     "storageClass": "deployable_snapshot"
   },
   "data": {
     "schemaVersion": 2,
-    "generatedAt": "2026-06-23T06:44:38.617Z",
+    "generatedAt": "2026-06-23T12:50:57.066Z",
     "entries": [
       {
         "surface": "Dashboard",
@@ -53,18 +53,23 @@
       {
         "surface": "Dashboard",
         "type": "exchange_flow",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "exchange-flow-latest.json",
-        "reason": "No prepared Exchange Flow artifacts are available."
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "exchange-flow-latest.json"
+      },
+      {
+        "surface": "Dashboard",
+        "type": "exchange_reserve",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "exchange-reserve-latest.json"
       },
       {
         "surface": "Dashboard",
         "type": "treasury",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "treasury-latest.json",
-        "reason": "No prepared Treasury artifacts are available."
+        "freshness": "stale",
+        "coverage": "full",
+        "artifact": "treasury-latest.json"
       },
       {
         "surface": "Dashboard",
@@ -120,18 +125,23 @@
       {
         "surface": "Research",
         "type": "exchange_flow",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "exchange-flow-latest.json",
-        "reason": "No prepared Exchange Flow artifacts are available."
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "exchange-flow-latest.json"
+      },
+      {
+        "surface": "Research",
+        "type": "exchange_reserve",
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "exchange-reserve-latest.json"
       },
       {
         "surface": "Research",
         "type": "treasury",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "treasury-latest.json",
-        "reason": "No prepared Treasury artifacts are available."
+        "freshness": "stale",
+        "coverage": "full",
+        "artifact": "treasury-latest.json"
       },
       {
         "surface": "Research",
@@ -176,6 +186,14 @@
         "coverage": "full",
         "artifact": null,
         "reason": "Canonical OHLCV cache coverage is indexed without embedding candle payloads."
+      },
+      {
+        "surface": "Historical Intelligence",
+        "type": "exchange_reserve_delta",
+        "freshness": "current",
+        "coverage": "unavailable",
+        "artifact": "exchange-reserve-delta-latest.json",
+        "reason": "Reserve delta unavailable: no previous reserve snapshot exists."
       },
       {
         "surface": "Historical Intelligence",

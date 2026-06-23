@@ -13,6 +13,8 @@ export type IntelligenceArtifactType =
   | "event_impact"
   | "market_memory"
   | "exchange_flow"
+  | "exchange_reserve_snapshot"
+  | "exchange_reserve_delta"
   | "treasury_snapshot"
   | "etf_snapshot"
   | `custom:${string}`

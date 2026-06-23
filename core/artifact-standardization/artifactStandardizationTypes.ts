@@ -16,6 +16,8 @@ export const STANDARD_ARTIFACT_TYPES = [
   "open_interest",
   "liquidation",
   "exchange_flow",
+  "exchange_reserve",
+  "exchange_reserve_delta",
   "treasury",
   "coverage_index",
 ] as const

@@ -24,6 +24,16 @@ import {
 } from "@/core/deployable-snapshots"
 import type { EtfArtifactMetadata, EtfSnapshot } from "@/core/etf-intelligence"
 import type {
+  DeployableExchangeReserveRecord,
+  ExchangeReserveArtifactMetadata,
+  ExchangeReserveSnapshot,
+} from "@/core/exchange-reserve"
+import type {
+  DeployableExchangeReserveDelta,
+  ExchangeReserveDelta,
+  ExchangeReserveDeltaArtifactMetadata,
+} from "@/core/exchange-reserve-delta"
+import type {
   ExchangeFlowArtifactMetadata,
   ExchangeFlowSnapshot,
 } from "@/core/exchange-flow"
@@ -48,8 +58,12 @@ function latestTimestamp(values: Array<string | null | undefined>) {
   return timestamps.length ? new Date(Math.max(...timestamps)).toISOString() : null
 }
 
-function freshness(observedAt: string | null, now = Date.now()): DeployableSnapshotFreshness {
-  if (!observedAt) return "missing"
+function freshness(
+  observedAt: string | null,
+  now = Date.now(),
+  populated = false,
+): DeployableSnapshotFreshness {
+  if (!observedAt) return populated ? "stale" : "missing"
   const timestamp = Date.parse(observedAt)
   if (!Number.isFinite(timestamp)) return "missing"
   return now - timestamp <= CURRENT_WINDOW_MS ? "current" : "stale"
@@ -88,7 +102,7 @@ function snapshot<T>(input: {
       sourceHash: artifactSourceHash(input.source, input.data),
       recordCount: input.recordCount,
       payloadSizeBytes: 0,
-      freshness: freshness(input.observedAt),
+      freshness: freshness(input.observedAt, Date.now(), input.recordCount > 0),
       coverage: input.coverage,
       storageClass: "deployable_snapshot",
       reason: input.reason,
@@ -104,11 +118,21 @@ async function writeJson(file: string, value: unknown) {
   await rename(temporary, file)
 }
 
-function latestBy<T>(items: T[], key: (item: T) => string, time: (item: T) => string) {
+function latestBy<T>(
+  items: T[],
+  key: (item: T) => string,
+  time: (item: T) => string | null,
+) {
   const latest = new Map<string, T>()
   for (const item of items) {
     const current = latest.get(key(item))
-    if (!current || Date.parse(time(item)) > Date.parse(time(current))) {
+    const itemTime = Date.parse(time(item) ?? "")
+    const currentTime = current ? Date.parse(time(current) ?? "") : Number.NaN
+    if (
+      !current
+      || (Number.isFinite(itemTime) && !Number.isFinite(currentTime))
+      || (Number.isFinite(itemTime) && itemTime > currentTime)
+    ) {
       latest.set(key(item), item)
     }
   }
@@ -166,11 +190,11 @@ function coverageEntries(input: {
   ohlcvObservedAt: string | null
 }) {
   const relevant: Record<DeployableCoverageSurface, DeployableCoverageType[]> = {
-    Dashboard: ["ETF", "funding", "open_interest", "liquidation", "exchange_flow", "treasury", "market_drivers"],
+    Dashboard: ["ETF", "funding", "open_interest", "liquidation", "exchange_flow", "exchange_reserve", "treasury", "market_drivers"],
     Markets: ["OHLCV", "funding", "open_interest", "liquidation"],
-    Research: ["OHLCV", "ETF", "exchange_flow", "treasury", "market_drivers"],
+    Research: ["OHLCV", "ETF", "exchange_flow", "exchange_reserve", "treasury", "market_drivers"],
     Replay: ["OHLCV", "funding", "open_interest", "liquidation"],
-    "Historical Intelligence": ["OHLCV", "market_drivers"],
+    "Historical Intelligence": ["OHLCV", "exchange_reserve_delta", "market_drivers"],
   }
   return DEPLOYABLE_COVERAGE_SURFACES.flatMap((surface) => (
     relevant[surface].map((type) => {
@@ -205,6 +229,8 @@ function artifactName(type: DeployableCoverageType) {
     open_interest: "open-interest-latest.json",
     liquidation: "liquidation-latest.json",
     exchange_flow: "exchange-flow-latest.json",
+    exchange_reserve: "exchange-reserve-latest.json",
+    exchange_reserve_delta: "exchange-reserve-delta-latest.json",
     treasury: "treasury-latest.json",
   }
   return names[type] ?? null
@@ -233,9 +259,60 @@ export async function buildDeployableSnapshots() {
       "exchange_flow",
       (artifact) => (artifact.metadata as Partial<ExchangeFlowArtifactMetadata>).snapshot,
     ),
-    (item) => `${item.exchange}:${item.asset}`,
+    (item) => item.scope === "asset_level"
+      ? `${item.scope}:${item.exchange}:${item.asset}`
+      : `${item.scope}:${item.exchange}`,
     (item) => item.timestamp,
   )
+  const exchangeReserves = latestBy(
+    artifactSnapshots<ExchangeReserveSnapshot>(
+      artifacts,
+      "exchange_reserve_snapshot",
+      (artifact) => (
+        artifact.metadata as Partial<ExchangeReserveArtifactMetadata>
+      ).snapshot,
+    ),
+    (item) => `${item.walletAddress.toLowerCase()}:${item.network.toLowerCase()}:${item.asset}`,
+    (item) => item.updateTime,
+  )
+  const deployableExchangeReserves: DeployableExchangeReserveRecord[] =
+    exchangeReserves.map((item) => ({
+      exchange: item.exchange,
+      walletAddress: item.walletAddress,
+      network: item.network,
+      asset: item.asset,
+      balance: item.balance,
+      balanceUsd: item.balanceUsd,
+      updateTime: item.updateTime,
+      quality: item.quality,
+    }))
+  const reserveDeltas = latestBy(
+    artifactSnapshots<ExchangeReserveDelta>(
+      artifacts,
+      "exchange_reserve_delta",
+      (artifact) => (
+        artifact.metadata as Partial<ExchangeReserveDeltaArtifactMetadata>
+      ).delta,
+    ),
+    (item) => item.asset,
+    (item) => item.currentObservedAt,
+  )
+  const deployableReserveDeltas: DeployableExchangeReserveDelta[] =
+    reserveDeltas.map((item) => ({
+      exchange: item.exchange,
+      asset: item.asset,
+      currentBalance: item.currentBalance,
+      currentBalanceUsd: item.currentBalanceUsd,
+      currentObservedAt: item.currentObservedAt,
+      previousBalance: item.previousBalance,
+      previousBalanceUsd: item.previousBalanceUsd,
+      previousObservedAt: item.previousObservedAt,
+      balanceDelta: item.balanceDelta,
+      balanceDeltaPct: item.balanceDeltaPct,
+      balanceUsdDelta: item.balanceUsdDelta,
+      status: item.status,
+      reason: item.reason,
+    }))
   const treasury = latestBy(
     artifactSnapshots<TreasurySnapshot>(
       artifacts,
@@ -370,7 +447,9 @@ export async function buildDeployableSnapshots() {
     artifactType: "exchange_flow",
     scope: {
       kind: "multi_symbol",
-      assets: exchangeFlow.map((item) => item.asset),
+      assets: exchangeFlow.flatMap((item) => (
+        item.scope === "asset_level" ? [item.asset] : []
+      )),
     },
     timeframe: "1d",
     partitionKey: "exchange-flow/multi/1d/latest",
@@ -381,6 +460,51 @@ export async function buildDeployableSnapshots() {
     data: exchangeFlow,
     recordCount: exchangeFlow.length,
     reason: exchangeFlow.length ? undefined : "No prepared Exchange Flow artifacts are available.",
+  }))
+  deployable.set("exchange_reserve", snapshot({
+    id: "exchange-reserve-latest",
+    artifactType: "exchange_reserve",
+    scope: {
+      kind: "multi_symbol",
+      assets: [...new Set(exchangeReserves.map((item) => item.asset))],
+      exchange: "binance",
+    },
+    timeframe: "1h",
+    partitionKey: "exchange-reserve/binance/1h/latest",
+    source: exchangeReserves.map((item) => item.source)
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .join(", ") || "unavailable",
+    generatedAt,
+    observedAt: latestTimestamp(exchangeReserves.map((item) => item.updateTime)),
+    coverage: exchangeReserves.length ? "full" : "unavailable",
+    data: deployableExchangeReserves,
+    recordCount: deployableExchangeReserves.length,
+    reason: exchangeReserves.length
+      ? undefined
+      : "No prepared Binance Exchange Reserve artifacts are available.",
+  }))
+  const availableReserveDeltas = reserveDeltas.filter((item) => item.status === "available")
+  deployable.set("exchange_reserve_delta", snapshot({
+    id: "exchange-reserve-delta-latest",
+    artifactType: "exchange_reserve_delta",
+    scope: {
+      kind: "multi_symbol",
+      assets: reserveDeltas.map((item) => item.asset),
+      exchange: "binance",
+    },
+    timeframe: "1h",
+    partitionKey: "exchange-reserve-delta/binance/1h/latest",
+    source: "exchange-reserve-delta-v1",
+    generatedAt,
+    observedAt: latestTimestamp(reserveDeltas.map((item) => item.currentObservedAt)),
+    coverage: availableReserveDeltas.length
+      ? coverage(availableReserveDeltas.length, reserveDeltas.length)
+      : "unavailable",
+    data: deployableReserveDeltas,
+    recordCount: deployableReserveDeltas.length,
+    reason: availableReserveDeltas.length
+      ? undefined
+      : "Reserve delta unavailable: no previous reserve snapshot exists.",
   }))
   deployable.set("treasury", snapshot({
     id: "treasury-latest",

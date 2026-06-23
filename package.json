@@ -18,13 +18,19 @@
     "audit:flow-replay-coverage": "tsx workers/intelligence-tests/auditFlowReplayCoverage.ts",
     "audit:liquidation-coverage": "tsx workers/intelligence-tests/auditLiquidationCoverage.ts",
     "audit:exchange-flow-coverage": "tsx workers/intelligence-tests/auditExchangeFlowCoverage.ts",
+    "build:exchange-reserves": "tsx workers/exchange-reserve/buildExchangeReserveSnapshots.ts",
+    "audit:exchange-reserve-coverage": "tsx workers/intelligence-tests/auditExchangeReserveCoverage.ts",
+    "build:exchange-reserve-deltas": "tsx workers/exchange-reserve/buildExchangeReserveDeltas.ts",
+    "audit:exchange-reserve-deltas": "tsx workers/intelligence-tests/auditExchangeReserveDeltas.ts",
     "audit:treasury-coverage": "tsx workers/intelligence-tests/auditTreasuryCoverage.ts",
     "audit:etf-coverage": "tsx workers/intelligence-tests/auditEtfCoverage.ts",
     "audit:market-drivers": "tsx workers/intelligence-tests/auditMarketDrivers.ts",
     "audit:dashboard-integration": "tsx workers/intelligence-tests/auditDashboardIntegration.ts",
     "build:deployable-snapshots": "tsx workers/data-snapshots/buildDeployableSnapshots.ts",
     "audit:deployable-snapshots": "tsx workers/intelligence-tests/auditDeployableSnapshots.ts",
-    "audit:data-health": "tsx workers/data-health/auditDataHealth.ts"
+    "audit:data-health": "tsx workers/data-health/auditDataHealth.ts",
+    "build:capital-flow-evidence": "tsx workers/capital-flow/buildCapitalFlowEvidence.ts",
+    "test:cmc-data-api-direct": "tsx workers/capital-flow/testCmcDataApiDirect.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

@@ -28,6 +28,8 @@ const EXPECTED_FILES = [
   "open-interest-latest.json",
   "liquidation-latest.json",
   "exchange-flow-latest.json",
+  "exchange-reserve-latest.json",
+  "exchange-reserve-delta-latest.json",
   "treasury-latest.json",
   "coverage-index.json",
 ]

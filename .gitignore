@@ -8,7 +8,10 @@ coverage
 *.log
 
 # QuantTerminal local data
-.data/
+.data/*
+!.data/artifacts/
+.data/artifacts/*
+!.data/artifacts/*.json
 .chrome-screenshot-profile/
 
 # temp files

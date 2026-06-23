@@ -12,6 +12,8 @@ export const DATA_FRESHNESS_POLICIES: Readonly<
   liquidation: 30 * MINUTE,
   etf: 24 * HOUR,
   exchange_flow: HOUR,
+  exchange_reserve: HOUR,
+  exchange_reserve_delta: HOUR,
   treasury: 24 * HOUR,
   coverage_index: 15 * MINUTE,
 }
