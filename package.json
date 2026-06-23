@@ -20,7 +20,8 @@
     "audit:exchange-flow-coverage": "tsx workers/intelligence-tests/auditExchangeFlowCoverage.ts",
     "audit:treasury-coverage": "tsx workers/intelligence-tests/auditTreasuryCoverage.ts",
     "audit:etf-coverage": "tsx workers/intelligence-tests/auditEtfCoverage.ts",
-    "audit:market-drivers": "tsx workers/intelligence-tests/auditMarketDrivers.ts"
+    "audit:market-drivers": "tsx workers/intelligence-tests/auditMarketDrivers.ts",
+    "audit:dashboard-integration": "tsx workers/intelligence-tests/auditDashboardIntegration.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

@@ -229,6 +229,43 @@ type HistoricalEvidenceResponse = {
   reason?: string
 }
 
+type MarketDriverCategory =
+  | "funding"
+  | "open_interest"
+  | "liquidation"
+  | "exchange_flow"
+  | "treasury"
+  | "etf"
+  | "historical_analog"
+  | "event_impact"
+
+type MarketDriverSummary = {
+  symbol: string
+  timestamp: string
+  marketDirection: "positive" | "negative" | "mixed" | "unknown"
+  confidence: number
+  drivers: Array<{
+    category: MarketDriverCategory
+    title: string
+    impactScore: number
+    quality: "verified" | "degraded" | "unavailable" | "unknown"
+    evidence: {
+      source: string
+      observedAt: string | null
+      summary: string
+      direction: "positive" | "negative" | "neutral"
+    }
+  }>
+}
+
+type MarketDriverResponse = {
+  ok?: boolean
+  summary?: MarketDriverSummary
+  reason?: string
+}
+
+type MarketDriverLoadState = "loading" | "ready" | "empty" | "unavailable"
+
 const DASHBOARD_CACHE_KEY = "qt.dashboard.v1.cache"
 
 type DashboardCache = {
@@ -1194,6 +1231,175 @@ function HistoricalEvidenceStrip({ data, loading }: { data: HistoricalEvidenceRe
   )
 }
 
+function driverBias(direction?: MarketDriverSummary["marketDirection"]): Bias {
+  if (direction === "positive") return "Bullish"
+  if (direction === "negative") return "Bearish"
+  return "Neutral"
+}
+
+function driverCategoryLabel(category: MarketDriverCategory) {
+  const labels: Record<MarketDriverCategory, string> = {
+    funding: "Funding",
+    open_interest: "Open Interest",
+    liquidation: "Liquidation",
+    exchange_flow: "Exchange Flow",
+    treasury: "Treasury",
+    etf: "ETF",
+    historical_analog: "Historical Analog",
+    event_impact: "Event Impact",
+  }
+  return labels[category]
+}
+
+function MarketDirectionPanel({
+  data,
+  state,
+  reason,
+}: {
+  data: MarketDriverSummary | null
+  state: MarketDriverLoadState
+  reason: string | null
+}) {
+  const direction = driverBias(data?.marketDirection)
+  const tone = direction === "Bullish"
+    ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+    : direction === "Bearish"
+      ? "border-rose-300/30 bg-rose-400/10 text-rose-100"
+      : "border-zinc-700 bg-zinc-900/80 text-zinc-100"
+
+  return (
+    <Card
+      title="Market Direction"
+      icon={<LineChart className="h-3.5 w-3.5" />}
+      className="border-cyan-300/25 bg-zinc-950 p-4"
+      right={data ? (
+        <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+          {new Date(data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
+        </div>
+      ) : null}
+    >
+      {state === "loading" ? (
+        <div className="grid min-h-[148px] place-items-center rounded-lg border border-zinc-800 bg-black/45 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
+          Loading Market Direction
+        </div>
+      ) : state === "unavailable" ? (
+        <div className="grid min-h-[148px] place-items-center rounded-lg border border-zinc-800 bg-black/45 px-4 text-center">
+          <div>
+            <div className="text-lg font-black uppercase tracking-[0.12em] text-zinc-400">Market Direction Unavailable</div>
+            <div className="mt-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-600">Reason: {reason ?? "Market Driver evidence unavailable."}</div>
+          </div>
+        </div>
+      ) : state === "empty" || !data ? (
+        <div className="grid min-h-[148px] place-items-center rounded-lg border border-zinc-800 bg-black/45 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
+          No Market Driver Evidence
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_160px]">
+          <div className={cn("flex min-h-[148px] items-center rounded-lg border px-6", tone)}>
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Evidence Balance</div>
+              <div className="mt-2 text-5xl font-black uppercase leading-none tracking-[0.04em]">{direction}</div>
+              <div className="mt-3 text-xs font-black uppercase tracking-[0.1em] text-zinc-400">
+                {data.symbol} prepared intelligence
+              </div>
+            </div>
+          </div>
+          <div className="flex min-h-[148px] flex-col justify-center rounded-lg border border-cyan-300/20 bg-cyan-400/10 p-4">
+            <div className="text-4xl font-black leading-none text-cyan-100">{data.confidence.toFixed(2)}</div>
+            <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">Confidence</div>
+            <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">Coverage and quality</div>
+          </div>
+          <div className="flex min-h-[148px] flex-col justify-center rounded-lg border border-zinc-800 bg-black/45 p-4">
+            <div className="text-4xl font-black leading-none text-white">{data.drivers.length}</div>
+            <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">Driver Count</div>
+            <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">Available evidence</div>
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function WhyMarketMoving({
+  data,
+  state,
+}: {
+  data: MarketDriverSummary | null
+  state: MarketDriverLoadState
+}) {
+  return (
+    <Card title="Why Market Is Moving" icon={<Info className="h-3.5 w-3.5" />}>
+      {state === "loading" ? (
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-5 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500">Loading Ranked Drivers</div>
+      ) : data?.drivers.length ? (
+        <div className="grid gap-2 lg:grid-cols-3">
+          {data.drivers.slice(0, 6).map((driver, index) => (
+            <article key={`${driver.category}-${driver.title}`} className="rounded-lg border border-zinc-800 bg-black/45 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-300">
+                    #{index + 1} {driverCategoryLabel(driver.category)}
+                  </div>
+                  <div className="mt-1 text-sm font-black text-white">{driver.title}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-2xl font-black leading-none text-cyan-100">{driver.impactScore.toFixed(2)}</div>
+                  <div className="mt-1 text-[8px] font-black uppercase tracking-[0.12em] text-zinc-600">Impact</div>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-5 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500">No Ranked Drivers Available</div>
+      )}
+    </Card>
+  )
+}
+
+function SupportingEvidence({
+  data,
+  state,
+}: {
+  data: MarketDriverSummary | null
+  state: MarketDriverLoadState
+}) {
+  const visibleCategories = new Set<MarketDriverCategory>([
+    "etf",
+    "funding",
+    "open_interest",
+    "historical_analog",
+    "event_impact",
+  ])
+  const evidence = data?.drivers.filter((driver) => visibleCategories.has(driver.category)) ?? []
+
+  return (
+    <Card title="Supporting Evidence" icon={<Target className="h-3.5 w-3.5" />}>
+      {state === "loading" ? (
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-5 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500">Loading Supporting Evidence</div>
+      ) : evidence.length ? (
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+          {evidence.map((driver) => (
+            <article key={`${driver.category}-${driver.evidence.source}`} className="min-w-0 rounded-lg border border-zinc-800 bg-black/45 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-300">{driverCategoryLabel(driver.category)}</div>
+                <div className={cn(
+                  "text-[8px] font-black uppercase tracking-[0.1em]",
+                  driver.quality === "verified" ? "text-emerald-200" : "text-amber-200",
+                )}>{driver.quality}</div>
+              </div>
+              <div className="mt-2 text-[11px] font-black leading-relaxed text-zinc-200">{driver.evidence.summary}</div>
+              <div className="mt-2 truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-600">{driver.evidence.source}</div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-zinc-900 bg-black/45 p-5 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500">No Supporting Evidence Available</div>
+      )}
+    </Card>
+  )
+}
+
 function BottomCard({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
     <Card title={title} icon={icon} className="min-h-[92px]">
@@ -1388,6 +1594,9 @@ export default function DashboardV1({
   const [futures, setFutures] = useState<FuturesIntelligenceResponse | null>(cachedDashboard?.futures ?? null)
   const [historicalEvidence, setHistoricalEvidence] = useState<HistoricalEvidenceResponse | null>(null)
   const [historicalEvidenceLoading, setHistoricalEvidenceLoading] = useState(true)
+  const [marketDrivers, setMarketDrivers] = useState<MarketDriverSummary | null>(null)
+  const [marketDriverLoadState, setMarketDriverLoadState] = useState<MarketDriverLoadState>("loading")
+  const [marketDriverUnavailableReason, setMarketDriverUnavailableReason] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -1502,6 +1711,56 @@ export default function DashboardV1({
 
   useEffect(() => {
     let active = true
+    let timedOut = false
+    const controller = new AbortController()
+    const timeout = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 8000)
+
+    setMarketDrivers(null)
+    setMarketDriverLoadState("loading")
+    setMarketDriverUnavailableReason(null)
+
+    void fetch(`/api/market-drivers?symbol=${encodeURIComponent(symbol)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const value = await response.json() as MarketDriverResponse
+        if (!response.ok || value.ok !== true) {
+          throw new Error(value.reason ?? `Market Driver request failed (${response.status})`)
+        }
+        return value
+      })
+      .then((value) => {
+        if (!active || controller.signal.aborted) return
+        const summary = value.summary ?? null
+        setMarketDrivers(summary)
+        setMarketDriverLoadState(summary?.drivers.length ? "ready" : "empty")
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        setMarketDriverLoadState("unavailable")
+        setMarketDriverUnavailableReason(
+          timedOut
+            ? "Market Driver request timed out."
+            : error instanceof Error
+              ? error.message
+              : "Market Driver evidence unavailable.",
+        )
+      })
+      .finally(() => clearTimeout(timeout))
+
+    return () => {
+      active = false
+      clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [symbol])
+
+  useEffect(() => {
+    let active = true
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 3500)
     setHistoricalEvidence(null)
@@ -1558,21 +1817,22 @@ export default function DashboardV1({
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="grid min-w-0 gap-3">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,.8fr)_minmax(0,.8fr)]">
-            <MarketBrief
-              mover={topMover}
-              causes={causes}
-            />
-            <WhyCard causes={causes} />
-            <GuidanceCard mover={topMover} />
-          </div>
-
+          <MarketDirectionPanel
+            data={marketDrivers}
+            state={marketDriverLoadState}
+            reason={marketDriverUnavailableReason}
+          />
+          <WhyMarketMoving data={marketDrivers} state={marketDriverLoadState} />
+          <SupportingEvidence data={marketDrivers} state={marketDriverLoadState} />
           <HistoricalEvidenceStrip data={historicalEvidence} loading={historicalEvidenceLoading} />
+
+          <PredictionMarketsCard data={predictionMarkets} />
+
           <TacticalAlerts alerts={alerts} />
           <WhyThisSignal mover={topMover} causes={causes} futures={futures} marketDirection={marketDirection} />
 
           <div className="grid gap-3 lg:grid-cols-4">
-            <PredictionMarketsCard data={predictionMarkets} />
+            <GuidanceCard mover={topMover} />
             <EtfFlowCard data={etfFlow} />
             <LiquidityConditionsCard futures={futures} />
             <BottomCard title="Narrative Heatmap" icon={<Database className="h-3.5 w-3.5" />}>
