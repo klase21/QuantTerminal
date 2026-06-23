@@ -21,13 +21,13 @@ function isSnapshot(value: unknown): value is TreasurySnapshot {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false
   const snapshot = value as Partial<TreasurySnapshot>
   if (
-    snapshot.schemaVersion !== 1
+    snapshot.schemaVersion !== 2
     || typeof snapshot.snapshotId !== "string"
     || typeof snapshot.holder !== "string"
     || typeof snapshot.holderType !== "string"
     || typeof snapshot.asset !== "string"
     || typeof snapshot.holdings !== "number"
-    || typeof snapshot.timestamp !== "string"
+    || (snapshot.timestamp !== null && typeof snapshot.timestamp !== "string")
     || typeof snapshot.source !== "string"
     || !TREASURY_QUALITIES.includes(snapshot.quality as TreasurySnapshot["quality"])
   ) return false
@@ -39,7 +39,13 @@ function latestSnapshots(snapshots: TreasurySnapshot[]) {
   for (const snapshot of snapshots) {
     const key = `${snapshot.holder.toLowerCase()}:${snapshot.asset}`
     const current = latest.get(key)
-    if (!current || Date.parse(snapshot.timestamp) > Date.parse(current.timestamp)) {
+    const snapshotTime = Date.parse(snapshot.timestamp ?? "")
+    const currentTime = current ? Date.parse(current.timestamp ?? "") : Number.NaN
+    if (
+      !current
+      || (Number.isFinite(snapshotTime) && !Number.isFinite(currentTime))
+      || (Number.isFinite(snapshotTime) && snapshotTime > currentTime)
+    ) {
       latest.set(key, snapshot)
     }
   }
@@ -80,7 +86,7 @@ export async function auditTreasuryCoverage() {
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     auditedAt: new Date().toISOString(),
     readOnly: true,
     status: "PASS",
@@ -89,6 +95,8 @@ export async function auditTreasuryCoverage() {
       recordsIngested: snapshots.length,
       recordsRejected: invalidArtifacts,
       latestHolderAssetPairs: latest.length,
+      verifiedRecords: snapshots.filter((item) => item.quality === "verified").length,
+      partialRecords: snapshots.filter((item) => item.quality === "partial").length,
       coveragePercent: artifacts.length
         ? Number(((snapshots.length / artifacts.length) * 100).toFixed(2))
         : 0,

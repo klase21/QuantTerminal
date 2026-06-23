@@ -1,7 +1,8 @@
-export const TREASURY_SNAPSHOT_SCHEMA_VERSION = 1
+export const TREASURY_SNAPSHOT_SCHEMA_VERSION = 2
 
 export const TREASURY_QUALITIES = [
   "verified",
+  "partial",
   "degraded",
   "unavailable",
   "unknown",
@@ -19,7 +20,7 @@ export interface TreasurySnapshot {
   holdingsValueUsd: number | null
   changeAmount: number | null
   changePercent: number | null
-  timestamp: string
+  timestamp: string | null
   source: string
   quality: TreasuryQuality
   generatedAt: string
@@ -37,7 +38,7 @@ export interface TreasurySourceFile {
     holdingsValueUsd?: number | null
     changeAmount?: number | null
     changePercent?: number | null
-    timestamp: string
+    timestamp: string | null
     quality: TreasuryQuality
     metadata?: Record<string, unknown>
   }>
@@ -51,18 +52,17 @@ export interface TreasuryArtifactMetadata extends Record<string, unknown> {
 export function treasurySnapshotId(input: {
   holder: string
   asset: string
-  timestamp: string
+  timestamp: string | null
 }) {
-  const timestamp = new Date(input.timestamp)
-  if (!Number.isFinite(timestamp.getTime())) {
-    throw new Error("Treasury snapshot timestamp is invalid.")
-  }
   const holder = input.holder.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")
   if (!holder) throw new Error("Treasury holder is invalid.")
+  const timestamp = input.timestamp === null
+    ? "unknown-observation-time"
+    : new Date(input.timestamp).toISOString().replace(/[:.]/g, "-")
   return [
     "treasury-snapshot",
     holder,
     input.asset.trim().toUpperCase(),
-    timestamp.toISOString().replace(/[:.]/g, "-"),
+    timestamp,
   ].join(":")
 }

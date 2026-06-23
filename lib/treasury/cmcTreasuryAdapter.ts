@@ -4,6 +4,9 @@ import {
   type TreasurySourceFile,
 } from "@/core/treasury-intelligence"
 
+export const CMC_DATA_API_TREASURY_URL =
+  "https://api.coinmarketcap.com/data-api/v3/coin-treasury/table?id=1&start=1&limit=1000&sort=holdings&sortType=desc"
+
 export type CmcTreasuryFailureCategory =
   | "unavailable_source"
   | "malformed_record"
@@ -23,6 +26,8 @@ export interface CmcTreasuryAdapterReport {
   recordsReceived: number
   recordsIngested: number
   recordsRejected: number
+  verifiedRecords: number
+  partialRecords: number
   rejectionCounts: Record<CmcTreasuryFailureCategory, number>
   rejections: CmcTreasuryRejection[]
 }
@@ -70,6 +75,7 @@ function recordsFrom(value: unknown): unknown[] {
   if (!isRecord(value)) return []
   if (Array.isArray(value.data)) return value.data
   if (isRecord(value.data)) {
+    if (Array.isArray(value.data.data)) return value.data.data
     for (const key of ["records", "holdings", "companies", "treasuries", "items"]) {
       if (Array.isArray(value.data[key])) return value.data[key]
     }
@@ -91,6 +97,7 @@ function observedTimestamp(record: UnknownRecord, fallback?: string) {
     ?? text(record.last_updated)
     ?? text(record.updated_at)
     ?? text(record.observed_at)
+    ?? text(record.dataAsOf)
     ?? text(fallback)
   return value && Number.isFinite(Date.parse(value))
     ? new Date(value).toISOString()
@@ -109,9 +116,12 @@ export function normalizeCmcTreasuryResponse(input: {
   response: unknown
   endpoint: string
   asset?: string
+  allowResponseTimestampFallback?: boolean
 }): CmcTreasuryAdapterResult {
   const records = recordsFrom(input.response)
-  const fallbackTimestamp = responseTimestamp(input.response)
+  const fallbackTimestamp = input.allowResponseTimestampFallback === false
+    ? undefined
+    : responseTimestamp(input.response)
   const snapshots: TreasurySourceFile["snapshots"] = []
   const rejections: CmcTreasuryRejection[] = []
 
@@ -133,6 +143,7 @@ export function normalizeCmcTreasuryResponse(input: {
       ?? nestedText(value, "company", ["name"])
     const asset = text(value.asset)
       ?? text(value.symbol)
+      ?? text(value.coin)
       ?? nestedText(value, "currency", ["symbol"])
       ?? text(input.asset)
     const holdings = explicitNumber(value, [
@@ -147,7 +158,6 @@ export function normalizeCmcTreasuryResponse(input: {
       !holder && "holder",
       !asset && "asset",
       holdings === undefined && "holdings",
-      !timestamp && "timestamp",
     ].filter(Boolean)
     if (missing.length) {
       rejections.push({
@@ -194,8 +204,9 @@ export function normalizeCmcTreasuryResponse(input: {
       ?? text(value.holder_type)
       ?? text(value.type)
       ?? text(value.entity_type)
+      ?? text(value.companyType)
       ?? "unknown"
-    const recordQuality = quality(value)
+    const recordQuality = timestamp ? quality(value) : "partial"
     snapshots.push({
       holder: holder!,
       holderType,
@@ -204,12 +215,12 @@ export function normalizeCmcTreasuryResponse(input: {
       holdingsValueUsd: holdingsValueUsd ?? null,
       changeAmount: changeAmount ?? null,
       changePercent: changePercent ?? null,
-      timestamp: timestamp!,
+      timestamp,
       quality: holderType === "unknown" && recordQuality === "verified"
         ? "degraded"
         : recordQuality,
       metadata: {
-        adapter: "cmc-treasury-v1",
+        adapter: "cmc-treasury-v2",
         endpoint: input.endpoint,
         providerRecordIndex: index,
       },
@@ -242,6 +253,8 @@ export function normalizeCmcTreasuryResponse(input: {
       recordsReceived: records.length,
       recordsIngested: snapshots.length,
       recordsRejected: rejections.length,
+      verifiedRecords: snapshots.filter((item) => item.quality === "verified").length,
+      partialRecords: snapshots.filter((item) => item.quality === "partial").length,
       rejectionCounts,
       rejections,
     },
@@ -290,6 +303,40 @@ export async function fetchCmcTreasury(input: {
       throw new Error("CMC treasury source returned no records.")
     }
     return result
+  } finally {
+    clearTimeout(timeout)
+    input.signal?.removeEventListener("abort", abort)
+  }
+}
+
+export async function fetchCmcDataApiTreasury(input: {
+  timeoutMs?: number
+  signal?: AbortSignal
+} = {}) {
+  const controller = new AbortController()
+  const timeout = setTimeout(
+    () => controller.abort(new Error("CMC data-api Treasury request timed out.")),
+    input.timeoutMs ?? 10_000,
+  )
+  const abort = () => controller.abort(input.signal?.reason)
+  input.signal?.addEventListener("abort", abort, { once: true })
+  try {
+    const response = await fetch(CMC_DATA_API_TREASURY_URL, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal,
+    })
+    const parsed: unknown = await response.json()
+    const url = new URL(CMC_DATA_API_TREASURY_URL)
+    return {
+      httpStatus: response.status,
+      topLevelKeys: isRecord(parsed) ? Object.keys(parsed) : [],
+      normalized: normalizeCmcTreasuryResponse({
+        response: parsed,
+        endpoint: url.origin + url.pathname,
+        allowResponseTimestampFallback: false,
+      }),
+    }
   } finally {
     clearTimeout(timeout)
     input.signal?.removeEventListener("abort", abort)

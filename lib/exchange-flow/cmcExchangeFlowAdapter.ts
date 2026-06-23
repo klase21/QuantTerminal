@@ -6,6 +6,8 @@ import {
 
 export const DEFAULT_CMC_EXCHANGE_ASSET_ENDPOINT =
   "https://pro-api.coinmarketcap.com/v1/exchange/assets"
+export const CMC_DATA_API_EXCHANGE_FLOW_URL =
+  "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list?convertId=2781&start=1&limit=100&sortBy=exchangeRank&sortType=asc"
 
 export type CmcExchangeFlowFailureCategory =
   | "unavailable_source"
@@ -26,6 +28,8 @@ export interface CmcExchangeFlowAdapterReport {
   recordsReceived: number
   recordsIngested: number
   recordsRejected: number
+  assetLevelRecords: number
+  exchangeLevelRecords: number
   rejectionCounts: Record<CmcExchangeFlowFailureCategory, number>
   rejections: CmcExchangeFlowRejection[]
 }
@@ -73,6 +77,8 @@ function recordExchange(record: UnknownRecord, fallback?: string) {
   const direct = nonEmptyString(record.exchange)
     ?? nonEmptyString(record.exchange_name)
     ?? nonEmptyString(record.exchange_slug)
+    ?? nonEmptyString(record.name)
+    ?? nonEmptyString(record.slug)
   const nested = nestedString(record, "exchange", ["slug", "name", "id"])
   return direct ?? nested ?? nonEmptyString(fallback)
 }
@@ -111,11 +117,11 @@ function responseRecords(value: unknown): unknown[] {
   if (!isRecord(value)) return []
   if (Array.isArray(value.data)) return value.data
   if (isRecord(value.data)) {
-    for (const key of ["records", "assets", "items", "flows"]) {
+    for (const key of ["records", "assets", "items", "flows", "flowList"]) {
       if (Array.isArray(value.data[key])) return value.data[key]
     }
   }
-  for (const key of ["records", "assets", "items", "flows"]) {
+  for (const key of ["records", "assets", "items", "flows", "flowList"]) {
     if (Array.isArray(value[key])) return value[key]
   }
   return []
@@ -157,6 +163,7 @@ export function normalizeCmcExchangeFlowResponse(input: {
       "balance",
       "balance_amount",
       "balanceAmount",
+      "totalAsset",
     ])
     const inflow = explicitNumber(value, [
       "inflow",
@@ -172,33 +179,59 @@ export function normalizeCmcExchangeFlowResponse(input: {
       "netFlow",
       "net_flow",
       "netflow",
+      "netFlow24hUsd",
     ])
 
-    const missing = [
-      !exchange && "exchange",
-      !asset && "asset",
-      holdings === undefined && "holdings",
-      inflow === undefined && "inflow",
-      outflow === undefined && "outflow",
-      !timestamp && "timestamp",
-    ].filter(Boolean)
-    if (missing.length) {
+    const assetLevelComplete = Boolean(
+      exchange
+      && asset
+      && holdings !== undefined
+      && inflow !== undefined
+      && outflow !== undefined
+      && timestamp,
+    )
+    const exchangeLevelComplete = Boolean(
+      exchange
+      && holdings !== undefined
+      && reportedNetFlow !== undefined
+      && timestamp,
+    )
+    if (!assetLevelComplete && !exchangeLevelComplete) {
+      const assetMissing = [
+        !exchange && "exchange",
+        !asset && "asset",
+        holdings === undefined && "holdings",
+        inflow === undefined && "inflow",
+        outflow === undefined && "outflow",
+        !timestamp && "timestamp",
+      ].filter(Boolean)
+      const exchangeMissing = [
+        !exchange && "exchange",
+        holdings === undefined && "totalAssetsUsd",
+        reportedNetFlow === undefined && "netFlow24hUsd",
+        !timestamp && "timestamp",
+      ].filter(Boolean)
       rejections.push({
         index,
         category: "incomplete_data",
-        reason: `Missing required field(s): ${missing.join(", ")}.`,
+        reason: `No usable flow scope. Asset-level missing: ${assetMissing.join(", ")}. Exchange-level missing: ${exchangeMissing.join(", ")}.`,
       })
       return
     }
 
     if (
       !Number.isFinite(holdings)
-      || !Number.isFinite(inflow)
-      || !Number.isFinite(outflow)
       || holdings! < 0
-      || inflow! < 0
-      || outflow! < 0
       || (reportedNetFlow !== undefined && !Number.isFinite(reportedNetFlow))
+      || (
+        assetLevelComplete
+        && (
+          !Number.isFinite(inflow)
+          || !Number.isFinite(outflow)
+          || inflow! < 0
+          || outflow! < 0
+        )
+      )
     ) {
       rejections.push({
         index,
@@ -208,45 +241,68 @@ export function normalizeCmcExchangeFlowResponse(input: {
       return
     }
 
-    const netFlow = inflow! - outflow!
-    if (
-      reportedNetFlow !== undefined
-      && Math.abs(reportedNetFlow - netFlow) > 1e-8
-    ) {
-      rejections.push({
-        index,
-        category: "validation_failure",
-        reason: "Reported net flow does not equal inflow minus outflow.",
-      })
-      return
+    const metadata = {
+      adapter: "cmc-exchange-flow-v2",
+      endpoint: input.endpoint,
+      providerRecordIndex: index,
+      flowInterval: nonEmptyString(value.flow_interval) ?? (
+        "netFlow24hUsd" in value ? "24h" : null
+      ),
     }
-
-    snapshots.push({
-      exchange: exchange!.toLowerCase(),
-      asset: asset!.toUpperCase(),
-      holdings: holdings!,
-      inflow: inflow!,
-      outflow: outflow!,
-      netFlow,
-      timestamp: timestamp!,
-      sourceQuality: recordQuality(value),
-      metadata: {
-        adapter: "cmc-exchange-flow-v1",
-        endpoint: input.endpoint,
-        providerRecordIndex: index,
-        holdingsUnit: nonEmptyString(value.holdings_unit)
-          ?? nonEmptyString(value.balance_unit)
-          ?? "provider_native_asset_units",
-        flowInterval: nonEmptyString(value.flow_interval) ?? null,
-      },
-    })
+    if (assetLevelComplete) {
+      const netFlow = inflow! - outflow!
+      if (
+        reportedNetFlow !== undefined
+        && Math.abs(reportedNetFlow - netFlow) > 1e-8
+      ) {
+        rejections.push({
+          index,
+          category: "validation_failure",
+          reason: "Reported net flow does not equal inflow minus outflow.",
+        })
+        return
+      }
+      snapshots.push({
+        scope: "asset_level",
+        exchange: exchange!.toLowerCase(),
+        asset: asset!.toUpperCase(),
+        holdings: holdings!,
+        inflow: inflow!,
+        outflow: outflow!,
+        netFlow,
+        timestamp: timestamp!,
+        sourceQuality: recordQuality(value),
+        metadata: {
+          ...metadata,
+          holdingsUnit: nonEmptyString(value.holdings_unit)
+            ?? nonEmptyString(value.balance_unit)
+            ?? "provider_native_asset_units",
+        },
+      })
+    } else {
+      snapshots.push({
+        scope: "exchange_level",
+        exchange: exchange!.toLowerCase(),
+        totalAssetsUsd: holdings!,
+        netFlow24hUsd: reportedNetFlow!,
+        timestamp: timestamp!,
+        sourceQuality: recordQuality(value),
+        metadata: {
+          ...metadata,
+          totalAssetsUnit: "USD",
+          netFlowUnit: "USD",
+        },
+      })
+    }
   })
 
   const exchangesDiscovered = [
     ...new Set(snapshots.map((snapshot) => snapshot.exchange)),
   ].sort()
   const assetsDiscovered = [
-    ...new Set(snapshots.map((snapshot) => snapshot.asset)),
+    ...new Set(snapshots.flatMap((snapshot) => (
+      snapshot.scope === "asset_level" ? [snapshot.asset] : []
+    ))),
   ].sort()
   const rejectionCounts: Record<CmcExchangeFlowFailureCategory, number> = {
     unavailable_source: 0,
@@ -268,6 +324,8 @@ export function normalizeCmcExchangeFlowResponse(input: {
       recordsReceived: records.length,
       recordsIngested: snapshots.length,
       recordsRejected: rejections.length,
+      assetLevelRecords: snapshots.filter((item) => item.scope === "asset_level").length,
+      exchangeLevelRecords: snapshots.filter((item) => item.scope === "exchange_level").length,
       rejectionCounts,
       rejections,
     },
@@ -319,6 +377,39 @@ export async function fetchCmcExchangeFlow(input: {
       throw new Error("CMC exchange flow source returned no records.")
     }
     return result
+  } finally {
+    clearTimeout(timeout)
+    input.signal?.removeEventListener("abort", abort)
+  }
+}
+
+export async function fetchCmcDataApiExchangeFlow(input: {
+  timeoutMs?: number
+  signal?: AbortSignal
+} = {}) {
+  const controller = new AbortController()
+  const timeout = setTimeout(
+    () => controller.abort(new Error("CMC data-api exchange flow request timed out.")),
+    input.timeoutMs ?? 10_000,
+  )
+  const abort = () => controller.abort(input.signal?.reason)
+  input.signal?.addEventListener("abort", abort, { once: true })
+  try {
+    const response = await fetch(CMC_DATA_API_EXCHANGE_FLOW_URL, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal,
+    })
+    const parsed: unknown = await response.json()
+    const url = new URL(CMC_DATA_API_EXCHANGE_FLOW_URL)
+    return {
+      httpStatus: response.status,
+      topLevelKeys: isRecord(parsed) ? Object.keys(parsed) : [],
+      normalized: normalizeCmcExchangeFlowResponse({
+        response: parsed,
+        endpoint: url.origin + url.pathname,
+      }),
+    }
   } finally {
     clearTimeout(timeout)
     input.signal?.removeEventListener("abort", abort)

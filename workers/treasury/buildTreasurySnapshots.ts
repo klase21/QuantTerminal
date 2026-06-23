@@ -23,6 +23,14 @@ function argument(name: string) {
   return index >= 0 ? process.argv[index + 1] : undefined
 }
 
+function loadLocalEnvironment() {
+  try {
+    process.loadEnvFile(path.join(process.cwd(), ".env.local"))
+  } catch {
+    // Explicit process environment remains supported when no local file exists.
+  }
+}
+
 export async function buildTreasurySnapshots(input: {
   file?: string
   sourceFile?: unknown
@@ -35,7 +43,7 @@ export async function buildTreasurySnapshots(input: {
       : null
   )
   if (!isTreasurySourceFile(parsed)) {
-    throw new Error("Treasury source file does not match schema version 1.")
+    throw new Error("Treasury source file does not match schema version 2.")
   }
   if (!parsed.snapshots.length) {
     throw new Error("Treasury source contains no complete snapshots.")
@@ -53,7 +61,7 @@ export async function buildTreasurySnapshots(input: {
       holdingsValueUsd: item.holdingsValueUsd ?? null,
       changeAmount: item.changeAmount ?? null,
       changePercent: item.changePercent ?? null,
-      timestamp: new Date(item.timestamp).toISOString(),
+      timestamp: item.timestamp ? new Date(item.timestamp).toISOString() : null,
       source: parsed.source,
       quality: item.holderType?.trim() ? item.quality : (
         item.quality === "verified" ? "degraded" : item.quality
@@ -93,6 +101,7 @@ export async function buildTreasurySnapshots(input: {
 }
 
 async function main() {
+  loadLocalEnvironment()
   const file = argument("file")
   const useCmc = process.argv.includes("--cmc")
   if (!file && !useCmc) {

@@ -16,6 +16,21 @@ export function createTreasurySnapshotArtifact(
   if (!validation.valid) {
     throw new Error(`Invalid Treasury snapshot: ${validation.errors.join(" ")}`)
   }
+  const evidence = {
+    id: `${snapshot.snapshotId}:source`,
+    kind: "market_data" as const,
+    title: `${snapshot.holder} ${snapshot.asset} treasury holdings`,
+    source: snapshot.source,
+    metadata: {
+      holderType: snapshot.holderType,
+      holdings: snapshot.holdings,
+      holdingsValueUsd: snapshot.holdingsValueUsd,
+      changeAmount: snapshot.changeAmount,
+      changePercent: snapshot.changePercent,
+      quality: snapshot.quality,
+    },
+    ...(snapshot.timestamp ? { observedAt: snapshot.timestamp } : {}),
+  }
   return createIntelligenceArtifact({
     id: snapshot.snapshotId,
     type: "treasury_snapshot",
@@ -23,7 +38,7 @@ export function createTreasurySnapshotArtifact(
     summary: `${snapshot.holder} holds ${snapshot.holdings} ${snapshot.asset}.`,
     confidence: 0,
     source: {
-      system: "treasury-intelligence-v1",
+      system: "treasury-intelligence-v2",
       producerVersion: String(snapshot.schemaVersion),
       dataset: snapshot.source,
     },
@@ -35,21 +50,7 @@ export function createTreasurySnapshotArtifact(
       coverageStatus: snapshot.quality === "verified" ? "FULL" : "PARTIAL",
       reason: `Treasury source quality is ${snapshot.quality}.`,
     }),
-    supportingEvidence: [{
-      id: `${snapshot.snapshotId}:source`,
-      kind: "market_data",
-      title: `${snapshot.holder} ${snapshot.asset} treasury holdings`,
-      observedAt: snapshot.timestamp,
-      source: snapshot.source,
-      metadata: {
-        holderType: snapshot.holderType,
-        holdings: snapshot.holdings,
-        holdingsValueUsd: snapshot.holdingsValueUsd,
-        changeAmount: snapshot.changeAmount,
-        changePercent: snapshot.changePercent,
-        quality: snapshot.quality,
-      },
-    }],
+    supportingEvidence: [evidence],
     metadata: {
       confidenceStatus: "not_calibrated",
       snapshot,

@@ -280,7 +280,7 @@ function etfDriver(artifact: IntelligenceArtifact): MarketDriver | null {
 
 function exchangeFlowDriver(artifact: IntelligenceArtifact): MarketDriver | null {
   const snapshot = (artifact.metadata as Partial<ExchangeFlowArtifactMetadata>).snapshot
-  if (!snapshot || !finite(snapshot.netFlow)) return null
+  if (!snapshot || snapshot.scope !== "asset_level" || !finite(snapshot.netFlow)) return null
   const ratio = snapshot.holdings > 0
     ? Math.abs(snapshot.netFlow) / snapshot.holdings
     : null

@@ -38,7 +38,12 @@ export function validateTreasurySnapshot(snapshot: TreasurySnapshot) {
   if (!finiteOrNull(snapshot.changePercent)) {
     errors.push("changePercent must be null or finite.")
   }
-  if (!validDate(snapshot.timestamp)) errors.push("timestamp must be a valid date.")
+  if (snapshot.timestamp !== null && !validDate(snapshot.timestamp)) {
+    errors.push("timestamp must be null or a valid date.")
+  }
+  if (snapshot.timestamp === null && snapshot.quality === "verified") {
+    errors.push("verified Treasury snapshots require a timestamp.")
+  }
   if (!validDate(snapshot.generatedAt)) errors.push("generatedAt must be a valid date.")
   if (!snapshot.source?.trim()) errors.push("source is required.")
   if (!TREASURY_QUALITIES.includes(snapshot.quality)) errors.push("quality is invalid.")
@@ -65,7 +70,8 @@ export function isTreasurySourceFile(value: unknown): value is TreasurySourceFil
       )
       && (snapshot.changeAmount === undefined || finiteOrNull(snapshot.changeAmount))
       && (snapshot.changePercent === undefined || finiteOrNull(snapshot.changePercent))
-      && validDate(snapshot.timestamp)
+      && (snapshot.timestamp === null || validDate(snapshot.timestamp))
+      && !(snapshot.timestamp === null && snapshot.quality === "verified")
       && TREASURY_QUALITIES.includes(snapshot.quality as TreasurySnapshot["quality"])
     ))
   )
