@@ -14,6 +14,7 @@ export type IntelligenceArtifactType =
   | "market_memory"
   | "exchange_flow"
   | "treasury_snapshot"
+  | "etf_snapshot"
   | `custom:${string}`
 
 export type IntelligenceArtifactStatus = "active" | "expired" | "archived"
