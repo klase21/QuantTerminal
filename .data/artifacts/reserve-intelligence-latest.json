@@ -353,7 +353,7 @@
     "timeframe": "1h",
     "partitionKey": "reserve-intelligence/binance/1h/latest",
     "source": "reserve-intelligence-v1",
-    "generatedAt": "2026-06-23T23:42:01.596Z",
+    "generatedAt": "2026-06-24T11:04:05.607Z",
     "observedAt": "2026-06-23T23:05:58.000Z",
     "sourceHash": "3b566d45a309b8c2233deebfd7b7b9e836f38766e33bd0e98d18661a5e3088e5",
     "recordCount": 341,
