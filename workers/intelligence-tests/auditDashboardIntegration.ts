@@ -15,15 +15,24 @@ const API_FILE = path.join(
   "market-drivers",
   "route.ts",
 )
+const RESERVE_API_FILE = path.join(
+  process.cwd(),
+  "app",
+  "api",
+  "dashboard",
+  "reserve-intelligence",
+  "route.ts",
+)
 
 function position(source: string, marker: string) {
   return source.indexOf(marker)
 }
 
 export async function auditDashboardIntegration() {
-  const [dashboard, api] = await Promise.all([
+  const [dashboard, api, reserveApi] = await Promise.all([
     readFile(DASHBOARD_FILE, "utf8"),
     readFile(API_FILE, "utf8"),
+    readFile(RESERVE_API_FILE, "utf8"),
   ])
   const direction = position(dashboard, "<MarketDirectionPanel")
   const drivers = position(dashboard, "<WhyMarketMoving")
@@ -46,6 +55,11 @@ export async function auditDashboardIntegration() {
     marketDriverApiConnected: (
       dashboard.includes("/api/market-drivers?symbol=")
       && api.includes("buildMarketDrivers")
+    ),
+    reserveIntelligenceConnected: (
+      dashboard.includes("/api/dashboard/reserve-intelligence?symbol=")
+      && dashboard.includes("Reserve Intelligence")
+      && reserveApi.includes("reserve-intelligence-latest.json")
     ),
     loadingStatePresent: dashboard.includes("Loading Market Direction"),
     emptyStatePresent: dashboard.includes("No Market Driver Evidence"),
