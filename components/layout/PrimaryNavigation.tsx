@@ -5,8 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { BarChart3, Database, Gauge, History, Radar, Search, Settings, SlidersHorizontal, ClipboardCheck } from "lucide-react"
 import { Suspense, type ReactNode } from "react"
 
-import { buildInvestigationHref, createInvestigationContext, readInvestigationContext } from "@/lib/investigation/context"
-import { withInvestigationThesisView } from "@/lib/investigation/thesis"
+import { createInvestigationContext, readInvestigationContext } from "@/lib/investigation/context"
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge, active: true },
@@ -26,6 +25,7 @@ function navClass(active: boolean, selected: boolean) {
 }
 
 const CONTEXT_ROUTES = new Set(["/dashboard", "/research", "/historical-intelligence", "/replay"])
+const NAVIGATION_CONTEXT_TIMESTAMP = "1970-01-01T00:00:00.000Z"
 
 function TerminalAppShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname()
@@ -36,6 +36,7 @@ function TerminalAppShellContent({ children }: { children: ReactNode }) {
       symbol: "BTCUSDT",
       exchange: "binance_futures",
       timeframe: "1h",
+      investigationTimestamp: NAVIGATION_CONTEXT_TIMESTAMP,
       investigationType: pathname === "/replay" ? "replay" : pathname === "/historical-intelligence" ? "historical_analog" : "market_state",
       source: pathname.slice(1) || "dashboard",
     }),
@@ -49,12 +50,15 @@ function TerminalAppShellContent({ children }: { children: ReactNode }) {
         : href === "/research"
           ? context.investigationType
           : "market_state"
-    return buildInvestigationHref(href, {
-      ...context,
-      investigationType,
-      source: pathname.slice(1) || "dashboard",
-      thesis: withInvestigationThesisView(context.thesis, href.slice(1) || "dashboard"),
+    const params = new URLSearchParams({
+      symbol: context.symbol,
+      exchange: context.exchange,
+      timeframe: context.timeframe,
+      investigation: investigationType,
+      source: href.slice(1) || "dashboard",
     })
+
+    return `${href}?${params.toString()}`
   }
 
   return (

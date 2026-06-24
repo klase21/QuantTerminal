@@ -18,8 +18,38 @@ import GlobalTacticalContextBridge from "@/components/context/GlobalTacticalCont
 
 import AlertCenter from "@/components/AlertCenter";
 import DashboardV1 from "@/components/product/DashboardV1";
-import { buildInvestigationHref, createInvestigationContext, readInvestigationContext, toHistoricalTimeframe } from "@/lib/investigation/context";
+import { createInvestigationContext, readInvestigationContext, toHistoricalTimeframe } from "@/lib/investigation/context";
 import { createInvestigationThesis, withInvestigationThesisView } from "@/lib/investigation/thesis";
+
+const FALLBACK_INVESTIGATION_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+
+function stableTimestamp(value?: string | null) {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+}
+
+function buildStableDashboardHref(
+  pathname: string,
+  input: {
+    symbol: string;
+    exchange: string;
+    timeframe: string;
+    timestamp: string | null;
+  },
+) {
+  const params = new URLSearchParams({
+    symbol: input.symbol,
+    exchange: input.exchange,
+    timeframe: input.timeframe,
+    investigation: "market_state",
+    source: "dashboard",
+  });
+
+  if (input.timestamp) params.set("timestamp", input.timestamp);
+
+  return `${pathname}?${params.toString()}`;
+}
 
 export default function DashboardLayout() {
   useMarketSocket();
@@ -54,10 +84,12 @@ export default function DashboardLayout() {
     liquidations,
   });
 
+  const stableUrlTimestamp = stableTimestamp(searchParams.get("timestamp"));
+
   const investigationContext = useMemo(
     () => {
-      const investigationTimestamp = new Date().toISOString();
       const timeframe = toHistoricalTimeframe(route.timeframe);
+      const investigationTimestamp = stableUrlTimestamp ?? FALLBACK_INVESTIGATION_TIMESTAMP;
       const fallback = createInvestigationContext({
         symbol,
         exchange: route.venue === "BINANCE_SPOT" ? "binance_spot" : "binance_futures",
@@ -81,15 +113,20 @@ export default function DashboardLayout() {
         thesis: withInvestigationThesisView(incoming.thesis, "dashboard"),
       };
     },
-    [route.timeframe, route.venue, searchParams, symbol],
+    [route.timeframe, route.venue, searchParams, stableUrlTimestamp, symbol],
   );
 
   useEffect(() => {
-    const href = buildInvestigationHref(pathname, investigationContext);
+    const href = buildStableDashboardHref(pathname, {
+      symbol: investigationContext.symbol,
+      exchange: investigationContext.exchange,
+      timeframe: investigationContext.timeframe,
+      timestamp: stableUrlTimestamp,
+    });
     if (`${window.location.pathname}${window.location.search}` !== href) {
       router.replace(href, { scroll: false });
     }
-  }, [investigationContext, pathname, router]);
+  }, [investigationContext.exchange, investigationContext.symbol, investigationContext.timeframe, pathname, router, stableUrlTimestamp]);
 
   return (
     <div className="min-h-screen bg-black text-white">
