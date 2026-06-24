@@ -34,6 +34,11 @@ import type {
   ExchangeReserveDeltaArtifactMetadata,
 } from "@/core/exchange-reserve-delta"
 import type {
+  DeployableReserveIntelligenceObservation,
+  ReserveIntelligenceArtifactMetadata,
+  ReserveIntelligenceObservation,
+} from "@/core/reserve-intelligence"
+import type {
   ExchangeFlowArtifactMetadata,
   ExchangeFlowSnapshot,
 } from "@/core/exchange-flow"
@@ -194,7 +199,7 @@ function coverageEntries(input: {
     Markets: ["OHLCV", "funding", "open_interest", "liquidation"],
     Research: ["OHLCV", "ETF", "exchange_flow", "exchange_reserve", "treasury", "market_drivers"],
     Replay: ["OHLCV", "funding", "open_interest", "liquidation"],
-    "Historical Intelligence": ["OHLCV", "exchange_reserve_delta", "market_drivers"],
+    "Historical Intelligence": ["OHLCV", "exchange_reserve_delta", "reserve_intelligence", "market_drivers"],
   }
   return DEPLOYABLE_COVERAGE_SURFACES.flatMap((surface) => (
     relevant[surface].map((type) => {
@@ -231,6 +236,7 @@ function artifactName(type: DeployableCoverageType) {
     exchange_flow: "exchange-flow-latest.json",
     exchange_reserve: "exchange-reserve-latest.json",
     exchange_reserve_delta: "exchange-reserve-delta-latest.json",
+    reserve_intelligence: "reserve-intelligence-latest.json",
     treasury: "treasury-latest.json",
   }
   return names[type] ?? null
@@ -311,6 +317,39 @@ export async function buildDeployableSnapshots() {
       balanceDeltaPct: item.balanceDeltaPct,
       balanceUsdDelta: item.balanceUsdDelta,
       status: item.status,
+      reason: item.reason,
+    }))
+  const reserveIntelligence = latestBy(
+    artifactSnapshots<ReserveIntelligenceObservation>(
+      artifacts,
+      "reserve_intelligence",
+      (artifact) => (
+        artifact.metadata as Partial<ReserveIntelligenceArtifactMetadata>
+      ).observation,
+    ),
+    (item) => item.asset,
+    (item) => item.currentObservedAt,
+  )
+  const deployableReserveIntelligence: DeployableReserveIntelligenceObservation[] =
+    reserveIntelligence.map((item) => ({
+      exchange: item.exchange,
+      asset: item.asset,
+      classification: item.classification,
+      observationType: item.observationType,
+      currentBalance: item.currentBalance,
+      currentBalanceUsd: item.currentBalanceUsd,
+      currentObservedAt: item.currentObservedAt,
+      previousObservedAt: item.previousObservedAt,
+      quantityChange: item.quantityChange,
+      absoluteChange: item.absoluteChange,
+      percentageChange: item.percentageChange,
+      balanceUsdChange: item.balanceUsdChange,
+      trendAvailability: {
+        oneDay: item.trends.some((trend) => trend.horizon === "1d" && trend.status === "available"),
+        sevenDay: item.trends.some((trend) => trend.horizon === "7d" && trend.status === "available"),
+        thirtyDay: item.trends.some((trend) => trend.horizon === "30d" && trend.status === "available"),
+      },
+      quality: item.quality,
       reason: item.reason,
     }))
   const treasury = latestBy(
@@ -505,6 +544,29 @@ export async function buildDeployableSnapshots() {
     reason: availableReserveDeltas.length
       ? undefined
       : "Reserve delta unavailable: no previous reserve snapshot exists.",
+  }))
+  const verifiedReserveIntelligence = reserveIntelligence.filter((item) => item.quality === "verified")
+  deployable.set("reserve_intelligence", snapshot({
+    id: "reserve-intelligence-latest",
+    artifactType: "reserve_intelligence",
+    scope: {
+      kind: "multi_symbol",
+      assets: reserveIntelligence.map((item) => item.asset),
+      exchange: "binance",
+    },
+    timeframe: "1h",
+    partitionKey: "reserve-intelligence/binance/1h/latest",
+    source: "reserve-intelligence-v1",
+    generatedAt,
+    observedAt: latestTimestamp(reserveIntelligence.map((item) => item.currentObservedAt)),
+    coverage: verifiedReserveIntelligence.length
+      ? coverage(verifiedReserveIntelligence.length, reserveIntelligence.length)
+      : "unavailable",
+    data: deployableReserveIntelligence,
+    recordCount: deployableReserveIntelligence.length,
+    reason: verifiedReserveIntelligence.length
+      ? undefined
+      : "Reserve intelligence unavailable: no usable reserve deltas exist.",
   }))
   deployable.set("treasury", snapshot({
     id: "treasury-latest",

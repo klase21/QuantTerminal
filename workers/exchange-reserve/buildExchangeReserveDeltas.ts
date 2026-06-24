@@ -17,12 +17,21 @@ import {
   FileBackedIntelligenceArtifactRegistry,
 } from "@/lib/intelligence-artifacts/fileBackedArtifactRegistry"
 import { buildDeployableSnapshots } from "@/workers/data-snapshots/buildDeployableSnapshots"
+import {
+  resolveHistoricalSnapshots,
+} from "@/core/historical-snapshots"
 
 interface AssetAggregate {
   asset: string
   observedAt: string
   balance: number
   balanceUsd: number
+}
+
+interface AggregateSourceReport {
+  durableSnapshotArtifacts: number
+  retainedHistorySnapshots: number
+  aggregateObservations: number
 }
 
 function reserveSnapshots(
@@ -51,6 +60,52 @@ function aggregateByAssetAndTime(snapshots: ExchangeReserveSnapshot[]) {
     })
   }
   return [...aggregates.values()]
+}
+
+function historicalReserveAggregates(
+  envelopes: Awaited<ReturnType<typeof resolveHistoricalSnapshots>>,
+) {
+  const aggregates = new Map<string, AssetAggregate>()
+  for (const envelope of envelopes.snapshots) {
+    const snapshot = envelope.data as {
+      data?: unknown
+    }
+    const records = Array.isArray(snapshot.data) ? snapshot.data : []
+    for (const value of records) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue
+      const record = value as Partial<{
+        asset: string
+        balance: number
+        balanceUsd: number
+        updateTime: string
+      }>
+      if (
+        typeof record.asset !== "string"
+        || typeof record.balance !== "number"
+        || typeof record.balanceUsd !== "number"
+        || typeof record.updateTime !== "string"
+        || !Number.isFinite(Date.parse(record.updateTime))
+      ) continue
+      const key = `${record.asset}:${record.updateTime}`
+      const current = aggregates.get(key)
+      aggregates.set(key, {
+        asset: record.asset,
+        observedAt: record.updateTime,
+        balance: (current?.balance ?? 0) + record.balance,
+        balanceUsd: (current?.balanceUsd ?? 0) + record.balanceUsd,
+      })
+    }
+  }
+  return [...aggregates.values()]
+}
+
+function mergeAggregates(values: AssetAggregate[]) {
+  const merged = new Map<string, AssetAggregate>()
+  for (const item of values) {
+    const key = `${item.asset}:${item.observedAt}`
+    if (!merged.has(key)) merged.set(key, item)
+  }
+  return [...merged.values()]
 }
 
 function buildDelta(
@@ -112,11 +167,22 @@ export async function buildExchangeReserveDeltas(input: {
   const snapshots = reserveSnapshots(
     await registry.listByType("exchange_reserve_snapshot"),
   )
-  if (!snapshots.length) {
+  const history = await resolveHistoricalSnapshots({ dataset: "exchange-reserve" })
+  if (!snapshots.length && !history.snapshots.length) {
     throw new Error("No durable Binance reserve snapshots are available.")
   }
   const generatedAt = new Date().toISOString()
-  const aggregates = aggregateByAssetAndTime(snapshots)
+  const durableAggregates = aggregateByAssetAndTime(snapshots)
+  const retainedAggregates = historicalReserveAggregates(history)
+  const aggregates = mergeAggregates([
+    ...durableAggregates,
+    ...retainedAggregates,
+  ])
+  const aggregateSources: AggregateSourceReport = {
+    durableSnapshotArtifacts: snapshots.length,
+    retainedHistorySnapshots: history.snapshots.length,
+    aggregateObservations: aggregates.length,
+  }
   const assets = [...new Set(aggregates.map((item) => item.asset))].sort()
   const deltas = assets.map((asset) => {
     const history = aggregates
@@ -136,7 +202,9 @@ export async function buildExchangeReserveDeltas(input: {
   return {
     generatedAt,
     snapshotsRead: snapshots.length,
-    distinctObservationTimes: [...new Set(snapshots.map((item) => item.updateTime))].length,
+    retainedHistorySnapshots: history.snapshots.length,
+    distinctObservationTimes: [...new Set(aggregates.map((item) => item.observedAt))].length,
+    aggregateSources,
     assetsEvaluated: deltas.length,
     availableDeltas: available.length,
     unavailableDeltas: deltas.length - available.length,

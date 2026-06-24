@@ -30,8 +30,12 @@ const EXPECTED_FILES = [
   "exchange-flow-latest.json",
   "exchange-reserve-latest.json",
   "exchange-reserve-delta-latest.json",
+  "reserve-intelligence-latest.json",
   "treasury-latest.json",
   "coverage-index.json",
+]
+const EXPECTED_DIRECTORIES = [
+  "history",
 ]
 
 function isCoverageIndex(value: unknown): value is DeployableCoverageIndex {
@@ -86,8 +90,13 @@ export async function auditDeployableSnapshots() {
     names = []
   }
   const unexpectedFiles = names.filter((name) => (
-    !EXPECTED_FILES.includes(name) || path.extname(name).toLowerCase() !== ".json"
-  ))
+    !EXPECTED_FILES.includes(name)
+    && !EXPECTED_DIRECTORIES.includes(name)
+  )).concat(
+    names
+      .filter((name) => EXPECTED_FILES.includes(name))
+      .filter((name) => path.extname(name).toLowerCase() !== ".json"),
+  )
   const missingFiles = EXPECTED_FILES.filter((name) => !names.includes(name))
   const artifacts = []
   const invalidFiles: string[] = []

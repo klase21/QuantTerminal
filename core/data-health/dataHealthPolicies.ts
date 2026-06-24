@@ -14,6 +14,7 @@ export const DATA_FRESHNESS_POLICIES: Readonly<
   exchange_flow: HOUR,
   exchange_reserve: HOUR,
   exchange_reserve_delta: HOUR,
+  reserve_intelligence: HOUR,
   treasury: 24 * HOUR,
   coverage_index: 15 * MINUTE,
 }

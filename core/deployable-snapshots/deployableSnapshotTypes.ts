@@ -31,6 +31,7 @@ export const DEPLOYABLE_COVERAGE_TYPES = [
   "exchange_flow",
   "exchange_reserve",
   "exchange_reserve_delta",
+  "reserve_intelligence",
   "treasury",
   "market_drivers",
 ] as const

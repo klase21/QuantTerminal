@@ -18,6 +18,7 @@ export const STANDARD_ARTIFACT_TYPES = [
   "exchange_flow",
   "exchange_reserve",
   "exchange_reserve_delta",
+  "reserve_intelligence",
   "treasury",
   "coverage_index",
 ] as const

@@ -15,6 +15,9 @@ import {
 import {
   FileBackedIntelligenceArtifactRegistry,
 } from "@/lib/intelligence-artifacts/fileBackedArtifactRegistry"
+import {
+  retainLatestDeployableSnapshot,
+} from "@/core/historical-snapshots"
 
 export async function buildExchangeReserveSnapshots(input: {
   artifactRoot?: string
@@ -57,6 +60,12 @@ export async function buildExchangeReserveSnapshots(input: {
   const deployableSnapshots = input.artifactRoot
     ? null
     : await buildDeployableSnapshots()
+  const historicalRetention = input.artifactRoot
+    ? null
+    : await retainLatestDeployableSnapshot({
+        dataset: "exchange-reserve",
+        artifactFile: "exchange-reserve-latest.json",
+      })
   return {
     source: adapted.sourceFile.source,
     generatedAt,
@@ -72,6 +81,7 @@ export async function buildExchangeReserveSnapshots(input: {
       .sort((left, right) => right.balanceUsd - left.balanceUsd)
       .slice(0, 20),
     deployableSnapshots,
+    historicalRetention,
   }
 }
 

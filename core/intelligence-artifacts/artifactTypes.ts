@@ -15,6 +15,7 @@ export type IntelligenceArtifactType =
   | "exchange_flow"
   | "exchange_reserve_snapshot"
   | "exchange_reserve_delta"
+  | "reserve_intelligence"
   | "treasury_snapshot"
   | "etf_snapshot"
   | `custom:${string}`
