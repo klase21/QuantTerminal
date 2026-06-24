@@ -14,9 +14,9 @@
     "timeframe": "1h",
     "partitionKey": "open-interest/multi/1h/latest",
     "source": "binance-futures-open-interest-history",
-    "generatedAt": "2026-06-23T06:44:38.617Z",
-    "observedAt": "2026-06-23T06:40:00.000Z",
-    "sourceHash": "aa463056cc865b67942b4e2c6352073d33153e1ce32bf55c9d2b721cc93e459d",
+    "generatedAt": "2026-06-24T11:04:05.607Z",
+    "observedAt": "2026-06-24T11:00:00.000Z",
+    "sourceHash": "6a0a66128fe1e3a3512d44d9b046698264441e1f7c51303a126f10eff72ce453",
     "recordCount": 2,
     "payloadSizeBytes": 1124,
     "freshness": "current",
@@ -26,14 +26,14 @@
   "data": [
     {
       "symbol": "BTCUSDT",
-      "changePercent": -0.8328673762301089,
-      "observedAt": "2026-06-23T06:40:00.000Z",
+      "changePercent": 0.01240250163179311,
+      "observedAt": "2026-06-24T11:00:00.000Z",
       "source": "binance-futures-open-interest-history"
     },
     {
       "symbol": "ETHUSDT",
-      "changePercent": 0.06447725580846257,
-      "observedAt": "2026-06-23T06:40:00.000Z",
+      "changePercent": 0.03416797464672103,
+      "observedAt": "2026-06-24T11:00:00.000Z",
       "source": "binance-futures-open-interest-history"
     }
   ]

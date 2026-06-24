@@ -14,9 +14,9 @@
     "timeframe": "1h",
     "partitionKey": "funding/multi/1h/latest",
     "source": "binance-futures-premium-index",
-    "generatedAt": "2026-06-23T06:44:38.617Z",
-    "observedAt": "2026-06-23T06:44:39.000Z",
-    "sourceHash": "dcd21838608bfa659770ef556f58bf4939fa5e896d97605732b94f3e8d677e18",
+    "generatedAt": "2026-06-24T11:04:05.607Z",
+    "observedAt": "2026-06-24T11:04:09.000Z",
+    "sourceHash": "3a067b09fad8fced5a9bd3cf08b5e888ae0c935dade4ed964aaafb623c97ff2c",
     "recordCount": 2,
     "payloadSizeBytes": 1060,
     "freshness": "current",
@@ -26,14 +26,14 @@
   "data": [
     {
       "symbol": "BTCUSDT",
-      "fundingRate": 0.00002257,
-      "observedAt": "2026-06-23T06:44:39.000Z",
+      "fundingRate": 0.00003726,
+      "observedAt": "2026-06-24T11:04:09.000Z",
       "source": "binance-futures-premium-index"
     },
     {
       "symbol": "ETHUSDT",
-      "fundingRate": 0.00003465,
-      "observedAt": "2026-06-23T06:44:39.000Z",
+      "fundingRate": 0.00004284,
+      "observedAt": "2026-06-24T11:04:09.000Z",
       "source": "binance-futures-premium-index"
     }
   ]

@@ -14,11 +14,11 @@
     "timeframe": "1d",
     "partitionKey": "market-driver/multi/1d/latest",
     "source": "market-driver-engine-v2",
-    "generatedAt": "2026-06-23T06:44:38.617Z",
-    "observedAt": "2026-06-23T06:44:39.000Z",
-    "sourceHash": "d6e584d044a5f4c969c9fbf75711c554eeb5e3bd1dd8f7f7e779c076ef34f1cb",
+    "generatedAt": "2026-06-24T11:04:05.607Z",
+    "observedAt": "2026-06-24T11:04:09.000Z",
+    "sourceHash": "edc0bfa8fc3f2523a9d4a9cce3293a70b7cf5d0548486f8db9fd417915e6a1d7",
     "recordCount": 2,
-    "payloadSizeBytes": 7472,
+    "payloadSizeBytes": 7493,
     "freshness": "current",
     "coverage": "full",
     "storageClass": "deployable_snapshot"
@@ -27,7 +27,7 @@
     {
       "schemaVersion": 2,
       "symbol": "BTCUSDT",
-      "timestamp": "2026-06-23T06:44:39.000Z",
+      "timestamp": "2026-06-24T11:04:09.000Z",
       "marketDirection": "positive",
       "confidence": 48.75,
       "drivers": [
@@ -52,28 +52,13 @@
           "evidence": {
             "sourceArtifactId": "binance-current-funding:BTCUSDT",
             "source": "binance-futures-premium-index",
-            "observedAt": "2026-06-23T06:44:39.000Z",
-            "value": 0.00002257,
+            "observedAt": "2026-06-24T11:04:09.000Z",
+            "value": 0.00003726,
             "unit": "rate",
             "direction": "positive",
-            "summary": "Current Binance Futures funding rate was 0.00002257."
+            "summary": "Current Binance Futures funding rate was 0.00003726."
           },
-          "impactScore": 22.57,
-          "quality": "verified"
-        },
-        {
-          "category": "open_interest",
-          "title": "BTCUSDT open interest and price",
-          "evidence": {
-            "sourceArtifactId": "binance-current-open-interest:BTCUSDT",
-            "source": "binance-futures-open-interest-history",
-            "observedAt": "2026-06-23T06:40:00.000Z",
-            "value": -0.8328673762301089,
-            "unit": "percent change",
-            "direction": "neutral",
-            "summary": "Open interest changed -0.8329% while price changed 0.2802% over the sampled 5m observations."
-          },
-          "impactScore": 19.46,
+          "impactScore": 37.26,
           "quality": "verified"
         },
         {
@@ -105,14 +90,29 @@
           },
           "impactScore": 2.02,
           "quality": "unknown"
+        },
+        {
+          "category": "open_interest",
+          "title": "BTCUSDT open interest and price",
+          "evidence": {
+            "sourceArtifactId": "binance-current-open-interest:BTCUSDT",
+            "source": "binance-futures-open-interest-history",
+            "observedAt": "2026-06-24T11:00:00.000Z",
+            "value": 0.01240250163179311,
+            "unit": "percent change",
+            "direction": "negative",
+            "summary": "Open interest changed 0.0124% while price changed -0.1735% over the sampled 5m observations."
+          },
+          "impactScore": 1.98,
+          "quality": "verified"
         }
       ],
       "availableCategories": [
         "etf",
         "funding",
-        "open_interest",
         "historical_analog",
-        "event_impact"
+        "event_impact",
+        "open_interest"
       ],
       "missingCategories": [
         "liquidation",
@@ -120,6 +120,7 @@
         "treasury"
       ],
       "staleCategories": [
+        "treasury",
         "liquidation"
       ],
       "quality": "degraded"
@@ -127,7 +128,7 @@
     {
       "schemaVersion": 2,
       "symbol": "ETHUSDT",
-      "timestamp": "2026-06-23T06:44:39.000Z",
+      "timestamp": "2026-06-24T11:04:09.000Z",
       "marketDirection": "positive",
       "confidence": 48.75,
       "drivers": [
@@ -152,13 +153,13 @@
           "evidence": {
             "sourceArtifactId": "binance-current-funding:ETHUSDT",
             "source": "binance-futures-premium-index",
-            "observedAt": "2026-06-23T06:44:39.000Z",
-            "value": 0.00003465,
+            "observedAt": "2026-06-24T11:04:09.000Z",
+            "value": 0.00004284,
             "unit": "rate",
             "direction": "positive",
-            "summary": "Current Binance Futures funding rate was 0.00003465."
+            "summary": "Current Binance Futures funding rate was 0.00004284."
           },
-          "impactScore": 34.65,
+          "impactScore": 42.84,
           "quality": "verified"
         },
         {
@@ -197,13 +198,13 @@
           "evidence": {
             "sourceArtifactId": "binance-current-open-interest:ETHUSDT",
             "source": "binance-futures-open-interest-history",
-            "observedAt": "2026-06-23T06:40:00.000Z",
-            "value": 0.06447725580846257,
+            "observedAt": "2026-06-24T11:00:00.000Z",
+            "value": 0.03416797464672103,
             "unit": "percent change",
-            "direction": "positive",
-            "summary": "Open interest changed 0.0645% while price changed 0.1743% over the sampled 5m observations."
+            "direction": "negative",
+            "summary": "Open interest changed 0.0342% while price changed -0.0685% over the sampled 5m observations."
           },
-          "impactScore": 3.03,
+          "impactScore": 1.37,
           "quality": "verified"
         }
       ],
