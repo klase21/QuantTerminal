@@ -9,16 +9,1256 @@
     },
     "timeframe": "1d",
     "partitionKey": "exchange-flow/multi/1d/latest",
-    "source": "unavailable",
-    "generatedAt": "2026-06-23T06:44:38.617Z",
-    "observedAt": null,
-    "sourceHash": "5562935ea15fea4c488b930dee60703b1b28491f88a9ed9be98ff0fc6fc7e4fb",
-    "recordCount": 0,
-    "payloadSizeBytes": 690,
-    "freshness": "missing",
-    "coverage": "unavailable",
-    "storageClass": "deployable_snapshot",
-    "reason": "No prepared Exchange Flow artifacts are available."
+    "source": "coinmarketcap-compatible-exchange-assets",
+    "generatedAt": "2026-06-24T11:04:05.607Z",
+    "observedAt": "2026-06-24T11:03:52.978Z",
+    "sourceHash": "3b3718874a591b5278c0020bed88a76b6e46b6662c46359a8165b157e67a9f8e",
+    "recordCount": 62,
+    "payloadSizeBytes": 46675,
+    "freshness": "current",
+    "coverage": "full",
+    "storageClass": "deployable_snapshot"
   },
-  "data": []
+  "data": [
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:aivora exchange:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "aivora exchange",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 61,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 33588967.45,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:allinx:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "allinx",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 60,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 91876116.41,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:backpack exchange:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "backpack exchange",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 46,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 84334306.84,
+      "netFlow24hUsd": -3913393.31
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:biconomy.com:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "biconomy.com",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 21,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 181698828.37,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bigone:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bigone",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 30,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 305426993.03,
+      "netFlow24hUsd": -1035865.07
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:binance:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "binance",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 0,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 135945968903.27,
+      "netFlow24hUsd": -239624036.83
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bingx:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bingx",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 10,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 919346762.31,
+      "netFlow24hUsd": 987363.23
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitbaby:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitbaby",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 55,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 8378915.63,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitfinex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitfinex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 9,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 16980172835.71,
+      "netFlow24hUsd": 52830276.38
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitget:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitget",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 3,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 6404198307.03,
+      "netFlow24hUsd": 47312258.93
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitkub:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitkub",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 41,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 1382557845.82,
+      "netFlow24hUsd": -2450650.17
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitmart:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitmart",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 11,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 159524796.79,
+      "netFlow24hUsd": -792714.3
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitmex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitmex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 44,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 993498221.79,
+      "netFlow24hUsd": -1136107.68
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitrue:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitrue",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 40,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 161850199.43,
+      "netFlow24hUsd": -664625.95
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitstamp by robinhood:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitstamp by robinhood",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 13,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 2200018938.56,
+      "netFlow24hUsd": 5116639.33
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bittap:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bittap",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 56,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 272511447.46,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bitunix:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bitunix",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 26,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 186597828.29,
+      "netFlow24hUsd": 195123.64
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:blofin:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "blofin",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 34,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 48577439.04,
+      "netFlow24hUsd": -44319.89
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:btse:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "btse",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 43,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 1247349.74,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bvox:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bvox",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 27,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 75280634.69,
+      "netFlow24hUsd": 33213230.37
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bybit:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bybit",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 2,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 11988244667.82,
+      "netFlow24hUsd": -7251835.54
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:bydfi:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "bydfi",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 53,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 69111601.06,
+      "netFlow24hUsd": -4672.49
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:coinchief:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "coinchief",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 39,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 72666456.62,
+      "netFlow24hUsd": 115103.72
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:coindcx:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "coindcx",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 54,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 36696886.36,
+      "netFlow24hUsd": 515.56
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:coinex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "coinex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 22,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 167803471.15,
+      "netFlow24hUsd": -2001549.76
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:coinup.io:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "coinup.io",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 32,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 2038367544.62,
+      "netFlow24hUsd": -50432955.41
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:coinw:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "coinw",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 19,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 24647294.4,
+      "netFlow24hUsd": -65645.74
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:crypfine:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "crypfine",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 42,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 15977066.17,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:crypto.com exchange:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "crypto.com exchange",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 8,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 2012623242.84,
+      "netFlow24hUsd": 22982142.21
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:deepcoin:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "deepcoin",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 20,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 107440702.09,
+      "netFlow24hUsd": -989231.73
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:digifinex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "digifinex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 50,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 5124825.92,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:echobit:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "echobit",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 33,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 3143993.12,
+      "netFlow24hUsd": 549269.6
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:flipster:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "flipster",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 52,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 34941420.47,
+      "netFlow24hUsd": 388073.07
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:gate us:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "gate us",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 59,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 33991004.26,
+      "netFlow24hUsd": 367.22
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:gate:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "gate",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 4,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 4963401036.01,
+      "netFlow24hUsd": -46288334.19
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:gemini:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "gemini",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 15,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 4403442880.43,
+      "netFlow24hUsd": -14687722.37
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:hashkey exchange:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "hashkey exchange",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 45,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 33952530.55,
+      "netFlow24hUsd": 6039953.06
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:hashkey global:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "hashkey global",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 37,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 5194452.25,
+      "netFlow24hUsd": -667646.72
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:hotcoin:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "hotcoin",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 28,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 168809154.79,
+      "netFlow24hUsd": -5010343.91
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:htx:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "htx",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 7,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 3052537061.59,
+      "netFlow24hUsd": 7324.18
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:indodax:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "indodax",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 49,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 468466490.96,
+      "netFlow24hUsd": -270701.15
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:ju.com:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "ju.com",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 57,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 411429880.67,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:korbit:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "korbit",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 48,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 26169102.86,
+      "netFlow24hUsd": -12585.9
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:kucoin:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "kucoin",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 5,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 3174545662.79,
+      "netFlow24hUsd": -2060366.91
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:lbank:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "lbank",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 12,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 506516049.93,
+      "netFlow24hUsd": 124002.8
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:levex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "levex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 58,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 8402305.07,
+      "netFlow24hUsd": 7413.7
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:mexc:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "mexc",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 6,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 4919477906.92,
+      "netFlow24hUsd": -49138007.11
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:mgbx:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "mgbx",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 24,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 192518539.82,
+      "netFlow24hUsd": -794745.82
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:okx:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "okx",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 1,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 17692108981.79,
+      "netFlow24hUsd": -57705608.74
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:orangex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "orangex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 31,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 39310036.27,
+      "netFlow24hUsd": -149791.6
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:ourbit:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "ourbit",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 18,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 134788328.85,
+      "netFlow24hUsd": 144701.06
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:phemex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "phemex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 36,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 288942234.84,
+      "netFlow24hUsd": 140543.04
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:pionex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "pionex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 17,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 100231179.62,
+      "netFlow24hUsd": -506803.45
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:poloniex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "poloniex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 29,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 45321403.39,
+      "netFlow24hUsd": -9360318.93
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:tapbit:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "tapbit",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 35,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 11402948.31,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:toobit:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "toobit",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 16,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 61358495.95,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:tothemoon:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "tothemoon",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 51,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 2483753.83,
+      "netFlow24hUsd": 209263.15
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:voox exchange:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "voox exchange",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 47,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 111661052.6,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:weex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "weex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 25,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 179403494.44,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:xt.com:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "xt.com",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 14,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 36846566.25,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:yubit:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "yubit",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 38,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 73176767.23,
+      "netFlow24hUsd": 0
+    },
+    {
+      "schemaVersion": 2,
+      "snapshotId": "exchange-flow:exchange_level:zoomex:ALL:2026-06-24T11-03-52-978Z",
+      "scope": "exchange_level",
+      "exchange": "zoomex",
+      "timestamp": "2026-06-24T11:03:52.978Z",
+      "source": "coinmarketcap-compatible-exchange-assets",
+      "sourceQuality": "verified",
+      "generatedAt": "2026-06-24T11:03:52.922Z",
+      "metadata": {
+        "adapter": "cmc-exchange-flow-v2",
+        "endpoint": "https://api.coinmarketcap.com/data-api/v3/exchange-asset/flow/list",
+        "providerRecordIndex": 23,
+        "flowInterval": "24h",
+        "totalAssetsUnit": "USD",
+        "netFlowUnit": "USD"
+      },
+      "totalAssetsUsd": 16062348.45,
+      "netFlow24hUsd": 377316.38
+    }
+  ]
 }

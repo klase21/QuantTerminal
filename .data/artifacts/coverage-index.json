@@ -9,18 +9,18 @@
     "timeframe": null,
     "partitionKey": "coverage/global/latest",
     "source": "deployable-snapshot-builder-v1",
-    "generatedAt": "2026-06-23T23:42:01.596Z",
-    "observedAt": "2026-06-23T23:42:01.596Z",
-    "sourceHash": "a9cf8b74c48d4577cf3eefe861b8e0367c8777c9b9bc8d5c67cf152f49603c1f",
+    "generatedAt": "2026-06-24T11:04:05.607Z",
+    "observedAt": "2026-06-24T11:04:05.607Z",
+    "sourceHash": "5d6f96069914eff5cf93345c169be66ebe6337dc19e4d4777dd461317bab2c3c",
     "recordCount": 26,
-    "payloadSizeBytes": 6321,
+    "payloadSizeBytes": 5889,
     "freshness": "current",
     "coverage": "full",
     "storageClass": "deployable_snapshot"
   },
   "data": {
     "schemaVersion": 2,
-    "generatedAt": "2026-06-23T23:42:01.596Z",
+    "generatedAt": "2026-06-24T11:04:05.607Z",
     "entries": [
       {
         "surface": "Dashboard",
@@ -32,18 +32,16 @@
       {
         "surface": "Dashboard",
         "type": "funding",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "funding-latest.json",
-        "reason": "No current funding evidence is available."
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "funding-latest.json"
       },
       {
         "surface": "Dashboard",
         "type": "open_interest",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "open-interest-latest.json",
-        "reason": "No current open-interest evidence is available."
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "open-interest-latest.json"
       },
       {
         "surface": "Dashboard",
@@ -76,7 +74,7 @@
       {
         "surface": "Dashboard",
         "type": "market_drivers",
-        "freshness": "stale",
+        "freshness": "current",
         "coverage": "full",
         "artifact": "latest-market-drivers.json"
       },
@@ -91,18 +89,16 @@
       {
         "surface": "Markets",
         "type": "funding",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "funding-latest.json",
-        "reason": "No current funding evidence is available."
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "funding-latest.json"
       },
       {
         "surface": "Markets",
         "type": "open_interest",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "open-interest-latest.json",
-        "reason": "No current open-interest evidence is available."
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "open-interest-latest.json"
       },
       {
         "surface": "Markets",
@@ -150,7 +146,7 @@
       {
         "surface": "Research",
         "type": "market_drivers",
-        "freshness": "stale",
+        "freshness": "current",
         "coverage": "full",
         "artifact": "latest-market-drivers.json"
       },
@@ -165,18 +161,16 @@
       {
         "surface": "Replay",
         "type": "funding",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "funding-latest.json",
-        "reason": "No current funding evidence is available."
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "funding-latest.json"
       },
       {
         "surface": "Replay",
         "type": "open_interest",
-        "freshness": "missing",
-        "coverage": "unavailable",
-        "artifact": "open-interest-latest.json",
-        "reason": "No current open-interest evidence is available."
+        "freshness": "current",
+        "coverage": "full",
+        "artifact": "open-interest-latest.json"
       },
       {
         "surface": "Replay",
@@ -210,7 +204,7 @@
       {
         "surface": "Historical Intelligence",
         "type": "market_drivers",
-        "freshness": "stale",
+        "freshness": "current",
         "coverage": "full",
         "artifact": "latest-market-drivers.json"
       }
