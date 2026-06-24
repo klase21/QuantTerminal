@@ -9,39 +9,41 @@
     "timeframe": null,
     "partitionKey": "coverage/global/latest",
     "source": "deployable-snapshot-builder-v1",
-    "generatedAt": "2026-06-23T12:50:57.066Z",
-    "observedAt": "2026-06-23T12:50:57.066Z",
-    "sourceHash": "a7ef8d162a26805b9bed448dd835f2f4b5395800f024299f793418c650225e7c",
-    "recordCount": 25,
-    "payloadSizeBytes": 5761,
+    "generatedAt": "2026-06-23T23:42:01.596Z",
+    "observedAt": "2026-06-23T23:42:01.596Z",
+    "sourceHash": "a9cf8b74c48d4577cf3eefe861b8e0367c8777c9b9bc8d5c67cf152f49603c1f",
+    "recordCount": 26,
+    "payloadSizeBytes": 6321,
     "freshness": "current",
     "coverage": "full",
     "storageClass": "deployable_snapshot"
   },
   "data": {
     "schemaVersion": 2,
-    "generatedAt": "2026-06-23T12:50:57.066Z",
+    "generatedAt": "2026-06-23T23:42:01.596Z",
     "entries": [
       {
         "surface": "Dashboard",
         "type": "ETF",
-        "freshness": "current",
+        "freshness": "stale",
         "coverage": "full",
         "artifact": "etf-latest.json"
       },
       {
         "surface": "Dashboard",
         "type": "funding",
-        "freshness": "current",
-        "coverage": "full",
-        "artifact": "funding-latest.json"
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "funding-latest.json",
+        "reason": "No current funding evidence is available."
       },
       {
         "surface": "Dashboard",
         "type": "open_interest",
-        "freshness": "current",
-        "coverage": "full",
-        "artifact": "open-interest-latest.json"
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "open-interest-latest.json",
+        "reason": "No current open-interest evidence is available."
       },
       {
         "surface": "Dashboard",
@@ -74,7 +76,7 @@
       {
         "surface": "Dashboard",
         "type": "market_drivers",
-        "freshness": "current",
+        "freshness": "stale",
         "coverage": "full",
         "artifact": "latest-market-drivers.json"
       },
@@ -89,16 +91,18 @@
       {
         "surface": "Markets",
         "type": "funding",
-        "freshness": "current",
-        "coverage": "full",
-        "artifact": "funding-latest.json"
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "funding-latest.json",
+        "reason": "No current funding evidence is available."
       },
       {
         "surface": "Markets",
         "type": "open_interest",
-        "freshness": "current",
-        "coverage": "full",
-        "artifact": "open-interest-latest.json"
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "open-interest-latest.json",
+        "reason": "No current open-interest evidence is available."
       },
       {
         "surface": "Markets",
@@ -118,7 +122,7 @@
       {
         "surface": "Research",
         "type": "ETF",
-        "freshness": "current",
+        "freshness": "stale",
         "coverage": "full",
         "artifact": "etf-latest.json"
       },
@@ -146,7 +150,7 @@
       {
         "surface": "Research",
         "type": "market_drivers",
-        "freshness": "current",
+        "freshness": "stale",
         "coverage": "full",
         "artifact": "latest-market-drivers.json"
       },
@@ -161,16 +165,18 @@
       {
         "surface": "Replay",
         "type": "funding",
-        "freshness": "current",
-        "coverage": "full",
-        "artifact": "funding-latest.json"
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "funding-latest.json",
+        "reason": "No current funding evidence is available."
       },
       {
         "surface": "Replay",
         "type": "open_interest",
-        "freshness": "current",
-        "coverage": "full",
-        "artifact": "open-interest-latest.json"
+        "freshness": "missing",
+        "coverage": "unavailable",
+        "artifact": "open-interest-latest.json",
+        "reason": "No current open-interest evidence is available."
       },
       {
         "surface": "Replay",
@@ -191,14 +197,20 @@
         "surface": "Historical Intelligence",
         "type": "exchange_reserve_delta",
         "freshness": "current",
-        "coverage": "unavailable",
-        "artifact": "exchange-reserve-delta-latest.json",
-        "reason": "Reserve delta unavailable: no previous reserve snapshot exists."
+        "coverage": "partial",
+        "artifact": "exchange-reserve-delta-latest.json"
+      },
+      {
+        "surface": "Historical Intelligence",
+        "type": "reserve_intelligence",
+        "freshness": "current",
+        "coverage": "partial",
+        "artifact": "reserve-intelligence-latest.json"
       },
       {
         "surface": "Historical Intelligence",
         "type": "market_drivers",
-        "freshness": "current",
+        "freshness": "stale",
         "coverage": "full",
         "artifact": "latest-market-drivers.json"
       }

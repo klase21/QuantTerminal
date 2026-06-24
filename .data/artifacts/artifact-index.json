@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-23T12:50:57.066Z",
+  "generatedAt": "2026-06-23T23:42:01.596Z",
   "entries": [
     {
       "artifactType": "coverage_index",
       "partitionKey": "coverage/global/latest",
       "path": "coverage-index.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
+      "generatedAt": "2026-06-23T23:42:01.596Z",
       "freshness": "current",
-      "payloadSizeBytes": 5761,
-      "recordCount": 25,
-      "sourceHash": "a7ef8d162a26805b9bed448dd835f2f4b5395800f024299f793418c650225e7c"
+      "payloadSizeBytes": 6321,
+      "recordCount": 26,
+      "sourceHash": "a9cf8b74c48d4577cf3eefe861b8e0367c8777c9b9bc8d5c67cf152f49603c1f"
     },
     {
       "artifactType": "etf",
       "partitionKey": "etf/multi/1d/latest",
       "path": "etf-latest.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
-      "freshness": "current",
-      "payloadSizeBytes": 1931,
+      "generatedAt": "2026-06-23T23:42:01.596Z",
+      "freshness": "stale",
+      "payloadSizeBytes": 1929,
       "recordCount": 2,
       "sourceHash": "de6c34dee2e6c3ef396ed9013f2053bde789fa8ef2445ce65c511a9ae833f63a"
     },
@@ -26,7 +26,7 @@
       "artifactType": "exchange_flow",
       "partitionKey": "exchange-flow/multi/1d/latest",
       "path": "exchange-flow-latest.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
+      "generatedAt": "2026-06-23T23:42:01.596Z",
       "freshness": "current",
       "payloadSizeBytes": 46631,
       "recordCount": 62,
@@ -36,37 +36,37 @@
       "artifactType": "exchange_reserve_delta",
       "partitionKey": "exchange-reserve-delta/binance/1h/latest",
       "path": "exchange-reserve-delta-latest.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
+      "generatedAt": "2026-06-23T23:42:01.596Z",
       "freshness": "current",
-      "payloadSizeBytes": 167759,
-      "recordCount": 340,
-      "sourceHash": "e60bbe8e8bdcb1dc03bd5f613b62092e3f2f1495eaccec84a7c17b6d891c054a"
+      "payloadSizeBytes": 165371,
+      "recordCount": 341,
+      "sourceHash": "63734837d07634e6a09a04229e21e2b2a54cf05976256562e9b8b5f11c2e02e7"
     },
     {
       "artifactType": "exchange_reserve",
       "partitionKey": "exchange-reserve/binance/1h/latest",
       "path": "exchange-reserve-latest.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
+      "generatedAt": "2026-06-23T23:42:01.596Z",
       "freshness": "current",
-      "payloadSizeBytes": 418518,
-      "recordCount": 1360,
-      "sourceHash": "fd801b7f21dae6878743022afdfce7d61eeb3fd99aa18c12279e98d96cae9912"
+      "payloadSizeBytes": 420627,
+      "recordCount": 1367,
+      "sourceHash": "d498ba3ff996368afb817398620a38c139a4271dcbfdbb8daaace636f7839ba4"
     },
     {
       "artifactType": "funding",
       "partitionKey": "funding/multi/1h/latest",
       "path": "funding-latest.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
-      "freshness": "current",
-      "payloadSizeBytes": 1062,
-      "recordCount": 2,
-      "sourceHash": "b90060d3ef526a38e989351278a25e7b80e159793c3dab2626a53d5ef62e8bf4"
+      "generatedAt": "2026-06-23T23:42:01.596Z",
+      "freshness": "missing",
+      "payloadSizeBytes": 719,
+      "recordCount": 0,
+      "sourceHash": "a63ef59c74f285983b76e1487ca0d0b3cd2d71c1cbfd9066ca9e823705cceb89"
     },
     {
       "artifactType": "liquidation",
       "partitionKey": "liquidation/multi/1h/latest",
       "path": "liquidation-latest.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
+      "generatedAt": "2026-06-23T23:42:01.596Z",
       "freshness": "stale",
       "payloadSizeBytes": 1819,
       "recordCount": 1,
@@ -76,27 +76,37 @@
       "artifactType": "market_driver",
       "partitionKey": "market-driver/multi/1d/latest",
       "path": "latest-market-drivers.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
-      "freshness": "current",
-      "payloadSizeBytes": 7496,
+      "generatedAt": "2026-06-23T23:42:01.596Z",
+      "freshness": "stale",
+      "payloadSizeBytes": 5151,
       "recordCount": 2,
-      "sourceHash": "3fd66def2d807ceffc1a0c2c5d2cf963bc43cbf990659925cc40bbe94484197d"
+      "sourceHash": "82dcb9547a55b3978d21d2a73dabdbd5a5d997347de7c30fcb3fd9254aac3ce6"
     },
     {
       "artifactType": "open_interest",
       "partitionKey": "open-interest/multi/1h/latest",
       "path": "open-interest-latest.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
+      "generatedAt": "2026-06-23T23:42:01.596Z",
+      "freshness": "missing",
+      "payloadSizeBytes": 751,
+      "recordCount": 0,
+      "sourceHash": "0f97e02b4597ac732db9c3efb9efc59851cf6b79179eec84c9cda73181088cb2"
+    },
+    {
+      "artifactType": "reserve_intelligence",
+      "partitionKey": "reserve-intelligence/binance/1h/latest",
+      "path": "reserve-intelligence-latest.json",
+      "generatedAt": "2026-06-23T23:42:01.596Z",
       "freshness": "current",
-      "payloadSizeBytes": 1126,
-      "recordCount": 2,
-      "sourceHash": "0c827c4ca8af3a0eef33739c17689946ab77bf3695e337dda2fc6867b551065d"
+      "payloadSizeBytes": 215853,
+      "recordCount": 341,
+      "sourceHash": "3b566d45a309b8c2233deebfd7b7b9e836f38766e33bd0e98d18661a5e3088e5"
     },
     {
       "artifactType": "treasury",
       "partitionKey": "treasury/multi/1d/latest",
       "path": "treasury-latest.json",
-      "generatedAt": "2026-06-23T12:50:57.066Z",
+      "generatedAt": "2026-06-23T23:42:01.596Z",
       "freshness": "stale",
       "payloadSizeBytes": 122983,
       "recordCount": 177,
