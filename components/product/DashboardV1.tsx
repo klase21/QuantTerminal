@@ -886,15 +886,35 @@ const SURFACE_SECONDARY = cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL3)
 const SURFACE_ANALYTICS = cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)
 const SURFACE_STRIP = cn("border-[#f97316]/20", COLOR_SURFACE_LEVEL4, "shadow-[inset_0_1px_0_rgba(249,115,22,.06)]")
 
-const DASHBOARD_PANEL_BASE = "min-h-0 rounded-lg border p-3"
+const SPACE_HERO = "px-5 py-6 md:px-8 md:py-8"
+const SPACE_SECTION = "gap-3"
+const SPACE_CARD = "gap-2"
+const SPACE_PANEL = "p-3"
+const SPACE_PANEL_COMPACT = "p-2.5"
+const SPACE_ROW = "gap-1.5"
+const SPACE_METADATA = "mt-1"
+const SPACE_BADGE = "px-2 py-1"
+const SPACE_BADGE_COMPACT = "px-1.5 py-0.5"
+const SPACE_SECTION_HEADER = "mb-3 gap-3 pb-2"
+
+const BADGE_CURRENT = cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
+const BADGE_VERIFIED = cn("border-[#22c55e]/30 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
+const BADGE_PARTIAL = cn("border-[#facc15]/25 bg-[#facc15]/10", COLOR_STATE_NEUTRAL)
+const BADGE_DEGRADED = cn("border-[#f59e0b]/25 bg-[#f59e0b]/10", COLOR_STATE_STALE)
+const BADGE_STALE = cn("border-[#f59e0b]/25 bg-[#f59e0b]/10", COLOR_STATE_STALE)
+const BADGE_LOADING = cn("border-[#38bdf8]/25 bg-[#38bdf8]/10", COLOR_STATE_LOADING)
+const BADGE_MISSING = cn("border-[#71717a]/40 bg-[#0a0f0a]", COLOR_STATE_MISSING)
+const BADGE_UNAVAILABLE = cn(COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED)
+
+const DASHBOARD_PANEL_BASE = cn("min-h-0 rounded-lg border", SPACE_PANEL)
 const DASHBOARD_PANEL_LEVEL_CLASS: Record<DashboardPanelLevel, string> = {
   level1: SURFACE_HERO,
   level2: SURFACE_PRIMARY,
   level3: SURFACE_SECONDARY,
   level4: SURFACE_ANALYTICS,
 }
-const DASHBOARD_SECTION_HEADER = cn("mb-3 flex min-h-[22px] items-center justify-between gap-3 border-b pb-2", COLOR_BORDER_MUTED)
-const DASHBOARD_SECTION_TITLE = cn("flex min-w-0 items-center gap-2", COLOR_ACCENT_CYAN, TYPO_SECTION_TITLE)
+const DASHBOARD_SECTION_HEADER = cn("flex min-h-[22px] items-center justify-between border-b", SPACE_SECTION_HEADER, COLOR_BORDER_MUTED)
+const DASHBOARD_SECTION_TITLE = cn("flex min-w-0 items-center", SPACE_CARD, COLOR_ACCENT_CYAN, TYPO_SECTION_TITLE)
 const DASHBOARD_INNER_PANEL = cn("rounded-lg border", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)
 
 function Card({
@@ -980,9 +1000,9 @@ function MarketBrief({ mover, causes }: { mover?: MarketMoverCandidate; causes: 
 }
 
 function causeToneClass(tone: CauseTone) {
-  if (tone === "positive") return cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
+  if (tone === "positive") return BADGE_CURRENT
   if (tone === "negative") return cn("border-[#e53535]/25 bg-[#e53535]/10", COLOR_STATE_NEGATIVE)
-  return cn("border-[#facc15]/25 bg-[#facc15]/10", COLOR_STATE_NEUTRAL)
+  return BADGE_PARTIAL
 }
 
 function causeIcon(tone: CauseTone) {
@@ -997,7 +1017,7 @@ function WhyCard({ causes }: { causes: CauseTag[] }) {
   return (
     <Card title="Market Drivers" icon={<Info className="h-3.5 w-3.5" />} level="level3">
       {!hasEnoughEvidence ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "px-2 py-4 text-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>INSUFFICIENT LIVE EVIDENCE</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "px-2 py-4 text-center", BADGE_MISSING, TYPO_BADGE)}>INSUFFICIENT LIVE EVIDENCE</div>
       ) : (
         <div className="grid gap-1.5">
           {causes.slice(0, 3).map((cause, index) => (
@@ -1159,24 +1179,25 @@ function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
   return (
     <Card title="Tactical Alerts" icon={<Zap className="h-3.5 w-3.5" />} level="level3" className="min-h-[132px]">
       {rankedAlerts.length === 0 ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "px-3 py-2 text-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>NO LIVE ALERTS</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "px-3 py-2 text-center", BADGE_MISSING, TYPO_BADGE)}>NO LIVE ALERTS</div>
       ) : (
-      <div className="grid gap-1.5 xl:grid-cols-4">
+      <div className={cn("grid xl:grid-cols-4", SPACE_ROW)}>
         <div className={cn("xl:col-span-4", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
           What should I watch next?
         </div>
         {rankedAlerts.map((alert, index) => (
-          <article key={`${alert.asset}-${alert.label}`} className={cn("flex h-full flex-col rounded border p-2.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)}>
-            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+          <article key={`${alert.asset}-${alert.label}`} className={cn("flex h-full flex-col rounded border", SPACE_PANEL_COMPACT, COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)}>
+            <div className={cn("flex min-h-0 flex-1 flex-col", SPACE_ROW)}>
               <div className="min-h-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
+                <div className={cn("flex items-start justify-between", SPACE_CARD)}>
                   <div className={cn(COLOR_ACCENT_CYAN, TYPO_EVIDENCE_TITLE)}>#{index + 1} Watch</div>
                   <span className={cn(
-                    "shrink-0 rounded border px-1.5 py-0.5",
+                    "shrink-0 rounded border",
+                    SPACE_BADGE_COMPACT,
                     TYPO_BADGE,
-                    priorityLabel(alert.confidence) === "HIGH" && cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE),
-                    priorityLabel(alert.confidence) === "MEDIUM" && cn("border-[#facc15]/25 bg-[#facc15]/10", COLOR_STATE_NEUTRAL),
-                    priorityLabel(alert.confidence) === "LOW" && cn("border-[#71717a]/40", COLOR_SURFACE_LEVEL4, COLOR_STATE_MISSING),
+                    priorityLabel(alert.confidence) === "HIGH" && BADGE_VERIFIED,
+                    priorityLabel(alert.confidence) === "MEDIUM" && BADGE_PARTIAL,
+                    priorityLabel(alert.confidence) === "LOW" && BADGE_MISSING,
                   )}>{priorityLabel(alert.confidence)}</span>
                 </div>
                 <div className={cn("mt-1 uppercase", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{alert.asset}</div>
@@ -1187,15 +1208,15 @@ function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
                   <div className={cn("mt-1", COLOR_STATE_POSITIVE, TYPO_EVIDENCE_METADATA)}>{timeAgo(alert.detectedAt)}</div>
                 )}
               </div>
-              <div className="flex items-end justify-between gap-2">
-                <span className={cn("rounded-full border px-2 py-0.5", TYPO_BADGE, biasClass(alert.bias))}>{alert.bias}</span>
+              <div className={cn("flex items-end justify-between", SPACE_CARD)}>
+                <span className={cn("rounded-full border py-0.5", "px-2", TYPO_BADGE, biasClass(alert.bias))}>{alert.bias}</span>
                 {scoreLabel(alert.confidence) && (
                   <span className={cn(COLOR_ACCENT_CYAN, TYPO_ANALYTICS_VALUE)}>{scoreLabel(alert.confidence)}</span>
                 )}
               </div>
               {alert.tags.length > 0 && <div className="flex flex-wrap gap-1">
                 {alert.tags.map((tag) => (
-                  <span key={`${alert.asset}-${tag}`} className={cn("rounded border px-1.5 py-0.5", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4, COLOR_TEXT_MUTED, TYPO_BADGE)}>
+                  <span key={`${alert.asset}-${tag}`} className={cn("rounded border", SPACE_BADGE_COMPACT, COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4, COLOR_TEXT_MUTED, TYPO_BADGE)}>
                     {tag}
                   </span>
                 ))}
@@ -1280,7 +1301,7 @@ function InformationFlow({ items }: { items: InformationFlowItem[] }) {
     <Card title="Information Flow" icon={<Newspaper className="h-3.5 w-3.5" />} level="level4">
       <div className="space-y-2">
         {items.length === 0 ? (
-          <div className={cn(DASHBOARD_INNER_PANEL, "p-4 text-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>NO FLOW DATA</div>
+          <div className={cn(DASHBOARD_INNER_PANEL, "p-4 text-center", BADGE_MISSING, TYPO_BADGE)}>NO FLOW DATA</div>
         ) : items.map((item) => (
           <div key={`${item.time}-${item.event}`} className={cn(DASHBOARD_INNER_PANEL, "grid grid-cols-[38px_1fr_auto] items-center gap-2 p-2")}>
             <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>{item.time}</div>
@@ -1299,15 +1320,15 @@ function SystemStatus({ liquidationCount, alertCount, cacheUpdatedAt }: { liquid
       <div className="space-y-1.5">
         <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2", TYPO_EVIDENCE_BODY)}>
           <span className={cn("flex items-center gap-2", COLOR_TEXT_SECONDARY)}><CheckCircle2 className="h-3.5 w-3.5 text-[#22c55e]" /> Market feed</span>
-          <span className={COLOR_STATE_POSITIVE}>Live</span>
+          <span className={cn("rounded border", BADGE_CURRENT, TYPO_BADGE)}>Live</span>
         </div>
         <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2", TYPO_EVIDENCE_BODY)}>
           <span className={cn("flex items-center gap-2", COLOR_TEXT_SECONDARY)}><Activity className="h-3.5 w-3.5 text-[#38bdf8]" /> Alerts</span>
-          <span className={COLOR_ACCENT_CYAN}>{alertCount}</span>
+          <span className={cn("rounded border", BADGE_LOADING, TYPO_BADGE)}>{alertCount}</span>
         </div>
         <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2", TYPO_EVIDENCE_BODY)}>
           <span className={cn("flex items-center gap-2", COLOR_TEXT_SECONDARY)}><AlertTriangle className="h-3.5 w-3.5 text-[#f97316]" /> Liquidations</span>
-          <span className={COLOR_ACCENT_AMBER}>{liquidationCount}</span>
+          <span className={cn("rounded border", BADGE_PARTIAL, TYPO_BADGE)}>{liquidationCount}</span>
         </div>
         {cacheUpdatedAt ? (
           <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2", TYPO_EVIDENCE_METADATA)}>
@@ -1368,7 +1389,7 @@ function HistoricalEvidenceStrip({ data, loading }: { data: HistoricalEvidenceRe
             </div>
           </div>
         ) : (
-          <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
+          <div className={cn("rounded border px-3 py-2", loading ? BADGE_LOADING : BADGE_UNAVAILABLE, TYPO_EVIDENCE_METADATA)}>
             <span className={COLOR_TEXT_SECONDARY}>{loading ? "Historical Analog Loading" : "Historical Analog Unavailable"}</span>
             {!loading ? <span className={cn("ml-2", COLOR_TEXT_DIM)}>Reason: {reason}</span> : null}
           </div>
@@ -1413,12 +1434,15 @@ function dashboardHealthFromDriverState(
 }
 
 function healthBadgeClass(health: string) {
-  if (health === "CURRENT" || health === "VERIFIED") return cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
-  if (health === "PARTIAL" || health === "DEGRADED") return cn("border-[#facc15]/25 bg-[#facc15]/10", COLOR_STATE_NEUTRAL)
-  if (health === "STALE") return cn("border-[#f59e0b]/25 bg-[#f59e0b]/10", COLOR_STATE_STALE)
-  if (health === "LOADING") return cn("border-[#38bdf8]/25 bg-[#38bdf8]/10", COLOR_STATE_LOADING)
-  if (health === "MISSING") return cn("border-[#71717a]/40 bg-[#0a0f0a]", COLOR_STATE_MISSING)
-  return cn(COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED)
+  if (health === "CURRENT") return BADGE_CURRENT
+  if (health === "VERIFIED") return BADGE_VERIFIED
+  if (health === "PARTIAL") return BADGE_PARTIAL
+  if (health === "DEGRADED") return BADGE_DEGRADED
+  if (health === "STALE") return BADGE_STALE
+  if (health === "LOADING") return BADGE_LOADING
+  if (health === "MISSING") return BADGE_MISSING
+  if (health === "UNAVAILABLE") return BADGE_UNAVAILABLE
+  return BADGE_UNAVAILABLE
 }
 
 function evidencePriority(health: string) {
@@ -1460,9 +1484,9 @@ function driverDirectionPanelClass(direction: MarketDriverSummary["drivers"][num
 }
 
 function driverDirectionBadgeClass(direction: MarketDriverSummary["drivers"][number]["evidence"]["direction"]) {
-  if (direction === "positive") return cn("border-[#22c55e]/30 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
+  if (direction === "positive") return BADGE_VERIFIED
   if (direction === "negative") return cn("border-[#e53535]/30 bg-[#e53535]/10", COLOR_STATE_NEGATIVE)
-  return cn("border-[#facc15]/30 bg-[#facc15]/10", COLOR_STATE_NEUTRAL)
+  return BADGE_PARTIAL
 }
 
 function formatDashboardTimestamp(value?: string | null) {
@@ -1544,34 +1568,34 @@ function MarketDirectionPanel({
       ) : null}
     >
       {state === "loading" ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>
+        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center", BADGE_LOADING, TYPO_BADGE)}>
           Loading Market Direction
         </div>
       ) : state === "unavailable" ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center px-4 text-center")}>
+        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center px-4 text-center", BADGE_UNAVAILABLE)}>
           <div>
             <div className={cn(COLOR_TEXT_SECONDARY, TYPO_SECTION_TITLE)}>Market Direction Unavailable</div>
             <div className={cn("mt-2", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Reason: {reason ?? "Market Driver evidence unavailable."}</div>
           </div>
         </div>
       ) : state === "empty" || !data ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>
+        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center", BADGE_MISSING, TYPO_BADGE)}>
           No Market Driver Evidence
         </div>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className={cn("relative flex min-h-[310px] overflow-hidden rounded-lg border px-5 py-6 md:px-8 md:py-8", tone)}>
+        <div className={cn("grid xl:grid-cols-[minmax(0,1fr)_340px]", SPACE_SECTION)}>
+          <div className={cn("relative flex min-h-[310px] overflow-hidden rounded-lg border", SPACE_HERO, tone)}>
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#f97316]/40 to-transparent" />
             <div className="pointer-events-none absolute bottom-0 left-0 h-24 w-full bg-[linear-gradient(90deg,rgba(249,115,22,.12),transparent_55%)]" />
             <div className="relative z-10 flex max-w-5xl flex-col justify-center">
-              <div className="flex flex-wrap gap-2">
-                <span className={cn("rounded border px-2 py-1", TYPO_BADGE, healthBadgeClass(health))}>
+              <div className={cn("flex flex-wrap", SPACE_CARD)}>
+                <span className={cn("rounded border", SPACE_BADGE, TYPO_BADGE, healthBadgeClass(health))}>
                   Health {health}
                 </span>
-                <span className={cn("rounded border px-2 py-1", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>
+                <span className={cn("rounded border", SPACE_BADGE, BADGE_UNAVAILABLE, TYPO_BADGE)}>
                   Regime Unavailable
                 </span>
-                <span className={cn("rounded border border-[#38bdf8]/20 bg-[#38bdf8]/10 px-2 py-1", COLOR_ACCENT_CYAN, TYPO_BADGE)}>
+                <span className={cn("rounded border border-[#38bdf8]/20 bg-[#38bdf8]/10", SPACE_BADGE, COLOR_ACCENT_CYAN, TYPO_BADGE)}>
                   {data.symbol}
                 </span>
               </div>
@@ -1583,7 +1607,7 @@ function MarketDirectionPanel({
               <div className={cn("mt-6", COLOR_TEXT_MUTED, TYPO_HERO_METADATA_LABEL)}>Conclusion first. Evidence ranked below.</div>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+          <div className={cn("grid sm:grid-cols-3 xl:grid-cols-1", SPACE_SECTION)}>
             <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-[#38bdf8]/25 bg-[linear-gradient(135deg,rgba(7,89,133,.34),rgba(3,8,5,.34))] p-4 shadow-[inset_0_1px_0_rgba(56,189,248,.12)]">
               <div className={cn(TYPO_HERO_METADATA_VALUE, COLOR_ACCENT_CYAN)}>{Math.round(data.confidence)}%</div>
               <div className={cn("mt-2", COLOR_TEXT_SECONDARY, TYPO_HERO_METADATA_LABEL)}>Confidence</div>
@@ -1595,7 +1619,7 @@ function MarketDirectionPanel({
             <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-[#1c2c1c] bg-[linear-gradient(135deg,rgba(20,30,20,.82),rgba(3,8,5,.36))] p-4 shadow-[inset_0_1px_0_rgba(160,176,160,.1)]">
               <div className={cn(TYPO_HERO_METADATA_VALUE, "uppercase", COLOR_TEXT_PRIMARY)}>{health}</div>
               <div className={cn("mt-2", COLOR_TEXT_SECONDARY, TYPO_HERO_METADATA_LABEL)}>Data Health</div>
-              <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{formatDashboardTimestamp(data.timestamp)}</div>
+              <div className={cn(SPACE_METADATA, COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{formatDashboardTimestamp(data.timestamp)}</div>
             </div>
           </div>
         </div>
@@ -1618,18 +1642,18 @@ function WhyMarketMoving({
   return (
     <Card title="Top Drivers" icon={<Info className="h-3.5 w-3.5" />} level="level2">
       {state === "loading" ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", COLOR_TEXT_MUTED, TYPO_SECTION_TITLE)}>Loading Ranked Drivers</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", BADGE_LOADING, TYPO_SECTION_TITLE)}>Loading Ranked Drivers</div>
       ) : data?.drivers.length ? (
-        <div className="grid gap-2">
+        <div className={cn("grid", SPACE_CARD)}>
           <div className={cn(COLOR_TEXT_MUTED, TYPO_DRIVER_SUMMARY)}>
             Ranked reasons behind the current market direction.
           </div>
-          <div className="grid gap-2 lg:grid-cols-3">
+          <div className={cn("grid lg:grid-cols-3", SPACE_CARD)}>
             {slots.map((slot) => {
               const driver = primaryDrivers[slot]
               if (!driver) {
                 return (
-                  <article key={`missing-driver-${slot}`} className={cn(DASHBOARD_INNER_PANEL, "p-3")}>
+                  <article key={`missing-driver-${slot}`} className={cn(DASHBOARD_INNER_PANEL, SPACE_PANEL)}>
                     <div className={cn(COLOR_TEXT_DIM, TYPO_EVIDENCE_TITLE)}>#{slot + 1} Driver</div>
                     <div className={cn("mt-2", COLOR_TEXT_MUTED, TYPO_DRIVER_TITLE)}>Driver Unavailable</div>
                     <div className={cn("mt-2", COLOR_TEXT_DIM, TYPO_DRIVER_SUMMARY)}>No evidence for this rank.</div>
@@ -1637,19 +1661,20 @@ function WhyMarketMoving({
                 )
               }
               return (
-                <article key={`${driver.category}-${driver.title}`} className={cn("min-w-0 rounded-lg border p-3", driverDirectionPanelClass(driver.evidence.direction))}>
-                  <div className="grid h-full grid-cols-[56px_minmax(0,1fr)_auto] gap-3">
+                <article key={`${driver.category}-${driver.title}`} className={cn("min-w-0 rounded-lg border", SPACE_PANEL, driverDirectionPanelClass(driver.evidence.direction))}>
+                  <div className={cn("grid h-full grid-cols-[56px_minmax(0,1fr)_auto]", SPACE_SECTION)}>
                     <div className={cn("flex flex-col items-center justify-center rounded-lg border border-[#f97316]/20 bg-[#f97316]/10 px-2 py-3", COLOR_ACCENT_AMBER)}>
                       <div className={cn(COLOR_ACCENT_AMBER, TYPO_BADGE)}>Rank</div>
                       <div className={cn("mt-1", TYPO_DRIVER_RANK)}>#{slot + 1}</div>
                     </div>
                     <div className="min-w-0 self-center">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn("rounded border border-[#38bdf8]/20 bg-[#38bdf8]/10 px-1.5 py-0.5", COLOR_ACCENT_CYAN, TYPO_BADGE)}>
+                      <div className={cn("flex flex-wrap items-center", SPACE_CARD)}>
+                        <span className={cn("rounded border border-[#38bdf8]/20 bg-[#38bdf8]/10", SPACE_BADGE_COMPACT, COLOR_ACCENT_CYAN, TYPO_BADGE)}>
                           {driverCategoryLabel(driver.category)}
                         </span>
                         <span className={cn(
-                          "rounded border px-1.5 py-0.5",
+                          "rounded border",
+                          SPACE_BADGE_COMPACT,
                           TYPO_BADGE,
                           driverDirectionBadgeClass(driver.evidence.direction),
                         )}>
@@ -1673,13 +1698,13 @@ function WhyMarketMoving({
             })}
           </div>
           {extraDriverCount > 0 ? (
-            <div className={cn("rounded-lg border px-3 py-2 text-center", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4, COLOR_TEXT_MUTED, TYPO_BADGE)}>
+            <div className={cn("rounded-lg border px-3 py-2 text-center", BADGE_PARTIAL, TYPO_BADGE)}>
               + {extraDriverCount} More Drivers
             </div>
           ) : null}
         </div>
       ) : (
-        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", COLOR_TEXT_MUTED, TYPO_SECTION_TITLE)}>No Ranked Drivers Available</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", BADGE_MISSING, TYPO_SECTION_TITLE)}>No Ranked Drivers Available</div>
       )}
     </Card>
   )
@@ -1756,19 +1781,20 @@ function SupportingEvidence({
       <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
         Status-ranked observations. Valid evidence is visually separated from partial and missing sources.
       </div>
-      <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_repeat(4,minmax(0,0.8fr))]">
+      <div className={cn("mt-2 grid md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_repeat(4,minmax(0,0.8fr))]", SPACE_CARD)}>
         {evidenceCards.map((card, index) => {
           const priority = evidencePriority(card.health)
           return (
             <article
               key={card.id}
               className={cn(
-                "min-w-0 rounded-lg border p-3",
+                "min-w-0 rounded-lg border",
+                SPACE_PANEL,
                 evidencePriorityClass(priority),
                 index < 3 ? "xl:min-h-[148px]" : "xl:min-h-[132px]",
               )}
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className={cn("flex items-start justify-between", SPACE_CARD)}>
                 <div className="min-w-0">
                   <div className={cn("truncate", COLOR_ACCENT_CYAN, TYPO_EVIDENCE_TITLE)}>{card.label}</div>
                   <div className={cn(
@@ -1782,7 +1808,8 @@ function SupportingEvidence({
                   </div>
                 </div>
                 <div className={cn(
-                  "shrink-0 rounded border px-1.5 py-0.5",
+                  "shrink-0 rounded border",
+                  SPACE_BADGE_COMPACT,
                   TYPO_BADGE,
                   healthBadgeClass(card.health),
                 )}>{card.health}</div>
@@ -1794,7 +1821,7 @@ function SupportingEvidence({
               )}>
                 {card.observation}
               </div>
-              <div className={cn("mt-3 flex items-center justify-between gap-2 border-t pt-2", COLOR_BORDER_MUTED)}>
+              <div className={cn("mt-3 flex items-center justify-between border-t pt-2", SPACE_CARD, COLOR_BORDER_MUTED)}>
                 <div className={cn("truncate", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{card.source}</div>
                 <div className={cn(
                   "h-1.5 w-10 rounded-full",
@@ -1903,12 +1930,12 @@ function PredictionMarketsCard({ data }: { data: PredictionMarketsResponse | nul
   return (
     <BottomCard title="Prediction Markets" icon={<Gauge className="h-3.5 w-3.5" />} level="level3">
       {events.length ? (
-        <div className="grid gap-1.5">
+        <div className={cn("grid", SPACE_ROW)}>
           <div className={cn(COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
             What is the market pricing?
           </div>
           {events.map((event) => (
-            <div key={event.title} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)}>
+            <div key={event.title} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center rounded border px-2.5 py-1.5", SPACE_CARD, COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)}>
               <div className="min-w-0">
                 <div className={cn("line-clamp-1", COLOR_TEXT_SECONDARY, TYPO_DRIVER_SUMMARY)}>{event.title}</div>
                 <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>{formatProbability(event.probability)} · {formatUpdatedTime(event.lastUpdated) ?? event.venue}</div>
@@ -1921,7 +1948,7 @@ function PredictionMarketsCard({ data }: { data: PredictionMarketsResponse | nul
           ))}
         </div>
       ) : (
-        <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>{data?.unavailableReason ?? "NO MEANINGFUL MARKET INTEREST"}</div>
+        <div className={cn("rounded border px-3 py-2", BADGE_MISSING, TYPO_BADGE)}>{data?.unavailableReason ?? "NO MEANINGFUL MARKET INTEREST"}</div>
       )}
     </BottomCard>
   )
@@ -1957,7 +1984,7 @@ function EtfFlowCard({ data }: { data: EtfFlowResponse | null }) {
         </div>
       ) : (
         <div>
-          <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>NO DATA</div>
+          <div className={cn("rounded border px-3 py-2", BADGE_MISSING, TYPO_BADGE)}>NO DATA</div>
           <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{reason}</div>
           <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Source: Farside</div>
         </div>
@@ -1988,7 +2015,7 @@ function LiquidityConditionsCard({ futures }: { futures: FuturesIntelligenceResp
           <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Binance Futures</div>
         </>
       ) : (
-        <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>Unavailable</div>
+        <div className={cn("rounded border px-3 py-2", BADGE_UNAVAILABLE, TYPO_BADGE)}>Unavailable</div>
       )}
     </BottomCard>
   )
@@ -2294,12 +2321,12 @@ export default function DashboardV1({
   const informationItems = useMemo(() => buildInformationFlow(macro, narratives), [macro, narratives])
   return (
     <main className={cn("min-h-screen px-3 py-3 lg:px-4", COLOR_BACKGROUND_BASE, COLOR_TEXT_PRIMARY)}>
-      <div className="mx-auto grid max-w-[1800px] gap-3">
-        <section className="grid min-w-0 gap-3">
-          <div className={cn("flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)}>
+      <div className={cn("mx-auto grid max-w-[1800px]", SPACE_SECTION)}>
+        <section className={cn("grid min-w-0", SPACE_SECTION)}>
+          <div className={cn("flex flex-wrap items-center justify-between rounded-lg border px-3 py-2", SPACE_CARD, COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)}>
             <div>
               <div className={cn(COLOR_ACCENT_AMBER, TYPO_SECTION_TITLE)}>Conclusion → Drivers → Evidence</div>
-              <div className={cn("mt-1", COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
+              <div className={cn(SPACE_METADATA, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
                 First-read market intelligence with deeper analytics kept below.
               </div>
             </div>
@@ -2323,30 +2350,30 @@ export default function DashboardV1({
           <HistoricalEvidenceStrip data={historicalEvidence} loading={historicalEvidenceLoading} />
         </section>
 
-        <section className="grid min-w-0 gap-3">
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.92fr)]">
+        <section className={cn("grid min-w-0", SPACE_SECTION)}>
+          <div className={cn("grid xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.92fr)]", SPACE_SECTION)}>
             <PredictionMarketsCard data={predictionMarkets} />
             <TacticalAlerts alerts={alerts} />
           </div>
 
           <div className={cn("rounded-lg border px-3 py-2", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)}>
             <div className={cn(COLOR_TEXT_SECONDARY, TYPO_ANALYTICS_TITLE)}>Analytics & Supporting Sections</div>
-            <div className={cn("mt-1", COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
+            <div className={cn(SPACE_METADATA, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
               Deeper reading after the market conclusion, ranked drivers, and evidence preview.
             </div>
           </div>
 
           <WhyThisSignal mover={topMover} causes={causes} futures={futures} marketDirection={marketDirection} />
 
-          <div className="grid gap-3 lg:grid-cols-4">
+          <div className={cn("grid lg:grid-cols-4", SPACE_SECTION)}>
             <GuidanceCard mover={topMover} />
             <EtfFlowCard data={etfFlow} />
             <LiquidityConditionsCard futures={futures} />
             <BottomCard title="Narrative Heatmap" icon={<Database className="h-3.5 w-3.5" />}>
               {narrativeItems.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <div className={cn("flex flex-wrap", SPACE_CARD)}>
                   {narrativeItems.map((item) => (
-                    <span key={item.label} className={cn("rounded border px-2 py-1", TYPO_BADGE, item.tone)}>
+                    <span key={item.label} className={cn("rounded border", SPACE_BADGE, TYPO_BADGE, item.tone)}>
                       {item.icon} {item.label}
                       <span className={cn("ml-2", COLOR_TEXT_SECONDARY)}>{item.state}</span>
                       <span className={cn("ml-2", COLOR_TEXT_MUTED)}>{item.evidence}</span>
@@ -2354,21 +2381,21 @@ export default function DashboardV1({
                   ))}
                 </div>
               ) : narrativeLoadState === "loading" ? (
-                <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>LOADING NARRATIVE DATA</div>
+                <div className={cn("rounded border px-3 py-2", BADGE_LOADING, TYPO_BADGE)}>LOADING NARRATIVE DATA</div>
               ) : narrativeLoadState === "unavailable" ? (
-                <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>
+                <div className={cn("rounded border px-3 py-2", BADGE_UNAVAILABLE, TYPO_BADGE)}>
                   NARRATIVE DATA UNAVAILABLE
                   <span className={cn("ml-2", COLOR_TEXT_DIM)}>
                     Reason: {narrativeUnavailableReason ?? "Narrative request failed."}
                   </span>
                 </div>
               ) : (
-                <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>NO NARRATIVE DATA</div>
+                <div className={cn("rounded border px-3 py-2", BADGE_MISSING, TYPO_BADGE)}>NO NARRATIVE DATA</div>
               )}
             </BottomCard>
           </div>
 
-          <aside className="grid gap-3 xl:grid-cols-3 xl:content-start">
+          <aside className={cn("grid xl:grid-cols-3 xl:content-start", SPACE_SECTION)}>
             <InformationFlow items={informationItems} />
             <TrendChangeRiskCard mover={topMover} causes={causes} />
             <SystemStatus liquidationCount={liquidationCount} alertCount={alerts.length} cacheUpdatedAt={cacheUpdatedAt} />
