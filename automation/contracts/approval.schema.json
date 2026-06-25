@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantterminal.local/automation/contracts/approval.schema.json",
+  "title": "Telegram to Pipeline Approval Message",
+  "description": "Human approval decision emitted by Telegram Approval Agent and consumed by the pipeline.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "review_id",
+    "approved",
+    "reviewer",
+    "timestamp"
+  ],
+  "properties": {
+    "review_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approved": {
+      "type": "boolean"
+    },
+    "reviewer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reason": {
+      "type": "string"
+    }
+  }
+}

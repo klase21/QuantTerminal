@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantterminal.local/automation/contracts/screenshot.schema.json",
+  "title": "Screenshot to Review Message",
+  "description": "Viewport capture summary emitted by Screenshot Agent and consumed by Review Agent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "desktop",
+    "tablet",
+    "mobile",
+    "timestamp",
+    "viewport",
+    "status"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "skipped",
+        "blocked"
+      ]
+    },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "desktop",
+        "tablet",
+        "mobile"
+      ],
+      "properties": {
+        "desktop": {
+          "type": "string"
+        },
+        "tablet": {
+          "type": "string"
+        },
+        "mobile": {
+          "type": "string"
+        }
+      }
+    },
+    "desktop": {
+      "$ref": "#/$defs/capture"
+    },
+    "tablet": {
+      "$ref": "#/$defs/capture"
+    },
+    "mobile": {
+      "$ref": "#/$defs/capture"
+    }
+  },
+  "$defs": {
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "skipped",
+            "blocked"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

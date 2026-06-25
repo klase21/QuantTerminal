@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantterminal.local/automation/contracts/review.schema.json",
+  "title": "Review to Telegram Message",
+  "description": "Review decision emitted by Review Agent and consumed by Telegram Approval Agent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "architecture",
+    "design",
+    "runtime",
+    "screenshots",
+    "verdict",
+    "blockingIssues",
+    "recommendations"
+  ],
+  "properties": {
+    "review_id": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "architecture": {
+      "$ref": "#/$defs/reviewSection"
+    },
+    "design": {
+      "$ref": "#/$defs/reviewSection"
+    },
+    "runtime": {
+      "$ref": "#/$defs/reviewSection"
+    },
+    "screenshots": {
+      "$ref": "#/$defs/reviewSection"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "PARTIAL PASS",
+        "FAIL"
+      ]
+    },
+    "blockingIssues": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "reviewSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "partial",
+            "failed",
+            "skipped",
+            "not_applicable"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
