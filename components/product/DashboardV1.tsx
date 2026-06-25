@@ -792,10 +792,10 @@ function buildNarrativeHeat(narratives?: NarrativesResponse | null) {
       icon: item.total >= 120 ? "\u{1F525}" : "\u{26AA}",
       evidence: `${Math.round(item.total).toLocaleString()} articles`,
       tone: item.total >= 200
-        ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+        ? cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
         : item.total >= 120
-          ? "border-cyan-400/25 bg-cyan-400/10 text-cyan-100"
-          : "border-zinc-700 bg-zinc-900/80 text-zinc-300",
+          ? cn("border-[#38bdf8]/25 bg-[#38bdf8]/10", COLOR_ACCENT_CYAN)
+          : cn("border-[#71717a]/40", COLOR_SURFACE_LEVEL4, COLOR_STATE_MISSING),
     }))
     : undefined
 
@@ -826,29 +826,70 @@ function buildInformationFlow(macro?: MacroResponse | null, narratives?: Narrati
 }
 
 function biasClass(bias: Bias) {
-  if (bias === "Bullish") return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
-  if (bias === "Bearish") return "border-rose-400/25 bg-rose-400/10 text-rose-200"
-  return "border-zinc-700 bg-zinc-900/80 text-zinc-300"
+  if (bias === "Bullish") return cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
+  if (bias === "Bearish") return cn("border-[#e53535]/25 bg-[#e53535]/10", COLOR_STATE_NEGATIVE)
+  return cn("border-[#facc15]/25 bg-[#facc15]/10", COLOR_STATE_NEUTRAL)
 }
 
 function stateTone(state: Bias) {
-  if (state === "Bullish") return "text-emerald-100"
-  if (state === "Bearish") return "text-rose-100"
-  return "text-zinc-100"
+  if (state === "Bullish") return COLOR_STATE_POSITIVE
+  if (state === "Bearish") return COLOR_STATE_NEGATIVE
+  return COLOR_STATE_NEUTRAL
 }
 
 type DashboardPanelLevel = "level1" | "level2" | "level3" | "level4"
 
+const TYPO_HERO_DIRECTION = "text-7xl font-black uppercase leading-[0.86] tracking-[0.035em] md:text-8xl xl:text-9xl"
+const TYPO_HERO_CONCLUSION = "text-base font-black uppercase leading-[1.45] tracking-[0.08em] md:text-lg"
+const TYPO_HERO_METADATA_VALUE = "text-3xl font-black leading-[1.0] sm:text-4xl xl:text-5xl"
+const TYPO_HERO_METADATA_LABEL = "text-[10px] font-black uppercase leading-[1.2] tracking-[0.16em]"
+const TYPO_SECTION_TITLE = "text-[10px] font-black uppercase leading-[1.2] tracking-[0.18em]"
+const TYPO_DRIVER_RANK = "text-4xl font-black leading-[1.0]"
+const TYPO_DRIVER_TITLE = "text-base font-black uppercase leading-[1.2] tracking-[0.03em]"
+const TYPO_DRIVER_SCORE = "text-4xl font-black leading-[1.0]"
+const TYPO_DRIVER_SUMMARY = "text-[10px] font-black uppercase leading-[1.45] tracking-[0.1em]"
+const TYPO_EVIDENCE_TITLE = "text-[9px] font-black uppercase leading-[1.2] tracking-[0.16em]"
+const TYPO_EVIDENCE_BODY = "text-[12px] font-black leading-[1.45]"
+const TYPO_EVIDENCE_METADATA = "text-[8px] font-black uppercase leading-[1.2] tracking-[0.1em]"
+const TYPO_ANALYTICS_TITLE = "text-[10px] font-black uppercase leading-[1.2] tracking-[0.16em]"
+const TYPO_ANALYTICS_VALUE = "text-base font-black leading-[1.1]"
+const TYPO_BADGE = "text-[9px] font-black uppercase leading-[1.15] tracking-[0.12em]"
+
+const COLOR_BACKGROUND_BASE = "bg-[#070d07]"
+const COLOR_BACKGROUND_DEEP = "bg-[#030805]"
+const COLOR_SURFACE_LEVEL1 = "bg-[#07120b]"
+const COLOR_SURFACE_LEVEL2 = "bg-[#0c140c]"
+const COLOR_SURFACE_LEVEL3 = "bg-[#111911]"
+const COLOR_SURFACE_LEVEL4 = "bg-[#0a0f0a]"
+const COLOR_SURFACE_ACTIVE = "bg-[#141e14]"
+const COLOR_BORDER_SUBTLE = "border-[#1c2c1c]"
+const COLOR_BORDER_STRONG = "border-[#3a4d2c]"
+const COLOR_BORDER_MUTED = "border-[#142014]"
+const COLOR_TEXT_PRIMARY = "text-[#d4dbd4]"
+const COLOR_TEXT_SECONDARY = "text-[#a0b0a0]"
+const COLOR_TEXT_MUTED = "text-[#6b7d6b]"
+const COLOR_TEXT_DIM = "text-[#3d503d]"
+const COLOR_ACCENT_AMBER = "text-[#f97316]"
+const COLOR_ACCENT_AMBER_DIM = "text-[#7c3d12]"
+const COLOR_ACCENT_CYAN = "text-[#38bdf8]"
+const COLOR_ACCENT_CYAN_DIM = "text-[#075985]"
+const COLOR_STATE_POSITIVE = "text-[#22c55e]"
+const COLOR_STATE_NEGATIVE = "text-[#e53535]"
+const COLOR_STATE_NEUTRAL = "text-[#facc15]"
+const COLOR_STATE_STALE = "text-[#f59e0b]"
+const COLOR_STATE_MISSING = "text-[#71717a]"
+const COLOR_STATE_LOADING = "text-[#38bdf8]"
+
 const DASHBOARD_PANEL_BASE = "min-h-0 rounded-lg border p-3"
 const DASHBOARD_PANEL_LEVEL_CLASS: Record<DashboardPanelLevel, string> = {
-  level1: "border-amber-300/35 bg-[radial-gradient(circle_at_8%_0%,rgba(16,185,129,.2),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(245,158,11,.13),transparent_28%),linear-gradient(135deg,rgba(3,10,8,.99),rgba(1,18,14,.98)_52%,rgba(8,8,6,.98))] shadow-[0_0_0_1px_rgba(245,158,11,.06),0_24px_80px_rgba(0,0,0,.36)] md:p-4",
-  level2: "border-cyan-300/20 bg-zinc-950/88 shadow-[inset_0_1px_0_rgba(34,211,238,.06)]",
-  level3: "border-zinc-800/80 bg-zinc-950/82",
-  level4: "border-zinc-900/85 bg-zinc-950/62",
+  level1: cn(COLOR_BORDER_STRONG, COLOR_SURFACE_LEVEL1, "shadow-[0_0_0_1px_rgba(249,115,22,.06),0_24px_80px_rgba(0,0,0,.36)] md:p-4"),
+  level2: cn(COLOR_BORDER_SUBTLE, COLOR_SURFACE_LEVEL2, "shadow-[inset_0_1px_0_rgba(56,189,248,.06)]"),
+  level3: cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL3),
+  level4: cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4),
 }
-const DASHBOARD_SECTION_HEADER = "mb-3 flex min-h-[22px] items-center justify-between gap-3 border-b border-zinc-900/80 pb-2"
-const DASHBOARD_SECTION_TITLE = "flex min-w-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300"
-const DASHBOARD_INNER_PANEL = "rounded-lg border border-zinc-800/80 bg-black/40"
+const DASHBOARD_SECTION_HEADER = cn("mb-3 flex min-h-[22px] items-center justify-between gap-3 border-b pb-2", COLOR_BORDER_MUTED)
+const DASHBOARD_SECTION_TITLE = cn("flex min-w-0 items-center gap-2", COLOR_ACCENT_CYAN, TYPO_SECTION_TITLE)
+const DASHBOARD_INNER_PANEL = cn("rounded-lg border", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)
 
 function Card({
   title,
@@ -896,34 +937,34 @@ function MarketBrief({ mover, causes }: { mover?: MarketMoverCandidate; causes: 
   const summary = marketSummary(state, bullFactors, bearFactors, causes)
   const stateIcon = terminalDirectionIcon(state)
   const stateBorder = state === "Bullish"
-    ? "border-emerald-300/30 bg-emerald-400/10"
+    ? "border-[#22c55e]/30 bg-[#22c55e]/10"
     : state === "Bearish"
-      ? "border-rose-300/30 bg-rose-400/10"
-      : "border-zinc-700 bg-zinc-900/80"
+      ? "border-[#e53535]/30 bg-[#e53535]/10"
+      : cn("border-[#facc15]/25 bg-[#facc15]/10")
 
   return (
     <Card
       title="Market Brief"
       icon={<LineChart className="h-3.5 w-3.5" />}
-      className="border-cyan-300/25 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,.16),transparent_34%),rgba(9,9,11,.92)] p-4"
+      className={cn("border-[#38bdf8]/25 p-4", COLOR_SURFACE_LEVEL4)}
     >
       <div className="grid gap-3 md:grid-cols-[1.2fr_.8fr] md:items-stretch">
-        <div className="flex min-h-[156px] flex-col justify-center rounded-lg border border-cyan-300/15 bg-black/50 p-5">
-          <div className={cn("font-black leading-none text-cyan-100", score === null ? "text-3xl" : "text-8xl")}>{score ?? "NO DATA"}</div>
-          <div className="mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Confidence</div>
+        <div className={cn("flex min-h-[156px] flex-col justify-center rounded-lg border border-[#38bdf8]/15 p-5", COLOR_BACKGROUND_DEEP)}>
+          <div className={cn(COLOR_ACCENT_CYAN, score === null ? TYPO_HERO_METADATA_VALUE : TYPO_HERO_DIRECTION)}>{score ?? "NO DATA"}</div>
+          <div className={cn("mt-2", COLOR_TEXT_MUTED, TYPO_HERO_METADATA_LABEL)}>Confidence</div>
         </div>
         <div className={cn("flex min-h-[156px] flex-col justify-center rounded-lg border p-5 text-right", stateBorder)}>
           <div className="text-5xl leading-none">{stateIcon}</div>
-          <div className={cn("mt-3 text-3xl font-black uppercase tracking-[0.08em]", stateTone(state))}>{state}</div>
-          <div className="mt-2 truncate text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400">{summary}</div>
+          <div className={cn("mt-3", TYPO_HERO_METADATA_VALUE, stateTone(state))}>{state}</div>
+          <div className={cn("mt-2 truncate", COLOR_TEXT_SECONDARY, TYPO_DRIVER_SUMMARY)}>{summary}</div>
           <div className="mt-4 grid grid-cols-2 gap-2 text-left">
-            <div className="rounded border border-emerald-300/15 bg-black/35 p-2">
-              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Bull Factors</div>
-              <div className="text-xl font-black text-emerald-100">{bullFactors}</div>
+            <div className={cn("rounded border border-[#22c55e]/15 p-2", COLOR_BACKGROUND_DEEP)}>
+              <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>Bull Factors</div>
+              <div className={cn(COLOR_STATE_POSITIVE, TYPO_ANALYTICS_VALUE)}>{bullFactors}</div>
             </div>
-            <div className="rounded border border-rose-300/15 bg-black/35 p-2">
-              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Bear Factors</div>
-              <div className="text-xl font-black text-rose-100">{bearFactors}</div>
+            <div className={cn("rounded border border-[#e53535]/15 p-2", COLOR_BACKGROUND_DEEP)}>
+              <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>Bear Factors</div>
+              <div className={cn(COLOR_STATE_NEGATIVE, TYPO_ANALYTICS_VALUE)}>{bearFactors}</div>
             </div>
           </div>
         </div>
@@ -933,9 +974,9 @@ function MarketBrief({ mover, causes }: { mover?: MarketMoverCandidate; causes: 
 }
 
 function causeToneClass(tone: CauseTone) {
-  if (tone === "positive") return "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
-  if (tone === "negative") return "border-rose-400/25 bg-rose-400/10 text-rose-100"
-  return "border-amber-400/25 bg-amber-400/10 text-amber-100"
+  if (tone === "positive") return cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
+  if (tone === "negative") return cn("border-[#e53535]/25 bg-[#e53535]/10", COLOR_STATE_NEGATIVE)
+  return cn("border-[#facc15]/25 bg-[#facc15]/10", COLOR_STATE_NEUTRAL)
 }
 
 function causeIcon(tone: CauseTone) {
@@ -950,17 +991,17 @@ function WhyCard({ causes }: { causes: CauseTag[] }) {
   return (
     <Card title="Market Drivers" icon={<Info className="h-3.5 w-3.5" />} level="level3">
       {!hasEnoughEvidence ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "px-2 py-4 text-center text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500")}>INSUFFICIENT LIVE EVIDENCE</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "px-2 py-4 text-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>INSUFFICIENT LIVE EVIDENCE</div>
       ) : (
         <div className="grid gap-1.5">
           {causes.slice(0, 3).map((cause, index) => (
-            <div key={cause.label} className={cn("rounded-md border px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em]", causeToneClass(cause.tone))}>
+            <div key={cause.label} className={cn("rounded-md border px-2 py-2", TYPO_DRIVER_SUMMARY, causeToneClass(cause.tone))}>
               <div>
-                <span className="mr-1.5 text-zinc-400">#{index + 1}</span>
+                <span className={cn("mr-1.5", COLOR_TEXT_SECONDARY)}>#{index + 1}</span>
                 <span className="mr-1.5">{causeIcon(cause.tone)}</span>
                 {cause.label}
               </div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-400">{cause.explanation}</div>
+              <div className={cn("mt-1", COLOR_TEXT_SECONDARY, TYPO_EVIDENCE_METADATA)}>{cause.explanation}</div>
             </div>
           ))}
         </div>
@@ -1001,23 +1042,23 @@ function TrendChangeRiskCard({ mover, causes }: { mover?: MarketMoverCandidate; 
     <Card title="Trend Change Risk" icon={<AlertTriangle className="h-3.5 w-3.5" />} level="level4">
       <div className={cn(DASHBOARD_INNER_PANEL, "p-3")}>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">Risk Level</span>
+          <span className={cn(COLOR_TEXT_MUTED, TYPO_ANALYTICS_TITLE)}>Risk Level</span>
           <span className={cn(
-            "text-sm font-black uppercase",
-            riskLevel === "HIGH" && "text-rose-100",
-            riskLevel === "MEDIUM" && "text-amber-100",
-            riskLevel === "LOW" && "text-emerald-100",
-            riskLevel === "NO DATA" && "text-zinc-500",
+            TYPO_BADGE,
+            riskLevel === "HIGH" && COLOR_STATE_NEGATIVE,
+            riskLevel === "MEDIUM" && COLOR_STATE_NEUTRAL,
+            riskLevel === "LOW" && COLOR_STATE_POSITIVE,
+            riskLevel === "NO DATA" && COLOR_STATE_MISSING,
           )}>
             {riskLevel}
           </span>
         </div>
-        <div className="mt-2 text-xs font-black uppercase tracking-[0.08em] text-white">{interpretation}</div>
-        <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">Reason: {reason}</div>
+        <div className={cn("mt-2", COLOR_TEXT_PRIMARY, TYPO_DRIVER_SUMMARY)}>{interpretation}</div>
+        <div className={cn("mt-1", COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>Reason: {reason}</div>
         {reversalDrivers.length > 0 && (
           <div className="mt-2 grid gap-1">
             {reversalDrivers.slice(0, 2).map((driver) => (
-              <div key={`trend-${driver.label}`} className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">
+              <div key={`trend-${driver.label}`} className={cn(COLOR_TEXT_SECONDARY, TYPO_EVIDENCE_METADATA)}>
                 Watch: {driver.label}
               </div>
             ))}
@@ -1031,10 +1072,10 @@ function TrendChangeRiskCard({ mover, causes }: { mover?: MarketMoverCandidate; 
 function TopRowCard({ title, icon, primary, rows }: { title: string; icon: ReactNode; primary: string; rows: string[] }) {
   return (
     <Card title={title} icon={icon} level="level4">
-      <div className="text-xl font-black uppercase text-white">{primary}</div>
+      <div className={cn(COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{primary}</div>
       <div className="mt-2 grid gap-1.5">
         {rows.map((row) => (
-          <div key={`${title}-${row}`} className={cn(DASHBOARD_INNER_PANEL, "px-2 py-1.5 text-[11px] font-black uppercase text-zinc-300")}>
+          <div key={`${title}-${row}`} className={cn(DASHBOARD_INNER_PANEL, "px-2 py-1.5", COLOR_TEXT_SECONDARY, TYPO_EVIDENCE_BODY)}>
             {row}
           </div>
         ))}
@@ -1057,16 +1098,16 @@ function GuidanceCard({ mover }: { mover?: MarketMoverCandidate }) {
   return (
     <Card title="Execution Guidance" icon={<ShieldAlert className="h-3.5 w-3.5" />} level="level4">
       <div className="grid gap-2">
-        <div className="rounded-md border border-emerald-300/15 bg-emerald-400/10 px-2 py-1.5">
-          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/70">DO</div>
+        <div className="rounded-md border border-[#22c55e]/15 bg-[#22c55e]/10 px-2 py-1.5">
+          <div className={cn(COLOR_STATE_POSITIVE, TYPO_ANALYTICS_TITLE)}>DO</div>
           {(doItems.length ? doItems : ["NO DATA"]).map((item) => (
-            <div key={`do-${item}`} className="mt-1 text-xs font-black uppercase text-emerald-100">{item}</div>
+            <div key={`do-${item}`} className={cn("mt-1 uppercase", COLOR_STATE_POSITIVE, TYPO_ANALYTICS_VALUE)}>{item}</div>
           ))}
         </div>
-        <div className="rounded-md border border-rose-300/15 bg-rose-400/10 px-2 py-1.5">
-          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-rose-100/70">AVOID</div>
+        <div className="rounded-md border border-[#e53535]/15 bg-[#e53535]/10 px-2 py-1.5">
+          <div className={cn(COLOR_STATE_NEGATIVE, TYPO_ANALYTICS_TITLE)}>AVOID</div>
           {(avoidItems.length ? avoidItems : ["NO DATA"]).map((item) => (
-            <div key={`avoid-${item}`} className="mt-1 text-xs font-black uppercase text-rose-100">{item}</div>
+            <div key={`avoid-${item}`} className={cn("mt-1 uppercase", COLOR_STATE_NEGATIVE, TYPO_ANALYTICS_VALUE)}>{item}</div>
           ))}
         </div>
       </div>
@@ -1112,49 +1153,50 @@ function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
   return (
     <Card title="Tactical Alerts" icon={<Zap className="h-3.5 w-3.5" />} level="level3" className="min-h-[132px]">
       {rankedAlerts.length === 0 ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "px-3 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500")}>NO LIVE ALERTS</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "px-3 py-2 text-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>NO LIVE ALERTS</div>
       ) : (
       <div className="grid gap-1.5 xl:grid-cols-4">
-        <div className="xl:col-span-4 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+        <div className={cn("xl:col-span-4", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
           What should I watch next?
         </div>
         {rankedAlerts.map((alert, index) => (
-          <article key={`${alert.asset}-${alert.label}`} className="flex h-full flex-col rounded border border-zinc-800/75 bg-black/30 p-2.5">
+          <article key={`${alert.asset}-${alert.label}`} className={cn("flex h-full flex-col rounded border p-2.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)}>
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
               <div className="min-h-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-300">#{index + 1} Watch</div>
+                  <div className={cn(COLOR_ACCENT_CYAN, TYPO_EVIDENCE_TITLE)}>#{index + 1} Watch</div>
                   <span className={cn(
-                    "shrink-0 rounded border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.12em]",
-                    priorityLabel(alert.confidence) === "HIGH" && "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
-                    priorityLabel(alert.confidence) === "MEDIUM" && "border-amber-300/25 bg-amber-400/10 text-amber-100",
-                    priorityLabel(alert.confidence) === "LOW" && "border-zinc-700 bg-zinc-900 text-zinc-300",
+                    "shrink-0 rounded border px-1.5 py-0.5",
+                    TYPO_BADGE,
+                    priorityLabel(alert.confidence) === "HIGH" && cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE),
+                    priorityLabel(alert.confidence) === "MEDIUM" && cn("border-[#facc15]/25 bg-[#facc15]/10", COLOR_STATE_NEUTRAL),
+                    priorityLabel(alert.confidence) === "LOW" && cn("border-[#71717a]/40", COLOR_SURFACE_LEVEL4, COLOR_STATE_MISSING),
                   )}>{priorityLabel(alert.confidence)}</span>
                 </div>
-                <div className="mt-1 text-sm font-black uppercase leading-none text-white">{alert.asset}</div>
-                {alert.context && <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{alert.context}</div>}
-                <div className="mt-0.5 line-clamp-1 text-[11px] font-black text-zinc-300">{alert.label ?? "NO DATA"}</div>
-                {alert.explanation && <div className="mt-1 line-clamp-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{alert.explanation}</div>}
+                <div className={cn("mt-1 uppercase", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{alert.asset}</div>
+                {alert.context && <div className={cn("mt-0.5", COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>{alert.context}</div>}
+                <div className={cn("mt-0.5 line-clamp-1", COLOR_TEXT_SECONDARY, TYPO_DRIVER_SUMMARY)}>{alert.label ?? "NO DATA"}</div>
+                {alert.explanation && <div className={cn("mt-1 line-clamp-2", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{alert.explanation}</div>}
                 {timeAgo(alert.detectedAt) && (
-                  <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100">{timeAgo(alert.detectedAt)}</div>
+                  <div className={cn("mt-1", COLOR_STATE_POSITIVE, TYPO_EVIDENCE_METADATA)}>{timeAgo(alert.detectedAt)}</div>
                 )}
               </div>
               <div className="flex items-end justify-between gap-2">
-                <span className={cn("rounded-full border px-2 py-0.5 text-[9px] font-black uppercase", biasClass(alert.bias))}>{alert.bias}</span>
+                <span className={cn("rounded-full border px-2 py-0.5", TYPO_BADGE, biasClass(alert.bias))}>{alert.bias}</span>
                 {scoreLabel(alert.confidence) && (
-                  <span className="text-2xl font-black leading-none text-cyan-100">{scoreLabel(alert.confidence)}</span>
+                  <span className={cn(COLOR_ACCENT_CYAN, TYPO_ANALYTICS_VALUE)}>{scoreLabel(alert.confidence)}</span>
                 )}
               </div>
               {alert.tags.length > 0 && <div className="flex flex-wrap gap-1">
                 {alert.tags.map((tag) => (
-                  <span key={`${alert.asset}-${tag}`} className="rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-zinc-400">
+                  <span key={`${alert.asset}-${tag}`} className={cn("rounded border px-1.5 py-0.5", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4, COLOR_TEXT_MUTED, TYPO_BADGE)}>
                     {tag}
                   </span>
                 ))}
               </div>}
               <Link
                 href={marketHref(alert)}
-                className="mt-auto rounded border border-cyan-300/20 bg-cyan-400/5 px-2 py-1 text-center text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 hover:border-cyan-200/50"
+                className={cn("mt-auto rounded border border-[#38bdf8]/20 bg-[#38bdf8]/10 px-2 py-1 text-center hover:border-[#38bdf8]/50", COLOR_ACCENT_CYAN, TYPO_BADGE)}
               >
                 Inspect Market
               </Link>
@@ -1193,7 +1235,7 @@ function WhyThisSignal({ mover, causes, futures, marketDirection }: { mover?: Ma
   if (!mover) {
     return (
       <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} level="level4">
-        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500")}>NO SIGNAL DATA</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", COLOR_TEXT_MUTED, TYPO_ANALYTICS_TITLE)}>NO SIGNAL DATA</div>
       </Card>
     )
   }
@@ -1201,20 +1243,20 @@ function WhyThisSignal({ mover, causes, futures, marketDirection }: { mover?: Ma
   return (
     <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} level="level4">
       <div className="grid gap-2 lg:grid-cols-3">
-        <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">Evidence</div>
-          <div className="mt-1.5 text-lg font-black uppercase leading-tight text-zinc-100">{evidenceRead.headline}</div>
-          {evidenceRead.support && <div className="mt-1 text-xs font-black uppercase leading-tight text-cyan-50/80">{evidenceRead.support}</div>}
-          {(evidenceRead.note || note) && <div className="mt-2 rounded border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-amber-100">{evidenceRead.note ?? note}</div>}
+        <div className="rounded-lg border border-[#38bdf8]/20 bg-[#38bdf8]/10 p-3">
+          <div className={cn(COLOR_ACCENT_CYAN, TYPO_ANALYTICS_TITLE)}>Evidence</div>
+          <div className={cn("mt-1.5 uppercase", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{evidenceRead.headline}</div>
+          {evidenceRead.support && <div className={cn("mt-1 uppercase", COLOR_TEXT_SECONDARY, TYPO_DRIVER_SUMMARY)}>{evidenceRead.support}</div>}
+          {(evidenceRead.note || note) && <div className={cn("mt-2 rounded border border-[#f97316]/20 bg-[#f97316]/10 px-2 py-1", COLOR_ACCENT_AMBER, TYPO_EVIDENCE_METADATA)}>{evidenceRead.note ?? note}</div>}
         </div>
-        <div className="rounded-lg border border-rose-300/20 bg-rose-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-100/70">Invalidation</div>
-          <div className="mt-1.5 text-xl font-black leading-tight text-zinc-100">{failure ?? "NO DATA"}</div>
+        <div className="rounded-lg border border-[#e53535]/20 bg-[#e53535]/10 p-3">
+          <div className={cn(COLOR_STATE_NEGATIVE, TYPO_ANALYTICS_TITLE)}>Invalidation</div>
+          <div className={cn("mt-1.5", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{failure ?? "NO DATA"}</div>
         </div>
-        <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/70">Action</div>
-          <div className="mt-1.5 text-xl font-black leading-tight text-zinc-100">{action ?? "NO DATA"}</div>
-          <div className="mt-2 grid gap-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-50/80">
+        <div className="rounded-lg border border-[#22c55e]/20 bg-[#22c55e]/10 p-3">
+          <div className={cn(COLOR_STATE_POSITIVE, TYPO_ANALYTICS_TITLE)}>Action</div>
+          <div className={cn("mt-1.5", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{action ?? "NO DATA"}</div>
+          <div className={cn("mt-2 grid gap-0.5", COLOR_TEXT_SECONDARY, TYPO_EVIDENCE_METADATA)}>
             <div>Range: {levels.range ?? "NO DATA"}</div>
             <div>Resistance: {levels.resistance ?? "NO DATA"}</div>
             <div>Support: {levels.support ?? "NO DATA"}</div>
@@ -1232,12 +1274,12 @@ function InformationFlow({ items }: { items: InformationFlowItem[] }) {
     <Card title="Information Flow" icon={<Newspaper className="h-3.5 w-3.5" />} level="level4">
       <div className="space-y-2">
         {items.length === 0 ? (
-          <div className={cn(DASHBOARD_INNER_PANEL, "p-4 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500")}>NO FLOW DATA</div>
+          <div className={cn(DASHBOARD_INNER_PANEL, "p-4 text-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>NO FLOW DATA</div>
         ) : items.map((item) => (
           <div key={`${item.time}-${item.event}`} className={cn(DASHBOARD_INNER_PANEL, "grid grid-cols-[38px_1fr_auto] items-center gap-2 p-2")}>
-            <div className="text-[10px] font-black text-zinc-500">{item.time}</div>
-            <div className="truncate text-xs font-black text-white">{item.event}</div>
-            <div className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">{item.tag ?? ""}</div>
+            <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>{item.time}</div>
+            <div className={cn("truncate", COLOR_TEXT_PRIMARY, TYPO_EVIDENCE_BODY)}>{item.event}</div>
+            <div className={cn(COLOR_ACCENT_CYAN, TYPO_EVIDENCE_METADATA)}>{item.tag ?? ""}</div>
           </div>
         ))}
       </div>
@@ -1249,22 +1291,22 @@ function SystemStatus({ liquidationCount, alertCount, cacheUpdatedAt }: { liquid
   return (
     <Card title="System Status" icon={<RadioTower className="h-3.5 w-3.5" />} level="level4">
       <div className="space-y-1.5">
-        <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2 text-xs")}>
-          <span className="flex items-center gap-2 text-zinc-300"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" /> Market feed</span>
-          <span className="font-black text-emerald-100">Live</span>
+        <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2", TYPO_EVIDENCE_BODY)}>
+          <span className={cn("flex items-center gap-2", COLOR_TEXT_SECONDARY)}><CheckCircle2 className="h-3.5 w-3.5 text-[#22c55e]" /> Market feed</span>
+          <span className={COLOR_STATE_POSITIVE}>Live</span>
         </div>
-        <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2 text-xs")}>
-          <span className="flex items-center gap-2 text-zinc-300"><Activity className="h-3.5 w-3.5 text-cyan-300" /> Alerts</span>
-          <span className="font-black text-cyan-100">{alertCount}</span>
+        <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2", TYPO_EVIDENCE_BODY)}>
+          <span className={cn("flex items-center gap-2", COLOR_TEXT_SECONDARY)}><Activity className="h-3.5 w-3.5 text-[#38bdf8]" /> Alerts</span>
+          <span className={COLOR_ACCENT_CYAN}>{alertCount}</span>
         </div>
-        <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2 text-xs")}>
-          <span className="flex items-center gap-2 text-zinc-300"><AlertTriangle className="h-3.5 w-3.5 text-amber-300" /> Liquidations</span>
-          <span className="font-black text-amber-100">{liquidationCount}</span>
+        <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2", TYPO_EVIDENCE_BODY)}>
+          <span className={cn("flex items-center gap-2", COLOR_TEXT_SECONDARY)}><AlertTriangle className="h-3.5 w-3.5 text-[#f97316]" /> Liquidations</span>
+          <span className={COLOR_ACCENT_AMBER}>{liquidationCount}</span>
         </div>
         {cacheUpdatedAt ? (
-          <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2 text-[10px] font-black uppercase tracking-[0.1em]")}>
-            <span className="text-zinc-500">Last updated</span>
-            <span className="text-zinc-300">{new Date(cacheUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
+          <div className={cn(DASHBOARD_INNER_PANEL, "flex items-center justify-between p-2", TYPO_EVIDENCE_METADATA)}>
+            <span className={COLOR_TEXT_MUTED}>Last updated</span>
+            <span className={COLOR_TEXT_SECONDARY}>{new Date(cacheUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
           </div>
         ) : null}
       </div>
@@ -1282,47 +1324,47 @@ function HistoricalEvidenceStrip({ data, loading }: { data: HistoricalEvidenceRe
     : data?.reason ?? "cached evidence unavailable"
 
   return (
-    <section className="rounded-lg border border-amber-300/18 bg-zinc-950/72 px-3 py-2 shadow-[inset_0_1px_0_rgba(245,158,11,.06)]">
+    <section className={cn("rounded-lg border px-3 py-2 shadow-[inset_0_1px_0_rgba(249,115,22,.06)]", "border-[#f97316]/20", COLOR_SURFACE_LEVEL4)}>
       <div className="grid gap-2 lg:grid-cols-[190px_minmax(0,1fr)] lg:items-center">
-        <div className="border-l-2 border-amber-300/35 pl-3">
-          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-amber-100">
+        <div className="border-l-2 border-[#f97316]/40 pl-3">
+          <div className={cn("flex items-center gap-2", COLOR_ACCENT_AMBER, TYPO_EVIDENCE_TITLE)}>
             <History className="h-3.5 w-3.5" />
             Historical Analog
           </div>
-          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
+          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
             Lightweight context strip
           </div>
         </div>
         {available ? (
           <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(150px,auto)] xl:items-stretch">
-            <div className="rounded border border-zinc-800/75 bg-black/30 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+            <div className={cn("rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
               Similar Cases
-              <div className="mt-0.5 text-base tracking-[0.04em] text-zinc-100">{data?.statistics?.totalCases ?? data?.diagnostics?.analogCount}</div>
+              <div className={cn("mt-0.5", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{data?.statistics?.totalCases ?? data?.diagnostics?.analogCount}</div>
             </div>
-            <div className="rounded border border-zinc-800/75 bg-black/30 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+            <div className={cn("rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
               Avg Move 24h
-              <div className={cn("mt-0.5 text-base tracking-[0.04em]", (horizon?.averageReturn ?? 0) >= 0 ? "text-emerald-100" : "text-rose-100")}>
+              <div className={cn("mt-0.5", TYPO_ANALYTICS_VALUE, (horizon?.averageReturn ?? 0) >= 0 ? COLOR_STATE_POSITIVE : COLOR_STATE_NEGATIVE)}>
                 {horizon?.averageReturn === null || horizon?.averageReturn === undefined ? "NO DATA" : `${horizon.averageReturn > 0 ? "+" : ""}${horizon.averageReturn.toFixed(2)}%`}
               </div>
             </div>
-            <div className="rounded border border-zinc-800/75 bg-black/30 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+            <div className={cn("rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
               Continuation
-              <div className="mt-0.5 text-base tracking-[0.04em] text-zinc-100">
+              <div className={cn("mt-0.5", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>
                 {horizon?.winRate === null || horizon?.winRate === undefined ? "NO DATA" : `${horizon.winRate.toFixed(1)}%`}
               </div>
             </div>
-            <div className="rounded border border-zinc-800/75 bg-black/30 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+            <div className={cn("rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
               Outcome
-              <div className="mt-0.5 text-base tracking-[0.04em] text-amber-100">{data?.statistics?.dominantOutcome?.toUpperCase() ?? "NO DATA"}</div>
+              <div className={cn("mt-0.5", COLOR_ACCENT_AMBER, TYPO_ANALYTICS_VALUE)}>{data?.statistics?.dominantOutcome?.toUpperCase() ?? "NO DATA"}</div>
             </div>
-            <div className="flex flex-col justify-center rounded border border-zinc-900/90 bg-black/20 px-2.5 py-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-600">
+            <div className={cn("flex flex-col justify-center rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
               {source ?? "UNKNOWN SOURCE"} · {generatedAt ? new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "NO GENERATED TIME"}
             </div>
           </div>
         ) : (
-          <div className="rounded border border-zinc-800/75 bg-black/30 px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500">
-            <span className="text-zinc-400">{loading ? "Historical Analog Loading" : "Historical Analog Unavailable"}</span>
-            {!loading ? <span className="ml-2 text-zinc-600">Reason: {reason}</span> : null}
+          <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
+            <span className={COLOR_TEXT_SECONDARY}>{loading ? "Historical Analog Loading" : "Historical Analog Unavailable"}</span>
+            {!loading ? <span className={cn("ml-2", COLOR_TEXT_DIM)}>Reason: {reason}</span> : null}
           </div>
         )}
       </div>
@@ -1365,12 +1407,12 @@ function dashboardHealthFromDriverState(
 }
 
 function healthBadgeClass(health: string) {
-  if (health === "CURRENT" || health === "VERIFIED") return "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
-  if (health === "PARTIAL" || health === "DEGRADED") return "border-amber-300/25 bg-amber-400/10 text-amber-100"
-  if (health === "STALE") return "border-orange-300/25 bg-orange-400/10 text-orange-100"
-  if (health === "LOADING") return "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
-  if (health === "MISSING") return "border-zinc-700 bg-zinc-900/90 text-zinc-400"
-  return "border-zinc-800 bg-black/45 text-zinc-500"
+  if (health === "CURRENT" || health === "VERIFIED") return cn("border-[#22c55e]/25 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
+  if (health === "PARTIAL" || health === "DEGRADED") return cn("border-[#facc15]/25 bg-[#facc15]/10", COLOR_STATE_NEUTRAL)
+  if (health === "STALE") return cn("border-[#f59e0b]/25 bg-[#f59e0b]/10", COLOR_STATE_STALE)
+  if (health === "LOADING") return cn("border-[#38bdf8]/25 bg-[#38bdf8]/10", COLOR_STATE_LOADING)
+  if (health === "MISSING") return cn("border-[#71717a]/40 bg-[#0a0f0a]", COLOR_STATE_MISSING)
+  return cn(COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED)
 }
 
 function evidencePriority(health: string) {
@@ -1381,12 +1423,12 @@ function evidencePriority(health: string) {
 
 function evidencePriorityClass(priority: string) {
   if (priority === "high") {
-    return "border-emerald-300/30 bg-[linear-gradient(135deg,rgba(6,78,59,.24),rgba(0,0,0,.42))] shadow-[inset_0_1px_0_rgba(110,231,183,.12)]"
+    return cn("border-[#22c55e]/30 bg-[#22c55e]/10 shadow-[inset_0_1px_0_rgba(34,197,94,.12)]")
   }
   if (priority === "medium") {
-    return "border-amber-300/25 bg-[linear-gradient(135deg,rgba(113,63,18,.2),rgba(0,0,0,.42))] shadow-[inset_0_1px_0_rgba(252,211,77,.08)]"
+    return cn("border-[#facc15]/25 bg-[#facc15]/10 shadow-[inset_0_1px_0_rgba(250,204,21,.08)]")
   }
-  return "border-zinc-800/80 bg-zinc-950/68"
+  return cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)
 }
 
 function evidencePriorityLabel(priority: string) {
@@ -1396,25 +1438,25 @@ function evidencePriorityLabel(priority: string) {
 }
 
 function driverDirectionClass(direction: MarketDriverSummary["drivers"][number]["evidence"]["direction"]) {
-  if (direction === "positive") return "text-emerald-100"
-  if (direction === "negative") return "text-rose-100"
-  return "text-amber-100"
+  if (direction === "positive") return COLOR_STATE_POSITIVE
+  if (direction === "negative") return COLOR_STATE_NEGATIVE
+  return COLOR_STATE_NEUTRAL
 }
 
 function driverDirectionPanelClass(direction: MarketDriverSummary["drivers"][number]["evidence"]["direction"]) {
   if (direction === "positive") {
-    return "border-emerald-300/28 bg-[linear-gradient(135deg,rgba(6,78,59,.24),rgba(0,0,0,.42))] shadow-[inset_0_1px_0_rgba(110,231,183,.1)]"
+    return "border-[#22c55e]/30 bg-[#22c55e]/10 shadow-[inset_0_1px_0_rgba(34,197,94,.1)]"
   }
   if (direction === "negative") {
-    return "border-rose-300/28 bg-[linear-gradient(135deg,rgba(76,5,25,.24),rgba(0,0,0,.42))] shadow-[inset_0_1px_0_rgba(253,164,175,.1)]"
+    return "border-[#e53535]/30 bg-[#e53535]/10 shadow-[inset_0_1px_0_rgba(229,53,53,.1)]"
   }
-  return "border-amber-300/25 bg-[linear-gradient(135deg,rgba(113,63,18,.18),rgba(0,0,0,.42))] shadow-[inset_0_1px_0_rgba(252,211,77,.08)]"
+  return "border-[#facc15]/25 bg-[#facc15]/10 shadow-[inset_0_1px_0_rgba(250,204,21,.08)]"
 }
 
 function driverDirectionBadgeClass(direction: MarketDriverSummary["drivers"][number]["evidence"]["direction"]) {
-  if (direction === "positive") return "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
-  if (direction === "negative") return "border-rose-300/30 bg-rose-400/10 text-rose-100"
-  return "border-amber-300/30 bg-amber-400/10 text-amber-100"
+  if (direction === "positive") return cn("border-[#22c55e]/30 bg-[#22c55e]/10", COLOR_STATE_POSITIVE)
+  if (direction === "negative") return cn("border-[#e53535]/30 bg-[#e53535]/10", COLOR_STATE_NEGATIVE)
+  return cn("border-[#facc15]/30 bg-[#facc15]/10", COLOR_STATE_NEUTRAL)
 }
 
 function formatDashboardTimestamp(value?: string | null) {
@@ -1475,10 +1517,10 @@ function MarketDirectionPanel({
   const direction = driverBias(data?.marketDirection)
   const health = dashboardHealthFromDriverState(state, data)
   const tone = direction === "Bullish"
-    ? "border-emerald-300/35 bg-[linear-gradient(135deg,rgba(5,46,22,.92),rgba(2,15,12,.96))] text-emerald-100 shadow-[inset_0_1px_0_rgba(110,231,183,.14)]"
+    ? "border-[#22c55e]/35 bg-[linear-gradient(135deg,rgba(7,18,11,.95),rgba(34,197,94,.16))] text-[#22c55e] shadow-[inset_0_1px_0_rgba(34,197,94,.14)]"
     : direction === "Bearish"
-      ? "border-rose-300/35 bg-[linear-gradient(135deg,rgba(76,5,25,.9),rgba(15,8,12,.96))] text-rose-100 shadow-[inset_0_1px_0_rgba(253,164,175,.12)]"
-      : "border-amber-300/30 bg-[linear-gradient(135deg,rgba(55,43,12,.88),rgba(13,17,13,.96))] text-amber-100 shadow-[inset_0_1px_0_rgba(252,211,77,.12)]"
+      ? "border-[#e53535]/35 bg-[linear-gradient(135deg,rgba(7,18,11,.95),rgba(229,53,53,.16))] text-[#e53535] shadow-[inset_0_1px_0_rgba(229,53,53,.12)]"
+      : "border-[#facc15]/30 bg-[linear-gradient(135deg,rgba(7,18,11,.95),rgba(250,204,21,.14))] text-[#facc15] shadow-[inset_0_1px_0_rgba(250,204,21,.12)]"
   const topDriver = data?.drivers[0]
   const conclusion = topDriver
     ? `${direction} because ${topDriver.title}`
@@ -1490,64 +1532,64 @@ function MarketDirectionPanel({
       icon={<LineChart className="h-3.5 w-3.5" />}
       level="level1"
       right={data ? (
-        <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+        <div className={cn(TYPO_EVIDENCE_METADATA, COLOR_TEXT_DIM)}>
           {new Date(data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
         </div>
       ) : null}
     >
       {state === "loading" ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500")}>
+        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>
           Loading Market Direction
         </div>
       ) : state === "unavailable" ? (
         <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center px-4 text-center")}>
           <div>
-            <div className="text-lg font-black uppercase tracking-[0.12em] text-zinc-400">Market Direction Unavailable</div>
-            <div className="mt-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-600">Reason: {reason ?? "Market Driver evidence unavailable."}</div>
+            <div className={cn(COLOR_TEXT_SECONDARY, TYPO_SECTION_TITLE)}>Market Direction Unavailable</div>
+            <div className={cn("mt-2", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Reason: {reason ?? "Market Driver evidence unavailable."}</div>
           </div>
         </div>
       ) : state === "empty" || !data ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500")}>
+        <div className={cn(DASHBOARD_INNER_PANEL, "grid min-h-[148px] place-items-center", COLOR_TEXT_MUTED, TYPO_BADGE)}>
           No Market Driver Evidence
         </div>
       ) : (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className={cn("relative flex min-h-[310px] overflow-hidden rounded-lg border px-5 py-6 md:px-8 md:py-8", tone)}>
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/40 to-transparent" />
-            <div className="pointer-events-none absolute bottom-0 left-0 h-24 w-full bg-[linear-gradient(90deg,rgba(245,158,11,.12),transparent_55%)]" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#f97316]/40 to-transparent" />
+            <div className="pointer-events-none absolute bottom-0 left-0 h-24 w-full bg-[linear-gradient(90deg,rgba(249,115,22,.12),transparent_55%)]" />
             <div className="relative z-10 flex max-w-5xl flex-col justify-center">
               <div className="flex flex-wrap gap-2">
-                <span className={cn("rounded border px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em]", healthBadgeClass(health))}>
+                <span className={cn("rounded border px-2 py-1", TYPO_BADGE, healthBadgeClass(health))}>
                   Health {health}
                 </span>
-                <span className="rounded border border-zinc-700 bg-black/40 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                <span className={cn("rounded border px-2 py-1", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>
                   Regime Unavailable
                 </span>
-                <span className="rounded border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                <span className={cn("rounded border border-[#38bdf8]/20 bg-[#38bdf8]/10 px-2 py-1", COLOR_ACCENT_CYAN, TYPO_BADGE)}>
                   {data.symbol}
                 </span>
               </div>
-              <div className="mt-6 text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/75">What Is Happening</div>
-              <div className="mt-3 text-7xl font-black uppercase leading-[0.86] tracking-[0.035em] md:text-8xl xl:text-9xl">{direction}</div>
-              <div className="mt-6 max-w-4xl border-l-2 border-amber-300/40 pl-4 text-base font-black uppercase leading-relaxed tracking-[0.08em] text-zinc-100 md:text-lg">
+              <div className={cn("mt-6", COLOR_ACCENT_AMBER, TYPO_SECTION_TITLE)}>What Is Happening</div>
+              <div className={cn("mt-3", TYPO_HERO_DIRECTION)}>{direction}</div>
+              <div className={cn("mt-6 max-w-4xl border-l-2 border-[#f97316]/40 pl-4", COLOR_TEXT_PRIMARY, TYPO_HERO_CONCLUSION)}>
                 {conclusion}
               </div>
-              <div className="mt-6 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Conclusion first. Evidence ranked below.</div>
+              <div className={cn("mt-6", COLOR_TEXT_MUTED, TYPO_HERO_METADATA_LABEL)}>Conclusion first. Evidence ranked below.</div>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-            <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-cyan-300/25 bg-[linear-gradient(135deg,rgba(8,47,73,.42),rgba(0,0,0,.34))] p-4 shadow-[inset_0_1px_0_rgba(103,232,249,.12)]">
-              <div className="text-5xl font-black leading-none text-cyan-100">{Math.round(data.confidence)}%</div>
-              <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Confidence</div>
+            <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-[#38bdf8]/25 bg-[linear-gradient(135deg,rgba(7,89,133,.34),rgba(3,8,5,.34))] p-4 shadow-[inset_0_1px_0_rgba(56,189,248,.12)]">
+              <div className={cn(TYPO_HERO_METADATA_VALUE, COLOR_ACCENT_CYAN)}>{Math.round(data.confidence)}%</div>
+              <div className={cn("mt-2", COLOR_TEXT_SECONDARY, TYPO_HERO_METADATA_LABEL)}>Confidence</div>
             </div>
-            <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-amber-300/25 bg-[linear-gradient(135deg,rgba(113,63,18,.38),rgba(0,0,0,.34))] p-4 shadow-[inset_0_1px_0_rgba(252,211,77,.12)]">
-              <div className="text-5xl font-black leading-none text-amber-100">{data.drivers.length}</div>
-              <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Driver Count</div>
+            <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-[#f97316]/25 bg-[linear-gradient(135deg,rgba(124,61,18,.34),rgba(3,8,5,.34))] p-4 shadow-[inset_0_1px_0_rgba(249,115,22,.12)]">
+              <div className={cn(TYPO_HERO_METADATA_VALUE, COLOR_ACCENT_AMBER)}>{data.drivers.length}</div>
+              <div className={cn("mt-2", COLOR_TEXT_SECONDARY, TYPO_HERO_METADATA_LABEL)}>Driver Count</div>
             </div>
-            <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(6,78,59,.3),rgba(0,0,0,.36))] p-4 shadow-[inset_0_1px_0_rgba(110,231,183,.1)]">
-              <div className="text-2xl font-black uppercase leading-none text-zinc-100">{health}</div>
-              <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Data Health</div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{formatDashboardTimestamp(data.timestamp)}</div>
+            <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-[#1c2c1c] bg-[linear-gradient(135deg,rgba(20,30,20,.82),rgba(3,8,5,.36))] p-4 shadow-[inset_0_1px_0_rgba(160,176,160,.1)]">
+              <div className={cn(TYPO_HERO_METADATA_VALUE, "uppercase", COLOR_TEXT_PRIMARY)}>{health}</div>
+              <div className={cn("mt-2", COLOR_TEXT_SECONDARY, TYPO_HERO_METADATA_LABEL)}>Data Health</div>
+              <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{formatDashboardTimestamp(data.timestamp)}</div>
             </div>
           </div>
         </div>
@@ -1570,10 +1612,10 @@ function WhyMarketMoving({
   return (
     <Card title="Top Drivers" icon={<Info className="h-3.5 w-3.5" />} level="level2">
       {state === "loading" ? (
-        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500")}>Loading Ranked Drivers</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", COLOR_TEXT_MUTED, TYPO_SECTION_TITLE)}>Loading Ranked Drivers</div>
       ) : data?.drivers.length ? (
         <div className="grid gap-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">
+          <div className={cn(COLOR_TEXT_MUTED, TYPO_DRIVER_SUMMARY)}>
             Ranked reasons behind the current market direction.
           </div>
           <div className="grid gap-2 lg:grid-cols-3">
@@ -1582,39 +1624,40 @@ function WhyMarketMoving({
               if (!driver) {
                 return (
                   <article key={`missing-driver-${slot}`} className={cn(DASHBOARD_INNER_PANEL, "p-3")}>
-                    <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-600">#{slot + 1} Driver</div>
-                    <div className="mt-2 text-sm font-black uppercase text-zinc-500">Driver Unavailable</div>
-                    <div className="mt-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-600">No evidence for this rank.</div>
+                    <div className={cn(COLOR_TEXT_DIM, TYPO_EVIDENCE_TITLE)}>#{slot + 1} Driver</div>
+                    <div className={cn("mt-2", COLOR_TEXT_MUTED, TYPO_DRIVER_TITLE)}>Driver Unavailable</div>
+                    <div className={cn("mt-2", COLOR_TEXT_DIM, TYPO_DRIVER_SUMMARY)}>No evidence for this rank.</div>
                   </article>
                 )
               }
               return (
                 <article key={`${driver.category}-${driver.title}`} className={cn("min-w-0 rounded-lg border p-3", driverDirectionPanelClass(driver.evidence.direction))}>
                   <div className="grid h-full grid-cols-[56px_minmax(0,1fr)_auto] gap-3">
-                    <div className="flex flex-col items-center justify-center rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-3 text-amber-100">
-                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-100/70">Rank</div>
-                      <div className="mt-1 text-4xl font-black leading-none">#{slot + 1}</div>
+                    <div className={cn("flex flex-col items-center justify-center rounded-lg border border-[#f97316]/20 bg-[#f97316]/10 px-2 py-3", COLOR_ACCENT_AMBER)}>
+                      <div className={cn(COLOR_ACCENT_AMBER, TYPO_BADGE)}>Rank</div>
+                      <div className={cn("mt-1", TYPO_DRIVER_RANK)}>#{slot + 1}</div>
                     </div>
                     <div className="min-w-0 self-center">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                        <span className={cn("rounded border border-[#38bdf8]/20 bg-[#38bdf8]/10 px-1.5 py-0.5", COLOR_ACCENT_CYAN, TYPO_BADGE)}>
                           {driverCategoryLabel(driver.category)}
                         </span>
                         <span className={cn(
-                          "rounded border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.14em]",
+                          "rounded border px-1.5 py-0.5",
+                          TYPO_BADGE,
                           driverDirectionBadgeClass(driver.evidence.direction),
                         )}>
                           {driver.evidence.direction}
                         </span>
                       </div>
-                      <div className="mt-2 line-clamp-1 text-base font-black uppercase tracking-[0.03em] text-white">{driver.title}</div>
-                      <div className="mt-2 line-clamp-2 text-[10px] font-black uppercase leading-relaxed tracking-[0.1em] text-zinc-500">
+                      <div className={cn("mt-2 line-clamp-1", COLOR_TEXT_PRIMARY, TYPO_DRIVER_TITLE)}>{driver.title}</div>
+                      <div className={cn("mt-2 line-clamp-2", COLOR_TEXT_MUTED, TYPO_DRIVER_SUMMARY)}>
                         {driver.evidence.summary}
                       </div>
                     </div>
-                    <div className="flex min-w-[72px] flex-col items-end justify-center border-l border-zinc-800/70 pl-3 text-right">
-                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-600">Impact</div>
-                      <div className={cn("mt-1 text-4xl font-black leading-none", driverDirectionClass(driver.evidence.direction))}>
+                    <div className={cn("flex min-w-[72px] flex-col items-end justify-center border-l pl-3 text-right", COLOR_BORDER_MUTED)}>
+                      <div className={cn(COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Impact</div>
+                      <div className={cn("mt-1", TYPO_DRIVER_SCORE, driverDirectionClass(driver.evidence.direction))}>
                         {driver.impactScore.toFixed(2)}
                       </div>
                     </div>
@@ -1624,13 +1667,13 @@ function WhyMarketMoving({
             })}
           </div>
           {extraDriverCount > 0 ? (
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/70 px-3 py-2 text-center text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+            <div className={cn("rounded-lg border px-3 py-2 text-center", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4, COLOR_TEXT_MUTED, TYPO_BADGE)}>
               + {extraDriverCount} More Drivers
             </div>
           ) : null}
         </div>
       ) : (
-        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-500")}>No Ranked Drivers Available</div>
+        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", COLOR_TEXT_MUTED, TYPO_SECTION_TITLE)}>No Ranked Drivers Available</div>
       )}
     </Card>
   )
@@ -1704,7 +1747,7 @@ function SupportingEvidence({
 
   return (
     <Card title="Evidence Preview" icon={<Target className="h-3.5 w-3.5" />} level="level2">
-      <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">
+      <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
         Status-ranked observations. Valid evidence is visually separated from partial and missing sources.
       </div>
       <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_repeat(4,minmax(0,0.8fr))]">
@@ -1721,34 +1764,37 @@ function SupportingEvidence({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-cyan-300">{card.label}</div>
+                  <div className={cn("truncate", COLOR_ACCENT_CYAN, TYPO_EVIDENCE_TITLE)}>{card.label}</div>
                   <div className={cn(
-                    "mt-1 text-[8px] font-black uppercase tracking-[0.14em]",
-                    priority === "high" && "text-emerald-100/75",
-                    priority === "medium" && "text-amber-100/75",
-                    priority === "low" && "text-zinc-600",
+                    "mt-1",
+                    TYPO_EVIDENCE_METADATA,
+                    priority === "high" && COLOR_STATE_POSITIVE,
+                    priority === "medium" && COLOR_STATE_NEUTRAL,
+                    priority === "low" && COLOR_TEXT_DIM,
                   )}>
                     {evidencePriorityLabel(priority)}
                   </div>
                 </div>
                 <div className={cn(
-                  "shrink-0 rounded border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em]",
+                  "shrink-0 rounded border px-1.5 py-0.5",
+                  TYPO_BADGE,
                   healthBadgeClass(card.health),
                 )}>{card.health}</div>
               </div>
               <div className={cn(
-                "mt-3 line-clamp-2 min-h-[34px] text-[12px] font-black leading-relaxed",
-                priority === "low" ? "text-zinc-500" : "text-zinc-100",
+                "mt-3 line-clamp-2 min-h-[34px]",
+                TYPO_EVIDENCE_BODY,
+                priority === "low" ? COLOR_TEXT_MUTED : COLOR_TEXT_PRIMARY,
               )}>
                 {card.observation}
               </div>
-              <div className="mt-3 flex items-center justify-between gap-2 border-t border-zinc-800/70 pt-2">
-                <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-600">{card.source}</div>
+              <div className={cn("mt-3 flex items-center justify-between gap-2 border-t pt-2", COLOR_BORDER_MUTED)}>
+                <div className={cn("truncate", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{card.source}</div>
                 <div className={cn(
                   "h-1.5 w-10 rounded-full",
-                  priority === "high" && "bg-emerald-300/70",
-                  priority === "medium" && "bg-amber-300/65",
-                  priority === "low" && "bg-zinc-700",
+                  priority === "high" && "bg-[#22c55e]/70",
+                  priority === "medium" && "bg-[#facc15]/65",
+                  priority === "low" && "bg-[#71717a]",
                 )} />
               </div>
             </article>
@@ -1852,24 +1898,24 @@ function PredictionMarketsCard({ data }: { data: PredictionMarketsResponse | nul
     <BottomCard title="Prediction Markets" icon={<Gauge className="h-3.5 w-3.5" />} level="level3">
       {events.length ? (
         <div className="grid gap-1.5">
-          <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+          <div className={cn(COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
             What is the market pricing?
           </div>
           {events.map((event) => (
-            <div key={event.title} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded border border-zinc-800/75 bg-black/30 px-2.5 py-1.5">
+            <div key={event.title} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)}>
               <div className="min-w-0">
-                <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-200">{event.title}</div>
-                <div className="text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">{formatProbability(event.probability)} · {formatUpdatedTime(event.lastUpdated) ?? event.venue}</div>
+                <div className={cn("line-clamp-1", COLOR_TEXT_SECONDARY, TYPO_DRIVER_SUMMARY)}>{event.title}</div>
+                <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>{formatProbability(event.probability)} · {formatUpdatedTime(event.lastUpdated) ?? event.venue}</div>
               </div>
               <div className="text-right">
-                <div className="text-lg font-black text-cyan-100">{marketAttentionValue(event).value}</div>
-                <div className="text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500">{marketAttentionValue(event).label}</div>
+                <div className={cn(COLOR_ACCENT_CYAN, TYPO_ANALYTICS_VALUE)}>{marketAttentionValue(event).value}</div>
+                <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>{marketAttentionValue(event).label}</div>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="rounded border border-zinc-800/75 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{data?.unavailableReason ?? "NO MEANINGFUL MARKET INTEREST"}</div>
+        <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>{data?.unavailableReason ?? "NO MEANINGFUL MARKET INTEREST"}</div>
       )}
     </BottomCard>
   )
@@ -1894,20 +1940,20 @@ function EtfFlowCard({ data }: { data: EtfFlowResponse | null }) {
           {rows.map((flow) => (
             <div key={flow.asset} className="flex items-end justify-between gap-2">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.14em] text-zinc-500">{flow.asset} ETF</div>
-                <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{flow.asset} ETF Latest: {flow.sourceDate ?? flow.latestDate}</div>
-                {flow.trend1d && <div className="text-[9px] font-black uppercase tracking-[0.1em] text-zinc-400">Momentum: {flow.trend1d === "UP" ? "Strengthening" : flow.trend1d === "DOWN" ? "Weakening" : "Stable"}</div>}
+                <div className={cn(COLOR_TEXT_MUTED, TYPO_ANALYTICS_TITLE)}>{flow.asset} ETF</div>
+                <div className={cn(COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>{flow.asset} ETF Latest: {flow.sourceDate ?? flow.latestDate}</div>
+                {flow.trend1d && <div className={cn(COLOR_TEXT_SECONDARY, TYPO_EVIDENCE_METADATA)}>Momentum: {flow.trend1d === "UP" ? "Strengthening" : flow.trend1d === "DOWN" ? "Weakening" : "Stable"}</div>}
               </div>
-              <div className={cn("text-xl font-black", flow.netFlow >= 0 ? "text-emerald-100" : "text-rose-100")}>{formatFlow(flow.netFlow)}</div>
+              <div className={cn(TYPO_ANALYTICS_VALUE, flow.netFlow >= 0 ? COLOR_STATE_POSITIVE : COLOR_STATE_NEGATIVE)}>{formatFlow(flow.netFlow)}</div>
             </div>
           ))}
-          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-600">Source: Farside</div>
+          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Source: Farside</div>
         </div>
       ) : (
         <div>
-          <div className="rounded border border-zinc-800/75 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">NO DATA</div>
-          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">{reason}</div>
-          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-600">Source: Farside</div>
+          <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>NO DATA</div>
+          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{reason}</div>
+          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Source: Farside</div>
         </div>
       )}
     </BottomCard>
@@ -1919,9 +1965,9 @@ function liquidityCondition(futures: FuturesIntelligenceResponse | null) {
   if (!sectors.length) return null
   const averagePressure = sectors.reduce((total, sector) => total + (sector.leveragePressure ?? 0), 0) / sectors.length
   const overheated = sectors.some((sector) => sector.leverageState === "OVERHEATED" || sector.leverageState === "CROWDED")
-  if (overheated || averagePressure >= 70) return { label: "Liquidity Weakening", reason: "Aggressive leverage increasing", tone: "text-rose-100" }
-  if (averagePressure <= 35) return { label: "Liquidity Improving", reason: "Positioning pressure low", tone: "text-emerald-100" }
-  return { label: "Liquidity Stable", reason: "No major liquidity changes", tone: "text-amber-100" }
+  if (overheated || averagePressure >= 70) return { label: "Liquidity Weakening", reason: "Aggressive leverage increasing", tone: COLOR_STATE_NEGATIVE }
+  if (averagePressure <= 35) return { label: "Liquidity Improving", reason: "Positioning pressure low", tone: COLOR_STATE_POSITIVE }
+  return { label: "Liquidity Stable", reason: "No major liquidity changes", tone: COLOR_STATE_NEUTRAL }
 }
 
 function LiquidityConditionsCard({ futures }: { futures: FuturesIntelligenceResponse | null }) {
@@ -1931,12 +1977,12 @@ function LiquidityConditionsCard({ futures }: { futures: FuturesIntelligenceResp
     <BottomCard title="Liquidity Conditions" icon={<Droplets className="h-3.5 w-3.5" />}>
       {condition ? (
         <>
-          <div className={cn("text-xl font-black uppercase leading-none", condition.tone)}>{condition.label}</div>
-          <div className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{condition.reason}</div>
-          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-600">Binance Futures</div>
+          <div className={cn("uppercase", TYPO_ANALYTICS_VALUE, condition.tone)}>{condition.label}</div>
+          <div className={cn("mt-2", COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>{condition.reason}</div>
+          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Binance Futures</div>
         </>
       ) : (
-        <div className="rounded border border-zinc-800/75 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Unavailable</div>
+        <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>Unavailable</div>
       )}
     </BottomCard>
   )
@@ -2241,17 +2287,17 @@ export default function DashboardV1({
   const narrativeItems = useMemo(() => buildNarrativeHeat(narratives), [narratives])
   const informationItems = useMemo(() => buildInformationFlow(macro, narratives), [macro, narratives])
   return (
-    <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
+    <main className={cn("min-h-screen px-3 py-3 lg:px-4", COLOR_BACKGROUND_BASE, COLOR_TEXT_PRIMARY)}>
       <div className="mx-auto grid max-w-[1800px] gap-3">
         <section className="grid min-w-0 gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-900 bg-zinc-950/75 px-3 py-2">
+          <div className={cn("flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)}>
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-200">Conclusion → Drivers → Evidence</div>
-              <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">
+              <div className={cn(COLOR_ACCENT_AMBER, TYPO_SECTION_TITLE)}>Conclusion → Drivers → Evidence</div>
+              <div className={cn("mt-1", COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
                 First-read market intelligence with deeper analytics kept below.
               </div>
             </div>
-            <div className="text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
+            <div className={cn(COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
               Dashboard • fast summary surface
             </div>
           </div>
@@ -2277,9 +2323,9 @@ export default function DashboardV1({
             <TacticalAlerts alerts={alerts} />
           </div>
 
-          <div className="rounded-lg border border-zinc-900/85 bg-zinc-950/62 px-3 py-2">
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">Analytics & Supporting Sections</div>
-            <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">
+          <div className={cn("rounded-lg border px-3 py-2", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)}>
+            <div className={cn(COLOR_TEXT_SECONDARY, TYPO_ANALYTICS_TITLE)}>Analytics & Supporting Sections</div>
+            <div className={cn("mt-1", COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
               Deeper reading after the market conclusion, ranked drivers, and evidence preview.
             </div>
           </div>
@@ -2294,24 +2340,24 @@ export default function DashboardV1({
               {narrativeItems.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {narrativeItems.map((item) => (
-                    <span key={item.label} className={cn("rounded border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]", item.tone)}>
+                    <span key={item.label} className={cn("rounded border px-2 py-1", TYPO_BADGE, item.tone)}>
                       {item.icon} {item.label}
-                      <span className="ml-2 text-[10px] tracking-[0.08em] text-zinc-300">{item.state}</span>
-                      <span className="ml-2 text-[10px] tracking-[0.08em] text-zinc-500">{item.evidence}</span>
+                      <span className={cn("ml-2", COLOR_TEXT_SECONDARY)}>{item.state}</span>
+                      <span className={cn("ml-2", COLOR_TEXT_MUTED)}>{item.evidence}</span>
                     </span>
                   ))}
                 </div>
               ) : narrativeLoadState === "loading" ? (
-                <div className="rounded border border-zinc-800/75 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">LOADING NARRATIVE DATA</div>
+                <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>LOADING NARRATIVE DATA</div>
               ) : narrativeLoadState === "unavailable" ? (
-                <div className="rounded border border-zinc-800/75 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
+                <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>
                   NARRATIVE DATA UNAVAILABLE
-                  <span className="ml-2 text-[10px] tracking-[0.08em] text-zinc-600">
+                  <span className={cn("ml-2", COLOR_TEXT_DIM)}>
                     Reason: {narrativeUnavailableReason ?? "Narrative request failed."}
                   </span>
                 </div>
               ) : (
-                <div className="rounded border border-zinc-800/75 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">NO NARRATIVE DATA</div>
+                <div className={cn("rounded border px-3 py-2", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_BADGE)}>NO NARRATIVE DATA</div>
               )}
             </BottomCard>
           </div>
