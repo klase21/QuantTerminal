@@ -6,6 +6,14 @@ This document records the approved Dashboard V2 state after Sprint 69.
 
 Future Dashboard work must preserve this state unless a sprint explicitly changes the Dashboard constitution. The goal is to prevent visual polish from drifting into hierarchy, terminology, data, or behavior changes.
 
+## Final Acceptance Status
+
+Status: Reference Implementation
+
+Accepted: 2026-06-25
+
+Dashboard V2 is the official QuantTerminal reference implementation for Conclusion -> Reasons -> Evidence -> Analytics product hierarchy. Future page work should treat Dashboard V2 as the implementation precedent unless a documented product or architecture review supersedes it.
+
 ## Current Approved Dashboard V2 Hierarchy
 
 Dashboard V2 follows this order:
@@ -171,6 +179,17 @@ The approved state restores:
 as balanced metadata cards.
 
 ## Future Work Rules
+
+### Dashboard Freeze Rule
+
+Once a Dashboard section has been accepted during Certification, it may only be modified to address:
+
+- objective bugs
+- responsive issues
+- accessibility
+- documented product requirements
+
+Subjective visual redesigns require a documented design review before implementation.
 
 ### Allowed in Polish
 
