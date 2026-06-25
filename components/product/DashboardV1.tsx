@@ -880,12 +880,18 @@ const COLOR_STATE_STALE = "text-[#f59e0b]"
 const COLOR_STATE_MISSING = "text-[#71717a]"
 const COLOR_STATE_LOADING = "text-[#38bdf8]"
 
+const SURFACE_HERO = cn(COLOR_BORDER_STRONG, COLOR_SURFACE_LEVEL1, "shadow-[0_0_0_1px_rgba(249,115,22,.06),0_24px_80px_rgba(0,0,0,.36)] md:p-4")
+const SURFACE_PRIMARY = cn(COLOR_BORDER_SUBTLE, COLOR_SURFACE_LEVEL2, "shadow-[inset_0_1px_0_rgba(56,189,248,.06)]")
+const SURFACE_SECONDARY = cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL3)
+const SURFACE_ANALYTICS = cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)
+const SURFACE_STRIP = cn("border-[#f97316]/20", COLOR_SURFACE_LEVEL4, "shadow-[inset_0_1px_0_rgba(249,115,22,.06)]")
+
 const DASHBOARD_PANEL_BASE = "min-h-0 rounded-lg border p-3"
 const DASHBOARD_PANEL_LEVEL_CLASS: Record<DashboardPanelLevel, string> = {
-  level1: cn(COLOR_BORDER_STRONG, COLOR_SURFACE_LEVEL1, "shadow-[0_0_0_1px_rgba(249,115,22,.06),0_24px_80px_rgba(0,0,0,.36)] md:p-4"),
-  level2: cn(COLOR_BORDER_SUBTLE, COLOR_SURFACE_LEVEL2, "shadow-[inset_0_1px_0_rgba(56,189,248,.06)]"),
-  level3: cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL3),
-  level4: cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4),
+  level1: SURFACE_HERO,
+  level2: SURFACE_PRIMARY,
+  level3: SURFACE_SECONDARY,
+  level4: SURFACE_ANALYTICS,
 }
 const DASHBOARD_SECTION_HEADER = cn("mb-3 flex min-h-[22px] items-center justify-between gap-3 border-b pb-2", COLOR_BORDER_MUTED)
 const DASHBOARD_SECTION_TITLE = cn("flex min-w-0 items-center gap-2", COLOR_ACCENT_CYAN, TYPO_SECTION_TITLE)
@@ -1324,7 +1330,7 @@ function HistoricalEvidenceStrip({ data, loading }: { data: HistoricalEvidenceRe
     : data?.reason ?? "cached evidence unavailable"
 
   return (
-    <section className={cn("rounded-lg border px-3 py-2 shadow-[inset_0_1px_0_rgba(249,115,22,.06)]", "border-[#f97316]/20", COLOR_SURFACE_LEVEL4)}>
+    <section className={cn("rounded-lg border px-3 py-2", SURFACE_STRIP)}>
       <div className="grid gap-2 lg:grid-cols-[190px_minmax(0,1fr)] lg:items-center">
         <div className="border-l-2 border-[#f97316]/40 pl-3">
           <div className={cn("flex items-center gap-2", COLOR_ACCENT_AMBER, TYPO_EVIDENCE_TITLE)}>
