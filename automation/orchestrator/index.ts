@@ -9,6 +9,7 @@ export type {
   CodexStubOutput,
   PipelineArtifacts,
   PipelineResult,
+  PipelineConfig,
   PipelineStage,
   PipelineStatus,
   QaMessage,

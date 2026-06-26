@@ -3,9 +3,11 @@ import path from "path";
 import type {
   AutomationApprovalRecord,
   AutomationPipelineState,
+  AutomationQaRecord,
   AutomationRepository,
   AutomationResultRecord,
   AutomationReviewRecord,
+  AutomationScreenshotRecord,
   AutomationStatePaths,
   AutomationTaskRecord,
 } from "./types";
@@ -99,6 +101,14 @@ export class JsonAutomationRepository implements AutomationRepository {
     await writeJson(this.resultPath(result.taskId), result);
   }
 
+  async saveQaReport(report: AutomationQaRecord): Promise<void> {
+    await writeJson(this.resultPath(report.taskId, "qa"), report);
+  }
+
+  async saveScreenshotReport(report: AutomationScreenshotRecord): Promise<void> {
+    await writeJson(this.resultPath(report.taskId, "screenshot"), report);
+  }
+
   async saveReview(review: AutomationReviewRecord): Promise<void> {
     await writeJson(this.reviewPath(review.taskId), review);
   }
@@ -115,8 +125,9 @@ export class JsonAutomationRepository implements AutomationRepository {
     return path.join(this.paths.pipeline, safeFileName(taskId));
   }
 
-  private resultPath(taskId: string): string {
-    return path.join(this.paths.results, safeFileName(taskId));
+  private resultPath(taskId: string, kind?: string): string {
+    const id = kind ? `${taskId}.${kind}` : taskId;
+    return path.join(this.paths.results, safeFileName(id));
   }
 
   private reviewPath(taskId: string): string {

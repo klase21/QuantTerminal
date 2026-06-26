@@ -1,4 +1,6 @@
 import { createAutomationContext, type CreateAutomationContextOptions } from "./context";
+import { runQaChecks } from "../qa/runner";
+import { captureDashboardScreenshots } from "../screenshot/capture";
 import type {
   ApprovalMessage,
   AutomationContext,
@@ -6,6 +8,7 @@ import type {
   PipelineArtifacts,
   PipelineResult,
   PipelineStage,
+  PipelineStatus,
   QaMessage,
   ReviewMessage,
   ScreenshotMessage,
@@ -81,58 +84,60 @@ async function executeCodex(
 
 async function executeQa(
   codexOutput: CodexStubOutput,
-  task: TaskMessage,
   context: AutomationContext,
 ): Promise<StageResult<QaMessage>> {
   const startedAt = context.now();
-  return completeStage(context, "qa", startedAt, {
-    task_id: codexOutput.task_id,
-    tsc: {
-      status: "skipped",
-      command: null,
-      summary: "QA execution is stubbed in Sprint A3.",
-      reason: "The orchestrator does not run validation commands yet.",
-    },
-    tests: [],
-    audits: [
-      {
-        name: "task contract awareness",
-        status: "passed",
-        summary: `Task references ${task.files.length} file path(s).`,
-      },
-    ],
-    warnings: ["QA validation is stubbed behind an interface."],
-    failures: [],
+  const report = await runQaChecks({
+    taskId: codexOutput.task_id,
   });
+  const failed = report.status !== "passed";
+  const blocking = failed && context.config.qaBlocking;
+  const errors = blocking
+    ? report.failures.length > 0
+      ? report.failures
+      : ["QA returned a blocking failure."]
+    : [];
+  const warnings = [
+    ...report.warnings,
+    ...(failed && !blocking ? ["QA returned non-blocking failures."] : []),
+  ];
+
+  return {
+    stage: "qa",
+    status: blocking ? "blocked" : failed ? "failed" : "passed",
+    startedAt,
+    completedAt: context.now(),
+    output: report,
+    warnings,
+    errors,
+    blocking,
+  };
 }
 
 async function executeScreenshot(
-  task: TaskMessage,
   context: AutomationContext,
 ): Promise<StageResult<ScreenshotMessage>> {
   const startedAt = context.now();
-  return completeStage(context, "screenshot", startedAt, {
-    task_id: task.task_id,
-    timestamp: context.now(),
-    status: "skipped",
-    viewport: {
-      desktop: "1440x1024",
-      tablet: "1024x768",
-      mobile: "390x844",
-    },
-    desktop: {
-      status: "skipped",
-      notes: ["Screenshot capture is stubbed in Sprint A3."],
-    },
-    tablet: {
-      status: "skipped",
-      notes: ["Screenshot capture is stubbed in Sprint A3."],
-    },
-    mobile: {
-      status: "skipped",
-      notes: ["Screenshot capture is stubbed in Sprint A3."],
-    },
-  });
+  const report = await captureDashboardScreenshots();
+  const failed = report.status === "failed" || report.status === "blocked";
+  const blocking = failed && context.config.screenshotBlocking;
+  const failureMessages = report.errors.map((error) => error.message);
+  const warnings = failed && !blocking
+    ? failureMessages.length > 0
+      ? failureMessages
+      : ["Screenshot returned a non-blocking failure."]
+    : [];
+
+  return {
+    stage: "screenshot",
+    status: blocking ? "blocked" : failed ? "failed" : "passed",
+    startedAt,
+    completedAt: context.now(),
+    output: report,
+    warnings,
+    errors: blocking ? failureMessages : [],
+    blocking,
+  };
 }
 
 async function executeReview(
@@ -142,15 +147,16 @@ async function executeReview(
   context: AutomationContext,
 ): Promise<StageResult<ReviewMessage>> {
   const startedAt = context.now();
-  const hasFailures = qa.failures.length > 0;
-  const blockingIssues = hasFailures ? qa.failures : [];
+  const hasQaFailures = qa.failures.length > 0;
+  const hasScreenshotFailures = screenshot.errors.length > 0;
+  const blockingIssues = hasQaFailures ? qa.failures : [];
 
   return completeStage(context, "review", startedAt, {
     review_id: `review-${task.task_id}`,
     task_id: task.task_id,
     architecture: {
       status: "passed",
-      summary: "A3 creates an isolated orchestrator layer with stubbed integrations.",
+      summary: "The orchestrator keeps automation isolated from product runtime paths.",
     },
     design: {
       status: "not_applicable",
@@ -158,16 +164,18 @@ async function executeReview(
     },
     runtime: {
       status: "passed",
-      summary: "Product runtime paths are not invoked by the stub pipeline.",
+      summary: "QA and screenshot harnesses run through explicit automation boundaries.",
     },
     screenshots: {
-      status: screenshot.status === "failed" ? "failed" : "skipped",
-      summary: "Screenshot capture is stubbed in Sprint A3.",
+      status: hasScreenshotFailures ? "partial" : "skipped",
+      summary: hasScreenshotFailures
+        ? "Screenshot harness reported non-blocking issues."
+        : "Screenshot capture completed without blocking issues.",
     },
-    verdict: hasFailures ? "FAIL" : "PASS",
+    verdict: hasQaFailures ? "FAIL" : hasScreenshotFailures ? "PARTIAL PASS" : "PASS",
     blockingIssues,
     recommendations: [
-      "Replace each stub executor with a real adapter only after an explicit future sprint.",
+      "Keep QA and screenshot blocking behavior explicit in pipeline configuration.",
     ],
   });
 }
@@ -196,12 +204,38 @@ function collectResult<TOutput>(
   warnings.push(...result.warnings);
   errors.push(...result.errors);
 
-  if (result.blocking || result.status === "failed" || result.status === "blocked") {
+  if (result.blocking || result.status === "blocked") {
     return false;
   }
 
   completedStages.push(result.stage);
   return true;
+}
+
+function pipelineStatusForFailure(failedStage: PipelineStage | null): PipelineStatus {
+  return failedStage ? "blocked" : "completed";
+}
+
+function buildPipelineState(input: {
+  task: TaskMessage;
+  status: PipelineStatus;
+  currentStage: PipelineStage | null;
+  completedStages: PipelineStage[];
+  warnings: string[];
+  failures: string[];
+  artifacts: PipelineArtifacts;
+  updatedAt: string;
+}) {
+  return {
+    taskId: input.task.task_id,
+    status: input.status,
+    currentStage: input.currentStage,
+    completedStages: input.completedStages,
+    warnings: input.warnings,
+    failures: input.failures,
+    updatedAt: input.updatedAt,
+    artifacts: input.artifacts,
+  };
 }
 
 export async function runPipeline(
@@ -213,8 +247,64 @@ export async function runPipeline(
   const completedStages: PipelineStage[] = [];
   const warnings: string[] = [];
   const errors: string[] = [];
+  const persistedArtifacts: string[] = [];
   let currentStage: PipelineStage | null = null;
   let failedStage: PipelineStage | null = null;
+
+  const persistPipelineState = async (status: PipelineStatus = pipelineStatusForFailure(failedStage)) => {
+    await context.stateManager.savePipelineState(buildPipelineState({
+      task,
+      status,
+      currentStage,
+      completedStages,
+      warnings,
+      failures: errors,
+      artifacts,
+      updatedAt: context.now(),
+    }));
+    if (!persistedArtifacts.includes("pipeline")) {
+      persistedArtifacts.push("pipeline");
+    }
+    context.logger.info(`STATE pipeline persisted for ${task.task_id}`);
+  };
+
+  const persistAndReturn = async (status: PipelineStatus): Promise<PipelineResult> => {
+    await persistPipelineState(status);
+    return {
+      status,
+      currentStage,
+      completedStages,
+      failedStage,
+      artifacts,
+      warnings,
+      errors,
+      failures: errors,
+      persistedArtifacts,
+    };
+  };
+
+  const existingTask = await context.stateManager.loadTask(task.task_id);
+  if (!existingTask) {
+    await context.stateManager.createTask({
+      taskId: task.task_id,
+      sprint: task.sprint,
+      title: task.title,
+      goal: task.goal,
+      status: "NEW",
+    });
+    persistedArtifacts.push("task");
+    context.logger.info(`STATE task created for ${task.task_id}`);
+  }
+
+  await context.stateManager.updateTask(task.task_id, {
+    sprint: task.sprint,
+    title: task.title,
+    goal: task.goal,
+    status: "RUNNING",
+    currentStage: "codex",
+  });
+  context.logger.info(`STATE task ${task.task_id} -> RUNNING`);
+  await persistPipelineState("blocked");
 
   const runStage = async <TOutput>(
     stage: PipelineStage,
@@ -226,11 +316,13 @@ export async function runPipeline(
     try {
       const result = await execute();
       context.logger.stageEnd(stage, result.status);
+      for (const warning of result.warnings) {
+        context.logger.info(`WARN ${stage} ${warning}`);
+      }
       const canContinue = collectResult(result, completedStages, warnings, errors);
       if (!canContinue) {
         failedStage = stage;
         context.logger.stageFailure(stage, result.errors);
-        return null;
       }
       return result;
     } catch (error) {
@@ -244,103 +336,200 @@ export async function runPipeline(
 
   const plannerResult = await runStage("planner", () => executePlanner(task, context));
   if (!plannerResult?.output) {
-    return {
-      status: "blocked",
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
       currentStage,
-      completedStages,
-      failedStage,
-      artifacts,
-      warnings,
-      errors,
-    };
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
   }
   artifacts.planner = plannerResult.output;
+  if (failedStage) {
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
+      currentStage,
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
+  }
 
   const codexResult = await runStage("codex", () => executeCodex(plannerResult.output, context));
   if (!codexResult?.output) {
-    return {
-      status: "blocked",
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
       currentStage,
-      completedStages,
-      failedStage,
-      artifacts,
-      warnings,
-      errors,
-    };
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
   }
   artifacts.codex = codexResult.output;
+  if (failedStage) {
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
+      currentStage,
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
+  }
+
+  await context.stateManager.updateTask(task.task_id, {
+    status: "QA",
+    currentStage: "qa",
+  });
+  context.logger.info(`STATE task ${task.task_id} -> QA`);
+  await persistPipelineState("blocked");
 
   const qaResult = await runStage("qa", () =>
-    executeQa(codexResult.output, plannerResult.output, context),
+    executeQa(codexResult.output, context),
   );
   if (!qaResult?.output) {
-    return {
-      status: "blocked",
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
       currentStage,
-      completedStages,
-      failedStage,
-      artifacts,
-      warnings,
-      errors,
-    };
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
   }
   artifacts.qa = qaResult.output;
+  artifacts.qaReport = qaResult.output;
+  await context.stateManager.saveQaReport({
+    taskId: task.task_id,
+    generatedAt: context.now(),
+    report: qaResult.output,
+  });
+  persistedArtifacts.push("qaReport");
+  context.logger.info(`STATE QA report persisted for ${task.task_id}`);
+  if (failedStage) {
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
+      currentStage,
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
+  }
+
+  await context.stateManager.updateTask(task.task_id, {
+    status: "SCREENSHOT",
+    currentStage: "screenshot",
+  });
+  context.logger.info(`STATE task ${task.task_id} -> SCREENSHOT`);
+  await persistPipelineState("blocked");
 
   const screenshotResult = await runStage("screenshot", () =>
-    executeScreenshot(plannerResult.output, context),
+    executeScreenshot(context),
   );
   if (!screenshotResult?.output) {
-    return {
-      status: "blocked",
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
       currentStage,
-      completedStages,
-      failedStage,
-      artifacts,
-      warnings,
-      errors,
-    };
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
   }
   artifacts.screenshot = screenshotResult.output;
+  artifacts.screenshotReport = screenshotResult.output;
+  await context.stateManager.saveScreenshotReport({
+    taskId: task.task_id,
+    generatedAt: context.now(),
+    report: screenshotResult.output,
+  });
+  persistedArtifacts.push("screenshotReport");
+  context.logger.info(`STATE screenshot report persisted for ${task.task_id}`);
+  if (failedStage) {
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
+      currentStage,
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
+  }
+
+  await context.stateManager.updateTask(task.task_id, {
+    status: "REVIEW",
+    currentStage: "review",
+  });
+  context.logger.info(`STATE task ${task.task_id} -> REVIEW`);
+  await persistPipelineState("blocked");
 
   const reviewResult = await runStage("review", () =>
     executeReview(plannerResult.output, qaResult.output, screenshotResult.output, context),
   );
   if (!reviewResult?.output) {
-    return {
-      status: "blocked",
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
       currentStage,
-      completedStages,
-      failedStage,
-      artifacts,
-      warnings,
-      errors,
-    };
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
   }
   artifacts.review = reviewResult.output;
+  await context.stateManager.saveReview({
+    taskId: task.task_id,
+    generatedAt: context.now(),
+    review: reviewResult.output,
+  });
+  persistedArtifacts.push("review");
+  context.logger.info(`STATE review persisted for ${task.task_id}`);
+  if (failedStage) {
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
+      currentStage,
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
+  }
+
+  await context.stateManager.updateTask(task.task_id, {
+    status: "WAITING_APPROVAL",
+    currentStage: "telegram_approval",
+  });
+  context.logger.info(`STATE task ${task.task_id} -> WAITING_APPROVAL`);
+  await persistPipelineState("blocked");
 
   const approvalResult = await runStage("telegram_approval", () =>
     executeTelegramApproval(reviewResult.output, context),
   );
   if (!approvalResult?.output) {
-    return {
-      status: "blocked",
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
       currentStage,
-      completedStages,
-      failedStage,
-      artifacts,
-      warnings,
-      errors,
-    };
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
   }
   artifacts.telegram_approval = approvalResult.output;
+  await context.stateManager.saveApproval({
+    taskId: task.task_id,
+    generatedAt: context.now(),
+    approval: approvalResult.output,
+  });
+  persistedArtifacts.push("approval");
+  context.logger.info(`STATE approval persisted for ${task.task_id}`);
+  if (failedStage) {
+    await context.stateManager.updateTask(task.task_id, {
+      status: "FAILED",
+      currentStage,
+    });
+    context.logger.info(`STATE task ${task.task_id} -> FAILED`);
+    return persistAndReturn("blocked");
+  }
 
-  return {
-    status: "completed",
-    currentStage,
-    completedStages,
-    failedStage,
-    artifacts,
-    warnings,
-    errors,
-  };
+  await context.stateManager.saveResult({
+    taskId: task.task_id,
+    generatedAt: context.now(),
+    pipeline: buildPipelineState({
+      task,
+      status: "completed",
+      currentStage,
+      completedStages,
+      warnings,
+      failures: errors,
+      artifacts,
+      updatedAt: context.now(),
+    }),
+  });
+  persistedArtifacts.push("result");
+  context.logger.info(`STATE result persisted for ${task.task_id}`);
+
+  return persistAndReturn("completed");
 }

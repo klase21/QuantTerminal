@@ -20,7 +20,7 @@ export const TERMINAL_AUTOMATION_STATUSES: AutomationTaskStatus[] = [
 ];
 
 const FORWARD_TRANSITIONS: Record<AutomationTaskStatus, AutomationTaskStatus[]> = {
-  NEW: ["PLANNED", "FAILED", "CANCELLED"],
+  NEW: ["PLANNED", "RUNNING", "FAILED", "CANCELLED"],
   PLANNED: ["RUNNING", "FAILED", "CANCELLED"],
   RUNNING: ["QA", "FAILED", "CANCELLED"],
   QA: ["SCREENSHOT", "FAILED", "CANCELLED"],

@@ -3,6 +3,9 @@ import qaSchema from "../contracts/qa.schema.json";
 import reviewSchema from "../contracts/review.schema.json";
 import screenshotSchema from "../contracts/screenshot.schema.json";
 import taskSchema from "../contracts/task.schema.json";
+import type { QaHarnessReport } from "../qa/types";
+import type { DashboardScreenshotResult } from "../screenshot/types";
+import type { AutomationStateManager } from "../state/manager";
 
 export const automationSchemas = {
   task: taskSchema,
@@ -44,14 +47,7 @@ export interface CheckResult {
   reason?: string;
 }
 
-export interface QaMessage {
-  task_id?: string;
-  tsc: CheckResult;
-  tests: CheckResult[];
-  audits: CheckResult[];
-  warnings: string[];
-  failures: string[];
-}
+export type QaMessage = QaHarnessReport;
 
 export interface ScreenshotCapture {
   status: StageStatus;
@@ -59,19 +55,7 @@ export interface ScreenshotCapture {
   notes?: string[];
 }
 
-export interface ScreenshotMessage {
-  task_id?: string;
-  timestamp: string;
-  status: StageStatus;
-  viewport: {
-    desktop: string;
-    tablet: string;
-    mobile: string;
-  };
-  desktop: ScreenshotCapture;
-  tablet: ScreenshotCapture;
-  mobile: ScreenshotCapture;
-}
+export type ScreenshotMessage = DashboardScreenshotResult;
 
 export interface ReviewSection {
   status: "passed" | "partial" | "failed" | "skipped" | "not_applicable";
@@ -121,9 +105,16 @@ export interface PipelineArtifacts {
   planner?: TaskMessage;
   codex?: CodexStubOutput;
   qa?: QaMessage;
+  qaReport?: QaMessage;
   screenshot?: ScreenshotMessage;
+  screenshotReport?: ScreenshotMessage;
   review?: ReviewMessage;
   telegram_approval?: ApprovalMessage;
+}
+
+export interface PipelineConfig {
+  qaBlocking: boolean;
+  screenshotBlocking: boolean;
 }
 
 export interface PipelineResult {
@@ -134,6 +125,8 @@ export interface PipelineResult {
   artifacts: PipelineArtifacts;
   warnings: string[];
   errors: string[];
+  failures: string[];
+  persistedArtifacts: string[];
 }
 
 export interface StageExecutor<TInput, TOutput> {
@@ -151,5 +144,7 @@ export interface AutomationLogger {
 export interface AutomationContext {
   logger: AutomationLogger;
   schemas: typeof automationSchemas;
+  config: PipelineConfig;
+  stateManager: AutomationStateManager;
   now(): string;
 }

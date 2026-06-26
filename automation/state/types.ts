@@ -109,6 +109,8 @@ export interface AutomationRepository {
   savePipelineState(state: AutomationPipelineState): Promise<void>;
   loadPipelineState(taskId: string): Promise<AutomationPipelineState | null>;
   saveResult(result: AutomationResultRecord): Promise<void>;
+  saveQaReport(report: AutomationQaRecord): Promise<void>;
+  saveScreenshotReport(report: AutomationScreenshotRecord): Promise<void>;
   saveReview(review: AutomationReviewRecord): Promise<void>;
   saveApproval(approval: AutomationApprovalRecord): Promise<void>;
 }

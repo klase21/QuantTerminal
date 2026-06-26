@@ -2,7 +2,12 @@ import { assertTaskTransition, statusToPipelineStage } from "./lifecycle";
 import { JsonAutomationRepository } from "./repository";
 import type {
   AutomationPipelineState,
+  AutomationQaRecord,
   AutomationRepository,
+  AutomationResultRecord,
+  AutomationReviewRecord,
+  AutomationApprovalRecord,
+  AutomationScreenshotRecord,
   AutomationTaskRecord,
   CreateTaskInput,
   UpdateTaskInput,
@@ -21,6 +26,11 @@ export interface AutomationStateManager {
   archiveTask(taskId: string): Promise<AutomationTaskRecord>;
   savePipelineState(state: AutomationPipelineState): Promise<void>;
   loadPipelineState(taskId: string): Promise<AutomationPipelineState | null>;
+  saveResult(result: AutomationResultRecord): Promise<void>;
+  saveQaReport(report: AutomationQaRecord): Promise<void>;
+  saveScreenshotReport(report: AutomationScreenshotRecord): Promise<void>;
+  saveReview(review: AutomationReviewRecord): Promise<void>;
+  saveApproval(approval: AutomationApprovalRecord): Promise<void>;
 }
 
 export function createAutomationStateManager(
@@ -102,6 +112,41 @@ export function createAutomationStateManager(
 
     async loadPipelineState(taskId: string): Promise<AutomationPipelineState | null> {
       return repository.loadPipelineState(taskId);
+    },
+
+    async saveResult(result: AutomationResultRecord): Promise<void> {
+      await repository.saveResult({
+        ...result,
+        generatedAt: now(),
+      });
+    },
+
+    async saveQaReport(report: AutomationQaRecord): Promise<void> {
+      await repository.saveQaReport({
+        ...report,
+        generatedAt: now(),
+      });
+    },
+
+    async saveScreenshotReport(report: AutomationScreenshotRecord): Promise<void> {
+      await repository.saveScreenshotReport({
+        ...report,
+        generatedAt: now(),
+      });
+    },
+
+    async saveReview(review: AutomationReviewRecord): Promise<void> {
+      await repository.saveReview({
+        ...review,
+        generatedAt: now(),
+      });
+    },
+
+    async saveApproval(approval: AutomationApprovalRecord): Promise<void> {
+      await repository.saveApproval({
+        ...approval,
+        generatedAt: now(),
+      });
     },
   };
 }
