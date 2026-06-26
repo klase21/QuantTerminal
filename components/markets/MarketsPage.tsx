@@ -1260,7 +1260,6 @@ export default function MarketsPage() {
           title="Supporting Analytics"
           subtitle="Selected-symbol verification; preserved from Markets V1"
           icon={<Activity className="h-3.5 w-3.5" />}
-          status={<StatusBadge label="CURRENT" tone="verified" />}
           className="border-zinc-900 bg-[#0a0f0a]"
         >
           <div className="grid gap-3">
