@@ -42,17 +42,42 @@ type RetainedCandidateRecord = {
 }
 
 const CANDIDATE_RETENTION_MS = 5 * 60 * 1000
+const SURFACE = {
+  scannerHeader: "rounded-lg border border-amber-500/20 bg-[#07120b] p-3",
+  priority: "rounded-lg border border-amber-500/25 bg-[#0c140c] p-3",
+  primary: "rounded-lg border border-[#1c2c1c] bg-[#0c140c] p-3",
+  secondary: "rounded-lg border border-[#142014] bg-[#111911] p-3",
+  support: "rounded-lg border border-[#142014] bg-[#0a0f0a] p-3",
+  row: "rounded border border-[#142014] bg-black/45",
+}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ")
 }
 
-function Card({ title, icon, children, className }: { title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }) {
+function Card({
+  title,
+  icon,
+  children,
+  className,
+  subtitle,
+}: {
+  title: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+  subtitle?: string
+}) {
   return (
-    <section className={cn("rounded-lg border border-zinc-900 bg-zinc-950/80 p-3", className)}>
-      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
-        {icon}
-        {title}
+    <section className={cn(SURFACE.primary, className)}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+          {icon}
+          {title}
+        </div>
+        {subtitle ? (
+          <div className="max-w-[340px] text-right text-[9px] font-black uppercase tracking-[0.12em] text-[#6b7d6b]">{subtitle}</div>
+        ) : null}
       </div>
       {children}
     </section>
@@ -61,9 +86,47 @@ function Card({ title, icon, children, className }: { title: string; icon?: Reac
 
 function EmptyState({ title, reason }: { title: string; reason: string }) {
   return (
-    <div className="rounded border border-zinc-900 bg-black/45 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
-      <span className="text-zinc-300">{title}</span>
-      <span className="ml-2 text-zinc-600">Reason: {reason}</span>
+    <div className="rounded border border-[#142014] bg-black/45 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#6b7d6b]">
+      <span className="text-[#d4dbd4]">{title}</span>
+      <span className="ml-2 text-[#3d503d]">Reason: {reason}</span>
+    </div>
+  )
+}
+
+function badgeTone(label: string) {
+  const normalized = label.toUpperCase()
+  if (["CURRENT", "VERIFIED", "ACTIVE", "FRESH", "ACTIONABLE", "HIGH"].includes(normalized)) {
+    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
+  }
+  if (["PARTIAL", "DEGRADED", "DEVELOPING", "WATCHLIST", "MEDIUM"].includes(normalized)) {
+    return "border-amber-400/30 bg-amber-400/10 text-amber-100"
+  }
+  if (["STALE", "AGING", "MATURE", "LATE"].includes(normalized)) {
+    return "border-orange-400/25 bg-orange-400/10 text-orange-100"
+  }
+  if (["LOADING"].includes(normalized)) {
+    return "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
+  }
+  if (["MISSING", "UNAVAILABLE", "NO DATA", "NO_TRADE"].includes(normalized)) {
+    return "border-zinc-700 bg-zinc-900/60 text-zinc-400"
+  }
+  return "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
+}
+
+function Badge({ label }: { label: string }) {
+  return (
+    <span className={cn("inline-flex items-center rounded border px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em]", badgeTone(label))}>
+      {label}
+    </span>
+  )
+}
+
+function SummaryMetric({ label, value, reason }: { label: string; value: React.ReactNode; reason?: React.ReactNode }) {
+  return (
+    <div className={cn(SURFACE.row, "p-2")}>
+      <div className="text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">{label}</div>
+      <div className="mt-1 text-lg font-black uppercase text-[#d4dbd4]">{value}</div>
+      {reason ? <div className="mt-1 truncate text-[8px] font-black uppercase tracking-[0.1em] text-[#3d503d]">{reason}</div> : null}
     </div>
   )
 }
@@ -163,32 +226,62 @@ function tradeHref(item: ScannerCandidate) {
   return `/trade?${params.toString()}`
 }
 
+function researchHref(item: ScannerCandidate) {
+  const params = new URLSearchParams({
+    symbol: item.symbol,
+    source: "scanner",
+    setup: item.setup,
+    direction: item.direction,
+    confidence: item.confidence,
+  })
+  if (item.reason) params.set("reason", item.reason)
+  return `/research?${params.toString()}`
+}
+
+function replayHref(item: ScannerCandidate) {
+  const params = new URLSearchParams({
+    symbol: item.symbol,
+    source: "scanner",
+    setup: item.setup,
+    direction: item.direction,
+    confidence: item.confidence,
+  })
+  if (item.reason) params.set("reason", item.reason)
+  return `/replay?${params.toString()}`
+}
+
+function directionClass(value: string) {
+  if (/uptrend/i.test(value)) return "text-emerald-100"
+  if (/downtrend/i.test(value)) return "text-rose-100"
+  return "text-amber-100"
+}
+
 function OpportunityRow({ item }: { item: ScannerCandidate }) {
   return (
-    <div className="grid gap-2 rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] md:grid-cols-[1.2fr_0.8fr_80px_80px_80px_80px_110px_96px]">
+    <div className={cn(SURFACE.row, "grid gap-2 p-2 text-[10px] font-black uppercase tracking-[0.1em] md:grid-cols-[1.2fr_0.8fr_80px_80px_80px_80px_110px_96px]")}>
       <div className="min-w-0">
-        <div className="text-sm text-white">{item.symbol}</div>
+        <div className="text-sm text-[#d4dbd4]">{item.symbol}</div>
         <div className="mt-1 truncate text-cyan-100">{item.setup}</div>
       </div>
       <div>
-        <div className="text-zinc-600">Direction</div>
-        <div className="text-zinc-300">{item.direction}</div>
+        <div className="text-[#3d503d]">Direction</div>
+        <div className={directionClass(item.direction)}>{item.direction}</div>
       </div>
       <div>
-        <div className="text-zinc-600">Conf</div>
+        <div className="text-[#3d503d]">Conf</div>
         <div className="text-emerald-100">{item.confidence}</div>
       </div>
       <div>
-        <div className="text-zinc-600">Grade</div>
+        <div className="text-[#3d503d]">Grade</div>
         <div className="text-amber-100">{item.grade}</div>
       </div>
       <div>
-        <div className="text-zinc-600">Quality</div>
-        <div className="truncate text-zinc-300">{item.quality}</div>
+        <div className="text-[#3d503d]">Quality</div>
+        <div className="truncate text-[#a0b0a0]">{item.quality}</div>
       </div>
       <div>
-        <div className="text-zinc-600">RR</div>
-        <div className="truncate text-zinc-300">{item.rr}</div>
+        <div className="text-[#3d503d]">RR</div>
+        <div className="truncate text-[#a0b0a0]">{item.rr}</div>
       </div>
       <Link
         href={marketHref(item)}
@@ -202,10 +295,89 @@ function OpportunityRow({ item }: { item: ScannerCandidate }) {
       >
         Open Trade
       </Link>
-      <div className="md:col-span-8 flex items-center justify-between gap-2 border-t border-zinc-900 pt-1">
-        <span className="truncate text-zinc-500">{item.reason ?? item.status}</span>
-        <span className="shrink-0 text-zinc-600">{item.status}</span>
+      <div className="md:col-span-8 flex items-center justify-between gap-2 border-t border-[#142014] pt-1">
+        <span className="truncate text-[#6b7d6b]">{item.reason ?? item.status}</span>
+        <Badge label={item.status} />
       </div>
+    </div>
+  )
+}
+
+function PriorityOpportunityCard({ item, rank }: { item: ScannerCandidate; rank: number }) {
+  return (
+    <div className="rounded-lg border border-amber-400/20 bg-black/45 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-4xl font-black leading-none text-orange-400">#{rank}</div>
+        <Badge label={item.status} />
+      </div>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-xl font-black uppercase tracking-[0.04em] text-[#d4dbd4]">{item.symbol}</div>
+          <div className="mt-1 truncate text-[11px] font-black uppercase tracking-[0.12em] text-cyan-100">{item.setup}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">Confidence</div>
+          <div className="text-2xl font-black leading-none text-emerald-100">{item.confidence}</div>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 text-[10px] font-black uppercase tracking-[0.1em] sm:grid-cols-3">
+        <div>
+          <div className="text-[#3d503d]">Direction</div>
+          <div className={directionClass(item.direction)}>{item.direction}</div>
+        </div>
+        <div>
+          <div className="text-[#3d503d]">Grade</div>
+          <div className="text-amber-100">{item.grade}</div>
+        </div>
+        <div>
+          <div className="text-[#3d503d]">Quality</div>
+          <div className="truncate text-[#a0b0a0]">{item.quality}</div>
+        </div>
+      </div>
+      <div className="mt-3 min-h-8 border-t border-[#142014] pt-2 text-[10px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">
+        {item.reason ?? "Live opportunity from existing scanner intelligence."}
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Link
+          href={marketHref(item)}
+          className="rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1.5 text-center text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60"
+        >
+          Inspect Market
+        </Link>
+        <Link
+          href={researchHref(item)}
+          className="rounded border border-amber-300/25 bg-amber-400/10 px-2 py-1.5 text-center text-[9px] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:border-amber-200/60"
+        >
+          Research Evidence
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function NavigationActions({ item }: { item: ScannerCandidate | null }) {
+  if (!item) {
+    return <EmptyState title="Unavailable" reason="No selected opportunity is available for navigation." />
+  }
+
+  return (
+    <div className="grid gap-2 md:grid-cols-4">
+      {[
+        ["Markets", "Validate live structure", marketHref(item)],
+        ["Research", "Review evidence", researchHref(item)],
+        ["Replay", "Check historical context", replayHref(item)],
+        ["Trade", "Continue planning", tradeHref(item)],
+      ].map(([label, description, href]) => (
+        <Link
+          key={label}
+          href={href}
+          className="rounded border border-[#1c2c1c] bg-black/45 p-3 transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
+        >
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">{label}</div>
+          <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">{description}</div>
+          <div className="mt-3 truncate text-xs font-black uppercase text-[#d4dbd4]">{item.symbol}</div>
+        </Link>
+      ))}
     </div>
   )
 }
@@ -269,6 +441,17 @@ export default function ScannerPage() {
     const numeric = Number(item.confidence)
     return item.confidence === "HIGH" || (Number.isFinite(numeric) && numeric >= 75)
   }).length
+  const priorityOpportunities = scannerCandidates.slice(0, 3)
+  const signalFeed = scannerCandidates.slice(3, 13)
+  const primaryOpportunity = scannerCandidates[0] ?? null
+  const scannerHealth = moverState.loading || opportunitiesState.loading
+    ? "LOADING"
+    : scannerCandidates.length
+      ? "CURRENT"
+      : moverState.error || opportunitiesState.error
+        ? "UNAVAILABLE"
+        : "MISSING"
+  const scannerFreshness = moverState.lastUpdatedAt ?? opportunitiesState.lastUpdatedAt ?? "Unavailable"
 
   useEffect(() => {
     console.debug("Scanner candidate trace", {
@@ -279,113 +462,166 @@ export default function ScannerPage() {
   }, [candidates.length, opportunities.length, scannerCandidates.length])
 
   return (
-    <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
+    <main className="min-h-screen bg-[#070d07] px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3">
-        <Card title="Scanner Summary" icon={<Radar className="h-3.5 w-3.5" />}>
-          <div className="grid gap-2 md:grid-cols-4">
-            {[
-              ["Scanned", movers?.summary?.scanned ?? (moverState.error ? "Unavailable" : scannerCandidates.length), moverState.error],
-              ["Tradeable", tradeableCount || "Unavailable", scannerCandidates.length ? null : "No candidate list available"],
-              ["High Confidence", highConfidenceCount || "Unavailable", scannerCandidates.length ? null : "No confidence-ranked candidates"],
-              ["Active Setups", activeSetups.length || "Unavailable", activeSetups.length ? null : "No active setup memory records"],
-            ].map(([label, value, reason]) => (
-              <div key={label as string} className="rounded border border-zinc-900 bg-black/45 p-2">
-                <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</div>
-                <div className="mt-1 text-lg font-black uppercase text-white">{value}</div>
-                {reason ? <div className="mt-1 truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-600">{reason}</div> : null}
+        <Card
+          title="Scanner Summary"
+          icon={<Radar className="h-3.5 w-3.5" />}
+          className={SURFACE.scannerHeader}
+          subtitle="Scan scope, freshness, and source health"
+        >
+          <div className="grid gap-2 md:grid-cols-[1.2fr_repeat(4,minmax(0,1fr))]">
+            <div className={cn(SURFACE.row, "p-3")}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">Attention Scan</div>
+                <Badge label={scannerHealth} />
+              </div>
+              <div className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#d4dbd4]">
+                What deserves attention right now?
+              </div>
+              <div className="mt-2 truncate text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">
+                Source: market movers + scanner opportunities / Freshness: {scannerFreshness}
+              </div>
+            </div>
+            <SummaryMetric label="Scanned" value={movers?.summary?.scanned ?? (moverState.error ? "Unavailable" : scannerCandidates.length)} reason={moverState.error} />
+            <SummaryMetric label="Tradeable" value={tradeableCount || "Unavailable"} reason={scannerCandidates.length ? null : "No candidate list available"} />
+            <SummaryMetric label="High Confidence" value={highConfidenceCount || "Unavailable"} reason={scannerCandidates.length ? null : "No confidence-ranked candidates"} />
+            <SummaryMetric label="Active Setups" value={activeSetups.length || "Unavailable"} reason={activeSetups.length ? null : "No active setup memory records"} />
+          </div>
+        </Card>
+
+        <Card
+          title="Priority Opportunities"
+          icon={<Radar className="h-3.5 w-3.5" />}
+          className={SURFACE.priority}
+          subtitle="Top ranked signals from existing Scanner intelligence"
+        >
+          {priorityOpportunities.length ? (
+            <div className="grid gap-2 xl:grid-cols-3">
+              {priorityOpportunities.map((item, index) => (
+                <PriorityOpportunityCard key={`priority-${item.symbol}-${item.setup}-${item.score}`} item={item} rank={index + 1} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="Unavailable" reason={opportunitiesState.error ?? moverState.error ?? "No trade candidates returned by market movers or scanner API."} />
+          )}
+        </Card>
+
+        <Card
+          title="Signal Feed"
+          icon={<Signal className="h-3.5 w-3.5" />}
+          className={SURFACE.primary}
+          subtitle="Additional ranked signals after the priority layer"
+        >
+          {signalFeed.length ? (
+            <div className="grid gap-2">
+              {signalFeed.map((item) => <OpportunityRow key={`feed-${item.symbol}-${item.setup}-${item.score}`} item={item} />)}
+            </div>
+          ) : (
+            <EmptyState title="Unavailable" reason={priorityOpportunities.length ? "No additional ranked signals beyond the priority layer." : "No ranked signal feed available."} />
+          )}
+        </Card>
+
+        <Card
+          title="Opportunity Filters"
+          icon={<Signal className="h-3.5 w-3.5" />}
+          className={SURFACE.secondary}
+          subtitle="Non-interactive category readiness using existing signal groups"
+        >
+          <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-6">
+            {byCategory.map((group) => (
+              <div key={group.category} className={cn(SURFACE.row, "p-2")}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">{group.category}</div>
+                  <div className="text-sm font-black text-[#d4dbd4]">{group.items.length}</div>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.1em]">
+                  <span className="text-[#6b7d6b]">Top</span>
+                  <span className="truncate text-[#d4dbd4]">{group.items[0]?.symbol ?? "Unavailable"}</span>
+                  <span className="text-emerald-100">{group.items[0] ? confidence(group.items[0]) : "NO DATA"}</span>
+                </div>
               </div>
             ))}
           </div>
         </Card>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <Card title="Top Opportunities" icon={<Radar className="h-3.5 w-3.5" />}>
-            {scannerCandidates.length ? (
-              <div className="grid gap-2">
-                {scannerCandidates.slice(0, 10).map((item) => <OpportunityRow key={`${item.symbol}-${item.setup}-${item.score}`} item={item} />)}
-              </div>
-            ) : (
-              <EmptyState title="Unavailable" reason={opportunitiesState.error ?? moverState.error ?? "No trade candidates returned by market movers or scanner API."} />
-            )}
-          </Card>
-
-          <Card title="Highest Confidence" icon={<Zap className="h-3.5 w-3.5" />}>
-            <div className="grid gap-1.5">
-              {highestConfidence.length ? highestConfidence.map((item) => (
-                <div key={`high-${item.symbol}-${item.setup}`} className="rounded border border-zinc-900 bg-black/45 p-2">
+        <Card
+          title="Watchlist Candidates"
+          icon={<Activity className="h-3.5 w-3.5" />}
+          className={SURFACE.secondary}
+          subtitle="Existing active setup memory, reframed as monitor-next candidates"
+        >
+          {activeSetups.length ? (
+            <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
+              {activeSetups.slice(0, 15).map((setup) => (
+                <div key={`${setup.symbol}-${setup.firstSeenAt}`} className={cn(SURFACE.row, "p-2")}>
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-black text-white">{item.symbol}</div>
-                    <div className="text-lg font-black text-emerald-100">{item.confidence}</div>
+                    <div className="text-xs font-black text-[#d4dbd4]">{setup.symbol}</div>
+                    <Badge label={setup.lifecycle} />
                   </div>
-                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{item.setup}</div>
-                  <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">{item.direction} / {item.status}</div>
-                </div>
-              )) : <EmptyState title="Unavailable" reason="No confidence-ranked opportunities available." />}
-            </div>
-          </Card>
-        </div>
-
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card title="Opportunity Categories" icon={<Signal className="h-3.5 w-3.5" />}>
-            <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
-              {byCategory.map((group) => (
-                <div key={group.category} className="rounded border border-zinc-900 bg-black/45 p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">{group.category}</div>
-                    <div className="text-sm font-black text-white">{group.items.length}</div>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.1em]">
-                    <span className="text-zinc-500">Top</span>
-                    <span className="text-white">{group.items[0]?.symbol ?? "Unavailable"}</span>
-                    <span className="text-emerald-100">{group.items[0] ? confidence(group.items[0]) : "NO DATA"}</span>
+                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(setup.setup)}</div>
+                  <div className="mt-1 flex justify-between text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">
+                    <span>{confidence(setup)}</span>
+                    <span>{setup.outcome}</span>
                   </div>
                 </div>
               ))}
             </div>
-          </Card>
+          ) : (
+            <EmptyState title="Unavailable" reason="No active setup memory records yet." />
+          )}
+        </Card>
 
-          <Card title="Tracked Opportunities" icon={<Activity className="h-3.5 w-3.5" />}>
-            {activeSetups.length ? (
-              <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
-                {activeSetups.slice(0, 15).map((setup) => (
-                  <div key={`${setup.symbol}-${setup.firstSeenAt}`} className="rounded border border-zinc-900 bg-black/45 p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-black text-white">{setup.symbol}</div>
-                      <div className="text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">{setup.lifecycle}</div>
-                    </div>
-                    <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(setup.setup)}</div>
-                    <div className="mt-1 flex justify-between text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
-                      <span>{confidence(setup)}</span>
-                      <span>{setup.outcome}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState title="Unavailable" reason="No active setup memory records yet." />
-            )}
-          </Card>
-
-          <Card title="Market Breadth" icon={<Activity className="h-3.5 w-3.5" />}>
+        <Card
+          title="Supporting Context"
+          icon={<Activity className="h-3.5 w-3.5" />}
+          className={SURFACE.support}
+          subtitle="Secondary context only; live validation remains in Markets"
+        >
+          <div className="grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
             {movers?.summary ? (
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded border border-zinc-900 bg-black/45 p-2">
-                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Scanned</div>
-                  <div className="mt-1 text-lg font-black text-white">{movers.summary.scanned}</div>
+                <div className={cn(SURFACE.row, "p-2")}>
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">Scanned</div>
+                  <div className="mt-1 text-lg font-black text-[#d4dbd4]">{movers.summary.scanned}</div>
                 </div>
-                <div className="rounded border border-zinc-900 bg-black/45 p-2">
-                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Tradable</div>
+                <div className={cn(SURFACE.row, "p-2")}>
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">Tradable</div>
                   <div className="mt-1 text-lg font-black text-emerald-100">{movers.summary.tradable}</div>
                 </div>
-                <div className="col-span-2 rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">
+                <div className={cn(SURFACE.row, "col-span-2 p-2 text-[10px] font-black uppercase tracking-[0.1em] text-[#a0b0a0]")}>
                   Attention: {movers.summary.attention}
                 </div>
               </div>
             ) : (
               <EmptyState title="Unavailable" reason={moverState.error ?? "Market movers summary unavailable."} />
             )}
-          </Card>
-        </div>
+            <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
+              {highestConfidence.length ? highestConfidence.map((item) => (
+                <div key={`high-${item.symbol}-${item.setup}`} className={cn(SURFACE.row, "p-2")}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-black text-[#d4dbd4]">{item.symbol}</div>
+                    <div className="text-lg font-black text-emerald-100">{item.confidence}</div>
+                  </div>
+                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{item.setup}</div>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">
+                    <span>{item.direction}</span>
+                    <Badge label={item.status} />
+                  </div>
+                </div>
+              )) : <EmptyState title="Unavailable" reason="No confidence-ranked opportunities available." />}
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          title="Navigation Actions"
+          icon={<Zap className="h-3.5 w-3.5" />}
+          className={SURFACE.support}
+          subtitle="Continue from the highest-priority available signal"
+        >
+          <NavigationActions item={primaryOpportunity} />
+        </Card>
       </div>
     </main>
   )

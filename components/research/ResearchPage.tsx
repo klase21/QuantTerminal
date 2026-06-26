@@ -125,6 +125,33 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: s
   )
 }
 
+function StatusBadge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "good" | "warn" | "bad" | "neutral" }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em]",
+        tone === "good" && "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
+        tone === "warn" && "border-amber-400/25 bg-amber-400/10 text-amber-200",
+        tone === "bad" && "border-rose-400/25 bg-rose-400/10 text-rose-200",
+        tone === "neutral" && "border-zinc-800 bg-black/45 text-zinc-400",
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+function evidenceText(item: unknown) {
+  if (typeof item === "string") return item
+  if (item && typeof item === "object") {
+    const record = item as Record<string, unknown>
+    const value = record.summary ?? record.reason ?? record.title ?? record.description ?? record.evidence ?? record.label
+    if (typeof value === "string") return value
+    if (value !== undefined && value !== null) return String(value)
+  }
+  return "NO DATA"
+}
+
 function pct(value: number | null | undefined, digits = 1) {
   if (value === null || value === undefined || !Number.isFinite(value)) return "NO DATA"
   return `${value > 0 ? "+" : ""}${value.toFixed(digits)}%`
@@ -442,134 +469,312 @@ export default function ResearchPage() {
     investigationContext.thesis,
     memories,
   ])
+  const supportingEvidence = [
+    ...(decisionBrief?.keySupportingFactors.slice(0, 4).map((item) => ({
+      source: "Decision Brief",
+      detail: item,
+      status: decisionBrief.freshnessStatus,
+    })) ?? []),
+    ...(historical?.contradiction?.supportingEvidence.slice(0, 3).map((item) => ({
+      source: "Historical Analog",
+      detail: evidenceText(item),
+      status: historical.validity?.freshnessStatus ?? "UNKNOWN",
+    })) ?? []),
+    ...(eventImpact?.contradiction?.supportingEvidence.slice(0, 3).map((item) => ({
+      source: "Event Impact",
+      detail: evidenceText(item),
+      status: eventImpact.validity?.freshnessStatus ?? "UNKNOWN",
+    })) ?? []),
+    ...memories.flatMap((memory) => (
+      memory.contradiction?.supportingEvidence.slice(0, 2).map((item) => ({
+        source: `Market Memory / ${memory.memoryType}`,
+        detail: evidenceText(item),
+        status: memory.validity.freshnessStatus,
+      })) ?? []
+    )),
+  ]
+  const conflictingEvidence = [
+    ...(decisionBrief?.keyContradictingFactors.slice(0, 4).map((item) => ({
+      source: "Decision Brief",
+      detail: item,
+      status: decisionBrief.freshnessStatus,
+    })) ?? []),
+    ...(historical?.contradiction?.contradictingEvidence.slice(0, 3).map((item) => ({
+      source: "Historical Analog",
+      detail: evidenceText(item),
+      status: historical.validity?.freshnessStatus ?? "UNKNOWN",
+    })) ?? []),
+    ...(eventImpact?.contradiction?.contradictingEvidence.slice(0, 3).map((item) => ({
+      source: "Event Impact",
+      detail: evidenceText(item),
+      status: eventImpact.validity?.freshnessStatus ?? "UNKNOWN",
+    })) ?? []),
+    ...memories.flatMap((memory) => (
+      memory.contradiction?.contradictingEvidence.slice(0, 2).map((item) => ({
+        source: `Market Memory / ${memory.memoryType}`,
+        detail: evidenceText(item),
+        status: memory.validity.freshnessStatus,
+      })) ?? []
+    )),
+  ]
+  const sourceRows = [
+    {
+      source: "Narrative Context",
+      freshness: narratives.data?.updatedAt ? "CURRENT" : "UNAVAILABLE",
+      coverage: topNarratives.length ? "PARTIAL" : "UNAVAILABLE",
+      generated: dateTime(narratives.data?.updatedAt),
+      reason: topNarratives.length ? "Tagged narrative items available." : (narratives.error ?? "Narrative heatmap returned no tagged items."),
+    },
+    {
+      source: "Prediction Markets",
+      freshness: predictions.data?.status === "available" ? "CURRENT" : "UNAVAILABLE",
+      coverage: predictionMarkets.length ? "PARTIAL" : "UNAVAILABLE",
+      generated: "NO DATA",
+      reason: predictionMarkets.length ? "Attention markets available." : (predictions.error ?? "No attention markets available."),
+    },
+    {
+      source: "Historical Analog",
+      freshness: historical?.validity?.freshnessStatus ?? "UNKNOWN",
+      coverage: historical?.validity?.coverageStatus ?? "UNAVAILABLE",
+      generated: dateTime(historical?.diagnostics?.generatedAt),
+      reason: historical ? (historical.reason ?? historical.diagnostics?.cacheStatus ?? "ready") : "Manual load required.",
+    },
+    {
+      source: "Event Impact",
+      freshness: eventImpact?.validity?.freshnessStatus ?? "UNKNOWN",
+      coverage: eventImpact?.validity?.coverageStatus ?? "UNAVAILABLE",
+      generated: dateTime(eventImpact?.source.generatedAt),
+      reason: eventImpact ? (eventImpact.reason ?? "Verified event outcomes available.") : "Manual load required.",
+    },
+    {
+      source: "Market Memory",
+      freshness: marketMemory?.validity?.freshnessStatus ?? "UNKNOWN",
+      coverage: marketMemory?.validity?.coverageStatus ?? "UNAVAILABLE",
+      generated: dateTime(marketMemory?.generatedAt),
+      reason: marketMemory ? (marketMemory.reason ?? `${memories.length} memories available.`) : "Manual load required.",
+    },
+    {
+      source: "Macro Flow",
+      freshness: macro.data?.updatedAt ? "CURRENT" : "UNAVAILABLE",
+      coverage: informationItems.length ? "PARTIAL" : "UNAVAILABLE",
+      generated: dateTime(macro.data?.updatedAt),
+      reason: informationItems.length ? "Macro or narrative flow items available." : (macro.error ?? "Macro and narrative flow returned no current items."),
+    },
+  ]
+  const marketsHref = buildInvestigationHref("/markets", {
+    ...investigationContext,
+    source: "research",
+    thesis: withInvestigationThesisView(investigationContext.thesis, "markets"),
+  })
+  const tradeHref = buildInvestigationHref("/trade", {
+    ...investigationContext,
+    source: "research",
+    thesis: withInvestigationThesisView(investigationContext.thesis, "trade"),
+  })
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3">
-        <Card title="Current State" icon={<Activity className="h-3.5 w-3.5" />}>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
-            <Metric label="Symbol" value={investigationContext.symbol} />
-            <Metric label="Exchange" value={investigationContext.exchange.replaceAll("_", " ")} />
-            <Metric label="Timeframe" value={investigationContext.timeframe} />
-            <Metric label="Investigation Time" value={dateTime(investigationContext.investigationTimestamp)} />
+        <Card title="Research Summary" icon={<Search className="h-3.5 w-3.5" />} className="border-amber-500/20 bg-[#070d07]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)]">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Active Investigation</div>
+              <div className="mt-2 text-2xl font-black uppercase tracking-[0.08em] text-white">
+                {investigationContext.thesis?.title ?? `${investigationContext.symbol} Market Thesis`}
+              </div>
+              <div className="mt-2 max-w-4xl text-xs font-bold uppercase leading-5 tracking-[0.08em] text-zinc-400">
+                {investigationContext.thesis?.question ?? "No explicit thesis supplied. Research is using the selected market context as the investigation subject."}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusBadge>{investigationContext.symbol}</StatusBadge>
+                <StatusBadge>{investigationContext.exchange.replaceAll("_", " ")}</StatusBadge>
+                <StatusBadge>{investigationContext.timeframe}</StatusBadge>
+                <StatusBadge tone={decisionBrief ? "good" : "warn"}>{decisionBrief?.freshnessStatus ?? "EVIDENCE PENDING"}</StatusBadge>
+                <StatusBadge tone={decisionBrief ? "good" : "warn"}>{decisionBrief?.coverageStatus ?? "PARTIAL"}</StatusBadge>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Metric label="Supporting Evidence" value={String(decisionBrief?.supportingEvidenceCount ?? supportingEvidence.length)} />
+              <Metric label="Conflicting Evidence" value={String(decisionBrief?.contradictingEvidenceCount ?? conflictingEvidence.length)} />
+              <Metric label="Source Quality" value={sourceRows.some((row) => row.coverage !== "UNAVAILABLE") ? "PARTIAL" : "UNAVAILABLE"} />
+              <Metric label="Investigation Time" value={dateTime(investigationContext.investigationTimestamp)} />
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Thesis" icon={<Target className="h-3.5 w-3.5" />}>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            <Metric label="Title" value={investigationContext.thesis?.title ?? `${investigationContext.symbol} research context`} />
+            <Metric label="Question" value={investigationContext.thesis?.question ?? "Why should I believe this market thesis?"} />
+            <Metric label="Decision Horizon" value={investigationContext.thesis?.decisionHorizon ?? investigationContext.timeframe} />
+            <Metric label="Status" value={investigationContext.thesis?.status ?? "active"} />
+            <Metric label="Current View" value={decisionBrief?.currentView.replaceAll("_", " ") ?? "insufficient evidence"} />
+          </div>
+          <div className="mt-2 grid gap-2 md:grid-cols-3">
             <Metric label="Market Regime" value={currentState?.trendRegime ?? "Load historical context"} />
             <Metric label="State Return 24H" value={pct(currentState?.features.return24h)} tone={outcomeTone(currentState?.features.return24h)} />
+            <Metric label="Next Validation" value={decisionBrief?.requiredNextValidation[0] ?? "Load evidence sources as needed"} />
           </div>
-          {investigationContext.thesis ? (
-            <div className="mt-2 grid gap-2 border-t border-zinc-900 pt-2 md:grid-cols-[minmax(0,.8fr)_minmax(0,1.6fr)_180px]">
-              <Metric label="Current Thesis" value={investigationContext.thesis.title} />
-              <Metric label="Current Question" value={investigationContext.thesis.question} />
-              <Metric label="Decision Horizon" value={investigationContext.thesis.decisionHorizon} />
-            </div>
-          ) : null}
         </Card>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
-          <Card title="Narrative Context" icon={<Newspaper className="h-3.5 w-3.5" />}>
-            {topNarratives.length ? (
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                {topNarratives.map((item) => (
-                  <div key={item.narrative} className="rounded border border-zinc-900 bg-black/45 p-2">
-                    <div className="text-sm font-black uppercase text-white">{item.narrative}</div>
-                    <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">{heatState(item.total)}</div>
-                    <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">{Math.round(item.total).toLocaleString()} articles</div>
-                  </div>
-                ))}
-              </div>
-            ) : <EmptyState title="Unavailable" reason={narratives.error ?? "Narrative heatmap returned no tagged items."} />}
-          </Card>
-
-          <Card title="Prediction Markets" icon={<PieChart className="h-3.5 w-3.5" />}>
-            {predictionMarkets.length ? (
-              <div className="grid gap-1.5">
-                {predictionMarkets.map((market) => (
-                  <div key={`${market.attentionRank}-${market.title}`} className="grid grid-cols-[1fr_auto] gap-2 rounded border border-zinc-900 bg-black/45 p-2">
-                    <div>
-                      <div className="text-xs font-black uppercase text-white">{market.title}</div>
-                      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
-                        {attentionLabel(market)} / {compactUsd(market.volume ?? market.liquidity)}
-                      </div>
+        <Card title="Supporting Evidence" icon={<ShieldCheck className="h-3.5 w-3.5" />}>
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid gap-2">
+              {supportingEvidence.length ? (
+                supportingEvidence.slice(0, 8).map((item, index) => (
+                  <div key={`${item.source}-${index}-${item.detail}`} className="rounded border border-emerald-500/15 bg-emerald-500/5 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">{item.source}</div>
+                      <StatusBadge tone={item.status === "VALID" ? "good" : "neutral"}>{item.status}</StatusBadge>
                     </div>
-                    <div className="text-lg font-black text-emerald-100">{market.probability === null ? "NO DATA" : `${Math.round(market.probability)}%`}</div>
+                    <div className="mt-2 text-xs font-bold leading-5 text-zinc-200">{item.detail}</div>
                   </div>
-                ))}
-              </div>
-            ) : <EmptyState title="Unavailable" reason={predictions.data?.status ?? predictions.error ?? "No attention markets available."} />}
-          </Card>
-        </div>
+                ))
+              ) : (
+                <EmptyState title="Evidence Pending" reason="Load Historical Analog, Event Impact, or Market Memory to expose supporting evidence." />
+              )}
+            </div>
 
-        <Card title="Historical Analog Summary" icon={<History className="h-3.5 w-3.5" />}>
-          {!historical ? (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <EmptyState
-                title="Manual Load Required"
-                reason={historicalError ?? `Read cached ${investigationContext.symbol} / ${historicalTimeframe} intelligence when needed.`}
-              />
-              <button
-                type="button"
-                onClick={() => void loadHistoricalIntelligence()}
-                disabled={historicalLoading}
-                className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
-              >
-                {historicalLoading ? "Reading Cached Intelligence" : "Load Historical Intelligence"}
-              </button>
+            <div className="grid gap-2">
+              <div className="rounded border border-zinc-900 bg-black/45 p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">Historical Analog</div>
+                {!historical ? (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <EmptyState title="Manual Load Required" reason={historicalError ?? `Read cached ${investigationContext.symbol} / ${historicalTimeframe} intelligence when needed.`} />
+                    <button
+                      type="button"
+                      onClick={() => void loadHistoricalIntelligence()}
+                      disabled={historicalLoading}
+                      className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {historicalLoading ? "Reading Cached Intelligence" : "Load Historical Intelligence"}
+                    </button>
+                  </div>
+                ) : historical.status !== "available" || !statistics ? (
+                  <div className="mt-2">
+                    <EmptyState title="Historical Intelligence Unavailable" reason={historical.reason ?? historical.diagnostics?.cacheStatus ?? "cache unavailable"} />
+                  </div>
+                ) : (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Metric label="Similar Cases" value={String(statistics.totalCases)} />
+                    <Metric label="24H Average" value={pct(summaryHorizon?.averageReturn)} tone={outcomeTone(summaryHorizon?.averageReturn)} />
+                    <Metric label="24H Win Rate" value={pct(summaryHorizon?.winRate)} />
+                    <Metric label="Best Case" value={pct(summaryHorizon?.bestCase?.return)} tone="text-emerald-200" />
+                    <Metric label="Worst Case" value={pct(summaryHorizon?.worstCase?.return)} tone="text-rose-200" />
+                    <Metric label="Support / Conflict" value={`${historical.contradiction?.supportingEvidence.length ?? 0} / ${historical.contradiction?.contradictingEvidence.length ?? 0}`} />
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded border border-zinc-900 bg-black/45 p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">Event Impact</div>
+                {eventImpact?.status === "available" && eventImpact24h?.sampleCount ? (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Metric label="24H Average" value={pct(eventImpact24h.averageReturn)} tone={outcomeTone(eventImpact24h.averageReturn)} />
+                    <Metric label="Win Rate" value={pct(eventImpact24h.winRate)} />
+                    <Metric label="Events" value={String(eventImpact.events.length)} />
+                    <Metric label="Support / Conflict" value={`${eventImpact.contradiction?.supportingEvidence.length ?? 0} / ${eventImpact.contradiction?.contradictingEvidence.length ?? 0}`} />
+                  </div>
+                ) : (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <EmptyState title={eventImpact ? "Event Impact Unavailable" : "Manual Load Required"} reason={eventImpact?.reason ?? eventImpactError ?? "Read verified event outcomes from canonical OHLCV when needed."} />
+                    <button
+                      type="button"
+                      onClick={() => void loadEventImpact()}
+                      disabled={eventImpactLoading}
+                      className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {eventImpactLoading ? "Reading Event Outcomes" : "Load Event Impact"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded border border-zinc-900 bg-black/45 p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">Market Memory</div>
+                {memories.length ? (
+                  <div className="mt-2 grid gap-2">
+                    {memories.slice(0, 3).map((memory) => (
+                      <div key={memory.memoryId} className="rounded border border-zinc-900 bg-black/45 p-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-xs font-black uppercase text-white">{memory.title}</div>
+                          <StatusBadge>{memory.memoryType}</StatusBadge>
+                        </div>
+                        <div className="mt-1 text-[10px] font-bold leading-5 text-zinc-400">{memory.summary}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <EmptyState title={marketMemory ? "Market Memory Unavailable" : "Manual Load Required"} reason={marketMemory?.reason ?? marketMemoryError ?? "Read evidence-backed memories from the artifact catalog when needed."} />
+                    <button
+                      type="button"
+                      onClick={() => void loadMarketMemory()}
+                      disabled={marketMemoryLoading}
+                      className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {marketMemoryLoading ? "Reading Market Memory" : "Load Market Memory"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          ) : historical.status !== "available" || !statistics ? (
-            <EmptyState title="Historical Intelligence Unavailable" reason={historical.reason ?? historical.diagnostics?.cacheStatus ?? "cache unavailable"} />
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-              <Metric label="Similar Cases" value={String(statistics.totalCases)} />
-              <Metric label="24H Average Return" value={pct(summaryHorizon?.averageReturn)} tone={outcomeTone(summaryHorizon?.averageReturn)} />
-              <Metric label="24H Win Rate" value={pct(summaryHorizon?.winRate)} />
-              <Metric label="Best Case" value={pct(summaryHorizon?.bestCase?.return)} tone="text-emerald-200" />
-              <Metric label="Worst Case" value={pct(summaryHorizon?.worstCase?.return)} tone="text-rose-200" />
-              <Metric label="Supporting Evidence" value={String(historical.contradiction?.supportingEvidence.length ?? 0)} />
-              <Metric label="Contradicting Evidence" value={String(historical.contradiction?.contradictingEvidence.length ?? 0)} />
-            </div>
-          )}
+          </div>
         </Card>
 
-        {historical?.status === "available" && statistics ? (
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,.65fr)]">
-            <Card title="Selected Analog Cases" icon={<BarChart3 className="h-3.5 w-3.5" />}>
-              {cases.length ? (
-                <div className="grid gap-1.5">
-                  {cases.slice(0, 8).map((item, index) => {
-                    const selected = item.state.id === selectedCase?.state.id
-                    return (
-                      <button
-                        type="button"
-                        key={item.state.id}
-                        onClick={() => setSelectedCaseId(item.state.id)}
-                        className={cn(
-                          "grid grid-cols-[32px_minmax(0,1fr)_80px_repeat(2,70px)] items-center gap-2 rounded border px-2 py-2 text-left",
-                          selected ? "border-cyan-300/35 bg-cyan-400/10" : "border-zinc-900 bg-black/45 hover:bg-zinc-900/55",
-                        )}
-                      >
-                        <span className="text-[9px] font-black text-zinc-600">#{index + 1}</span>
-                        <span>
-                          <span className="block text-xs font-black text-white">{dateTime(item.state.timestamp)}</span>
-                          <span className="block text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{item.state.trendRegime} / {item.comparableFeatures} comparable features</span>
-                        </span>
-                        <span className="text-sm font-black text-cyan-200">{item.similarity.toFixed(1)}%</span>
-                        <span className={cn("text-xs font-black", outcomeTone(item.outcome.returns["24h"]))}>{pct(item.outcome.returns["24h"])}</span>
-                        <span className={cn("text-xs font-black", outcomeTone(item.outcome.returns["7d"]))}>{pct(item.outcome.returns["7d"])}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              ) : <EmptyState title="Unavailable" reason="Valid cache contains no analog cases." />}
-            </Card>
-
-            <Card title="Outcome Summary" icon={<Target className="h-3.5 w-3.5" />}>
-              {selectedCase ? (
-                <div className="grid gap-2">
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2">
-                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500">Selected Historical Case</div>
-                    <div className="mt-1 text-sm font-black text-white">{dateTime(selectedCase.state.timestamp)}</div>
-                    <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{selectedCase.similarity.toFixed(1)}% similarity</div>
+        <Card title="Conflicting Evidence" icon={<Activity className="h-3.5 w-3.5" />}>
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid gap-2">
+              {conflictingEvidence.length ? (
+                conflictingEvidence.slice(0, 8).map((item, index) => (
+                  <div key={`${item.source}-${index}-${item.detail}`} className="rounded border border-rose-500/15 bg-rose-500/5 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-rose-200">{item.source}</div>
+                      <StatusBadge tone="warn">{item.status}</StatusBadge>
+                    </div>
+                    <div className="mt-2 text-xs font-bold leading-5 text-zinc-200">{item.detail}</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                ))
+              ) : (
+                <EmptyState title="Contradiction Pending" reason="No loaded source has exposed contradicting evidence yet." />
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              {historical?.status === "available" && statistics ? (
+                <div className="rounded border border-zinc-900 bg-black/45 p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">Selected Analog Cases</div>
+                  <div className="mt-2 grid gap-1.5">
+                    {cases.slice(0, 6).map((item, index) => {
+                      const selected = item.state.id === selectedCase?.state.id
+                      return (
+                        <button
+                          type="button"
+                          key={item.state.id}
+                          onClick={() => setSelectedCaseId(item.state.id)}
+                          className={cn(
+                            "grid grid-cols-[32px_minmax(0,1fr)_70px_64px] items-center gap-2 rounded border px-2 py-2 text-left",
+                            selected ? "border-cyan-300/35 bg-cyan-400/10" : "border-zinc-900 bg-black/45 hover:bg-zinc-900/55",
+                          )}
+                        >
+                          <span className="text-[9px] font-black text-zinc-600">#{index + 1}</span>
+                          <span>
+                            <span className="block text-xs font-black text-white">{dateTime(item.state.timestamp)}</span>
+                            <span className="block text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{item.state.trendRegime}</span>
+                          </span>
+                          <span className="text-sm font-black text-cyan-200">{item.similarity.toFixed(1)}%</span>
+                          <span className={cn("text-xs font-black", outcomeTone(item.outcome.returns["24h"]))}>{pct(item.outcome.returns["24h"])}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {selectedCase ? (
+                <div className="rounded border border-zinc-900 bg-black/45 p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">Outcome Summary</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
                     {HORIZONS.map((horizon) => (
                       <Metric
                         key={horizon}
@@ -579,190 +784,143 @@ export default function ResearchPage() {
                       />
                     ))}
                   </div>
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">
-                    Dominant outcome: <span className="text-amber-200">{statistics.dominantOutcome}</span>
-                  </div>
+                  {statistics ? (
+                    <div className="mt-2 rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">
+                      Dominant outcome: <span className="text-amber-200">{statistics.dominantOutcome}</span>
+                    </div>
+                  ) : null}
                 </div>
-              ) : <EmptyState title="Unavailable" reason="No cached case selected." />}
-            </Card>
+              ) : null}
+            </div>
           </div>
-        ) : null}
+        </Card>
 
-        <Card title="Event Impact" icon={<Landmark className="h-3.5 w-3.5" />}>
-          {eventImpact?.status === "available" && eventImpact24h?.sampleCount ? (
-            <div className="grid gap-3 xl:grid-cols-[minmax(260px,.8fr)_minmax(0,1.2fr)_320px]">
+        <Card title="Narrative Timeline" icon={<Newspaper className="h-3.5 w-3.5" />}>
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid gap-2">
+              {informationItems.length ? (
+                informationItems.map((item) => (
+                  <div key={`${item.time}-${item.label}-${item.tag}`} className="grid gap-2 rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] md:grid-cols-[90px_120px_minmax(0,1fr)]">
+                    <span className="text-zinc-500">{item.time}</span>
+                    <span className="text-cyan-100">{item.tag}</span>
+                    <span className="text-white">{item.label}</span>
+                  </div>
+                ))
+              ) : (
+                <EmptyState title="Unavailable" reason="Macro and narrative flow returned no current items." />
+              )}
+            </div>
+
+            <div className="grid gap-2">
               <div className="rounded border border-zinc-900 bg-black/45 p-3">
-                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500">Verified Event Sample</div>
-                <div className="mt-1 text-sm font-black uppercase text-white">{eventImpact.events[0]?.title ?? eventImpact.query.category}</div>
-                <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">
-                  {eventImpact.events.length} verified events / {eventImpact.sampleCount} market observations
-                </div>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">Narrative Context</div>
+                {topNarratives.length ? (
+                  <div className="mt-2 grid gap-2">
+                    {topNarratives.slice(0, 5).map((item) => (
+                      <div key={item.narrative} className="rounded border border-zinc-900 bg-black/45 p-2">
+                        <div className="text-xs font-black uppercase text-white">{item.narrative}</div>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                          <span>{heatState(item.total)}</span>
+                          <span>{Math.round(item.total).toLocaleString()} articles</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="mt-2"><EmptyState title="Unavailable" reason={narratives.error ?? "Narrative heatmap returned no tagged items."} /></div>}
               </div>
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-                <Metric label="24H Average" value={pct(eventImpact24h.averageReturn)} tone={outcomeTone(eventImpact24h.averageReturn)} />
-                <Metric label="24H Median" value={pct(eventImpact24h.medianReturn)} tone={outcomeTone(eventImpact24h.medianReturn)} />
-                <Metric label="Win Rate" value={pct(eventImpact24h.winRate)} />
-                <Metric label="Best Case" value={pct(eventImpact24h.bestCase?.return)} tone="text-emerald-200" />
-                <Metric label="Worst Case" value={pct(eventImpact24h.worstCase?.return)} tone="text-rose-200" />
-              </div>
-              <div className="grid gap-1.5">
-                <Metric
-                  label="Source"
-                  value={[eventImpact.source.eventCatalog, ...eventImpact.source.marketData].filter(Boolean).join(" / ") || "NO DATA"}
-                />
-                <Metric label="Generated" value={dateTime(eventImpact.source.generatedAt)} />
-                <Metric label="Observed" value={dateTime(eventImpact.validity?.observedAt)} />
-                <Metric
-                  label="Validity"
-                  value={`${eventImpact.validity?.freshnessStatus ?? "UNKNOWN"} / ${eventImpact.validity?.coverageStatus ?? "UNKNOWN"}`}
-                />
-                <Metric label="Event Count" value={String(eventImpact.events.length)} />
-                <Metric label="Supporting Evidence" value={String(eventImpact.contradiction?.supportingEvidence.length ?? 0)} />
-                <Metric label="Contradicting Evidence" value={String(eventImpact.contradiction?.contradictingEvidence.length ?? 0)} />
+
+              <div className="rounded border border-zinc-900 bg-black/45 p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">Prediction Markets</div>
+                {predictionMarkets.length ? (
+                  <div className="mt-2 grid gap-1.5">
+                    {predictionMarkets.slice(0, 4).map((market) => (
+                      <div key={`${market.attentionRank}-${market.title}`} className="grid grid-cols-[1fr_auto] gap-2 rounded border border-zinc-900 bg-black/45 p-2">
+                        <div>
+                          <div className="text-xs font-black uppercase text-white">{market.title}</div>
+                          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                            {attentionLabel(market)} / {compactUsd(market.volume ?? market.liquidity)}
+                          </div>
+                        </div>
+                        <div className="text-lg font-black text-emerald-100">{market.probability === null ? "NO DATA" : `${Math.round(market.probability)}%`}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="mt-2"><EmptyState title="Unavailable" reason={predictions.data?.status ?? predictions.error ?? "No attention markets available."} /></div>}
               </div>
             </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <EmptyState
-                title={eventImpact ? "Event Impact Unavailable" : "Manual Load Required"}
-                reason={eventImpact?.reason ?? eventImpactError ?? "Read verified event outcomes from canonical OHLCV when needed."}
-              />
-              <button
-                type="button"
-                onClick={() => void loadEventImpact()}
-                disabled={eventImpactLoading}
-                className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
-              >
-                {eventImpactLoading ? "Reading Event Outcomes" : "Load Event Impact"}
-              </button>
-            </div>
-          )}
+          </div>
         </Card>
 
-        <Card title="Market Memory" icon={<Brain className="h-3.5 w-3.5" />}>
-          {memories.length ? (
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {memories.slice(0, 6).map((memory) => (
-                <div key={memory.memoryId} className="rounded border border-zinc-900 bg-black/45 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs font-black uppercase text-white">{memory.title}</div>
-                    <div className="text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{memory.memoryType}</div>
-                  </div>
-                  <div className="mt-2 text-[10px] font-bold leading-5 text-zinc-400">{memory.summary}</div>
-                  <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-zinc-900 pt-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
-                    <span>{memory.supportingArtifacts.length} supporting artifacts</span>
-                    <span>{dateTime(memory.generatedAt)}</span>
-                    <span>{memory.validity.freshnessStatus} / {memory.validity.coverageStatus}</span>
-                    <span>{memory.contradiction?.supportingEvidence.length ?? 0} support / {memory.contradiction?.contradictingEvidence.length ?? 0} contradict</span>
-                  </div>
-                  <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
-                    Sources: {memory.supportingArtifacts.map((artifact) => artifact.artifactId).join(" / ")}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <EmptyState
-                title={marketMemory ? "Market Memory Unavailable" : "Manual Load Required"}
-                reason={marketMemory?.reason ?? marketMemoryError ?? "Read evidence-backed memories from the artifact catalog when needed."}
-              />
-              <button
-                type="button"
-                onClick={() => void loadMarketMemory()}
-                disabled={marketMemoryLoading}
-                className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
-              >
-                {marketMemoryLoading ? "Reading Market Memory" : "Load Market Memory"}
-              </button>
-            </div>
-          )}
+        <Card title="Source Intelligence" icon={<Database className="h-3.5 w-3.5" />}>
+          <div className="grid gap-2">
+            {sourceRows.map((row) => (
+              <div key={row.source} className="grid gap-2 rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] md:grid-cols-[180px_110px_120px_150px_minmax(0,1fr)]">
+                <span className="text-white">{row.source}</span>
+                <span className="text-cyan-100">{row.freshness}</span>
+                <span className="text-amber-100">{row.coverage}</span>
+                <span className="text-zinc-500">{row.generated}</span>
+                <span className="text-zinc-500">{row.reason}</span>
+              </div>
+            ))}
+          </div>
         </Card>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card title="Replay Access" icon={<Play className="h-3.5 w-3.5" />}>
-            {selectedCase && replayHref ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-black uppercase text-white">{selectedCase.state.symbol} / {dateTime(selectedCase.state.timestamp)}</div>
-                  <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
-                    Replay inherits exchange, symbol, timeframe, date, hour, and selected case. Loading remains manual.
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Link href={explorerHref} className="rounded border border-zinc-800 bg-black px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300">
-                    Open Full Explorer
-                  </Link>
+        <Card title="Related Markets" icon={<BarChart3 className="h-3.5 w-3.5" />}>
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="rounded border border-zinc-900 bg-black/45 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Active Subject</div>
+              <div className="mt-1 text-sm font-black uppercase text-white">{investigationContext.symbol}</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{investigationContext.exchange.replaceAll("_", " ")} / {investigationContext.timeframe}</div>
+            </div>
+            <div className="rounded border border-zinc-900 bg-black/45 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Market Attention</div>
+              <div className="mt-1 text-sm font-black uppercase text-white">{predictionMarkets[0]?.title ?? "UNAVAILABLE"}</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{attentionLabel(predictionMarkets[0])}</div>
+            </div>
+            <div className="rounded border border-zinc-900 bg-black/45 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Live Context Handoff</div>
+              <div className="mt-1 text-sm font-black uppercase text-white">Markets</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">Use existing live market surface</div>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Navigation Actions" icon={<Play className="h-3.5 w-3.5" />}>
+          <div className="grid gap-3 xl:grid-cols-3">
+            <div className="rounded border border-zinc-900 bg-black/45 p-3">
+              <div className="text-xs font-black uppercase text-white">Need live market context</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">Markets owns live structure and symbol comparison.</div>
+              <Link href={marketsHref} className="mt-3 inline-flex rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                Open Markets
+              </Link>
+            </div>
+
+            <div className="rounded border border-zinc-900 bg-black/45 p-3">
+              <div className="text-xs font-black uppercase text-white">Need historical validation</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">
+                {selectedCase && replayHref ? "Replay inherits exchange, symbol, timeframe, date, hour, and selected case." : "Load Historical Intelligence and select a cached case first."}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link href={explorerHref} className="rounded border border-zinc-800 bg-black px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300">
+                  Open Explorer
+                </Link>
+                {selectedCase && replayHref ? (
                   <Link href={replayHref} className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
                     Open Replay
                   </Link>
-                </div>
+                ) : null}
               </div>
-            ) : (
-              <EmptyState title="Replay Coordinates Required" reason="Load Historical Intelligence and select a cached case first." />
-            )}
-          </Card>
-
-          <Card title="Evidence" icon={<ShieldCheck className="h-3.5 w-3.5" />}>
-            {historical ? (
-              <div className="grid gap-1.5">
-                <Metric label="Source" value={source} />
-                <Metric label="Generated" value={dateTime(historical.diagnostics?.generatedAt)} />
-                <Metric label="Observed" value={dateTime(historical.validity?.observedAt)} />
-                <Metric
-                  label="Validity"
-                  value={`${historical.validity?.freshnessStatus ?? "UNKNOWN"} / ${historical.validity?.coverageStatus ?? "UNKNOWN"}`}
-                />
-                <Metric label="Cache Status" value={historical.diagnostics?.cacheStatus ?? "UNAVAILABLE"} />
-                <Metric label="Schema Version" value={historical.diagnostics?.schemaVersion ?? "NO DATA"} />
-              </div>
-            ) : <EmptyState title="Evidence Pending" reason="Historical cache has not been requested." />}
-          </Card>
-        </div>
-
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card title="Information Flow" icon={<Sparkles className="h-3.5 w-3.5" />}>
-            {informationItems.length ? (
-              <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
-                {informationItems.map((item) => (
-                  <div key={`${item.time}-${item.label}-${item.tag}`} className="flex items-center justify-between gap-2 rounded border border-zinc-900 bg-black/45 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]">
-                    <span className="text-zinc-500">{item.time}</span>
-                    <span className="text-white">{item.label}</span>
-                    <span className="text-cyan-100">{item.tag}</span>
-                  </div>
-                ))}
-              </div>
-            ) : <EmptyState title="Unavailable" reason="Macro and narrative flow returned no current items." />}
-          </Card>
-
-          <Card title="Investigation Status" icon={<Brain className="h-3.5 w-3.5" />}>
-            <div className="grid gap-1.5 text-[10px] font-black uppercase tracking-[0.12em]">
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Subject: {investigationContext.symbol} / {investigationContext.timeframe}</div>
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Narrative: {topNarratives[0]?.narrative ?? "Unavailable"}</div>
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Market Attention: {predictionMarkets[0]?.title ?? "Unavailable"}</div>
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">Historical Evidence: {statistics ? `${statistics.totalCases} cached cases` : "Manual load required"}</div>
-              {decisionBrief ? (
-                <>
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
-                    Decision Brief: {decisionBrief.currentView.replaceAll("_", " ")}
-                  </div>
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
-                    Evidence: {decisionBrief.supportingEvidenceCount} supporting / {decisionBrief.contradictingEvidenceCount} contradicting
-                  </div>
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
-                    Key Support: {decisionBrief.keySupportingFactors[0] ?? "NO DATA"}
-                  </div>
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
-                    Key Contradiction: {decisionBrief.keyContradictingFactors[0] ?? "NO DATA"}
-                  </div>
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-zinc-300">
-                    Next Validation: {decisionBrief.requiredNextValidation[0] ?? "No additional validation identified."}
-                  </div>
-                </>
-              ) : null}
             </div>
-          </Card>
-        </div>
+
+            <div className="rounded border border-zinc-900 bg-black/45 p-3">
+              <div className="text-xs font-black uppercase text-white">Ready to plan execution</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">Trade owns execution planning. Research only hands off the evidence context.</div>
+              <Link href={tradeHref} className="mt-3 inline-flex rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                Open Trade
+              </Link>
+            </div>
+          </div>
+        </Card>
       </div>
     </main>
   )
