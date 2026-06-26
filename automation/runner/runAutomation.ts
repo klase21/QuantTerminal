@@ -1,6 +1,7 @@
 import { fileURLToPath } from "url";
 import path from "path";
 import { runPipeline } from "../orchestrator";
+import { buildReviewPackage } from "../reviewer/packageBuilder";
 import { createAutomationStateManager } from "../state/manager";
 import { JsonAutomationRepository } from "../state/repository";
 import { parseRunnerArgs } from "./cli";
@@ -96,16 +97,26 @@ export async function runAutomation(options: RunnerCliOptions): Promise<RunnerRe
     durationMs,
     outputDir: summaryOutputDir,
   });
+  const reviewPackage = await buildReviewPackage({
+    task: loadedTask.task,
+    result: pipelineResult,
+    startedAt,
+    completedAt,
+    durationMs,
+    summaryPath,
+  });
 
   if (options.verbose) {
     console.log(`Loaded task from ${loadedTask.path}`);
     console.log(`Summary written to ${summaryPath}`);
+    console.log(`Review package written to ${reviewPackage.path}`);
   }
 
   console.log(`Automation status: ${pipelineResult.status}`);
   console.log(`Completed stages: ${pipelineResult.completedStages.join(", ") || "none"}`);
   console.log(`Failed stage: ${pipelineResult.failedStage ?? "none"}`);
   console.log(`Summary: ${summaryPath}`);
+  console.log(`Review package: ${reviewPackage.path}`);
 
   return {
     task: loadedTask.task,
@@ -116,6 +127,7 @@ export async function runAutomation(options: RunnerCliOptions): Promise<RunnerRe
     plan,
     pipelineResult,
     summaryPath,
+    reviewPackagePath: reviewPackage.path,
   };
 }
 

@@ -1,8 +1,8 @@
 # Automation Local Runner
 
-Status: Sprint A9 foundation
+Status: Sprint A10 foundation
 
-The Local Runner is the command-line entry point for the QuantTerminal Automation Layer. It loads a task, optionally prints a dry-run execution plan, invokes the orchestrator, and writes a human-readable execution summary.
+The Local Runner is the command-line entry point for the QuantTerminal Automation Layer. It loads a task, optionally prints a dry-run execution plan, invokes the orchestrator, writes a human-readable execution summary, and generates a review package for manual or ChatGPT review.
 
 ## CLI Usage
 
@@ -57,10 +57,11 @@ The orchestrator persists structured artifacts through the State Store:
 - approval result
 - final result
 
-The runner writes a human-readable summary:
+The runner writes:
 
 ```text
 automation/state/data/results/<taskId>-summary.md
+automation/state/data/reviews/<taskId>-review-package.md
 ```
 
 The summary includes:
@@ -74,6 +75,13 @@ The summary includes:
 - failures
 - final status
 
+The review package adds:
+
+- task scope and constraints
+- read-only Git status/diff summary
+- explicit review questions
+- prompt for ChatGPT review
+
 ## Dry-Run Mode
 
 Dry-run mode loads and validates the task, resolves runner configuration, and prints the execution plan.
@@ -85,6 +93,7 @@ It does not:
 - execute Screenshot
 - write state artifacts
 - write summary files
+- write review packages
 
 ## Optional Config
 

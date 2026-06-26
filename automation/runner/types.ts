@@ -37,4 +37,5 @@ export interface RunnerResult {
   plan: ExecutionPlan;
   pipelineResult?: PipelineResult;
   summaryPath?: string;
+  reviewPackagePath?: string;
 }
