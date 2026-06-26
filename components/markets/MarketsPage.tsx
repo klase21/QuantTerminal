@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Activity, AlertTriangle, BarChart3, BookOpen, Droplets, RadioTower, Zap } from "lucide-react"
+import { Activity, AlertTriangle, BarChart3, BookOpen, Building2, Droplets, Gauge, Layers, LineChart, RadioTower, ShieldCheck, TrendingUp, Zap } from "lucide-react"
 
 import AdvancedChartModal from "@/components/charts/AdvancedChartModal"
 import MarketCandleChart from "@/components/charts/MarketCandleChart"
+import type { MarketMoversResponse, MarketMoverCandidate } from "@/lib/market-movers/types"
+import type { MarketStructureIntelligenceResponse } from "@/core/market-structure/marketStructureTypes"
+import type { RealMarketRotationResponse, SectorRotationSnapshot } from "@/core/marketDataTypes"
 import useDepthHeatmap from "@/hooks/useDepthHeatmap"
 import useKlineSocket from "@/hooks/useKlineSocket"
 import useMarketSocket from "@/hooks/useMarketSocket"
@@ -84,6 +87,70 @@ type ReplayLiquidationResponse = {
 }
 
 type LiquidationLoadState = "idle" | "loading" | "ready" | "unavailable" | "error" | "aborted"
+
+type ExchangeComparisonResponse = {
+  ok?: boolean
+  symbol?: string
+  updatedAt?: string
+  binance?: {
+    ok?: boolean
+    source?: string
+    fundingRate?: number
+    openInterest?: number
+    oiNotional?: number
+    reason?: string
+  }
+  bybit?: {
+    ok?: boolean
+    source?: string
+    fundingRate?: number
+    openInterest?: number
+    oiNotional?: number
+    reason?: string
+  }
+  fundingRelationship?: string
+  openInterestRelationship?: string
+}
+
+type EtfFlowResponse = {
+  ok?: boolean
+  source?: string
+  updatedAt?: string
+  flows?: Array<{
+    asset: "BTC" | "ETH"
+    latestDate: string
+    sourceDate: string
+    netFlow: number
+    unit: string
+    trend1d?: "UP" | "DOWN" | "FLAT"
+    isStale?: boolean
+    staleReason?: string
+  }>
+  isStale?: boolean
+  staleReason?: string
+  unavailableReason?: string
+}
+
+type ReserveIntelligenceResponse = {
+  ok?: boolean
+  status?: "available" | "unavailable"
+  source?: string
+  generatedAt?: string
+  observedAt?: string | null
+  freshness?: "current" | "stale" | "missing"
+  coverage?: "full" | "partial" | "unavailable"
+  observations?: Array<{
+    asset: string
+    observationType: string
+    quality: string
+    currentBalance?: number | null
+    currentBalanceUsd?: number | null
+    balanceChange?: number | null
+    balanceUsdChange?: number | null
+    balanceChangePct?: number | null
+  }>
+  reason?: string
+}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ")
@@ -240,6 +307,98 @@ function InlineStatus({
       </span>
     </div>
   )
+}
+
+function StatusBadge({
+  label,
+  tone = "missing",
+}: {
+  label: "CURRENT" | "VERIFIED" | "PARTIAL" | "DEGRADED" | "STALE" | "LOADING" | "MISSING" | "UNAVAILABLE"
+  tone?: "verified" | "partial" | "stale" | "missing" | "loading"
+}) {
+  return (
+    <span className={cn(
+      "inline-flex items-center rounded border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em]",
+      tone === "verified" && "border-emerald-300/35 bg-emerald-400/10 text-emerald-100",
+      tone === "partial" && "border-amber-300/35 bg-amber-400/10 text-amber-100",
+      tone === "stale" && "border-yellow-300/30 bg-yellow-400/10 text-yellow-100",
+      tone === "loading" && "border-cyan-300/30 bg-cyan-400/10 text-cyan-100",
+      tone === "missing" && "border-zinc-800 bg-black/35 text-zinc-500",
+    )}>
+      {label}
+    </span>
+  )
+}
+
+function SectionHeader({
+  title,
+  subtitle,
+  status,
+}: {
+  title: string
+  subtitle?: string
+  status?: React.ReactNode
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-100">{title}</div>
+        {subtitle && <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">{subtitle}</div>}
+      </div>
+      {status}
+    </div>
+  )
+}
+
+function MarketsSection({
+  title,
+  subtitle,
+  icon,
+  status,
+  children,
+  className,
+}: {
+  title: string
+  subtitle?: string
+  icon?: React.ReactNode
+  status?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <section className={cn("rounded-lg border border-amber-300/15 bg-[#0c140c]/90 p-3", className)}>
+      <div className="mb-3 flex items-start gap-2">
+        {icon && <div className="mt-0.5 text-cyan-200">{icon}</div>}
+        <div className="min-w-0 flex-1">
+          <SectionHeader title={title} subtitle={subtitle} status={status} />
+        </div>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function EmptyState({ title, reason }: { title: string; reason: string }) {
+  return (
+    <div className="rounded border border-zinc-900 bg-black/40 p-4 text-center">
+      <div className="text-xs font-black uppercase tracking-[0.16em] text-zinc-500">{title}</div>
+      <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-700">{reason}</div>
+    </div>
+  )
+}
+
+function apiStatus(ok?: boolean, partial?: boolean, stale?: boolean) {
+  if (stale) return <StatusBadge label="STALE" tone="stale" />
+  if (partial) return <StatusBadge label="PARTIAL" tone="partial" />
+  if (ok) return <StatusBadge label="CURRENT" tone="verified" />
+  return <StatusBadge label="UNAVAILABLE" />
+}
+
+function opportunityTone(candidate: Pick<MarketMoverCandidate, "direction" | "qualityState">) {
+  if (candidate.qualityState === "TOO_LATE" || candidate.qualityState === "LOW_LIQUIDITY") return "text-amber-100"
+  if (candidate.direction === "LONG") return "text-emerald-100"
+  if (candidate.direction === "SHORT") return "text-rose-100"
+  return "text-zinc-300"
 }
 
 function LiquidationBiasCard({
@@ -578,6 +737,18 @@ export default function MarketsPage() {
   const [advancedChartOpen, setAdvancedChartOpen] = useState(false)
   const [liquidationSummary, setLiquidationSummary] = useState({ longNotional: 0, shortNotional: 0 })
   const [liquidationLoadState, setLiquidationLoadState] = useState<LiquidationLoadState>("idle")
+  const [marketMovers, setMarketMovers] = useState<MarketMoversResponse | null>(null)
+  const [marketMoversReason, setMarketMoversReason] = useState<string | null>(null)
+  const [sectorRotation, setSectorRotation] = useState<RealMarketRotationResponse | null>(null)
+  const [sectorRotationReason, setSectorRotationReason] = useState<string | null>(null)
+  const [exchangeComparison, setExchangeComparison] = useState<ExchangeComparisonResponse | null>(null)
+  const [exchangeComparisonReason, setExchangeComparisonReason] = useState<string | null>(null)
+  const [marketStructure, setMarketStructure] = useState<MarketStructureIntelligenceResponse | null>(null)
+  const [marketStructureReason, setMarketStructureReason] = useState<string | null>(null)
+  const [etfFlow, setEtfFlow] = useState<EtfFlowResponse | null>(null)
+  const [etfFlowReason, setEtfFlowReason] = useState<string | null>(null)
+  const [reserveIntelligence, setReserveIntelligence] = useState<ReserveIntelligenceResponse | null>(null)
+  const [reserveReason, setReserveReason] = useState<string | null>(null)
   const tickers = useMarketStore((state) => state.tickers)
   const orderbook = useMarketStore((state) => state.orderbook)
   const requestedSymbol = normalizeMarketSymbol(searchParams.get("symbol"))
@@ -600,6 +771,70 @@ export default function MarketsPage() {
     if (!requestedSymbol) return
     setSymbol(requestedSymbol)
   }, [requestedSymbol])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let active = true
+
+    async function loadJson<T>(
+      url: string,
+      setData: (value: T | null) => void,
+      setReason: (value: string | null) => void,
+    ) {
+      setReason(null)
+      try {
+        const response = await fetch(url, { cache: "no-store", signal: controller.signal })
+        const payload = await response.json() as T
+        if (!active || controller.signal.aborted) return
+        if (!response.ok) {
+          setData(null)
+          setReason(`Request returned ${response.status}`)
+          return
+        }
+        setData(payload)
+      } catch (error) {
+        if (!active || controller.signal.aborted) return
+        setData(null)
+        setReason(displayDataReason(error instanceof Error ? error.message : "Source unavailable."))
+      }
+    }
+
+    void loadJson<MarketMoversResponse>(
+      `/api/market/movers?focus=${encodeURIComponent(symbol)}`,
+      setMarketMovers,
+      setMarketMoversReason,
+    )
+    void loadJson<RealMarketRotationResponse>(
+      "/api/market/sector-rotation",
+      setSectorRotation,
+      setSectorRotationReason,
+    )
+    void loadJson<ExchangeComparisonResponse>(
+      `/api/market/exchange-comparison?symbol=${encodeURIComponent(symbol)}`,
+      setExchangeComparison,
+      setExchangeComparisonReason,
+    )
+    void loadJson<MarketStructureIntelligenceResponse>(
+      "/api/intelligence/market-structure",
+      setMarketStructure,
+      setMarketStructureReason,
+    )
+    void loadJson<EtfFlowResponse>(
+      "/api/etf-flow",
+      setEtfFlow,
+      setEtfFlowReason,
+    )
+    void loadJson<ReserveIntelligenceResponse>(
+      `/api/dashboard/reserve-intelligence?symbol=${encodeURIComponent(symbol)}`,
+      setReserveIntelligence,
+      setReserveReason,
+    )
+
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [symbol])
 
   useEffect(() => {
     let active = true
@@ -771,109 +1006,353 @@ export default function MarketsPage() {
     setPreviousOi((prev) => prev[symbol] === undefined ? { ...prev, [symbol]: currentOi } : prev)
   }, [currentOi, symbol])
 
+  const rankedOpportunities = marketMovers?.candidates?.length
+    ? marketMovers.candidates
+    : marketMovers?.suppressed?.slice(0, 4) ?? []
+  const topSectors = sectorRotation?.sectors?.slice(0, 4) ?? []
+  const sectorAssets = sectorRotation?.assets ?? []
+  const advancingAssets = sectorAssets.filter((asset) => asset.priceChange24h > 0).length
+  const decliningAssets = sectorAssets.filter((asset) => asset.priceChange24h < 0).length
+  const mappedAssets = sectorRotation?.coverage?.mappedAssets ?? sectorAssets.length
+  const breadthState = mappedAssets
+    ? advancingAssets > decliningAssets ? "BROAD BID" : decliningAssets > advancingAssets ? "BROAD OFFER" : "MIXED"
+    : "UNAVAILABLE"
+  const topStructureSectors = marketStructure?.sectors?.slice(0, 3) ?? []
+  const etfRows = etfFlow?.flows ?? []
+  const reserveRows = reserveIntelligence?.observations ?? []
+  const marketMoverSuppressed = marketMovers?.suppressed?.slice(0, 5) ?? []
+  const selectedAsset = symbol.replace(/USDT$/, "")
+  const selectedEtf = etfRows.find((row) => row.asset === selectedAsset)
+  const selectedReserve = reserveRows.find((row) => row.asset?.toUpperCase() === selectedAsset)
+  const discoveryHealth = [
+    marketMovers?.ok,
+    sectorRotation?.ok,
+    exchangeComparison?.ok,
+    marketStructure?.ok,
+    etfFlow?.ok,
+    reserveIntelligence?.status === "available",
+  ].filter(Boolean).length
+  const discoveryHealthLabel = discoveryHealth >= 4 ? "CURRENT" : discoveryHealth >= 2 ? "PARTIAL" : discoveryHealth === 1 ? "DEGRADED" : "UNAVAILABLE"
+  const discoveryHealthTone = discoveryHealth >= 4 ? "verified" : discoveryHealth >= 2 ? "partial" : discoveryHealth === 1 ? "stale" : "missing"
+
   return (
-    <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
+    <main className="min-h-screen bg-[#070d07] px-3 py-3 text-zinc-100 lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3">
-        <Card title="Markets" icon={<RadioTower className="h-3.5 w-3.5" />}>
-          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 p-3">
+        <MarketsSection
+          title="Market Context"
+          subtitle="Active universe and source health before ranking"
+          icon={<RadioTower className="h-3.5 w-3.5" />}
+          status={<StatusBadge label={discoveryHealthLabel as "CURRENT" | "PARTIAL" | "DEGRADED" | "UNAVAILABLE"} tone={discoveryHealthTone as "verified" | "partial" | "stale" | "missing"} />}
+          className="border-amber-300/25 bg-[#0f1a0f]"
+        >
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.42fr)]">
+            <div className="rounded-lg border border-cyan-300/20 bg-black/35 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-3xl font-black leading-none text-white">{symbol}</div>
-                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
-                    {hasSignalContext ? `Inspecting ${effectiveSource.replaceAll("-", " ")}` : "Live Market View"}
+                  <div className="text-4xl font-black uppercase leading-none tracking-[0.03em] text-white">{symbol}</div>
+                  <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                    {hasSignalContext ? `Inspecting ${effectiveSource.replaceAll("-", " ")}` : "All Futures Discovery / Binance Focus / 1m Live Detail"}
                   </div>
                 </div>
-                <div className="text-right text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{sourceStatus}</div>
+                <div className="max-w-xl text-right text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{sourceStatus}</div>
+              </div>
+              <div className="mt-3 grid gap-1.5 md:grid-cols-4">
+                <InlineStatus label="Universe" value="USDT Futures" tone="amber" />
+                <InlineStatus label="Exchange" value="Binance Futures" tone="cyan" />
+                <InlineStatus label="Focus" value={symbol} tone="cyan" />
+                <InlineStatus label="Health" value={discoveryHealthLabel} tone={discoveryHealth >= 4 ? "green" : discoveryHealth >= 2 ? "amber" : "red"} />
               </div>
               {hasSignalContext ? (
-                <div className="mt-3 grid gap-1.5 md:grid-cols-4">
+                <div className="mt-2 grid gap-1.5 md:grid-cols-4">
                   <InlineStatus label="Setup" value={signalSetup ?? "NO DATA"} tone="cyan" />
                   <InlineStatus label="Direction" value={signalDirection ?? "NO DATA"} tone={signalDirection?.toLowerCase().includes("down") ? "red" : signalDirection?.toLowerCase().includes("up") ? "green" : "amber"} />
                   <InlineStatus label="Confidence" value={signalConfidence ?? "NO DATA"} tone="amber" />
                   <InlineStatus label="Reason" value={signalReason ?? "NO DATA"} />
                 </div>
               ) : (
-                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">No signal selected. Showing default active market state.</div>
+                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">No external signal selected. Markets is showing live opportunity discovery and selected-symbol verification.</div>
               )}
             </div>
+            <div className="grid gap-2 rounded-lg border border-amber-300/15 bg-black/35 p-3">
+              <InlineStatus label="Mover Scan" value={marketMovers?.summary?.attention ?? marketMoversReason ?? "LOADING"} tone={marketMovers?.ok ? "green" : "amber"} />
+              <InlineStatus label="Breadth" value={breadthState} tone={breadthState === "BROAD BID" ? "green" : breadthState === "BROAD OFFER" ? "red" : "amber"} />
+              <InlineStatus label="Top Sector" value={sectorRotation?.sectors?.[0]?.sector ?? marketStructure?.topSector?.sector ?? "NO DATA"} tone="cyan" />
+              <InlineStatus label="Capital Flow" value={selectedEtf ? `${selectedEtf.asset} ${compactUsd(selectedEtf.netFlow * 1_000_000)}` : reserveRows.length ? `${reserveRows.length} reserve observations` : etfFlowReason ?? reserveReason ?? "NO DATA"} tone={selectedEtf || reserveRows.length ? "cyan" : "amber"} />
+            </div>
           </div>
-        </Card>
+        </MarketsSection>
 
-        <Card title="Live Market State" icon={<Activity className="h-3.5 w-3.5" />}>
-          <div className="grid gap-2 md:grid-cols-3 2xl:grid-cols-6">
-            <MetricCard label="Price" value={ticker ? fmt(ticker.price, 2) : "NO DATA"} sub="Binance realtime" tone="cyan" />
-            <MetricCard label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
-            <MetricCard label="Funding" value={liveFundingRate !== null ? pct(liveFundingRate * 100, 4) : "NO DATA"} sub={liveFundingRate !== null ? liveFundingReason : displayDataReason(liveFundingReason)} tone="amber" />
-            <MetricCard label="Open Int." value={compactUsd(liveOiNotional)} sub={liveOiNotional !== null ? liveOiSource ?? "Binance futures" : displayDataReason(liveOiReason)} tone="cyan" />
-            <LiquidationBiasCard longNotional={liquidationSummary.longNotional} shortNotional={liquidationSummary.shortNotional} state={liquidationLoadState} />
-            <MetricCard label="24h Range" value={rangeValue} sub={rangeValue === "NO DATA" ? displayDataReason(ticker24hReason ?? "Binance 24h range unavailable") : "High / Low"} tone="cyan" size="md" />
-          </div>
-        </Card>
+        <MarketsSection
+          title="Ranked Opportunities"
+          subtitle="Existing market movers scan; no synthetic ranking added"
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
+          status={apiStatus(marketMovers?.ok, marketMovers?.mode === "fallback")}
+          className="border-amber-300/25"
+        >
+          {rankedOpportunities.length ? (
+            <div className="grid gap-1.5">
+              <div className="grid grid-cols-[44px_96px_96px_minmax(180px,1fr)_92px_92px] rounded border border-zinc-900 bg-black/60 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600 max-lg:hidden">
+                <span>Rank</span>
+                <span>Symbol</span>
+                <span>State</span>
+                <span>Reason</span>
+                <span className="text-right">Score</span>
+                <span className="text-right">Next</span>
+              </div>
+              {rankedOpportunities.slice(0, 6).map((candidate, index) => (
+                <div key={`opportunity-${candidate.symbol}-${index}`} className="grid gap-2 rounded border border-zinc-900 bg-black/35 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] lg:grid-cols-[44px_96px_96px_minmax(180px,1fr)_92px_92px] lg:items-center">
+                  <div className="text-2xl leading-none text-amber-100">#{index + 1}</div>
+                  <button
+                    type="button"
+                    onClick={() => setSymbol(candidate.symbol)}
+                    className="text-left text-sm font-black text-white hover:text-cyan-100"
+                  >
+                    {candidate.symbol}
+                  </button>
+                  <div className={opportunityTone(candidate)}>{candidate.qualityState}</div>
+                  <div className="text-zinc-500">{candidate.reason}</div>
+                  <div className="text-right text-cyan-100 lg:text-right">{candidate.score}</div>
+                  <div className="text-right text-zinc-500">{candidate.action}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="UNAVAILABLE" reason={marketMoversReason ?? "Market movers scan has not returned ranked opportunities."} />
+          )}
+        </MarketsSection>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
-          <Card title="Advanced Chart" icon={<BarChart3 className="h-3.5 w-3.5" />}>
-            <ChartPreview candles={candles} symbol={symbol} timeframe="1m" onOpen={() => setAdvancedChartOpen(true)} />
-          </Card>
-          <OrderbookDepth orderbook={orderbook} depthFrames={depthFrames} />
+        <div className="grid gap-3 xl:grid-cols-2">
+          <MarketsSection
+            title="Market Breadth"
+            subtitle="Advancing and declining mapped assets"
+            icon={<Gauge className="h-3.5 w-3.5" />}
+            status={apiStatus(sectorRotation?.ok, sectorRotation?.mode === "partial", sectorRotation?.dataQuality?.stale)}
+          >
+            {mappedAssets ? (
+              <div className="grid gap-2 md:grid-cols-4">
+                <MetricCard label="Breadth" value={breadthState} sub="Mapped universe" tone={breadthState === "BROAD BID" ? "green" : breadthState === "BROAD OFFER" ? "red" : "amber"} size="md" />
+                <MetricCard label="Advancers" value={fmt(advancingAssets, 0)} sub={`${mappedAssets} mapped assets`} tone="green" size="md" />
+                <MetricCard label="Decliners" value={fmt(decliningAssets, 0)} sub={`${sectorRotation?.coverage?.sectors ?? 0} sectors`} tone="red" size="md" />
+                <MetricCard label="Coverage" value={fmt(sectorRotation?.coverage?.mappedAssets, 0)} sub={sectorRotation?.mode ?? "NO DATA"} tone="cyan" size="md" />
+              </div>
+            ) : (
+              <EmptyState title="UNAVAILABLE" reason={sectorRotationReason ?? "Market breadth requires sector rotation data."} />
+            )}
+          </MarketsSection>
+
+          <MarketsSection
+            title="Sector Rotation"
+            subtitle="Category leadership from existing rotation source"
+            icon={<Layers className="h-3.5 w-3.5" />}
+            status={apiStatus(sectorRotation?.ok, sectorRotation?.mode === "partial", sectorRotation?.dataQuality?.stale)}
+          >
+            {topSectors.length ? (
+              <div className="grid gap-1.5">
+                {topSectors.map((sector: SectorRotationSnapshot) => (
+                  <div key={sector.sector} className="grid gap-2 rounded border border-zinc-900 bg-black/35 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] md:grid-cols-[44px_96px_92px_1fr_72px] md:items-center">
+                    <span className="text-amber-100">#{sector.rank}</span>
+                    <span className="text-white">{sector.sector}</span>
+                    <span className={sector.direction === "INFLOW" ? "text-emerald-100" : sector.direction === "OUTFLOW" ? "text-rose-100" : "text-amber-100"}>{sector.direction}</span>
+                    <span className="text-zinc-500">{sector.topSymbols.join(", ") || "NO LEADERS"}</span>
+                    <span className="text-right text-cyan-100">{fmt(sector.rotationScore, 0)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="UNAVAILABLE" reason={sectorRotationReason ?? "Sector rotation has not returned sector rows."} />
+            )}
+          </MarketsSection>
         </div>
 
         <div className="grid gap-3 xl:grid-cols-2">
-          <Card title="Trade Flow" icon={<Zap className="h-3.5 w-3.5" />}>
-            <div className="mb-2 flex flex-wrap items-center gap-2 rounded border border-zinc-900 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]">
-              <span className="text-zinc-500">Buy: <span className="text-emerald-100">{fmt(buyVolume, 3)}</span></span>
-              <span className="text-zinc-700">/</span>
-              <span className="text-zinc-500">Sell: <span className="text-rose-100">{fmt(sellVolume, 3)}</span></span>
-              <span className="text-zinc-700">/</span>
-              <span className="text-zinc-500">CVD: <span className={cvd >= 0 ? "text-emerald-100" : "text-rose-100"}>{fmt(cvd, 3)}</span></span>
-            </div>
-            <div className="grid gap-1">
-              {trades.slice(0, 12).map((trade, index) => (
-                <div key={`${trade.time}-${index}`} className="grid grid-cols-[72px_1fr_80px_80px] rounded border border-zinc-900 bg-black/35 px-2 py-1 text-[11px] font-bold">
-                  <span className="text-zinc-500">{timeLabel(trade.time)}</span>
-                  <span className={trade.side === "buy" ? "text-emerald-100" : "text-rose-100"}>{trade.side.toUpperCase()}</span>
-                  <span className="text-right text-zinc-300">{fmt(trade.price, 2)}</span>
-                  <span className="text-right text-zinc-500">{fmt(trade.qty, 4)}</span>
+          <MarketsSection
+            title="Exchange Overview"
+            subtitle={`Venue confirmation for ${symbol}`}
+            icon={<Building2 className="h-3.5 w-3.5" />}
+            status={apiStatus(exchangeComparison?.ok)}
+          >
+            {exchangeComparison?.ok ? (
+              <div className="grid gap-2 md:grid-cols-2">
+                {[
+                  { name: "Binance", data: exchangeComparison.binance },
+                  { name: "Bybit", data: exchangeComparison.bybit },
+                ].map((venue) => (
+                  <div key={venue.name} className="rounded border border-zinc-900 bg-black/35 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{venue.name}</div>
+                      {venue.data?.ok ? <StatusBadge label="CURRENT" tone="verified" /> : <StatusBadge label="UNAVAILABLE" />}
+                    </div>
+                    <div className="mt-3 grid gap-1.5">
+                      <InlineStatus label="Funding" value={venue.data?.ok ? pct((venue.data.fundingRate ?? 0) * 100, 4) : venue.data?.reason ?? "NO DATA"} tone={venue.data?.ok ? "amber" : undefined} />
+                      <InlineStatus label="OI" value={venue.data?.ok ? compactUsd(venue.data.oiNotional) : "NO DATA"} tone={venue.data?.ok ? "cyan" : undefined} />
+                    </div>
+                  </div>
+                ))}
+                <div className="md:col-span-2 grid gap-1.5 md:grid-cols-2">
+                  <InlineStatus label="Funding Relationship" value={exchangeComparison.fundingRelationship ?? "NO DATA"} tone="amber" />
+                  <InlineStatus label="OI Relationship" value={exchangeComparison.openInterestRelationship ?? "NO DATA"} tone="cyan" />
                 </div>
-              ))}
-              {!trades.length && <div className="rounded border border-zinc-900 bg-black/40 p-6 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">NO TRADE FLOW DATA</div>}
-            </div>
-          </Card>
+              </div>
+            ) : (
+              <EmptyState title="UNAVAILABLE" reason={exchangeComparisonReason ?? "Exchange comparison has not returned venue rows."} />
+            )}
+          </MarketsSection>
 
-          <SelectedSymbolLiquidations symbol={symbol} onSummary={setLiquidationSummary} onStateChange={setLiquidationLoadState} />
+          <MarketsSection
+            title="ETF / Capital Flow"
+            subtitle="Existing ETF and reserve intelligence only"
+            icon={<ShieldCheck className="h-3.5 w-3.5" />}
+            status={apiStatus(Boolean(etfFlow?.ok || reserveIntelligence?.status === "available"), Boolean(reserveIntelligence?.coverage === "partial"), etfFlow?.isStale || reserveIntelligence?.freshness === "stale")}
+          >
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="rounded border border-zinc-900 bg-black/35 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">ETF Flow</div>
+                  {apiStatus(etfFlow?.ok, false, etfFlow?.isStale)}
+                </div>
+                <div className="mt-3 text-2xl font-black uppercase leading-none text-white">{selectedEtf ? compactUsd(selectedEtf.netFlow * 1_000_000) : "NO DATA"}</div>
+                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">{selectedEtf ? `${selectedEtf.asset} / ${selectedEtf.sourceDate}` : etfFlow?.unavailableReason ?? etfFlowReason ?? "ETF flow unavailable for selected asset."}</div>
+              </div>
+              <div className="rounded border border-zinc-900 bg-black/35 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">Reserve Intelligence</div>
+                  {apiStatus(reserveIntelligence?.status === "available", reserveIntelligence?.coverage === "partial", reserveIntelligence?.freshness === "stale")}
+                </div>
+                <div className="mt-3 text-2xl font-black uppercase leading-none text-white">{selectedReserve ? compactUsd(selectedReserve.balanceUsdChange ?? selectedReserve.currentBalanceUsd) : reserveRows.length ? `${reserveRows.length} OBS` : "NO DATA"}</div>
+                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">{selectedReserve ? `${selectedReserve.asset} / ${selectedReserve.observationType}` : reserveIntelligence?.reason ?? reserveReason ?? "Reserve observations unavailable for selected asset."}</div>
+              </div>
+            </div>
+          </MarketsSection>
         </div>
 
-        <div className="grid gap-3">
-          <Card title="Market Structure Insights" icon={<Droplets className="h-3.5 w-3.5" />}>
-            <div className="flex flex-wrap items-center gap-2 rounded border border-zinc-900 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]">
-              <InlineStatus
-                label="Funding Pressure"
-                value={liveFundingRate === null ? "NO DATA" : liveFundingRate > 0.00008 ? "Bullish" : liveFundingRate < -0.00008 ? "Bearish" : "Neutral"}
-                tone={liveFundingRate === null ? undefined : liveFundingRate >= 0 ? "green" : "red"}
-                className="border-transparent bg-transparent px-0 py-0"
-              />
-              <InlineStatus
-                label="OI Trend"
-                value={oiTrend.label}
-                tone={oiTrend.label === "Increasing" ? "green" : oiTrend.label === "Decreasing" ? "red" : "amber"}
-                className="border-transparent bg-transparent px-0 py-0"
-              />
-              <InlineStatus
-                label="Liquidation Pressure"
-                value={liquidationRead}
-                tone={liquidationRead === "Longs Hit" ? "red" : liquidationRead === "Shorts Hit" ? "green" : "amber"}
-                className="border-transparent bg-transparent px-0 py-0"
-              />
-              <InlineStatus
-                label="Structure"
-                value={structureValue}
-                tone={structureValue === "BULLISH" ? "green" : structureValue === "BEARISH" ? "red" : "amber"}
-                className="border-transparent bg-transparent px-0 py-0"
-              />
-              <span className="text-[9px] text-zinc-600">{structureReason}</span>
+        <MarketsSection
+          title="Market Movers"
+          subtitle="Price and volume movement from the existing movers scan"
+          icon={<LineChart className="h-3.5 w-3.5" />}
+          status={apiStatus(marketMovers?.ok, marketMovers?.mode === "fallback")}
+        >
+          {marketMovers ? (
+            <div className="grid gap-3 xl:grid-cols-[0.45fr_0.55fr]">
+              <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-1">
+                <MetricCard label="Scanned" value={fmt(marketMovers.summary.scanned, 0)} sub={marketMovers.source} tone="cyan" size="md" />
+                <MetricCard label="Tradable" value={fmt(marketMovers.summary.tradable, 0)} sub={marketMovers.summary.filterMode} tone="amber" size="md" />
+                <MetricCard label="Strongest" value={marketMovers.summary.strongestSymbol ?? "NO DATA"} sub={marketMovers.mode} tone="green" size="md" />
+              </div>
+              <div className="grid gap-1.5">
+                {marketMoverSuppressed.length ? marketMoverSuppressed.map((candidate) => (
+                  <div key={`mover-${candidate.symbol}`} className="grid gap-2 rounded border border-zinc-900 bg-black/35 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] md:grid-cols-[96px_90px_80px_1fr] md:items-center">
+                    <span className="text-white">{candidate.symbol}</span>
+                    <span className={opportunityTone(candidate)}>{pct(candidate.priceChangePercent)}</span>
+                    <span className="text-cyan-100">{compactUsd(candidate.quoteVolume)}</span>
+                    <span className="text-zinc-500">{candidate.qualityReason}</span>
+                  </div>
+                )) : (
+                  <EmptyState title="NO SUPPRESSED MOVERS" reason="The current scan did not return additional mover diagnostics." />
+                )}
+              </div>
             </div>
-          </Card>
-        </div>
+          ) : (
+            <EmptyState title="UNAVAILABLE" reason={marketMoversReason ?? "Market mover source is loading or unavailable."} />
+          )}
+        </MarketsSection>
+
+        <MarketsSection
+          title="Supporting Analytics"
+          subtitle="Selected-symbol verification; preserved from Markets V1"
+          icon={<Activity className="h-3.5 w-3.5" />}
+          status={<StatusBadge label="CURRENT" tone="verified" />}
+          className="border-zinc-900 bg-[#0a0f0a]"
+        >
+          <div className="grid gap-3">
+            <Card title="Live Market State" icon={<Activity className="h-3.5 w-3.5" />}>
+              <div className="grid gap-2 md:grid-cols-3 2xl:grid-cols-6">
+                <MetricCard label="Price" value={ticker ? fmt(ticker.price, 2) : "NO DATA"} sub="Binance realtime" tone="cyan" />
+                <MetricCard label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
+                <MetricCard label="Funding" value={liveFundingRate !== null ? pct(liveFundingRate * 100, 4) : "NO DATA"} sub={liveFundingRate !== null ? liveFundingReason : displayDataReason(liveFundingReason)} tone="amber" />
+                <MetricCard label="Open Int." value={compactUsd(liveOiNotional)} sub={liveOiNotional !== null ? liveOiSource ?? "Binance futures" : displayDataReason(liveOiReason)} tone="cyan" />
+                <LiquidationBiasCard longNotional={liquidationSummary.longNotional} shortNotional={liquidationSummary.shortNotional} state={liquidationLoadState} />
+                <MetricCard label="24h Range" value={rangeValue} sub={rangeValue === "NO DATA" ? displayDataReason(ticker24hReason ?? "Binance 24h range unavailable") : "High / Low"} tone="cyan" size="md" />
+              </div>
+            </Card>
+
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
+              <Card title="Advanced Chart" icon={<BarChart3 className="h-3.5 w-3.5" />}>
+                <ChartPreview candles={candles} symbol={symbol} timeframe="1m" onOpen={() => setAdvancedChartOpen(true)} />
+              </Card>
+              <OrderbookDepth orderbook={orderbook} depthFrames={depthFrames} />
+            </div>
+
+            <div className="grid gap-3 xl:grid-cols-2">
+              <Card title="Trade Flow" icon={<Zap className="h-3.5 w-3.5" />}>
+                <div className="mb-2 flex flex-wrap items-center gap-2 rounded border border-zinc-900 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]">
+                  <span className="text-zinc-500">Buy: <span className="text-emerald-100">{fmt(buyVolume, 3)}</span></span>
+                  <span className="text-zinc-700">/</span>
+                  <span className="text-zinc-500">Sell: <span className="text-rose-100">{fmt(sellVolume, 3)}</span></span>
+                  <span className="text-zinc-700">/</span>
+                  <span className="text-zinc-500">CVD: <span className={cvd >= 0 ? "text-emerald-100" : "text-rose-100"}>{fmt(cvd, 3)}</span></span>
+                </div>
+                <div className="grid gap-1">
+                  {trades.slice(0, 12).map((trade, index) => (
+                    <div key={`${trade.time}-${index}`} className="grid grid-cols-[72px_1fr_80px_80px] rounded border border-zinc-900 bg-black/35 px-2 py-1 text-[11px] font-bold">
+                      <span className="text-zinc-500">{timeLabel(trade.time)}</span>
+                      <span className={trade.side === "buy" ? "text-emerald-100" : "text-rose-100"}>{trade.side.toUpperCase()}</span>
+                      <span className="text-right text-zinc-300">{fmt(trade.price, 2)}</span>
+                      <span className="text-right text-zinc-500">{fmt(trade.qty, 4)}</span>
+                    </div>
+                  ))}
+                  {!trades.length && <div className="rounded border border-zinc-900 bg-black/40 p-6 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">NO TRADE FLOW DATA</div>}
+                </div>
+              </Card>
+
+              <SelectedSymbolLiquidations symbol={symbol} onSummary={setLiquidationSummary} onStateChange={setLiquidationLoadState} />
+            </div>
+
+            <Card title="Market Structure Insights" icon={<Droplets className="h-3.5 w-3.5" />}>
+              <div className="flex flex-wrap items-center gap-2 rounded border border-zinc-900 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]">
+                <InlineStatus
+                  label="Funding Pressure"
+                  value={liveFundingRate === null ? "NO DATA" : liveFundingRate > 0.00008 ? "Bullish" : liveFundingRate < -0.00008 ? "Bearish" : "Neutral"}
+                  tone={liveFundingRate === null ? undefined : liveFundingRate >= 0 ? "green" : "red"}
+                  className="border-transparent bg-transparent px-0 py-0"
+                />
+                <InlineStatus
+                  label="OI Trend"
+                  value={oiTrend.label}
+                  tone={oiTrend.label === "Increasing" ? "green" : oiTrend.label === "Decreasing" ? "red" : "amber"}
+                  className="border-transparent bg-transparent px-0 py-0"
+                />
+                <InlineStatus
+                  label="Liquidation Pressure"
+                  value={liquidationRead}
+                  tone={liquidationRead === "Longs Hit" ? "red" : liquidationRead === "Shorts Hit" ? "green" : "amber"}
+                  className="border-transparent bg-transparent px-0 py-0"
+                />
+                <InlineStatus
+                  label="Structure"
+                  value={structureValue}
+                  tone={structureValue === "BULLISH" ? "green" : structureValue === "BEARISH" ? "red" : "amber"}
+                  className="border-transparent bg-transparent px-0 py-0"
+                />
+                <span className="text-[9px] text-zinc-600">{structureReason}</span>
+              </div>
+              {topStructureSectors.length > 0 && (
+                <div className="mt-2 grid gap-1.5 md:grid-cols-3">
+                  {topStructureSectors.map((sector) => (
+                    <InlineStatus
+                      key={`structure-${sector.sector}`}
+                      label={sector.sector}
+                      value={`${sector.operatorState} / ${fmt(sector.marketStructureScore, 0)}`}
+                      tone={sector.operatorState === "EXPANDING" || sector.operatorState === "BUILDING" ? "green" : sector.operatorState === "COOLING" ? "red" : "amber"}
+                    />
+                  ))}
+                </div>
+              )}
+              {!marketStructure?.ok && (
+                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-700">{marketStructureReason ?? "Market structure intelligence unavailable."}</div>
+              )}
+            </Card>
+          </div>
+        </MarketsSection>
       </div>
       {advancedChartOpen && (
         <AdvancedChartModal
