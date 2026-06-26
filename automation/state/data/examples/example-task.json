@@ -1,0 +1,32 @@
+{
+  "task_id": "project-alpha-a9-example",
+  "sprint": "A9",
+  "title": "Automation Local Runner Example",
+  "goal": "Validate that the Automation Local Runner can load a task and invoke the orchestrator.",
+  "scope": [
+    "Load task JSON",
+    "Invoke orchestrator",
+    "Persist structured automation artifacts",
+    "Write execution summary"
+  ],
+  "constraints": [
+    "No Dashboard modifications",
+    "No product runtime changes",
+    "No APIs",
+    "No package.json changes",
+    "No external dependencies"
+  ],
+  "files": [
+    "automation/runner/runAutomation.ts",
+    "automation/state/data/examples/example-task.json"
+  ],
+  "validation": [
+    "npx.cmd tsc --noEmit --pretty false --incremental false"
+  ],
+  "expected_output": [
+    "files created",
+    "runner summary",
+    "CLI summary",
+    "validation summary"
+  ]
+}
