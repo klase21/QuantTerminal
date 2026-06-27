@@ -1,7 +1,7 @@
 "use client"
 
-import Link from "next/link"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useRouter } from "next/navigation"
 import {
   Activity,
   AlertTriangle,
@@ -19,6 +19,11 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react"
+import {
+  createContext,
+  createDashboardToMarketsContext,
+  type ProductContextFreshness,
+} from "@/lib/product-context"
 
 type Bias = "Bullish" | "Bearish" | "Neutral"
 
@@ -318,6 +323,7 @@ type ReserveIntelligenceLoadState = "loading" | "ready" | "empty" | "unavailable
 
 const DASHBOARD_CACHE_KEY = "qt.dashboard.v1.cache"
 const DEFAULT_DASHBOARD_SYMBOL = "BTCUSDT"
+const DASHBOARD_MARKETS_CONTEXT_TTL_MS = 30 * 60 * 1000
 
 function normalizeDashboardSymbol(value?: string | null) {
   const normalized = (value ?? "").replace(/\//g, "").trim().toUpperCase()
@@ -913,6 +919,32 @@ const DASHBOARD_PANEL_LEVEL_CLASS: Record<DashboardPanelLevel, string> = {
   level3: SURFACE_SECONDARY,
   level4: SURFACE_ANALYTICS,
 }
+
+function dashboardContextFreshness(
+  state: MarketDriverLoadState,
+  summary: MarketDriverSummary | null,
+): ProductContextFreshness {
+  const health = dashboardHealthFromDriverState(state, summary)
+  if (health === "CURRENT") return "CURRENT"
+  if (health === "STALE") return "STALE"
+  if (health === "MISSING") return "MISSING"
+  if (health === "UNAVAILABLE") return "UNAVAILABLE"
+  return "UNKNOWN"
+}
+
+function dashboardMarketsContextId(createdAt: Date) {
+  const suffix = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${createdAt.getTime()}-${Math.abs(createdAt.getTimezoneOffset())}`
+  return `dashboard-markets-${suffix}`
+}
+
+function appendDashboardMarketsContext(href: string, contextId: string) {
+  const [pathname, query = ""] = href.split("?", 2)
+  const params = new URLSearchParams(query)
+  params.set("contextId", contextId)
+  return `${pathname}?${params.toString()}`
+}
 const DASHBOARD_SECTION_HEADER = cn("flex min-h-[22px] items-center justify-between border-b", SPACE_SECTION_HEADER, COLOR_BORDER_MUTED)
 const DASHBOARD_SECTION_TITLE = cn("flex min-w-0 items-center", SPACE_CARD, COLOR_ACCENT_CYAN, TYPO_SECTION_TITLE)
 const DASHBOARD_INNER_PANEL = cn("rounded-lg border", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP)
@@ -1141,7 +1173,13 @@ function GuidanceCard({ mover }: { mover?: MarketMoverCandidate }) {
   )
 }
 
-function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
+function TacticalAlerts({
+  alerts,
+  onInspectMarket,
+}: {
+  alerts: TacticalAlert[]
+  onInspectMarket: (alert: TacticalAlert, href: string) => void
+}) {
   const rankedAlerts = [...alerts].sort((left, right) => (right.confidence ?? -1) - (left.confidence ?? -1))
   const numericScores = rankedAlerts.map((alert) => alert.confidence).filter((score): score is number => score !== null)
   const uniqueScores = new Set(numericScores)
@@ -1221,12 +1259,13 @@ function TacticalAlerts({ alerts }: { alerts: TacticalAlert[] }) {
                   </span>
                 ))}
               </div>}
-              <Link
-                href={marketHref(alert)}
+              <button
+                type="button"
+                onClick={() => onInspectMarket(alert, marketHref(alert))}
                 className={cn("mt-auto rounded border border-[#38bdf8]/20 bg-[#38bdf8]/10 px-2 py-1 text-center hover:border-[#38bdf8]/50", COLOR_ACCENT_CYAN, TYPO_BADGE)}
               >
                 Inspect Market
-              </Link>
+              </button>
             </div>
           </article>
         ))}
@@ -2031,6 +2070,7 @@ export default function DashboardV1({
   tradeCount: number
   liquidationCount: number
 }) {
+  const router = useRouter()
   const activeSymbol = useMemo(() => normalizeDashboardSymbol(symbol), [symbol])
   const cachedDashboard = useMemo(() => loadDashboardCache(activeSymbol), [activeSymbol])
   const [cacheUpdatedAt, setCacheUpdatedAt] = useState<string | null>(cachedDashboard?.cachedAt ?? null)
@@ -2319,6 +2359,91 @@ export default function DashboardV1({
   const causes = useMemo(() => buildCauses(topMover, macro, narratives, sectorRotation, futures), [topMover, macro, narratives, sectorRotation, futures])
   const narrativeItems = useMemo(() => buildNarrativeHeat(narratives), [narratives])
   const informationItems = useMemo(() => buildInformationFlow(macro, narratives), [macro, narratives])
+
+  function openMarketsWithSharedContext(alert: TacticalAlert, href: string) {
+    const createdAt = new Date()
+    const createdAtIso = createdAt.toISOString()
+    const selectedSymbol = normalizeDashboardSymbol(alert.asset)
+    const hasMatchingDriverSummary = marketDrivers?.symbol === selectedSymbol
+    const freshness = hasMatchingDriverSummary
+      ? dashboardContextFreshness(marketDriverLoadState, marketDrivers)
+      : "UNKNOWN"
+    const observedAtSource = hasMatchingDriverSummary ? marketDrivers?.timestamp : alert.detectedAt
+    const observedAt = observedAtSource && Number.isFinite(Date.parse(observedAtSource))
+      ? new Date(observedAtSource).toISOString()
+      : undefined
+    const health = hasMatchingDriverSummary
+      ? dashboardHealthFromDriverState(marketDriverLoadState, marketDrivers)
+      : "PARTIAL"
+    const primaryDrivers = hasMatchingDriverSummary ? marketDrivers.drivers.slice(0, 3) : []
+    const source = hasMatchingDriverSummary
+      ? primaryDrivers[0]?.evidence.source ?? "market-driver"
+      : "market-movers"
+    const handoff = createDashboardToMarketsContext({
+      contextId: dashboardMarketsContextId(createdAt),
+      symbol: selectedSymbol,
+      createdAt: createdAtIso,
+      expiresAt: new Date(createdAt.getTime() + DASHBOARD_MARKETS_CONTEXT_TTL_MS).toISOString(),
+      context: {
+        confidenceContext: {
+          value: {
+            direction: hasMatchingDriverSummary ? driverBias(marketDrivers.marketDirection) : alert.bias,
+            confidence: hasMatchingDriverSummary ? marketDrivers.confidence : alert.confidence,
+            health,
+          },
+          owner: "dashboard",
+          source,
+          observedAt,
+          freshness,
+          revision: 1,
+        },
+        evidenceSummary: hasMatchingDriverSummary
+          ? {
+              value: {
+                kind: "dashboard_evidence_preview",
+                driverCount: marketDrivers.drivers.length,
+                primaryDrivers: primaryDrivers.map((driver) => ({
+                  category: driver.category,
+                  title: driver.title,
+                  direction: driver.evidence.direction,
+                  summary: driver.evidence.summary,
+                  source: driver.evidence.source,
+                  observedAt: driver.evidence.observedAt,
+                  quality: driver.quality,
+                })),
+              },
+              owner: "dashboard",
+              source,
+              observedAt,
+              freshness,
+              revision: 1,
+            }
+          : undefined,
+        freshness: {
+          value: {
+            status: freshness,
+            ...(observedAt ? { observedAt } : {}),
+          },
+          owner: "dashboard",
+          source,
+          observedAt,
+          freshness,
+          revision: 1,
+        },
+      },
+    })
+
+    if (handoff.success === true) {
+      const persisted = createContext(handoff.value)
+      if (persisted.status === "SUCCESS") {
+        router.push(appendDashboardMarketsContext(href, handoff.value.contextId))
+        return
+      }
+    }
+
+    router.push(href)
+  }
+
   return (
     <main className={cn("min-h-screen px-3 py-3 lg:px-4", COLOR_BACKGROUND_BASE, COLOR_TEXT_PRIMARY)}>
       <div className={cn("mx-auto grid max-w-[1800px]", SPACE_SECTION)}>
@@ -2353,7 +2478,7 @@ export default function DashboardV1({
         <section className={cn("grid min-w-0", SPACE_SECTION)}>
           <div className={cn("grid xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.92fr)]", SPACE_SECTION)}>
             <PredictionMarketsCard data={predictionMarkets} />
-            <TacticalAlerts alerts={alerts} />
+            <TacticalAlerts alerts={alerts} onInspectMarket={openMarketsWithSharedContext} />
           </div>
 
           <div className={cn("rounded-lg border px-3 py-2", COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)}>

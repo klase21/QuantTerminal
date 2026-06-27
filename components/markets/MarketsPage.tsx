@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Activity, AlertTriangle, BarChart3, BookOpen, Building2, Droplets, Gauge, Layers, LineChart, RadioTower, ShieldCheck, TrendingUp, Zap } from "lucide-react"
 
 import AdvancedChartModal from "@/components/charts/AdvancedChartModal"
@@ -14,7 +14,18 @@ import useKlineSocket from "@/hooks/useKlineSocket"
 import useMarketSocket from "@/hooks/useMarketSocket"
 import useOrderbookSocket from "@/hooks/useOrderbookSocket"
 import useTradeSocket from "@/hooks/useTradeSocket"
+import {
+  createContext,
+  createMarketsToScannerContext,
+  inspectContextCandidate,
+  loadProductContext,
+  type JsonObject,
+  type ProductContextFreshness,
+  type SharedProductContextV1,
+} from "@/lib/product-context"
 import { useMarketStore } from "@/stores/useMarketStore"
+
+const MARKETS_SCANNER_CONTEXT_TTL_MS = 30 * 60 * 1000
 
 type FuturesSymbol = {
   symbol: string
@@ -110,6 +121,12 @@ type ExchangeComparisonResponse = {
   }
   fundingRelationship?: string
   openInterestRelationship?: string
+}
+
+type InheritedDashboardContextState = {
+  label: "LOADING" | "CURRENT" | "PARTIAL" | "STALE" | "DEGRADED" | "MISSING" | "UNAVAILABLE"
+  detail: string
+  context: SharedProductContextV1 | null
 }
 
 type EtfFlowResponse = {
@@ -307,6 +324,46 @@ function InlineStatus({
       </span>
     </div>
   )
+}
+
+function marketsContextFreshness(
+  sectorRotation: RealMarketRotationResponse | null,
+  marketStructure: MarketStructureIntelligenceResponse | null,
+): ProductContextFreshness {
+  if (sectorRotation?.dataQuality?.stale) return "STALE"
+  if (sectorRotation?.ok && sectorRotation.mode === "partial") return "UNKNOWN"
+  if (sectorRotation?.ok || marketStructure?.ok) return "CURRENT"
+  return "UNAVAILABLE"
+}
+
+function marketsScannerContextId(createdAt: Date) {
+  const suffix = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${createdAt.getTime()}-${Math.abs(createdAt.getTimezoneOffset())}`
+  return `markets-scanner-${suffix}`
+}
+
+function scannerHrefWithContext(
+  symbol: string,
+  exchange: string,
+  timeframe: string,
+  contextId?: string,
+) {
+  const params = new URLSearchParams({ symbol, exchange, timeframe, source: "markets" })
+  if (contextId) params.set("contextId", contextId)
+  return `/scanner?${params.toString()}`
+}
+
+function dashboardContextValue(value: JsonObject | undefined, key: string) {
+  const candidate = value?.[key]
+  if (typeof candidate === "string" && candidate.trim()) return candidate
+  if (typeof candidate === "number" && Number.isFinite(candidate)) return String(candidate)
+  return "UNAVAILABLE"
+}
+
+function dashboardContextArrayCount(value: JsonObject | undefined, key: string) {
+  const candidate = value?.[key]
+  return Array.isArray(candidate) ? candidate.length : 0
 }
 
 function StatusBadge({
@@ -727,6 +784,7 @@ function SelectedSymbolLiquidations({
 }
 
 export default function MarketsPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [symbol, setSymbol] = useState("BTCUSDT")
   const [futures, setFutures] = useState<FuturesResponse | null>(null)
@@ -752,17 +810,27 @@ export default function MarketsPage() {
   const tickers = useMarketStore((state) => state.tickers)
   const orderbook = useMarketStore((state) => state.orderbook)
   const requestedSymbol = normalizeMarketSymbol(searchParams.get("symbol"))
+  const productContextId = searchParams.get("contextId")?.trim() || null
   const signalSource = searchParams.get("source")
   const signalSetup = searchParams.get("setup")
   const signalDirection = searchParams.get("direction")
   const signalConfidence = searchParams.get("confidence")
   const signalReason = searchParams.get("reason")
   const effectiveSource = signalSource ?? "default-market-view"
+  const selectedExchange = searchParams.get("exchange") ?? "binance_futures"
+  const selectedTimeframe = searchParams.get("timeframe") ?? "1m"
   const hasSignalContext = Boolean(signalSource || signalSetup || signalDirection || signalConfidence || signalReason)
   const ticker = tickers[symbol]
   const candles = useKlineSocket(symbol, "1m")
   const { trades } = useTradeSocket(symbol)
   const depthFrames = useDepthHeatmap(symbol)
+  const [inheritedDashboardContext, setInheritedDashboardContext] = useState<InheritedDashboardContextState>({
+    label: productContextId ? "LOADING" : "MISSING",
+    detail: productContextId
+      ? "Loading inherited Dashboard context."
+      : "No shared contextId supplied. Direct Markets remains available.",
+    context: null,
+  })
 
   useMarketSocket()
   useOrderbookSocket(symbol)
@@ -771,6 +839,60 @@ export default function MarketsPage() {
     if (!requestedSymbol) return
     setSymbol(requestedSymbol)
   }, [requestedSymbol])
+
+  useEffect(() => {
+    if (!productContextId) {
+      setInheritedDashboardContext({
+        label: "MISSING",
+        detail: "No shared contextId supplied. Direct Markets remains available.",
+        context: null,
+      })
+      return
+    }
+
+    setInheritedDashboardContext({
+      label: "LOADING",
+      detail: "Loading inherited Dashboard context.",
+      context: null,
+    })
+    const loaded = loadProductContext(productContextId)
+    if (loaded.success === false) {
+      setInheritedDashboardContext({ label: "UNAVAILABLE", detail: loaded.error.message, context: null })
+      return
+    }
+
+    const lifecycle = inspectContextCandidate(loaded.value)
+    if (lifecycle.status !== "SUCCESS" || !lifecycle.value) {
+      setInheritedDashboardContext({
+        label: "UNAVAILABLE",
+        detail: lifecycle.issues[0]?.message ?? "Shared Dashboard context is not active.",
+        context: null,
+      })
+      return
+    }
+    if (lifecycle.value.sourcePage !== "dashboard" || lifecycle.value.destinationIntent !== "explore_market") {
+      setInheritedDashboardContext({
+        label: "DEGRADED",
+        detail: "Shared context does not describe a Dashboard to Markets handoff.",
+        context: null,
+      })
+      return
+    }
+
+    const inheritedFreshness = lifecycle.value.freshness?.freshness ?? "UNKNOWN"
+    const label = inheritedFreshness === "STALE"
+      ? "STALE" as const
+      : inheritedFreshness === "UNAVAILABLE" || inheritedFreshness === "MISSING"
+        ? "UNAVAILABLE" as const
+        : lifecycle.value.confidenceContext || lifecycle.value.evidenceSummary
+          ? inheritedFreshness === "CURRENT" ? "CURRENT" as const : "PARTIAL" as const
+          : "PARTIAL" as const
+    setInheritedDashboardContext({
+      label,
+      detail: "Dashboard conclusion context loaded for display only. Markets exploration remains independent.",
+      context: lifecycle.value,
+    })
+  }, [productContextId])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -1034,6 +1156,71 @@ export default function MarketsPage() {
   ].filter(Boolean).length
   const discoveryHealthLabel = discoveryHealth >= 4 ? "CURRENT" : discoveryHealth >= 2 ? "PARTIAL" : discoveryHealth === 1 ? "DEGRADED" : "UNAVAILABLE"
   const discoveryHealthTone = discoveryHealth >= 4 ? "verified" : discoveryHealth >= 2 ? "partial" : discoveryHealth === 1 ? "stale" : "missing"
+  const inheritedDashboard = inheritedDashboardContext.context
+  const inheritedDirection = dashboardContextValue(inheritedDashboard?.confidenceContext?.value, "direction")
+  const inheritedDriverCount = dashboardContextValue(inheritedDashboard?.evidenceSummary?.value, "driverCount")
+  const inheritedEvidenceCount = dashboardContextArrayCount(inheritedDashboard?.evidenceSummary?.value, "primaryDrivers")
+  const inheritedFreshness = inheritedDashboard?.freshness?.freshness ?? "UNAVAILABLE"
+
+  function openScannerWithSharedContext() {
+    const createdAt = new Date()
+    const createdAtIso = createdAt.toISOString()
+    const freshness = marketsContextFreshness(sectorRotation, marketStructure)
+    const observedAtCandidates = [sectorRotation?.updatedAt, marketStructure?.updatedAt]
+      .filter((value): value is string => Boolean(value) && Number.isFinite(Date.parse(value)))
+      .map((value) => new Date(value).toISOString())
+      .sort()
+    const observedAt = observedAtCandidates.at(-1)
+    const topSector = sectorRotation?.sectors?.[0] ?? marketStructure?.topSector
+    const source = marketStructure?.source ?? sectorRotation?.source ?? "markets"
+    const handoff = createMarketsToScannerContext({
+      contextId: marketsScannerContextId(createdAt),
+      symbol,
+      exchange: selectedExchange,
+      timeframe: selectedTimeframe,
+      createdAt: createdAtIso,
+      expiresAt: new Date(createdAt.getTime() + MARKETS_SCANNER_CONTEXT_TTL_MS).toISOString(),
+      context: {
+        marketStructureContext: {
+          value: {
+            structure: structureValue,
+            structureReason,
+            breadth: breadthState,
+            sector: topSector?.sector ?? null,
+            advancingAssets: mappedAssets ? advancingAssets : null,
+            decliningAssets: mappedAssets ? decliningAssets : null,
+            mappedAssets: mappedAssets || null,
+          },
+          owner: "markets",
+          source,
+          observedAt,
+          freshness,
+          revision: 1,
+        },
+        freshness: {
+          value: {
+            status: freshness,
+            ...(observedAt ? { observedAt } : {}),
+          },
+          owner: "markets",
+          source,
+          observedAt,
+          freshness,
+          revision: 1,
+        },
+      },
+    })
+
+    if (handoff.success === true) {
+      const persisted = createContext(handoff.value)
+      if (persisted.status === "SUCCESS") {
+        router.push(scannerHrefWithContext(symbol, selectedExchange, selectedTimeframe, handoff.value.contextId))
+        return
+      }
+    }
+
+    router.push(scannerHrefWithContext(symbol, selectedExchange, selectedTimeframe))
+  }
 
   return (
     <main className="min-h-screen bg-[#070d07] px-3 py-3 text-zinc-100 lg:px-4">
@@ -1045,6 +1232,22 @@ export default function MarketsPage() {
           status={<StatusBadge label={discoveryHealthLabel as "CURRENT" | "PARTIAL" | "DEGRADED" | "UNAVAILABLE"} tone={discoveryHealthTone as "verified" | "partial" | "stale" | "missing"} />}
           className="border-amber-300/25 bg-[#0f1a0f]"
         >
+          <div className="mb-3 rounded border border-zinc-900 bg-black/35 p-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Inherited Dashboard Context</div>
+              <StatusBadge
+                label={inheritedDashboardContext.label}
+                tone={inheritedDashboardContext.label === "CURRENT" ? "verified" : inheritedDashboardContext.label === "LOADING" ? "loading" : inheritedDashboardContext.label === "PARTIAL" || inheritedDashboardContext.label === "DEGRADED" || inheritedDashboardContext.label === "STALE" ? "partial" : "missing"}
+              />
+            </div>
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+              <InlineStatus label="Direction" value={inheritedDirection} tone={inheritedDirection === "Bullish" ? "green" : inheritedDirection === "Bearish" ? "red" : inheritedDirection === "Neutral" ? "amber" : undefined} />
+              <InlineStatus label="Drivers" value={inheritedDriverCount === "UNAVAILABLE" ? inheritedDriverCount : `${inheritedDriverCount} AVAILABLE`} tone={inheritedDriverCount === "UNAVAILABLE" ? undefined : "cyan"} />
+              <InlineStatus label="Evidence Preview" value={inheritedEvidenceCount ? `${inheritedEvidenceCount} AVAILABLE` : "UNAVAILABLE"} tone={inheritedEvidenceCount ? "cyan" : undefined} />
+              <InlineStatus label="Freshness" value={inheritedFreshness} tone={inheritedFreshness === "CURRENT" ? "green" : inheritedFreshness === "STALE" ? "amber" : undefined} />
+            </div>
+            <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-700">{inheritedDashboardContext.detail}</div>
+          </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.42fr)]">
             <div className="rounded-lg border border-cyan-300/20 bg-black/35 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1054,7 +1257,17 @@ export default function MarketsPage() {
                     {hasSignalContext ? `Inspecting ${effectiveSource.replaceAll("-", " ")}` : "All Futures Discovery / Binance Focus / 1m Live Detail"}
                   </div>
                 </div>
-                <div className="max-w-xl text-right text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{sourceStatus}</div>
+                <div className="grid justify-items-end gap-2">
+                  <div className="max-w-xl text-right text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{sourceStatus}</div>
+                  <button
+                    type="button"
+                    onClick={openScannerWithSharedContext}
+                    className="inline-flex items-center gap-1.5 rounded border border-amber-300/25 bg-amber-300/5 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100 hover:border-amber-300/45 hover:bg-amber-300/10"
+                  >
+                    <Zap className="h-3 w-3" />
+                    Open Scanner
+                  </button>
+                </div>
               </div>
               <div className="mt-3 grid gap-1.5 md:grid-cols-4">
                 <InlineStatus label="Universe" value="USDT Futures" tone="amber" />

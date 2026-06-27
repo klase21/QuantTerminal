@@ -2,12 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Activity, Radar, Signal, Zap } from "lucide-react"
 
 import { useActiveSetupMemory } from "@/hooks/market-movers/useActiveSetupMemory"
 import { useMarketMovers } from "@/hooks/market-movers/useMarketMovers"
 import { useSafePolling } from "@/hooks/system/useSafePolling"
 import type { MarketMoverCandidate } from "@/lib/market-movers/types"
+import {
+  createContext,
+  createScannerToResearchContext,
+  inspectContextCandidate,
+  loadProductContext,
+  type JsonObject,
+  type ProductContextFreshness,
+  type SharedProductContextV1,
+} from "@/lib/product-context"
 
 type Opportunity = {
   symbol: string
@@ -42,6 +52,7 @@ type RetainedCandidateRecord = {
 }
 
 const CANDIDATE_RETENTION_MS = 5 * 60 * 1000
+const SCANNER_RESEARCH_CONTEXT_TTL_MS = 30 * 60 * 1000
 const SURFACE = {
   scannerHeader: "rounded-lg border border-amber-500/20 bg-[#07120b] p-3",
   priority: "rounded-lg border border-amber-500/25 bg-[#0c140c] p-3",
@@ -49,6 +60,12 @@ const SURFACE = {
   secondary: "rounded-lg border border-[#142014] bg-[#111911] p-3",
   support: "rounded-lg border border-[#142014] bg-[#0a0f0a] p-3",
   row: "rounded border border-[#142014] bg-black/45",
+}
+
+type InheritedMarketsContextState = {
+  label: "LOADING" | "CURRENT" | "PARTIAL" | "STALE" | "DEGRADED" | "MISSING" | "UNAVAILABLE"
+  detail: string
+  context: SharedProductContextV1 | null
 }
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -119,6 +136,35 @@ function Badge({ label }: { label: string }) {
       {label}
     </span>
   )
+}
+
+function scannerContextFreshness(status: string): ProductContextFreshness {
+  if (status === "CURRENT") return "CURRENT"
+  if (status === "STALE") return "STALE"
+  if (status === "MISSING") return "MISSING"
+  if (status === "UNAVAILABLE") return "UNAVAILABLE"
+  return "UNKNOWN"
+}
+
+function scannerResearchContextId(createdAt: Date) {
+  const suffix = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${createdAt.getTime()}-${Math.abs(createdAt.getTimezoneOffset())}`
+  return `scanner-research-${suffix}`
+}
+
+function appendScannerResearchContext(href: string, contextId: string) {
+  const [pathname, query = ""] = href.split("?", 2)
+  const params = new URLSearchParams(query)
+  params.set("contextId", contextId)
+  return `${pathname}?${params.toString()}`
+}
+
+function marketsContextValue(value: JsonObject | undefined, key: string) {
+  const candidate = value?.[key]
+  if (typeof candidate === "string" && candidate.trim()) return candidate
+  if (typeof candidate === "number" && Number.isFinite(candidate)) return String(candidate)
+  return "UNAVAILABLE"
 }
 
 function SummaryMetric({ label, value, reason }: { label: string; value: React.ReactNode; reason?: React.ReactNode }) {
@@ -303,7 +349,15 @@ function OpportunityRow({ item }: { item: ScannerCandidate }) {
   )
 }
 
-function PriorityOpportunityCard({ item, rank }: { item: ScannerCandidate; rank: number }) {
+function PriorityOpportunityCard({
+  item,
+  rank,
+  onOpenResearch,
+}: {
+  item: ScannerCandidate
+  rank: number
+  onOpenResearch: (item: ScannerCandidate) => void
+}) {
   return (
     <div className="rounded-lg border border-amber-400/20 bg-black/45 p-3">
       <div className="flex items-start justify-between gap-3">
@@ -344,18 +398,25 @@ function PriorityOpportunityCard({ item, rank }: { item: ScannerCandidate; rank:
         >
           Inspect Market
         </Link>
-        <Link
-          href={researchHref(item)}
+        <button
+          type="button"
+          onClick={() => onOpenResearch(item)}
           className="rounded border border-amber-300/25 bg-amber-400/10 px-2 py-1.5 text-center text-[9px] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:border-amber-200/60"
         >
           Research Evidence
-        </Link>
+        </button>
       </div>
     </div>
   )
 }
 
-function NavigationActions({ item }: { item: ScannerCandidate | null }) {
+function NavigationActions({
+  item,
+  onOpenResearch,
+}: {
+  item: ScannerCandidate | null
+  onOpenResearch: (item: ScannerCandidate) => void
+}) {
   if (!item) {
     return <EmptyState title="Unavailable" reason="No selected opportunity is available for navigation." />
   }
@@ -367,26 +428,107 @@ function NavigationActions({ item }: { item: ScannerCandidate | null }) {
         ["Research", "Review evidence", researchHref(item)],
         ["Replay", "Check historical context", replayHref(item)],
         ["Trade", "Continue planning", tradeHref(item)],
-      ].map(([label, description, href]) => (
-        <Link
-          key={label}
-          href={href}
-          className="rounded border border-[#1c2c1c] bg-black/45 p-3 transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
-        >
-          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">{label}</div>
-          <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">{description}</div>
-          <div className="mt-3 truncate text-xs font-black uppercase text-[#d4dbd4]">{item.symbol}</div>
-        </Link>
-      ))}
+      ].map(([label, description, href]) => {
+        const content = (
+          <>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">{label}</div>
+            <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">{description}</div>
+            <div className="mt-3 truncate text-xs font-black uppercase text-[#d4dbd4]">{item.symbol}</div>
+          </>
+        )
+        return label === "Research" ? (
+          <button
+            key={label}
+            type="button"
+            onClick={() => onOpenResearch(item)}
+            className="rounded border border-[#1c2c1c] bg-black/45 p-3 text-left transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
+          >
+            {content}
+          </button>
+        ) : (
+          <Link
+            key={label}
+            href={href}
+            className="rounded border border-[#1c2c1c] bg-black/45 p-3 transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
+          >
+            {content}
+          </Link>
+        )
+      })}
     </div>
   )
 }
 
 export default function ScannerPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const productContextId = searchParams.get("contextId")?.trim() || null
   const moverState = useMarketMovers(true)
   const movers = moverState.data
   const liveCandidates = useMemo(() => (movers?.candidates ?? []).slice(0, 25), [movers])
   const [retainedCandidates, setRetainedCandidates] = useState<RetainedCandidateRecord[]>([])
+  const [inheritedMarketsContext, setInheritedMarketsContext] = useState<InheritedMarketsContextState>({
+    label: productContextId ? "LOADING" : "MISSING",
+    detail: productContextId
+      ? "Loading inherited Markets context."
+      : "No shared contextId supplied. Direct Scanner remains available.",
+    context: null,
+  })
+
+  useEffect(() => {
+    if (!productContextId) {
+      setInheritedMarketsContext({
+        label: "MISSING",
+        detail: "No shared contextId supplied. Direct Scanner remains available.",
+        context: null,
+      })
+      return
+    }
+
+    setInheritedMarketsContext({
+      label: "LOADING",
+      detail: "Loading inherited Markets context.",
+      context: null,
+    })
+    const loaded = loadProductContext(productContextId)
+    if (loaded.success === false) {
+      setInheritedMarketsContext({ label: "UNAVAILABLE", detail: loaded.error.message, context: null })
+      return
+    }
+
+    const lifecycle = inspectContextCandidate(loaded.value)
+    if (lifecycle.status !== "SUCCESS" || !lifecycle.value) {
+      setInheritedMarketsContext({
+        label: "UNAVAILABLE",
+        detail: lifecycle.issues[0]?.message ?? "Shared Markets context is not active.",
+        context: null,
+      })
+      return
+    }
+    if (lifecycle.value.sourcePage !== "markets" || lifecycle.value.destinationIntent !== "prioritize_symbol") {
+      setInheritedMarketsContext({
+        label: "DEGRADED",
+        detail: "Shared context does not describe a Markets to Scanner handoff.",
+        context: null,
+      })
+      return
+    }
+
+    const inheritedFreshness = lifecycle.value.freshness?.freshness ?? "UNKNOWN"
+    const label = inheritedFreshness === "STALE"
+      ? "STALE" as const
+      : inheritedFreshness === "UNAVAILABLE" || inheritedFreshness === "MISSING"
+        ? "UNAVAILABLE" as const
+        : lifecycle.value.marketStructureContext
+          ? inheritedFreshness === "CURRENT" ? "CURRENT" as const : "PARTIAL" as const
+          : "PARTIAL" as const
+    setInheritedMarketsContext({
+      label,
+      detail: "Markets exploration context loaded for display only. Scanner ranking remains independent.",
+      context: lifecycle.value,
+    })
+  }, [productContextId])
+
   useEffect(() => {
     const now = Date.now()
     setRetainedCandidates((previous) => {
@@ -452,6 +594,78 @@ export default function ScannerPage() {
         ? "UNAVAILABLE"
         : "MISSING"
   const scannerFreshness = moverState.lastUpdatedAt ?? opportunitiesState.lastUpdatedAt ?? "Unavailable"
+  const inheritedMarkets = inheritedMarketsContext.context
+  const inheritedStructure = marketsContextValue(inheritedMarkets?.marketStructureContext?.value, "structure")
+  const inheritedSector = marketsContextValue(inheritedMarkets?.marketStructureContext?.value, "sector")
+  const inheritedBreadth = marketsContextValue(inheritedMarkets?.marketStructureContext?.value, "breadth")
+  const inheritedFreshness = inheritedMarkets?.freshness?.freshness ?? "UNAVAILABLE"
+
+  function openResearchWithSharedContext(item: ScannerCandidate) {
+    const href = researchHref(item)
+    const createdAt = new Date()
+    const createdAtIso = createdAt.toISOString()
+    const freshness = scannerContextFreshness(scannerHealth)
+    const observedAt = Number.isFinite(Date.parse(scannerFreshness)) ? new Date(scannerFreshness).toISOString() : undefined
+    const handoff = createScannerToResearchContext({
+      contextId: scannerResearchContextId(createdAt),
+      symbol: item.symbol,
+      createdAt: createdAtIso,
+      expiresAt: new Date(createdAt.getTime() + SCANNER_RESEARCH_CONTEXT_TTL_MS).toISOString(),
+      opportunityContext: {
+        value: {
+          symbol: item.symbol,
+          setup: item.setup,
+          direction: item.direction,
+          grade: item.grade,
+          quality: item.quality,
+          riskReward: item.rr,
+          status: item.status,
+          ...(item.reason ? { reason: item.reason } : {}),
+        },
+        owner: "scanner",
+        source: "scanner",
+        observedAt,
+        freshness,
+        revision: 1,
+      },
+      signalContext: item.reason
+        ? {
+            value: {
+              reason: item.reason,
+              setup: item.setup,
+              direction: item.direction,
+              status: item.status,
+            },
+            owner: "scanner",
+            source: "scanner",
+            observedAt,
+            freshness,
+            revision: 1,
+          }
+        : undefined,
+      freshness: {
+        value: {
+          status: scannerHealth,
+          ...(observedAt ? { observedAt } : {}),
+        },
+        owner: "scanner",
+        source: "scanner",
+        observedAt,
+        freshness,
+        revision: 1,
+      },
+    })
+
+    if (handoff.success === true) {
+      const persisted = createContext(handoff.value)
+      if (persisted.status === "SUCCESS") {
+        router.push(appendScannerResearchContext(href, handoff.value.contextId))
+        return
+      }
+    }
+
+    router.push(href)
+  }
 
   useEffect(() => {
     console.debug("Scanner candidate trace", {
@@ -499,7 +713,7 @@ export default function ScannerPage() {
           {priorityOpportunities.length ? (
             <div className="grid gap-2 xl:grid-cols-3">
               {priorityOpportunities.map((item, index) => (
-                <PriorityOpportunityCard key={`priority-${item.symbol}-${item.setup}-${item.score}`} item={item} rank={index + 1} />
+                <PriorityOpportunityCard key={`priority-${item.symbol}-${item.setup}-${item.score}`} item={item} rank={index + 1} onOpenResearch={openResearchWithSharedContext} />
               ))}
             </div>
           ) : (
@@ -578,6 +792,19 @@ export default function ScannerPage() {
           className={SURFACE.support}
           subtitle="Secondary context only; live validation remains in Markets"
         >
+          <div className="mb-3 rounded border border-[#142014] bg-black/45 p-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[#6b7d6b]">Inherited Markets Context</div>
+              <Badge label={inheritedMarketsContext.label} />
+            </div>
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+              <SummaryMetric label="Market Structure" value={inheritedStructure} />
+              <SummaryMetric label="Sector" value={inheritedSector} />
+              <SummaryMetric label="Breadth" value={inheritedBreadth} />
+              <SummaryMetric label="Freshness" value={inheritedFreshness} />
+            </div>
+            <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#3d503d]">{inheritedMarketsContext.detail}</div>
+          </div>
           <div className="grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
             {movers?.summary ? (
               <div className="grid grid-cols-2 gap-2">
@@ -620,7 +847,7 @@ export default function ScannerPage() {
           className={SURFACE.support}
           subtitle="Continue from the highest-priority available signal"
         >
-          <NavigationActions item={primaryOpportunity} />
+          <NavigationActions item={primaryOpportunity} onOpenResearch={openResearchWithSharedContext} />
         </Card>
       </div>
     </main>

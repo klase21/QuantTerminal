@@ -1,11 +1,29 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Activity, BarChart3, Droplets, LineChart, RadioTower, Zap } from "lucide-react"
 
 import MarketCandleChart from "@/components/charts/MarketCandleChart"
 import { createInvestigationContext, readInvestigationContext } from "@/lib/investigation/context"
+import {
+  createContext,
+  createReplayToTradeContext,
+  inspectContextCandidate,
+  loadProductContext,
+  type JsonObject,
+  type ProductContextFreshness,
+  type SharedProductContextV1,
+} from "@/lib/product-context"
+
+const REPLAY_TRADE_CONTEXT_TTL_MS = 30 * 60 * 1000
+
+type InheritedResearchContextState = {
+  label: "LOADING" | "CURRENT" | "PARTIAL" | "STALE" | "DEGRADED" | "MISSING" | "UNAVAILABLE"
+  tone: "current" | "partial" | "degraded" | "missing" | "loading"
+  detail: string
+  context: SharedProductContextV1 | null
+}
 
 type CryptoReplayTrade = {
   timestamp: string
@@ -152,6 +170,31 @@ function SnapshotMetric({ label, value, tone }: { label: string; value: string; 
   )
 }
 
+function StatusBadge({ label, tone = "missing" }: { label: string; tone?: "current" | "partial" | "degraded" | "missing" | "loading" }) {
+  return (
+    <span className={cn(
+      "inline-flex w-fit items-center border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em]",
+      tone === "current" && "border-emerald-400/40 bg-emerald-400/10 text-emerald-200",
+      tone === "partial" && "border-amber-400/45 bg-amber-400/10 text-amber-200",
+      tone === "degraded" && "border-orange-400/35 bg-orange-400/10 text-orange-200",
+      tone === "missing" && "border-zinc-700 bg-zinc-950 text-zinc-500",
+      tone === "loading" && "border-cyan-300/40 bg-cyan-400/10 text-cyan-200",
+    )}>
+      {label}
+    </span>
+  )
+}
+
+function EvidenceRow({ label, status, detail, tone }: { label: string; status: string; detail: string; tone?: "current" | "partial" | "degraded" | "missing" | "loading" }) {
+  return (
+    <div className="grid gap-2 border border-zinc-900 bg-black px-3 py-2 md:grid-cols-[180px_110px_1fr] md:items-center">
+      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-300">{label}</div>
+      <StatusBadge label={status} tone={tone} />
+      <div className="text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{detail}</div>
+    </div>
+  )
+}
+
 function numberValue(value: number | null | undefined, digits = 2) {
   if (value === null || value === undefined || !Number.isFinite(value)) return "NO DATA"
   return value.toLocaleString(undefined, { maximumFractionDigits: digits })
@@ -175,6 +218,46 @@ function compactUsd(value: number | null | undefined) {
 function timeOnly(value?: string) {
   if (!value) return "NO DATA"
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })
+}
+
+function contextString(value: JsonObject | undefined, field: string) {
+  const candidate = value?.[field]
+  return typeof candidate === "string" ? candidate : null
+}
+
+function contextNumber(value: JsonObject | undefined, field: string) {
+  const candidate = value?.[field]
+  return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : null
+}
+
+function contextDisplayValue(value: JsonObject | undefined) {
+  for (const field of ["label", "confidence", "value", "status"] as const) {
+    const candidate = value?.[field]
+    if (typeof candidate === "string" || typeof candidate === "number") return String(candidate)
+  }
+  return null
+}
+
+function replayContextFreshness(status: string): ProductContextFreshness {
+  if (status === "CURRENT") return "CURRENT"
+  if (status === "STALE") return "STALE"
+  if (status === "MISSING") return "MISSING"
+  if (status === "UNAVAILABLE") return "UNAVAILABLE"
+  return "UNKNOWN"
+}
+
+function replayTradeContextId(createdAt: Date) {
+  const suffix = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${createdAt.getTime()}-${Math.abs(createdAt.getTimezoneOffset())}`
+  return `replay-trade-${suffix}`
+}
+
+function appendReplayTradeContext(href: string, contextId: string) {
+  const [pathname, query = ""] = href.split("?", 2)
+  const params = new URLSearchParams(query)
+  params.set("contextId", contextId)
+  return `${pathname}?${params.toString()}`
 }
 
 function latestSafeReplayWindow() {
@@ -771,7 +854,9 @@ function whatHappenedLines(symbol: string, priceChange: number | null, oiChange:
 }
 
 export default function ReplayV1Page() {
+  const router = useRouter()
   const searchParams = useSearchParams()
+  const productContextId = searchParams.get("contextId")?.trim() || null
   const investigationContext = readInvestigationContext(
     searchParams,
     createInvestigationContext({
@@ -800,12 +885,89 @@ export default function ReplayV1Page() {
   const [orderbookLoading, setOrderbookLoading] = useState(false)
   const [orderbookReason, setOrderbookReason] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [inheritedResearchContext, setInheritedResearchContext] = useState<InheritedResearchContextState>({
+    label: productContextId ? "LOADING" : "MISSING",
+    tone: productContextId ? "loading" : "missing",
+    detail: productContextId
+      ? "Loading inherited Research context."
+      : "No shared contextId supplied. Direct Replay remains available.",
+    context: null,
+  })
   const mountedRef = useRef(false)
   const abortControllersRef = useRef<AbortController[]>([])
   const orderbookControllerRef = useRef<AbortController | null>(null)
   const orderbookInFlightRef = useRef(false)
   const loadIdRef = useRef(0)
   const requestedDatasetsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!productContextId) {
+      setInheritedResearchContext({
+        label: "MISSING",
+        tone: "missing",
+        detail: "No shared contextId supplied. Direct Replay remains available.",
+        context: null,
+      })
+      return
+    }
+
+    setInheritedResearchContext({
+      label: "LOADING",
+      tone: "loading",
+      detail: "Loading inherited Research context.",
+      context: null,
+    })
+    const loaded = loadProductContext(productContextId)
+    if (loaded.success === false) {
+      setInheritedResearchContext({
+        label: "UNAVAILABLE",
+        tone: "missing",
+        detail: loaded.error.message,
+        context: null,
+      })
+      return
+    }
+    const lifecycle = inspectContextCandidate(loaded.value)
+    if (lifecycle.status !== "SUCCESS" || !lifecycle.value) {
+      setInheritedResearchContext({
+        label: "UNAVAILABLE",
+        tone: "missing",
+        detail: lifecycle.issues[0]?.message ?? "Shared Research context is not active.",
+        context: null,
+      })
+      return
+    }
+    if (lifecycle.value.sourcePage !== "research" || lifecycle.value.destinationIntent !== "validate_historically") {
+      setInheritedResearchContext({
+        label: "DEGRADED",
+        tone: "degraded",
+        detail: "Shared context does not describe a Research to Replay validation handoff.",
+        context: null,
+      })
+      return
+    }
+
+    const hasThesis = Boolean(lifecycle.value.thesis)
+    const hasEvidence = Boolean(
+      lifecycle.value.evidenceSummary
+      || lifecycle.value.supportingEvidence
+      || lifecycle.value.conflictingEvidence,
+    )
+    const inheritedFreshness = lifecycle.value.freshness?.freshness
+    const label = inheritedFreshness === "STALE"
+      ? "STALE" as const
+      : hasThesis && hasEvidence
+        ? "CURRENT" as const
+        : "PARTIAL" as const
+    setInheritedResearchContext({
+      label,
+      tone: label === "CURRENT" ? "current" : label === "STALE" ? "degraded" : "partial",
+      detail: hasThesis
+        ? "Research-owned thesis and available evidence loaded for display only."
+        : "Research context loaded without a thesis. Replay will not invent one.",
+      context: lifecycle.value,
+    })
+  }, [productContextId])
 
   const priceSeries = useMemo(() => {
     if (chartCandles.length) return priceSeriesFromChartCandles(chartCandles)
@@ -852,6 +1014,137 @@ export default function ReplayV1Page() {
       return { ...event, left, align, showLabel, lane: resolvedLane }
     })
   }, [events])
+  const replayHourLabel = String(Number(hour)).padStart(2, "0")
+  const replayWindowLabel = `${date} ${replayHourLabel}:00-${replayHourLabel}:59 UTC`
+  const thesisTitle = investigationContext.thesis?.title ?? `${symbol} Replay Validation`
+  const thesisQuestion = investigationContext.thesis?.question ?? "No inherited thesis supplied. Replay is using the selected market window only."
+  const selectedCase = investigationContext.selectedHistoricalCase
+  const selectedEvent = investigationContext.selectedEvent
+  const inheritedContext = inheritedResearchContext.context
+  const inheritedThesisTitle = contextString(inheritedContext?.thesis?.value, "title") ?? "UNAVAILABLE"
+  const inheritedSupportingCount = inheritedContext?.supportingEvidence?.value.length
+    ?? contextNumber(inheritedContext?.evidenceSummary?.value, "supportingEvidenceCount")
+  const inheritedConflictingCount = inheritedContext?.conflictingEvidence?.value.length
+    ?? contextNumber(inheritedContext?.evidenceSummary?.value, "contradictingEvidenceCount")
+  const inheritedConfidence = contextDisplayValue(inheritedContext?.confidenceContext?.value) ?? "UNAVAILABLE"
+  const inheritedFreshness = inheritedContext?.freshness?.freshness
+    ?? inheritedContext?.evidenceSummary?.freshness
+    ?? "UNKNOWN"
+  const chartStatus = loading
+    ? { label: "LOADING", tone: "loading" as const, detail: loadingStage ? `Loading ${loadingStage}.` : "Replay request in progress." }
+    : chartCandles.length || priceSeries.length
+      ? { label: "CURRENT", tone: "current" as const, detail: chartSource ?? "Replay price series available." }
+      : hasLoaded
+        ? { label: "UNAVAILABLE", tone: "missing" as const, detail: chartReason ?? datasetReason(replayData, "trades") }
+        : { label: "MISSING", tone: "missing" as const, detail: "Load Replay has not been run for this window." }
+  const positioningStatus = loading
+    ? { label: "LOADING", tone: "loading" as const, detail: "Positioning evidence may load after price." }
+    : hasUsablePositioning(replayData)
+      ? { label: positioningSource === "CryptoHFTData" ? "CURRENT" : "PARTIAL", tone: positioningSource === "CryptoHFTData" ? "current" as const : "partial" as const, detail: positioningSource }
+      : hasLoaded
+        ? { label: "UNAVAILABLE", tone: "missing" as const, detail: positioningUnavailableReason ?? "No OI/Funding data returned." }
+        : { label: "MISSING", tone: "missing" as const, detail: "Positioning evidence has not been requested." }
+  const liquidationStatus = loading
+    ? { label: "LOADING", tone: "loading" as const, detail: "Liquidation evidence may load after price." }
+    : replayData?.liquidations.length
+      ? { label: "CURRENT", tone: "current" as const, detail: `${replayData.liquidations.length} liquidation rows.` }
+      : hasLoaded
+        ? { label: "UNAVAILABLE", tone: "missing" as const, detail: datasetReason(replayData, "liquidations") }
+        : { label: "MISSING", tone: "missing" as const, detail: "Liquidation evidence has not been requested." }
+  const orderbookStatus = orderbookLoading
+    ? { label: "LOADING", tone: "loading" as const, detail: "Orderbook cache request in progress." }
+    : latestBook
+      ? { label: "PARTIAL", tone: "partial" as const, detail: "Cached orderbook snapshot available; full deterministic replay is not claimed." }
+      : orderbookReason
+        ? { label: "DEGRADED", tone: "degraded" as const, detail: orderbookReason }
+        : { label: "MISSING", tone: "missing" as const, detail: "Orderbook is optional and loads manually from replay cache." }
+  const validationStatus = loading
+    ? { label: "LOADING", tone: "loading" as const, detail: "Replay evidence is loading for the selected window." }
+    : !hasLoaded
+      ? { label: "MISSING", tone: "missing" as const, detail: "Select a replay window and load evidence before validation." }
+      : chartCandles.length || priceSeries.length
+        ? { label: "PARTIAL", tone: "partial" as const, detail: "Replay can inspect the selected window; no separate validation score is generated." }
+        : { label: "UNAVAILABLE", tone: "missing" as const, detail: chartReason ?? "Replay price evidence is unavailable." }
+  const tradeHref = `/trade?${new URLSearchParams({ symbol }).toString()}`
+
+  function openTradeWithSharedContext() {
+    const createdAt = new Date()
+    const createdAtIso = createdAt.toISOString()
+    const inheritedThesis = inheritedContext?.thesis
+      ?? (investigationContext.thesis
+        ? {
+            value: {
+              thesisVersion: investigationContext.thesis.thesisVersion,
+              thesisId: investigationContext.thesis.thesisId,
+              title: investigationContext.thesis.title,
+              question: investigationContext.thesis.question,
+              decisionHorizon: investigationContext.thesis.decisionHorizon,
+              status: investigationContext.thesis.status,
+              createdAt: investigationContext.thesis.createdAt,
+              updatedAt: investigationContext.thesis.updatedAt,
+              ...(investigationContext.thesis.hypothesis ? { hypothesis: investigationContext.thesis.hypothesis } : {}),
+              ...(investigationContext.thesis.currentView ? { currentView: investigationContext.thesis.currentView } : {}),
+              ...(investigationContext.thesis.tags?.length ? { tags: investigationContext.thesis.tags } : {}),
+            },
+            owner: "research" as const,
+            source: investigationContext.source ?? "research",
+            observedAt: investigationContext.thesis.updatedAt,
+            freshness: "UNKNOWN" as const,
+            revision: 1,
+          }
+        : undefined)
+    const handoff = createReplayToTradeContext({
+      contextId: replayTradeContextId(createdAt),
+      symbol,
+      exchange,
+      timeframe: investigationContext.timeframe,
+      createdAt: createdAtIso,
+      expiresAt: new Date(createdAt.getTime() + REPLAY_TRADE_CONTEXT_TTL_MS).toISOString(),
+      thesis: inheritedThesis,
+      evidenceSummary: inheritedContext?.evidenceSummary,
+      freshness: inheritedContext?.freshness,
+      validationResult: {
+        value: {
+          status: validationStatus.label,
+          detail: validationStatus.detail,
+          replayWindow: replayWindowLabel,
+          loaded: hasLoaded,
+        },
+        owner: "replay",
+        source: "replay-validation-display",
+        generatedAt: createdAtIso,
+        freshness: replayContextFreshness(validationStatus.label),
+        revision: 1,
+      },
+      replayResult: {
+        value: {
+          availability: hasLoaded ? validationStatus.label : "MISSING",
+          replayWindow: replayWindowLabel,
+          chart: chartStatus.label,
+          positioning: positioningStatus.label,
+          liquidations: liquidationStatus.label,
+          orderbook: orderbookStatus.label,
+          source: replayData?.source ?? "UNAVAILABLE",
+          summary: summaryLines,
+        },
+        owner: "replay",
+        source: replayData?.source ?? "replay",
+        generatedAt: createdAtIso,
+        freshness: replayContextFreshness(hasLoaded ? chartStatus.label : "MISSING"),
+        revision: 1,
+      },
+    })
+
+    if (handoff.success === true) {
+      const persisted = createContext(handoff.value)
+      if (persisted.status === "SUCCESS") {
+        router.push(appendReplayTradeContext(tradeHref, handoff.value.contextId))
+        return
+      }
+    }
+
+    router.push(tradeHref)
+  }
 
   useEffect(() => {
     if (!chartCandles.length) return
@@ -1148,70 +1441,123 @@ export default function ReplayV1Page() {
   }, [])
 
   return (
-    <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
+    <main className="min-h-screen bg-[#070d07] px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1900px] gap-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.2em] text-teal-300">
-              <RadioTower className="h-4 w-4" />
-              Advanced Market Replay
-            </div>
-            {investigationContext.thesis ? (
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
-                Thesis: <span className="text-zinc-300">{investigationContext.thesis.title}</span>
-                <span className="mx-2 text-zinc-700">/</span>
-                Horizon: <span className="text-zinc-300">{investigationContext.thesis.decisionHorizon}</span>
+        <Section title="Replay Summary" icon={<RadioTower className="h-3.5 w-3.5" />} className="border-amber-700/40 bg-[#07120b]">
+          <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(520px,1fr)]">
+            <div className="border border-zinc-900 bg-black px-4 py-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Validating</div>
+              <div className="mt-2 text-2xl font-black uppercase leading-tight tracking-[0.04em] text-zinc-100 md:text-4xl">
+                {thesisTitle}
               </div>
-            ) : null}
-          </div>
-          <div className="border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400">How it works</div>
-        </div>
+              <div className="mt-2 text-[11px] font-black uppercase leading-relaxed tracking-[0.08em] text-zinc-500">
+                {thesisQuestion}
+              </div>
+              <div className="mt-4 grid gap-2 md:grid-cols-4">
+                <SnapshotMetric label="Symbol" value={symbol} tone="cyan" />
+                <SnapshotMetric label="Exchange" value={exchange.replace("_", " ")} />
+                <SnapshotMetric label="Timeframe" value={investigationContext.timeframe} />
+                <SnapshotMetric label="Window" value={`${date} ${replayHourLabel}:00`} tone="amber" />
+              </div>
+            </div>
 
-        <div className="grid gap-2 lg:grid-cols-[210px_190px_220px_220px_220px_180px_1fr]">
-          <label className="border border-zinc-800 bg-zinc-950 p-3">
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Exchange</div>
-            <select value={exchange} onChange={(event) => setExchange(event.target.value)} className="mt-1 w-full bg-transparent text-sm font-black text-white outline-none">
-              <option value="binance_futures">Binance Futures</option>
-              <option value="binance_spot">Binance Spot</option>
-            </select>
-          </label>
-          <label className="border border-zinc-800 bg-zinc-950 p-3">
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Symbol</div>
-            <input value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase())} className="mt-1 w-full bg-transparent text-sm font-black uppercase text-white outline-none" />
-          </label>
-          <label className="border border-zinc-800 bg-zinc-950 p-3">
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Date</div>
-            <input type="date" min="2025-07-01" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full bg-transparent text-sm font-black uppercase text-white outline-none" />
-          </label>
-          <label className="border border-zinc-800 bg-zinc-950 p-3">
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Hour UTC</div>
-            <select value={hour} onChange={(event) => setHour(event.target.value)} className="mt-1 w-full bg-zinc-950 text-sm font-black uppercase text-white outline-none [color-scheme:dark]">
-              {Array.from({ length: 24 }, (_, index) => (
-                <option key={index} value={String(index)} className="bg-zinc-950 text-white">
-                  {String(index).padStart(2, "0")}:00
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="button" onClick={loadReplay} disabled={loading} className="border border-teal-300/40 bg-teal-400/20 px-4 text-[12px] font-black uppercase tracking-[0.16em] text-teal-50 shadow-[0_0_28px_rgba(45,212,191,0.18)] disabled:cursor-wait disabled:opacity-50">
-            {loading ? `Loading ${loadingStage ?? "replay"}` : "Load Replay"}
-          </button>
-          <div className="border border-zinc-800 bg-zinc-950 p-3">
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Replay Duration</div>
-            <div className="mt-1 text-sm font-black text-white">00:00 - 01:00 UTC</div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-500">1 Hour</div>
+            <div className="grid gap-2">
+              <div className="grid gap-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+                <label className="border border-zinc-800 bg-zinc-950 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Exchange</div>
+                  <select value={exchange} onChange={(event) => setExchange(event.target.value)} className="mt-1 w-full bg-transparent text-sm font-black text-white outline-none">
+                    <option value="binance_futures">Binance Futures</option>
+                    <option value="binance_spot">Binance Spot</option>
+                  </select>
+                </label>
+                <label className="border border-zinc-800 bg-zinc-950 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Symbol</div>
+                  <input value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase())} className="mt-1 w-full bg-transparent text-sm font-black uppercase text-white outline-none" />
+                </label>
+                <label className="border border-zinc-800 bg-zinc-950 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Date</div>
+                  <input type="date" min="2025-07-01" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full bg-transparent text-sm font-black uppercase text-white outline-none" />
+                </label>
+                <label className="border border-zinc-800 bg-zinc-950 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Hour UTC</div>
+                  <select value={hour} onChange={(event) => setHour(event.target.value)} className="mt-1 w-full bg-zinc-950 text-sm font-black uppercase text-white outline-none [color-scheme:dark]">
+                    {Array.from({ length: 24 }, (_, index) => (
+                      <option key={index} value={String(index)} className="bg-zinc-950 text-white">
+                        {String(index).padStart(2, "0")}:00
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" onClick={loadReplay} disabled={loading} className="border border-cyan-300/40 bg-cyan-400/20 px-4 text-[12px] font-black uppercase tracking-[0.16em] text-cyan-50 shadow-[0_0_28px_rgba(56,189,248,0.14)] disabled:cursor-wait disabled:opacity-50">
+                  {loading ? `Loading ${loadingStage ?? "replay"}` : "Load Replay"}
+                </button>
+              </div>
+              <div className="grid gap-2 md:grid-cols-3">
+                <SnapshotMetric label="Replay Duration" value="1 Hour" />
+                <SnapshotMetric label="Data Source" value="Chart + Microstructure" />
+                <SnapshotMetric label="Source Mode" value="Manual Load" tone="cyan" />
+              </div>
+              {!hasLoaded && !loading ? (
+                <EmptyState title="Replay Ready" reason="Select a market window and click Load Replay." />
+              ) : null}
+              {hasLoaded && error ? <EmptyState title="Replay Provider Error" reason={error} /> : null}
+            </div>
           </div>
-          <div className="border border-zinc-800 bg-zinc-950 p-3">
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Data Source</div>
-            <div className="mt-1 text-sm font-black text-white">Binance Klines + CryptoHFTData</div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-500">Chart + Microstructure</div>
+          <div className="border-t border-zinc-900 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Inherited Research Context</div>
+              <StatusBadge label={inheritedResearchContext.label} tone={inheritedResearchContext.tone} />
+            </div>
+            <div className="mt-2 grid gap-2 md:grid-cols-5">
+              <SnapshotMetric label="Thesis" value={inheritedThesisTitle} />
+              <SnapshotMetric label="Supporting" value={inheritedSupportingCount === null || inheritedSupportingCount === undefined ? "UNAVAILABLE" : String(inheritedSupportingCount)} tone="cyan" />
+              <SnapshotMetric label="Conflicting" value={inheritedConflictingCount === null || inheritedConflictingCount === undefined ? "UNAVAILABLE" : String(inheritedConflictingCount)} />
+              <SnapshotMetric label="Confidence" value={inheritedConfidence} />
+              <SnapshotMetric label="Freshness" value={inheritedFreshness} tone={inheritedFreshness === "CURRENT" ? "green" : "amber"} />
+            </div>
+            <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">
+              {inheritedResearchContext.detail}
+            </div>
           </div>
-        </div>
-        {!hasLoaded && !loading ? (
-          <EmptyState title="Replay Ready" reason="Select a market window and click Load Replay." />
-        ) : null}
-        {hasLoaded && error ? <EmptyState title="Replay Provider Error" reason={error} /> : null}
+        </Section>
 
+        <Section title="Validation Status" icon={<Activity className="h-3.5 w-3.5" />} className="border-zinc-800 bg-[#0c140c]">
+          <div className="grid gap-2 p-3 lg:grid-cols-[280px_1fr]">
+            <div className="border border-zinc-900 bg-black px-4 py-3">
+              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Validation Readiness</div>
+              <div className="mt-3">
+                <StatusBadge label={validationStatus.label} tone={validationStatus.tone} />
+              </div>
+              <div className="mt-3 text-[11px] font-black uppercase leading-relaxed tracking-[0.08em] text-zinc-400">
+                {validationStatus.detail}
+              </div>
+            </div>
+            <div className="grid gap-2 xl:grid-cols-2">
+              <EvidenceRow label="Price Evidence" status={chartStatus.label} tone={chartStatus.tone} detail={chartStatus.detail} />
+              <EvidenceRow label="OI / Funding" status={positioningStatus.label} tone={positioningStatus.tone} detail={positioningStatus.detail} />
+              <EvidenceRow label="Liquidations" status={liquidationStatus.label} tone={liquidationStatus.tone} detail={liquidationStatus.detail} />
+              <EvidenceRow label="Orderbook" status={orderbookStatus.label} tone={orderbookStatus.tone} detail={orderbookStatus.detail} />
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Comparable Historical Cases" icon={<BarChart3 className="h-3.5 w-3.5" />} className="border-zinc-900 bg-[#111911]">
+          <div className="grid gap-2 p-3 md:grid-cols-3">
+            <SnapshotMetric label="Selected Case" value={selectedCase?.id ?? "UNAVAILABLE"} tone={selectedCase ? "cyan" : "amber"} />
+            <SnapshotMetric label="Case Timestamp" value={selectedCase ? timeOnly(selectedCase.timestamp) : "NO DATA"} />
+            <SnapshotMetric label="Replay Window" value={replayWindowLabel} tone="amber" />
+            <div className="md:col-span-3">
+              {selectedCase ? (
+                <EvidenceRow label="Historical Case Source" status="PARTIAL" tone="partial" detail={selectedCase.source ?? "Selected case context inherited from investigation URL."} />
+              ) : (
+                <EmptyState title="Comparable Cases Unavailable" reason="No selected historical case was provided. Replay will validate only the selected market window." />
+              )}
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Outcome Analysis" icon={<LineChart className="h-3.5 w-3.5" />} className="border-zinc-800 bg-[#0c140c]">
+          <div className="grid gap-3 p-3">
         <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(360px,3fr)]">
           <Section title="Price Replay Chart" icon={<LineChart className="h-3.5 w-3.5" />} className="min-h-[520px]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-900 px-3 py-2">
@@ -1426,6 +1772,64 @@ export default function ReplayV1Page() {
             </div>
           </Section>
         </div>
+          </div>
+        </Section>
+
+        <Section title="Failure Patterns" icon={<Zap className="h-3.5 w-3.5" />} className="border-zinc-900 bg-[#111911]">
+          <div className="grid gap-2 p-3 md:grid-cols-3">
+            <SnapshotMetric label="Adverse Cases" value="NO DATA" tone="amber" />
+            <SnapshotMetric label="Failure Source" value={selectedCase ? "CASE CONTEXT ONLY" : "UNAVAILABLE"} />
+            <SnapshotMetric label="Action" value="REVIEW EVIDENCE" tone="cyan" />
+            <div className="md:col-span-3">
+              <EmptyState title="Failure Pattern Evidence Unavailable" reason="Current Replay data shows the selected window only. No comparable failure-pattern dataset is loaded in this page." />
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Evidence Quality" icon={<Activity className="h-3.5 w-3.5" />} className="border-zinc-900 bg-[#0a0f0a]">
+          <div className="grid gap-2 p-3">
+            <EvidenceRow label="Chart / Price" status={chartStatus.label} tone={chartStatus.tone} detail={chartStatus.detail} />
+            <EvidenceRow label="Open Interest" status={positioningStatus.label} tone={positioningStatus.tone} detail={oiRows.length ? `${oiRows.length} OI rows. Source: ${positioningSource}.` : positioningStatus.detail} />
+            <EvidenceRow label="Funding" status={positioningStatus.label} tone={positioningStatus.tone} detail={fundingRows.length ? `${fundingRows.length} funding rows. Source: ${positioningSource}.` : positioningStatus.detail} />
+            <EvidenceRow label="Liquidations" status={liquidationStatus.label} tone={liquidationStatus.tone} detail={liquidationStatus.detail} />
+            <EvidenceRow label="Trades" status={replayData?.trades.length ? "PARTIAL" : hasLoaded ? "UNAVAILABLE" : "MISSING"} tone={replayData?.trades.length ? "partial" : "missing"} detail={replayData?.trades.length ? `${replayData.trades.length} trade rows loaded.` : hasLoaded ? datasetReason(replayData, "trades") : "Trades load manually from the Event Timeline section."} />
+            <EvidenceRow label="Orderbook" status={orderbookStatus.label} tone={orderbookStatus.tone} detail={orderbookStatus.detail} />
+          </div>
+        </Section>
+
+        <Section title="Replay Metadata" icon={<RadioTower className="h-3.5 w-3.5" />} className="border-zinc-900 bg-[#0a0f0a]">
+          <div className="grid gap-2 p-3 md:grid-cols-4">
+            <SnapshotMetric label="Replay Window" value={replayWindowLabel} tone="amber" />
+            <SnapshotMetric label="Investigation Source" value={investigationContext.source ?? "replay"} />
+            <SnapshotMetric label="Investigation Type" value={investigationContext.investigationType ?? "replay"} />
+            <SnapshotMetric label="Event Context" value={selectedEvent?.id ?? "NO DATA"} />
+            <SnapshotMetric label="Cache Status" value={replayData?.diagnostics?.cache?.status ?? "NO DATA"} />
+            <SnapshotMetric label="Cache Schema" value={replayData?.diagnostics?.cache?.schemaVersion ?? "NO DATA"} />
+            <SnapshotMetric label="Downloaded Sets" value={String(replayData?.diagnostics?.downloaded?.length ?? 0)} />
+            <SnapshotMetric label="Unavailable Sets" value={String(replayData?.diagnostics?.unavailable?.length ?? 0)} />
+          </div>
+        </Section>
+
+        <Section title="Navigation Actions" icon={<Activity className="h-3.5 w-3.5" />} className="border-zinc-900 bg-[#111911]">
+          <div className="grid gap-2 p-3 md:grid-cols-4">
+            <a href="/research" className="border border-zinc-800 bg-black px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200 hover:border-cyan-300/40">
+              Research
+              <div className="mt-1 text-[9px] text-zinc-600">Need evidence context</div>
+            </a>
+            <button type="button" onClick={openTradeWithSharedContext} className="border border-zinc-800 bg-black px-3 py-3 text-left text-[10px] font-black uppercase tracking-[0.12em] text-amber-200 hover:border-amber-300/40">
+              Trade
+              <div className="mt-1 text-[9px] text-zinc-600">Prepare planning only</div>
+            </button>
+            <a href="/markets" className="border border-zinc-800 bg-black px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300 hover:border-cyan-300/40">
+              Markets
+              <div className="mt-1 text-[9px] text-zinc-600">Inspect live context</div>
+            </a>
+            <a href="/scanner" className="border border-zinc-800 bg-black px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300 hover:border-cyan-300/40">
+              Scanner
+              <div className="mt-1 text-[9px] text-zinc-600">Find new signals</div>
+            </a>
+          </div>
+        </Section>
       </div>
     </main>
   )

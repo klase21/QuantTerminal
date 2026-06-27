@@ -13,6 +13,12 @@ import { useActiveSetupMemory, type ActiveSetupMemoryItem } from "@/hooks/market
 import { useMarketMovers } from "@/hooks/market-movers/useMarketMovers"
 import { useMarketStore } from "@/stores/useMarketStore"
 import type { MarketMoverCandidate } from "@/lib/market-movers/types"
+import {
+  inspectContextCandidate,
+  loadProductContext,
+  type JsonObject,
+  type SharedProductContextV1,
+} from "@/lib/product-context"
 
 const STORAGE_KEY = "qt.trade.setupMemory.v2"
 const CANDIDATE_RETENTION_MS = 5 * 60 * 1000
@@ -58,8 +64,8 @@ function cn(...classes: Array<string | false | null | undefined>) {
 
 function Card({ title, icon, children, className }: { title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("rounded-lg border border-zinc-900 bg-zinc-950/80 p-3", className)}>
-      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+    <section className={cn("rounded border border-[#1c2c1c] bg-[#0c140c] p-3", className)}>
+      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#38bdf8]">
         {icon}
         {title}
       </div>
@@ -70,27 +76,80 @@ function Card({ title, icon, children, className }: { title: string; icon?: Reac
 
 function EmptyState({ title, reason }: { title: string; reason: string }) {
   return (
-    <div className="rounded-lg border border-zinc-900 bg-black/45 p-5 text-center">
-      <div className="text-sm font-black uppercase tracking-[0.16em] text-zinc-400">{title}</div>
-      <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">Reason: {reason}</div>
+    <div className="rounded border border-[#142014] bg-[#0a0f0a] p-5 text-center">
+      <div className="text-sm font-black uppercase tracking-[0.16em] text-[#a0b0a0]">{title}</div>
+      <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#6b7d6b]">Reason: {reason}</div>
     </div>
   )
 }
 
+type InheritedReplayContextState = {
+  label: "LOADING" | "CURRENT" | "PARTIAL" | "DEGRADED" | "MISSING" | "UNAVAILABLE"
+  tone: "current" | "partial" | "missing" | "unavailable" | "loading"
+  detail: string
+  context: SharedProductContextV1 | null
+}
+
 function MiniMetric({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "green" | "red" | "cyan" | "amber" }) {
   return (
-    <div className="rounded border border-zinc-900 bg-black/45 px-2 py-1.5">
-      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</div>
+    <div className="rounded border border-[#142014] bg-[#0a0f0a] px-2 py-1.5">
+      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">{label}</div>
       <div className={cn(
-        "mt-0.5 text-sm font-black uppercase leading-tight text-white",
+        "mt-0.5 text-sm font-black uppercase leading-tight text-[#d4dbd4]",
         tone === "green" && "text-emerald-100",
         tone === "red" && "text-rose-100",
         tone === "cyan" && "text-cyan-100",
         tone === "amber" && "text-amber-100",
       )}>{value}</div>
-      {sub && <div className="mt-0.5 truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-600">{sub}</div>}
+      {sub && <div className="mt-0.5 truncate text-[8px] font-black uppercase tracking-[0.1em] text-[#3d503d]">{sub}</div>}
     </div>
   )
+}
+
+function StatusBadge({ label, tone }: { label: string; tone: "current" | "partial" | "missing" | "unavailable" | "loading" }) {
+  return (
+    <span className={cn(
+      "inline-flex rounded border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em]",
+      tone === "current" && "border-emerald-300/30 bg-emerald-400/10 text-emerald-100",
+      tone === "partial" && "border-amber-300/30 bg-amber-400/10 text-amber-100",
+      tone === "missing" && "border-zinc-700 bg-zinc-900/70 text-zinc-400",
+      tone === "unavailable" && "border-zinc-700 bg-black/40 text-zinc-400",
+      tone === "loading" && "border-cyan-300/30 bg-cyan-400/10 text-cyan-100",
+    )}>
+      {label}
+    </span>
+  )
+}
+
+function contextString(value: JsonObject | undefined, field: string) {
+  const candidate = value?.[field]
+  return typeof candidate === "string" ? candidate : null
+}
+
+function inheritedStatusTone(label: string): InheritedReplayContextState["tone"] {
+  if (label === "CURRENT" || label === "VERIFIED") return "current"
+  if (label === "PARTIAL" || label === "STALE" || label === "DEGRADED") return "partial"
+  if (label === "MISSING") return "missing"
+  if (label === "LOADING") return "loading"
+  return "unavailable"
+}
+
+function inheritedReplayContextStatus(
+  validationAvailability: string | null,
+  replayAvailability: string | null,
+  isComplete: boolean,
+): Pick<InheritedReplayContextState, "label" | "tone"> {
+  if (!isComplete) return { label: "PARTIAL", tone: "partial" }
+
+  const states = [validationAvailability, replayAvailability].map((value) => value?.toUpperCase() ?? "UNAVAILABLE")
+  if (states.some((value) => value === "LOADING")) return { label: "LOADING", tone: "loading" }
+  if (states.some((value) => value === "MISSING" || value === "UNAVAILABLE")) {
+    return { label: "UNAVAILABLE", tone: "unavailable" }
+  }
+  if (states.some((value) => value === "PARTIAL" || value === "DEGRADED" || value === "STALE" || value === "UNKNOWN")) {
+    return { label: "PARTIAL", tone: "partial" }
+  }
+  return { label: "CURRENT", tone: "current" }
 }
 
 function fmt(value: number | null | undefined, digits = 2) {
@@ -346,14 +405,81 @@ function selectedCandidateFrom(input: {
 export default function TradePage() {
   const searchParams = useSearchParams()
   const requestedSymbol = searchParams.get("symbol")?.toUpperCase() ?? null
+  const productContextId = searchParams.get("contextId")?.trim() || null
   const [futures, setFutures] = useState<FuturesResponse | null>(null)
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(requestedSymbol)
   const [savedSetups, setSavedSetups] = useState<SavedSetup[]>([])
   const [retainedCandidateRecords, setRetainedCandidateRecords] = useState<RetainedTradeCandidateRecord[]>([])
   const [stableFocusCandidate, setStableFocusCandidate] = useState<MarketMoverCandidate | null>(null)
+  const [inheritedReplayContext, setInheritedReplayContext] = useState<InheritedReplayContextState>({
+    label: productContextId ? "LOADING" : "MISSING",
+    tone: productContextId ? "loading" : "missing",
+    detail: productContextId
+      ? "Loading inherited Replay context."
+      : "No shared contextId supplied. Direct Trade remains available.",
+    context: null,
+  })
   const lastRequestedSymbolRef = useRef(requestedSymbol)
   const moverState = useMarketMovers(true, selectedSymbol)
   const marketMovers = moverState.data
+
+  useEffect(() => {
+    if (!productContextId) {
+      setInheritedReplayContext({
+        label: "MISSING",
+        tone: "missing",
+        detail: "No shared contextId supplied. Direct Trade remains available.",
+        context: null,
+      })
+      return
+    }
+
+    setInheritedReplayContext({
+      label: "LOADING",
+      tone: "loading",
+      detail: "Loading inherited Replay context.",
+      context: null,
+    })
+    const loaded = loadProductContext(productContextId)
+    if (loaded.success === false) {
+      setInheritedReplayContext({
+        label: "UNAVAILABLE",
+        tone: "unavailable",
+        detail: loaded.error.message,
+        context: null,
+      })
+      return
+    }
+    const lifecycle = inspectContextCandidate(loaded.value)
+    if (lifecycle.status !== "SUCCESS" || !lifecycle.value) {
+      setInheritedReplayContext({
+        label: "UNAVAILABLE",
+        tone: "unavailable",
+        detail: lifecycle.issues[0]?.message ?? "Shared Replay context is not active.",
+        context: null,
+      })
+      return
+    }
+    if (lifecycle.value.sourcePage !== "replay" || lifecycle.value.destinationIntent !== "prepare_execution") {
+      setInheritedReplayContext({
+        label: "DEGRADED",
+        tone: "partial",
+        detail: "Shared context does not describe a Replay to Trade handoff.",
+        context: null,
+      })
+      return
+    }
+
+    const validationAvailability = contextString(lifecycle.value.validationResult?.value, "status")
+    const replayAvailability = contextString(lifecycle.value.replayResult?.value, "availability")
+    const isComplete = Boolean(lifecycle.value.validationResult && lifecycle.value.replayResult)
+    const inheritedStatus = inheritedReplayContextStatus(validationAvailability, replayAvailability, isComplete)
+    setInheritedReplayContext({
+      ...inheritedStatus,
+      detail: `Replay validation ${validationAvailability ?? "UNAVAILABLE"}; replay result ${replayAvailability ?? "UNAVAILABLE"}. Display only.`,
+      context: lifecycle.value,
+    })
+  }, [productContextId])
 
   const tickers = useMarketStore((state) => state.tickers)
   const orderbook = useMarketStore((state) => state.orderbook)
@@ -511,6 +637,13 @@ export default function TradePage() {
   const averageOutcome = memoryCompleted.length
     ? memoryCompleted.reduce((sum, setup) => sum + setup.bestMovePct, 0) / memoryCompleted.length
     : null
+  const inheritedContext = inheritedReplayContext.context
+  const inheritedValidationLabel = contextString(inheritedContext?.validationResult?.value, "status") ?? "UNAVAILABLE"
+  const inheritedValidationDetail = contextString(inheritedContext?.validationResult?.value, "detail") ?? "No inherited validation result"
+  const inheritedReplayAvailability = contextString(inheritedContext?.replayResult?.value, "availability") ?? "UNAVAILABLE"
+  const inheritedThesis = contextString(inheritedContext?.thesis?.value, "title") ?? "UNAVAILABLE"
+  const inheritedEvidence = inheritedContext?.evidenceSummary ? "AVAILABLE" : "UNAVAILABLE"
+  const inheritedValidationTone = inheritedStatusTone(inheritedValidationLabel)
 
   const persistSetups = (setups: SavedSetup[]) => {
     setSavedSetups(setups)
@@ -552,195 +685,301 @@ export default function TradePage() {
     : "/markets"
 
   return (
-    <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
+    <main className="min-h-screen bg-[#070d07] px-3 py-3 text-[#d4dbd4] lg:px-4">
       <div className="mx-auto grid max-w-[1800px] gap-3">
-        <Card title="Active Trade Candidates" icon={<Zap className="h-3.5 w-3.5" />}>
-          {candidateListState === "loading" && liveTrackedSetups.length === 0 ? (
-            <EmptyState
-              title="Loading Trade Candidates"
-              reason="Keeping the workspace stable while tactical alerts refresh."
-            />
-          ) : candidateListState === "empty" && liveTrackedSetups.length === 0 ? (
-            <EmptyState
-              title="No Active Trade Candidates"
-              reason={marketMovers?.notes?.[0] ?? moverState.error ?? "No tactical alerts currently meet quality threshold."}
-            />
+        <Card title="Trade Summary" icon={<RadioTower className="h-3.5 w-3.5" />} className="border-[#3a4d2c] bg-[#07120b]">
+          {!selected ? (
+            <EmptyState title="No Selected Candidate" reason="No focused trade candidate is available." />
           ) : (
-            <div className="grid gap-2">
-              {candidates.length > 0 && (
-                <div>
-                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Current Candidates</div>
-                  <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5 2xl:grid-cols-6">
-                    {candidates.map((candidate) => (
-                      <button
-                        key={`${candidate.symbol}-${candidate.setup}-${candidate.score}`}
-                        type="button"
-                        onClick={() => setSelectedSymbol(candidate.symbol)}
-                        className={cn(
-                          "rounded-lg border bg-black/45 p-2 text-left transition hover:border-cyan-300/45",
-                          selected?.symbol === candidate.symbol ? "border-cyan-300/55 bg-cyan-400/10" : "border-zinc-900",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-1.5">
-                          <div>
-                            <div className="text-base font-black leading-none text-white">{candidate.symbol}</div>
-                            <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(candidate)}</div>
-                          </div>
-                          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-300">{directionLabel(candidate)}</span>
-                        </div>
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {qualityFields(candidate).slice(0, 4).map((field) => (
-                            <span key={`${candidate.symbol}-${field}`} className="rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400">{field}</span>
-                          ))}
-                        </div>
-                        <div className="mt-1.5 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.1em]">
-                          <span className="text-emerald-100">{confidenceLabel(candidate)}</span>
-                          <span className="text-zinc-500">{timeAgo(marketMovers?.updatedAt)}</span>
-                        </div>
-                        <div className="mt-1 truncate text-[9px] font-black uppercase tracking-[0.1em] text-zinc-400">{reasonFromCandidate(candidate)}</div>
-                      </button>
-                    ))}
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+              <div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Selected Execution Candidate</div>
+                    <div className="mt-2 text-3xl font-black uppercase leading-none text-[#d4dbd4] sm:text-4xl">{selected.symbol}</div>
+                    <div className="mt-2 text-sm font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(selected)}</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded border border-[#1c2c1c] bg-[#0a0f0a] px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#a0b0a0]">{directionLabel(selected)}</span>
+                    <Link href={marketHref} className="rounded border border-cyan-300/30 bg-cyan-400/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60">
+                      Inspect Market
+                    </Link>
                   </div>
                 </div>
-              )}
+                <div className="mt-3 flex flex-wrap gap-1.5 text-[9px] font-black uppercase tracking-[0.1em]">
+                  <span className="rounded border border-emerald-300/25 bg-emerald-400/10 px-2 py-1 text-emerald-100">{confidenceLabel(selected)}</span>
+                  <span className="rounded border border-amber-300/25 bg-amber-400/10 px-2 py-1 text-amber-100">{statusLabel(selected)}</span>
+                  {lifecycleLabel(selected) && (
+                    <span className={cn("rounded border px-2 py-1", lifecycleTone(lifecycleLabel(selected)))}>{lifecycleLabel(selected)}</span>
+                  )}
+                  {qualityFields(selected).map((field) => (
+                    <span key={`${selected.symbol}-${field}`} className="rounded border border-[#1c2c1c] bg-[#0a0f0a] px-2 py-1 text-[#6b7d6b]">{field}</span>
+                  ))}
+                </div>
+                <div className="mt-3 text-[10px] font-bold uppercase leading-5 tracking-[0.08em] text-[#a0b0a0]">{reasonFromCandidate(selected)}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <MiniMetric label="Current Price" value={ticker ? fmt(ticker.price, 2) : "NO DATA"} sub={ticker ? "Binance realtime" : "Ticker stream waiting"} tone="cyan" />
+                <MiniMetric label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
+                <MiniMetric label="Candidate Source" value="Market Movers" sub={timeAgo(marketMovers?.updatedAt)} tone="amber" />
+                <MiniMetric label="Context" value={requestedSymbol ? "Inherited Symbol" : "Local Selection"} sub={inheritedReplayContext.context ? "Replay context display available" : "Validation context unavailable"} />
+              </div>
+            </div>
+          )}
 
-              {liveTrackedSetups.length > 0 && (
-                <div>
-                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Tracked Setups</div>
-                  <div className="grid gap-1.5 md:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-8">
-                    {liveTrackedSetups.slice(0, 12).map((candidate) => (
-                      <button
-                        key={`${candidate.symbol}-${candidate.firstSeenAt}`}
-                        type="button"
-                        onClick={() => setSelectedSymbol(candidate.symbol)}
-                        className={cn(
-                          "rounded-lg border bg-black/35 p-2.5 text-left transition hover:border-cyan-300/45",
-                          selected?.symbol === candidate.symbol ? "border-cyan-300/55 bg-cyan-400/10" : "border-zinc-900",
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs font-black text-white">{candidate.symbol}</div>
-                          <span className={cn("rounded border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em]", lifecycleTone(candidate.lifecycle))}>{candidate.lifecycle}</span>
-                        </div>
-                        <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(candidate)}</div>
-                        <div className="mt-1 flex justify-between gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
-                          <span>{confidenceLabel(candidate)}</span>
-                          <span>Best {pct(candidate.bestMovePct)}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+          <details className="mt-3 rounded border border-[#142014] bg-[#0a0f0a]">
+            <summary className="cursor-pointer px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#6b7d6b]">
+              Available Candidate Context ({candidates.length + liveTrackedSetups.length})
+            </summary>
+            <div className="border-t border-[#142014] p-2">
+              {candidateListState === "loading" && liveTrackedSetups.length === 0 ? (
+                <EmptyState title="Loading Trade Candidates" reason="Keeping the workspace stable while tactical alerts refresh." />
+              ) : candidateListState === "empty" && liveTrackedSetups.length === 0 ? (
+                <EmptyState title="No Available Candidates" reason={marketMovers?.notes?.[0] ?? moverState.error ?? "No tactical alerts currently meet quality threshold."} />
+              ) : (
+                <div className="grid gap-2">
+                  {candidates.length > 0 && (
+                    <div>
+                      <div className="mb-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-[#3d503d]">Current Candidates</div>
+                      <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5 2xl:grid-cols-6">
+                        {candidates.map((candidate) => (
+                          <button
+                            key={`${candidate.symbol}-${candidate.setup}-${candidate.score}`}
+                            type="button"
+                            onClick={() => setSelectedSymbol(candidate.symbol)}
+                            className={cn(
+                              "rounded border bg-[#07120b] p-2 text-left transition hover:border-cyan-300/45",
+                              selected?.symbol === candidate.symbol ? "border-cyan-300/55 bg-cyan-400/10" : "border-[#1c2c1c]",
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-1.5">
+                              <div>
+                                <div className="text-base font-black leading-none text-[#d4dbd4]">{candidate.symbol}</div>
+                                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(candidate)}</div>
+                              </div>
+                              <span className="rounded border border-[#1c2c1c] bg-[#0a0f0a] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-[#a0b0a0]">{directionLabel(candidate)}</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.1em]">
+                              <span className="text-emerald-100">{confidenceLabel(candidate)}</span>
+                              <span className="text-[#6b7d6b]">{timeAgo(marketMovers?.updatedAt)}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {liveTrackedSetups.length > 0 && (
+                    <div>
+                      <div className="mb-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-[#3d503d]">Tracked Setups</div>
+                      <div className="grid gap-1.5 md:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-8">
+                        {liveTrackedSetups.slice(0, 12).map((candidate) => (
+                          <button
+                            key={`${candidate.symbol}-${candidate.firstSeenAt}`}
+                            type="button"
+                            onClick={() => setSelectedSymbol(candidate.symbol)}
+                            className={cn(
+                              "rounded border bg-[#07120b] p-2 text-left transition hover:border-cyan-300/45",
+                              selected?.symbol === candidate.symbol ? "border-cyan-300/55 bg-cyan-400/10" : "border-[#1c2c1c]",
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-xs font-black text-[#d4dbd4]">{candidate.symbol}</div>
+                              <span className={cn("rounded border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em]", lifecycleTone(candidate.lifecycle))}>{candidate.lifecycle}</span>
+                            </div>
+                            <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(candidate)}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+            </div>
+          </details>
+        </Card>
+
+        <Card title="Execution Readiness" icon={<Activity className="h-3.5 w-3.5" />} className="border-amber-500/20 bg-[#0c140c]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
+            <div className="rounded border border-amber-300/20 bg-amber-400/5 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs font-black uppercase tracking-[0.1em] text-[#d4dbd4]">Planning State</div>
+                {!selected ? <StatusBadge label="MISSING" tone="missing" /> : plan ? <StatusBadge label="PARTIAL" tone="partial" /> : <StatusBadge label="UNAVAILABLE" tone="unavailable" />}
+              </div>
+              <div className="mt-2 text-[10px] font-bold uppercase leading-5 tracking-[0.08em] text-[#a0b0a0]">
+                {!selected
+                  ? "A selected candidate is required before execution planning can begin."
+                  : !plan
+                    ? "Entry and invalidation levels are unavailable for the selected candidate."
+                    : inheritedReplayContext.context
+                      ? "Execution levels are available from the current candidate source. Inherited Replay context is display-only; user risk inputs remain unavailable."
+                      : "Execution levels are available from the current candidate source. Replay validation and user risk inputs are not provided by this Trade data flow."}
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded border border-[#142014] bg-[#0a0f0a] p-2">
+                <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#6b7d6b]">Candidate</span>{selected ? <StatusBadge label="CURRENT" tone="current" /> : <StatusBadge label="MISSING" tone="missing" />}</div>
+                <div className="mt-2 text-[10px] font-bold uppercase text-[#a0b0a0]">{selected?.symbol ?? "No candidate selected"}</div>
+              </div>
+              <div className="rounded border border-[#142014] bg-[#0a0f0a] p-2">
+                <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#6b7d6b]">Execution Levels</span>{plan ? <StatusBadge label="CURRENT" tone="current" /> : <StatusBadge label="MISSING" tone="missing" />}</div>
+                <div className="mt-2 text-[10px] font-bold uppercase text-[#a0b0a0]">{plan ? "Entry, stop, and targets available" : "Numeric plan unavailable"}</div>
+              </div>
+              <div className="rounded border border-[#142014] bg-[#0a0f0a] p-2">
+                <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#6b7d6b]">Replay Validation</span><StatusBadge label={inheritedValidationLabel} tone={inheritedValidationTone} /></div>
+                <div className="mt-2 text-[10px] font-bold uppercase text-[#a0b0a0]">{inheritedValidationDetail}</div>
+              </div>
+              <div className="rounded border border-[#142014] bg-[#0a0f0a] p-2">
+                <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#6b7d6b]">User Risk Inputs</span><StatusBadge label="UNAVAILABLE" tone="unavailable" /></div>
+                <div className="mt-2 text-[10px] font-bold uppercase text-[#a0b0a0]">Account and risk limits not supplied</div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 rounded border border-[#142014] bg-[#0a0f0a] p-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[#6b7d6b]">Inherited Replay Context</div>
+              <StatusBadge label={inheritedReplayContext.label} tone={inheritedReplayContext.tone} />
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <MiniMetric label="Validation" value={inheritedValidationLabel} />
+              <MiniMetric label="Replay Result" value={inheritedReplayAvailability} />
+              <MiniMetric label="Thesis" value={inheritedThesis} />
+              <MiniMetric label="Evidence" value={inheritedEvidence} />
+            </div>
+            <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#3d503d]">{inheritedReplayContext.detail}</div>
+          </div>
+        </Card>
+
+        <Card title="Execution Setup" icon={<Zap className="h-3.5 w-3.5" />} className="bg-[#0c140c]">
+          {!selected ? (
+            <EmptyState title="No Execution Setup" reason="Select an available candidate first." />
+          ) : (
+            <div className="grid gap-3">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <MiniMetric label="Setup" value={setupLabel(selected)} tone="cyan" />
+                <MiniMetric label="Direction" value={directionLabel(selected)} tone="amber" />
+                <MiniMetric label="Action" value={statusLabel(selected)} tone="amber" />
+                <MiniMetric label="Plan Quality" value={titleCase(selected.planQuality)} />
+              </div>
+              <div className="grid gap-2 lg:grid-cols-2">
+                <div className="rounded border border-[#1c2c1c] bg-[#0a0f0a] p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-300">Trigger</div>
+                  <div className="mt-2 text-xs font-bold uppercase leading-5 text-[#d4dbd4]">{selected.trigger || "NO DATA"}</div>
+                </div>
+                <div className="rounded border border-[#1c2c1c] bg-[#0a0f0a] p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-amber-300">Invalidation Context</div>
+                  <div className="mt-2 text-xs font-bold uppercase leading-5 text-[#d4dbd4]">{selected.invalidation || "NO DATA"}</div>
+                </div>
+              </div>
+              <details className="rounded border border-[#142014] bg-[#0a0f0a]">
+                <summary className="cursor-pointer px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">Existing Tactical Context</summary>
+                <div className="grid gap-2 border-t border-[#142014] p-2 md:grid-cols-2 2xl:grid-cols-3">
+                  {(evidence.length ? evidence : [{ title: "NO DATA", detail: "No tactical context available." }]).map((item) => (
+                    <div key={`${item.title}-${item.detail}`} className="min-h-[72px] rounded border border-[#142014] bg-[#07120b] p-2">
+                      <div className="line-clamp-2 text-xs font-black uppercase text-[#d4dbd4]">{item.title}</div>
+                      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">{item.detail}</div>
+                    </div>
+                  ))}
+                </div>
+              </details>
             </div>
           )}
         </Card>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <Card title="Selected Execution Plan" icon={<RadioTower className="h-3.5 w-3.5" />}>
-            {!selected ? (
-              <EmptyState title="No Focused Setup" reason="No focused candidate available." />
+        <div className="grid gap-3 xl:grid-cols-2">
+          <Card title="Entry Plan" icon={<RadioTower className="h-3.5 w-3.5" />} className="bg-[#0c140c]">
+            {!selected || !plan ? (
+              <EmptyState title="Entry Plan Unavailable" reason="Existing candidate entry levels are unavailable." />
             ) : (
-              <div className="grid gap-2 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                <div className="rounded border border-cyan-300/20 bg-cyan-400/10 p-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-2xl font-black leading-none text-white">{selected.symbol}</div>
-                      <div className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-cyan-100">{setupLabel(selected)}</div>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-200">{directionLabel(selected)}</span>
-                      <Link href={marketHref} className="rounded border border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:border-cyan-200/60">
-                        Inspect Market
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1 text-[9px] font-black uppercase tracking-[0.1em]">
-                    <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-emerald-100">{confidenceLabel(selected)}</span>
-                    <span className="rounded border border-zinc-800 bg-black px-2 py-1 text-amber-100">{statusLabel(selected)}</span>
-                    {lifecycleLabel(selected) && (
-                      <span className={cn("rounded border px-2 py-1", lifecycleTone(lifecycleLabel(selected)))}>{lifecycleLabel(selected)}</span>
-                    )}
-                    {qualityFields(selected).map((field) => (
-                      <span key={`${selected.symbol}-${field}`} className="rounded border border-zinc-800 bg-black px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-400">{field}</span>
-                    ))}
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-1.5">
-                    <MiniMetric label="Current Price" value={ticker ? fmt(ticker.price, 2) : "NO DATA"} sub={ticker ? "Binance realtime" : "Ticker stream waiting"} tone="cyan" />
-                    <MiniMetric label="24h Change" value={pct(ticker?.change24h)} sub={ticker ? "Ticker stream" : "No ticker data"} tone={(ticker?.change24h ?? 0) >= 0 ? "green" : "red"} />
-                  </div>
+              <div className="grid gap-2">
+                <MiniMetric label="Entry Area" value={plan.entryArea} tone="cyan" />
+                <MiniMetric label="Entry Action" value={plan.action} tone="amber" />
+                <div className="rounded border border-[#142014] bg-[#0a0f0a] p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">Existing Entry Context</div>
+                  <div className="mt-2 text-xs font-bold uppercase leading-5 text-[#a0b0a0]">{selected.entryPlan || "NO DATA"}</div>
                 </div>
-                {!plan ? (
-                  <EmptyState title="No Verified Trade Plan" reason="Entry and invalidation levels are unavailable." />
-                ) : (
-                  <div className="grid gap-1.5 sm:grid-cols-2">
-                    <MiniMetric label="Entry Area" value={plan.entryArea} tone="cyan" />
-                    <MiniMetric label="When This Idea Is Wrong" value={plan.wrongArea} tone="red" />
-                    <MiniMetric label="Target Area" value={plan.targetArea || "NO DATA"} tone="green" />
-                    <MiniMetric label="Risk Level" value={plan.riskLevel} tone={plan.riskLevel === "High" ? "red" : plan.riskLevel === "Medium" ? "amber" : "green"} />
-                    <div className="sm:col-span-2">
-                      <MiniMetric label="Action" value={plan.action} tone="amber" />
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </Card>
 
-          <Card title="Why We Like This Trade" icon={<Activity className="h-3.5 w-3.5" />}>
-            {!selected ? (
-              <EmptyState title="No Trade Evidence" reason="Select an active trade candidate first." />
+          <Card title="Exit Plan" icon={<History className="h-3.5 w-3.5" />} className="bg-[#0c140c]">
+            {!selected || !plan ? (
+              <EmptyState title="Exit Plan Unavailable" reason="Existing stop and target levels are unavailable." />
             ) : (
-              <div className="grid gap-1.5 md:grid-cols-2 2xl:grid-cols-3">
-                {(evidence.length ? evidence : [{ title: "NO DATA", detail: "No tactical evidence available." }]).map((item) => (
-                  <div key={`${item.title}-${item.detail}`} className="min-h-[76px] rounded border border-zinc-900 bg-black/45 p-2">
-                    <div className="line-clamp-2 text-xs font-black uppercase text-white">{item.title}</div>
-                    <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{item.detail}</div>
-                  </div>
-                ))}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <MiniMetric label="Stop / Invalidation" value={plan.wrongArea} tone="red" />
+                <MiniMetric label="Targets" value={plan.targetArea || "NO DATA"} tone="green" />
+                <div className="sm:col-span-2 rounded border border-[#142014] bg-[#0a0f0a] p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">Invalidation Condition</div>
+                  <div className="mt-2 text-xs font-bold uppercase leading-5 text-[#a0b0a0]">{selected.invalidation || "NO DATA"}</div>
+                </div>
               </div>
             )}
           </Card>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card title="Setup Memory" icon={<Save className="h-3.5 w-3.5" />}>
+        <Card title="Risk Management" icon={<Activity className="h-3.5 w-3.5" />} className="border-[#142014] bg-[#111911]">
+          {!selected || !plan ? (
+            <EmptyState title="Risk Context Unavailable" reason="A complete existing execution plan is required." />
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <MiniMetric label="Existing Risk Level" value={plan.riskLevel} tone={plan.riskLevel === "High" ? "red" : plan.riskLevel === "Medium" ? "amber" : "green"} />
+              <MiniMetric label="Risk / Reward" value={selected.riskReward || "NO DATA"} tone="amber" />
+              <MiniMetric label="Volatility Context" value={selected.volatilityNote || "NO DATA"} />
+              <MiniMetric label="Position Sizing" value="UNAVAILABLE" sub="User account and risk inputs not supplied" />
+            </div>
+          )}
+        </Card>
+
+        <Card title="Execution Checklist" icon={<Save className="h-3.5 w-3.5" />} className="border-[#142014] bg-[#111911]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
             <div className="grid gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-zinc-900 bg-black/45 p-2">
+              <div className="rounded border border-[#142014] bg-[#0a0f0a] p-2">
+                <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#a0b0a0]">Candidate selected</span>{selected ? <StatusBadge label="CURRENT" tone="current" /> : <StatusBadge label="MISSING" tone="missing" />}</div>
+              </div>
+              <div className="rounded border border-[#142014] bg-[#0a0f0a] p-2">
+                <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#a0b0a0]">Execution levels available</span>{plan ? <StatusBadge label="CURRENT" tone="current" /> : <StatusBadge label="MISSING" tone="missing" />}</div>
+              </div>
+              <div className="rounded border border-[#142014] bg-[#0a0f0a] p-2">
+                <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#a0b0a0]">Replay validation supplied</span><StatusBadge label={inheritedValidationLabel} tone={inheritedValidationTone} /></div>
+              </div>
+              <div className="rounded border border-[#142014] bg-[#0a0f0a] p-2">
+                <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#a0b0a0]">User risk inputs supplied</span><StatusBadge label="UNAVAILABLE" tone="unavailable" /></div>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-[#142014] bg-[#0a0f0a] p-2">
                 <div>
-                  <div className="text-xs font-black uppercase text-white">
+                  <div className="text-xs font-black uppercase text-[#d4dbd4]">
                     {savedSetups.length === 0
-                      ? "No tracked setups yet. Track the selected setup to start monitoring it."
+                      ? "No tracked setups yet. Track the selected setup to monitor it locally."
                       : selected ? `${selected.symbol} ${setupLabel(selected)}` : "NO SETUP SELECTED"}
                   </div>
-                  <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600">LocalStorage only. No backend. No exchange orders.</div>
+                  <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-[#3d503d]">LocalStorage only. No backend. No exchange orders.</div>
                 </div>
                 <button
                   type="button"
                   onClick={trackSetup}
                   disabled={!selected || !plan}
-                  className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:border-zinc-900 disabled:bg-black/35 disabled:text-zinc-700"
+                  className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:border-[#142014] disabled:bg-black/35 disabled:text-zinc-700"
                 >
                   Track Setup
                 </button>
               </div>
-
-              {savedSetups.length === 0 ? (
-                null
-              ) : savedSetups.length > 0 ? (
+              {savedSetups.length > 0 && (
                 <div className="grid gap-2">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Local Tracked Setups</div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[#6b7d6b]">Local Tracked Setups</div>
                   {savedSetups.slice(0, 8).map((setup) => (
-                    <article key={setup.id} className="grid gap-2 rounded border border-zinc-900 bg-black/45 p-2 lg:grid-cols-[1fr_auto]">
+                    <article key={setup.id} className="grid gap-2 rounded border border-[#142014] bg-[#0a0f0a] p-2 lg:grid-cols-[1fr_auto]">
                       <div>
                         <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.1em]">
-                          <span className="text-white">{setup.symbol}</span>
+                          <span className="text-[#d4dbd4]">{setup.symbol}</span>
                           <span className="text-cyan-100">{setup.direction}</span>
                           <span className="text-amber-100">{setup.status}</span>
-                          <span className="text-zinc-600">{new Date(setup.createdTime).toLocaleString()}</span>
+                          <span className="text-[#3d503d]">{new Date(setup.createdTime).toLocaleString()}</span>
                         </div>
-                        <div className="mt-1 text-xs font-black uppercase text-zinc-300">{setup.setupType}</div>
-                        <div className="mt-1 flex flex-wrap gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
+                        <div className="mt-1 text-xs font-black uppercase text-[#a0b0a0]">{setup.setupType}</div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">
                           <span>Entry: {setup.entryArea}</span>
                           <span>Wrong: {setup.wrongArea}</span>
                           <span>Target: {setup.targetArea}</span>
@@ -748,52 +987,76 @@ export default function TradePage() {
                       </div>
                       <div className="flex flex-wrap items-start gap-1.5">
                         {(["Active", "Won", "Lost", "Expired"] as SetupStatus[]).map((status) => (
-                          <button key={status} type="button" onClick={() => updateStatus(setup.id, status)} className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-300 hover:text-white">{status}</button>
+                          <button key={status} type="button" onClick={() => updateStatus(setup.id, status)} className="rounded border border-[#1c2c1c] bg-[#07120b] px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-[#a0b0a0] hover:text-white">{status}</button>
                         ))}
-                        <button type="button" onClick={() => deleteSetup(setup.id)} className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-zinc-400 hover:text-white" aria-label="Delete setup"><Trash2 className="h-3.5 w-3.5" /></button>
+                        <button type="button" onClick={() => deleteSetup(setup.id)} className="rounded border border-[#1c2c1c] bg-[#07120b] px-2 py-1 text-[#6b7d6b] hover:text-white" aria-label="Delete setup"><Trash2 className="h-3.5 w-3.5" /></button>
                       </div>
                     </article>
                   ))}
                 </div>
-              ) : null}
+              )}
             </div>
-          </Card>
+          </div>
+        </Card>
 
-          <Card title="Recent Outcomes" icon={<History className="h-3.5 w-3.5" />}>
-            <div className="grid gap-2">
-              <div className="rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
-                Historical setup analysis disabled.
-              </div>
-              <div>
-                {combinedCompleted < 5 ? (
-                  <div className="rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
-                    Not enough completed setups yet: {combinedCompleted}/5
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <MiniMetric label="Total" value={String(savedSetups.length + activeSetups.length)} />
-                    <MiniMetric label="Open" value={String(open + activeSetups.filter((setup) => setup.outcome === "OPEN").length)} tone="cyan" />
-                    <MiniMetric label="Closed" value={String(combinedCompleted)} />
-                    <MiniMetric label="Win Rate" value={winRate === null ? "NO DATA" : `${winRate}%`} tone="amber" />
-                    <MiniMetric label="Wins" value={String(combinedWins)} tone="green" />
-                    <MiniMetric label="Losses" value={String(combinedLosses)} tone="red" />
-                    <div className="col-span-2">
-                      <MiniMetric label="Average Outcome" value={pct(averageOutcome)} tone="cyan" />
-                    </div>
-                  </div>
-                )}
-              </div>
+        <Card title="Trade Metadata" icon={<RadioTower className="h-3.5 w-3.5" />} className="border-[#142014] bg-[#0a0f0a]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <MiniMetric label="Symbol" value={activeSymbol} />
+              <MiniMetric label="Candidate Source" value="Market Movers" sub={timeAgo(marketMovers?.updatedAt)} />
+              <MiniMetric label="Tactical Alerts" value={marketMovers?.ok ? "CURRENT" : "NO DATA"} tone={marketMovers?.ok ? "green" : "amber"} />
+              <MiniMetric label="Replay Validation" value={inheritedValidationLabel} />
+              <MiniMetric label="Positioning" value={futuresSymbol ? pct(futuresSymbol.fundingRate * 100, 4) : displayDataReason(futuresReason)} tone="amber" />
+              <MiniMetric label="Participation" value={compactUsd(futuresSymbol?.oiNotional)} tone="cyan" />
+              <MiniMetric label="Market Activity" value={orderbookPressure.value} sub={orderbookPressure.reason} tone="cyan" />
+              <MiniMetric label="Persistence" value="LOCAL ONLY" sub="No backend or exchange orders" />
             </div>
-          </Card>
-        </div>
+            <div className="rounded border border-[#142014] bg-[#07120b] p-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[#6b7d6b]">Local Outcome Memory</div>
+                <StatusBadge label={combinedCompleted < 5 ? "PARTIAL" : "CURRENT"} tone={combinedCompleted < 5 ? "partial" : "current"} />
+              </div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.1em] text-[#3d503d]">Local setup history only. Not Replay validation.</div>
+              {combinedCompleted < 5 ? (
+                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#6b7d6b]">Not enough completed setups yet: {combinedCompleted}/5</div>
+              ) : (
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <MiniMetric label="Open" value={String(open + activeSetups.filter((setup) => setup.outcome === "OPEN").length)} tone="cyan" />
+                  <MiniMetric label="Closed" value={String(combinedCompleted)} />
+                  <MiniMetric label="Win Rate" value={winRate === null ? "NO DATA" : `${winRate}%`} tone="amber" />
+                  <MiniMetric label="Average Outcome" value={pct(averageOutcome)} tone="cyan" />
+                  <MiniMetric label="Wins" value={String(combinedWins)} tone="green" />
+                  <MiniMetric label="Losses" value={String(combinedLosses)} tone="red" />
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-zinc-900 bg-zinc-950/70 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]">
-          <span className="text-zinc-500">Live Data Status</span>
-          <span className={marketMovers?.ok ? "text-emerald-100" : "text-amber-100"}>Tactical Alerts: {marketMovers?.ok ? "LIVE" : "NO DATA"}</span>
-          <span className="text-amber-100">Positioning: {futuresSymbol ? pct(futuresSymbol.fundingRate * 100, 4) : displayDataReason(futuresReason)}</span>
-          <span className="text-cyan-100">Participation: {compactUsd(futuresSymbol?.oiNotional)}</span>
-          <span className="text-cyan-100">Market Activity: {orderbookPressure.value}</span>
-        </div>
+        <Card title="Navigation Actions" icon={<Activity className="h-3.5 w-3.5" />} className="border-[#142014] bg-[#111911]">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            <Link href="/research" className="rounded border border-[#1c2c1c] bg-[#0a0f0a] px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-300/40">
+              Research
+              <div className="mt-1 text-[9px] text-[#6b7d6b]">Need evidence context</div>
+            </Link>
+            <Link href="/replay" className="rounded border border-[#1c2c1c] bg-[#0a0f0a] px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:border-amber-300/40">
+              Replay
+              <div className="mt-1 text-[9px] text-[#6b7d6b]">Need historical validation</div>
+            </Link>
+            <Link href={marketHref} className="rounded border border-[#1c2c1c] bg-[#0a0f0a] px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-300/40">
+              Markets
+              <div className="mt-1 text-[9px] text-[#6b7d6b]">Inspect live structure</div>
+            </Link>
+            <Link href="/scanner" className="rounded border border-[#1c2c1c] bg-[#0a0f0a] px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-[#a0b0a0] transition hover:border-cyan-300/40">
+              Scanner
+              <div className="mt-1 text-[9px] text-[#6b7d6b]">Find a new opportunity</div>
+            </Link>
+            <Link href="/dashboard" className="rounded border border-[#1c2c1c] bg-[#0a0f0a] px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-[#a0b0a0] transition hover:border-amber-300/40">
+              Dashboard
+              <div className="mt-1 text-[9px] text-[#6b7d6b]">Return to monitoring</div>
+            </Link>
+          </div>
+        </Card>
       </div>
     </main>
   )

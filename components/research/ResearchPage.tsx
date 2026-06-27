@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Activity,
   BarChart3,
@@ -40,7 +40,18 @@ import {
   toHistoricalTimeframe,
 } from "@/lib/investigation/context"
 import { withInvestigationThesisView } from "@/lib/investigation/thesis"
+import {
+  createResearchToReplayContext,
+  inspectContextCandidate,
+  loadProductContext,
+  saveProductContext,
+  type JsonObject,
+  type ProductContextFreshness,
+  type SharedProductContextV1,
+} from "@/lib/product-context"
 import { safeFetchJson } from "@/lib/runtime/safeFetch"
+
+const RESEARCH_REPLAY_CONTEXT_TTL_MS = 30 * 60 * 1000
 
 type NarrativeResponse = {
   updatedAt?: number
@@ -63,6 +74,13 @@ type PredictionResponse = {
 type MacroResponse = {
   updatedAt?: number
   items?: Array<{ symbol?: string; change?: string; signal?: string; tone?: string; updatedAt?: number }>
+}
+
+type InheritedScannerContextState = {
+  label: "LOADING" | "CURRENT" | "PARTIAL" | "STALE" | "DEGRADED" | "MISSING" | "UNAVAILABLE"
+  tone: "good" | "warn" | "bad" | "neutral"
+  detail: string
+  context: SharedProductContextV1 | null
 }
 
 type HistoricalAnalogResponse = Partial<HistoricalAnalogCachePayloadV2> & {
@@ -204,6 +222,33 @@ function outcomeTone(value: number | null | undefined) {
   return value > 0 ? "text-emerald-200" : value < 0 ? "text-rose-200" : "text-zinc-200"
 }
 
+function productContextFreshness(status?: string | null): ProductContextFreshness {
+  if (status === "VALID" || status === "CURRENT") return "CURRENT"
+  if (status === "STALE" || status === "EXPIRED") return "STALE"
+  if (status === "MISSING") return "MISSING"
+  if (status === "UNAVAILABLE") return "UNAVAILABLE"
+  return "UNKNOWN"
+}
+
+function scannerContextString(value: JsonObject | undefined, field: string) {
+  const candidate = value?.[field]
+  return typeof candidate === "string" ? candidate : null
+}
+
+function researchReplayContextId(caseId: string, createdAt: Date) {
+  const suffix = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${createdAt.getTime()}-${caseId}`
+  return `research-replay-${suffix}`
+}
+
+function appendProductContextId(href: string, contextId: string) {
+  const [pathname, query = ""] = href.split("?", 2)
+  const params = new URLSearchParams(query)
+  params.set("contextId", contextId)
+  return `${pathname}?${params.toString()}`
+}
+
 function replayContextForCase(
   context: ReturnType<typeof readInvestigationContext>,
   selectedCase: HistoricalAnalogCase,
@@ -236,7 +281,9 @@ function replayContextForCase(
 }
 
 export default function ResearchPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
+  const productContextId = searchParams.get("contextId")?.trim() || null
   const investigationContext = readInvestigationContext(
     searchParams,
     createInvestigationContext({
@@ -261,6 +308,14 @@ export default function ResearchPage() {
   const [marketMemory, setMarketMemory] = useState<MarketMemoryResponse | null>(null)
   const [marketMemoryLoading, setMarketMemoryLoading] = useState(false)
   const [marketMemoryError, setMarketMemoryError] = useState<string | null>(null)
+  const [inheritedScannerContext, setInheritedScannerContext] = useState<InheritedScannerContextState>({
+    label: productContextId ? "LOADING" : "MISSING",
+    tone: productContextId ? "neutral" : "neutral",
+    detail: productContextId
+      ? "Loading inherited Scanner context."
+      : "No shared contextId supplied. Direct Research remains available.",
+    context: null,
+  })
   const historicalController = useRef<AbortController | null>(null)
   const eventImpactController = useRef<AbortController | null>(null)
   const marketMemoryController = useRef<AbortController | null>(null)
@@ -272,6 +327,69 @@ export default function ResearchPage() {
       marketMemoryController.current?.abort()
     }
   }, [])
+
+  useEffect(() => {
+    if (!productContextId) {
+      setInheritedScannerContext({
+        label: "MISSING",
+        tone: "neutral",
+        detail: "No shared contextId supplied. Direct Research remains available.",
+        context: null,
+      })
+      return
+    }
+
+    setInheritedScannerContext({
+      label: "LOADING",
+      tone: "neutral",
+      detail: "Loading inherited Scanner context.",
+      context: null,
+    })
+    const loaded = loadProductContext(productContextId)
+    if (loaded.success === false) {
+      setInheritedScannerContext({
+        label: "UNAVAILABLE",
+        tone: "bad",
+        detail: loaded.error.message,
+        context: null,
+      })
+      return
+    }
+    const lifecycle = inspectContextCandidate(loaded.value)
+    if (lifecycle.status !== "SUCCESS" || !lifecycle.value) {
+      setInheritedScannerContext({
+        label: "UNAVAILABLE",
+        tone: "bad",
+        detail: lifecycle.issues[0]?.message ?? "Shared Scanner context is not active.",
+        context: null,
+      })
+      return
+    }
+    if (lifecycle.value.sourcePage !== "scanner" || lifecycle.value.destinationIntent !== "evaluate_thesis") {
+      setInheritedScannerContext({
+        label: "DEGRADED",
+        tone: "warn",
+        detail: "Shared context does not describe a Scanner to Research handoff.",
+        context: null,
+      })
+      return
+    }
+
+    const hasOpportunity = Boolean(lifecycle.value.opportunityContext)
+    const hasSignal = Boolean(lifecycle.value.signalContext)
+    const inheritedFreshness = lifecycle.value.freshness?.freshness
+    const label = inheritedFreshness === "STALE"
+      ? "STALE" as const
+      : hasOpportunity && hasSignal
+        ? "CURRENT" as const
+        : "PARTIAL" as const
+    setInheritedScannerContext({
+      label,
+      tone: label === "CURRENT" ? "good" : "warn",
+      detail: "Scanner opportunity and signal context loaded for display only. Research evidence remains independent.",
+      context: lifecycle.value,
+    })
+  }, [productContextId])
 
   useEffect(() => {
     historicalController.current?.abort()
@@ -571,6 +689,149 @@ export default function ResearchPage() {
     source: "research",
     thesis: withInvestigationThesisView(investigationContext.thesis, "trade"),
   })
+  const inheritedScanner = inheritedScannerContext.context
+  const inheritedOpportunity = inheritedScanner?.opportunityContext
+    ? scannerContextString(inheritedScanner.opportunityContext.value, "setup") ?? "AVAILABLE"
+    : "UNAVAILABLE"
+  const inheritedSignal = inheritedScanner?.signalContext
+    ? scannerContextString(inheritedScanner.signalContext.value, "reason") ?? "AVAILABLE"
+    : "UNAVAILABLE"
+  const inheritedStructure = inheritedScanner?.marketStructureContext ? "AVAILABLE" : "UNAVAILABLE"
+  const inheritedFreshness = inheritedScanner?.freshness?.freshness ?? "UNKNOWN"
+
+  function openReplayWithSharedContext() {
+    if (!selectedCase || !replayHref) return
+
+    const replayInvestigation = replayContextForCase(investigationContext, selectedCase, source)
+    const createdAt = new Date()
+    const createdAtIso = createdAt.toISOString()
+    const caseTimestamp = new Date(selectedCase.state.timestamp).toISOString()
+    const caseFreshness = productContextFreshness(historical?.validity?.freshnessStatus)
+    const evidenceFreshness = productContextFreshness(
+      decisionBrief?.freshnessStatus ?? historical?.validity?.freshnessStatus,
+    )
+    const thesis = investigationContext.thesis
+      ? {
+          value: {
+            thesisVersion: investigationContext.thesis.thesisVersion,
+            thesisId: investigationContext.thesis.thesisId,
+            title: investigationContext.thesis.title,
+            question: investigationContext.thesis.question,
+            decisionHorizon: investigationContext.thesis.decisionHorizon,
+            status: investigationContext.thesis.status,
+            createdAt: investigationContext.thesis.createdAt,
+            updatedAt: investigationContext.thesis.updatedAt,
+            ...(investigationContext.thesis.hypothesis ? { hypothesis: investigationContext.thesis.hypothesis } : {}),
+            ...(investigationContext.thesis.currentView ? { currentView: investigationContext.thesis.currentView } : {}),
+            ...(investigationContext.thesis.tags?.length ? { tags: investigationContext.thesis.tags } : {}),
+          },
+          owner: "research" as const,
+          source: investigationContext.source ?? "research",
+          observedAt: investigationContext.thesis.updatedAt,
+          freshness: "UNKNOWN" as const,
+          revision: 1,
+        }
+      : undefined
+    const evidenceSummary = decisionBrief
+      ? {
+          value: {
+            decisionBriefId: decisionBrief.decisionBriefId,
+            currentView: decisionBrief.currentView,
+            freshnessStatus: decisionBrief.freshnessStatus,
+            coverageStatus: decisionBrief.coverageStatus,
+            supportingEvidenceCount: decisionBrief.supportingEvidenceCount,
+            contradictingEvidenceCount: decisionBrief.contradictingEvidenceCount,
+            sourceArtifactIds: decisionBrief.sourceArtifactIds,
+          },
+          owner: "research" as const,
+          source: "decision-brief",
+          generatedAt: decisionBrief.generatedAt,
+          freshness: evidenceFreshness,
+          revision: 1,
+        }
+      : undefined
+    const supporting = supportingEvidence.length
+      ? {
+          value: supportingEvidence.map((item) => ({
+            source: item.source,
+            detail: item.detail,
+            status: item.status,
+          })),
+          owner: "research" as const,
+          source: "research-evidence",
+          freshness: evidenceFreshness,
+          revision: 1,
+        }
+      : undefined
+    const conflicting = conflictingEvidence.length
+      ? {
+          value: conflictingEvidence.map((item) => ({
+            source: item.source,
+            detail: item.detail,
+            status: item.status,
+          })),
+          owner: "research" as const,
+          source: "research-evidence",
+          freshness: evidenceFreshness,
+          revision: 1,
+        }
+      : undefined
+    const freshness = decisionBrief || historical?.validity
+      ? {
+          value: {
+            status: decisionBrief?.freshnessStatus ?? historical?.validity?.freshnessStatus ?? "UNKNOWN",
+            coverage: decisionBrief?.coverageStatus ?? historical?.validity?.coverageStatus ?? "UNKNOWN",
+            ...(decisionBrief?.generatedAt ? { generatedAt: decisionBrief.generatedAt } : {}),
+          },
+          owner: "research" as const,
+          source: decisionBrief ? "decision-brief" : source,
+          generatedAt: decisionBrief?.generatedAt ?? historical?.diagnostics?.generatedAt ?? undefined,
+          freshness: evidenceFreshness,
+          revision: 1,
+        }
+      : undefined
+    const handoff = createResearchToReplayContext({
+      contextId: researchReplayContextId(selectedCase.state.id, createdAt),
+      symbol: replayInvestigation.symbol,
+      exchange: replayInvestigation.exchange,
+      timeframe: replayInvestigation.timeframe,
+      createdAt: createdAtIso,
+      expiresAt: new Date(createdAt.getTime() + RESEARCH_REPLAY_CONTEXT_TTL_MS).toISOString(),
+      thesis,
+      evidenceSummary,
+      supportingEvidence: supporting,
+      conflictingEvidence: conflicting,
+      freshness,
+      replayTarget: {
+        value: {
+          caseId: selectedCase.state.id,
+          symbol: selectedCase.state.symbol,
+          exchange: replayInvestigation.exchange,
+          timeframe: selectedCase.state.interval,
+          timestamp: caseTimestamp,
+          date: caseTimestamp.slice(0, 10),
+          hour: String(new Date(caseTimestamp).getUTCHours()),
+          source,
+        },
+        owner: "research",
+        source,
+        observedAt: caseTimestamp,
+        generatedAt: historical?.diagnostics?.generatedAt ?? undefined,
+        freshness: caseFreshness,
+        revision: 1,
+      },
+    })
+
+    if (handoff.success === true) {
+      const saved = saveProductContext(handoff.value)
+      if (saved.success === true) {
+        router.push(appendProductContextId(replayHref, handoff.value.contextId))
+        return
+      }
+    }
+
+    router.push(replayHref)
+  }
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">
@@ -599,6 +860,19 @@ export default function ResearchPage() {
               <Metric label="Source Quality" value={sourceRows.some((row) => row.coverage !== "UNAVAILABLE") ? "PARTIAL" : "UNAVAILABLE"} />
               <Metric label="Investigation Time" value={dateTime(investigationContext.investigationTimestamp)} />
             </div>
+          </div>
+          <div className="mt-3 rounded border border-zinc-900 bg-black/45 p-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Inherited Scanner Context</div>
+              <StatusBadge tone={inheritedScannerContext.tone}>{inheritedScannerContext.label}</StatusBadge>
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <Metric label="Opportunity" value={inheritedOpportunity} />
+              <Metric label="Signal" value={inheritedSignal} />
+              <Metric label="Market Structure" value={inheritedStructure} />
+              <Metric label="Freshness" value={inheritedFreshness} />
+            </div>
+            <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-600">{inheritedScannerContext.detail}</div>
           </div>
         </Card>
 
@@ -905,9 +1179,9 @@ export default function ResearchPage() {
                   Open Explorer
                 </Link>
                 {selectedCase && replayHref ? (
-                  <Link href={replayHref} className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                  <button type="button" onClick={openReplayWithSharedContext} className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
                     Open Replay
-                  </Link>
+                  </button>
                 ) : null}
               </div>
             </div>
