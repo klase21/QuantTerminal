@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { mockHistoricalPersistenceRepository } from "@/core/historical-intelligence/mockHistoricalPersistenceRepository"
+import { enforceNonProductionRouteIsolation } from "@/lib/runtime/nonProductionRouteIsolation"
 
 function limitFrom(searchParams: URLSearchParams) {
   const value = searchParams.get("limit")
@@ -10,6 +11,9 @@ function limitFrom(searchParams: URLSearchParams) {
 }
 
 export async function GET(request: Request) {
+  const isolationResponse = enforceNonProductionRouteIsolation(request)
+  if (isolationResponse) return isolationResponse
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
   const eventId = searchParams.get("eventId")

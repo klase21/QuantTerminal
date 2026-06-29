@@ -468,7 +468,7 @@ export default function ScannerPage() {
   const liveCandidates = useMemo(() => (movers?.candidates ?? []).slice(0, 25), [movers])
   const [retainedCandidates, setRetainedCandidates] = useState<RetainedCandidateRecord[]>([])
   const [inheritedMarketsContext, setInheritedMarketsContext] = useState<InheritedMarketsContextState>({
-    label: productContextId ? "LOADING" : "MISSING",
+    label: productContextId ? "LOADING" : "UNAVAILABLE",
     detail: productContextId
       ? "Loading inherited Markets context."
       : "No shared contextId supplied. Direct Scanner remains available.",
@@ -478,7 +478,7 @@ export default function ScannerPage() {
   useEffect(() => {
     if (!productContextId) {
       setInheritedMarketsContext({
-        label: "MISSING",
+        label: "UNAVAILABLE",
         detail: "No shared contextId supplied. Direct Scanner remains available.",
         context: null,
       })
@@ -507,7 +507,7 @@ export default function ScannerPage() {
     }
     if (lifecycle.value.sourcePage !== "markets" || lifecycle.value.destinationIntent !== "prioritize_symbol") {
       setInheritedMarketsContext({
-        label: "DEGRADED",
+        label: "UNAVAILABLE",
         detail: "Shared context does not describe a Markets to Scanner handoff.",
         context: null,
       })
@@ -609,6 +609,8 @@ export default function ScannerPage() {
     const handoff = createScannerToResearchContext({
       contextId: scannerResearchContextId(createdAt),
       symbol: item.symbol,
+      exchange: inheritedMarkets?.exchange,
+      timeframe: inheritedMarkets?.timeframe,
       createdAt: createdAtIso,
       expiresAt: new Date(createdAt.getTime() + SCANNER_RESEARCH_CONTEXT_TTL_MS).toISOString(),
       opportunityContext: {
@@ -616,6 +618,7 @@ export default function ScannerPage() {
           symbol: item.symbol,
           setup: item.setup,
           direction: item.direction,
+          confidence: item.confidence,
           grade: item.grade,
           quality: item.quality,
           riskReward: item.rr,
@@ -641,8 +644,9 @@ export default function ScannerPage() {
             observedAt,
             freshness,
             revision: 1,
-          }
+        }
         : undefined,
+      marketStructureContext: inheritedMarkets?.marketStructureContext,
       freshness: {
         value: {
           status: scannerHealth,

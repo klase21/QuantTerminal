@@ -4,6 +4,7 @@ export type EtfFlowRow = {
   asset: "BTC" | "ETH"
   latestDate: string
   sourceDate: string
+  sourceTimestamp: string
   netFlow: number
   unit: "USD millions"
   sourceUrl: string
@@ -56,10 +57,10 @@ function looksLikeDate(value: string) {
 
 function parseSourceDate(value: string) {
   const cleaned = value.replace(/\s+/g, " ").trim()
-  const candidates = [
-    cleaned,
-    `${cleaned} ${new Date().getUTCFullYear()}`,
-  ]
+  const hasExplicitYear = /\b\d{4}\b/.test(cleaned) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cleaned)
+  const candidates = hasExplicitYear
+    ? [cleaned]
+    : [`${cleaned} ${new Date().getUTCFullYear()}`]
 
   for (const candidate of candidates) {
     const timestamp = Date.parse(candidate)
@@ -170,6 +171,7 @@ function extractLatestFlow(asset: "BTC" | "ETH", url: string, html: string): Etf
     asset,
     latestDate: latest.date,
     sourceDate: latest.date,
+    sourceTimestamp: new Date(latest.timestamp).toISOString(),
     netFlow: latest.flow,
     unit: "USD millions",
     sourceUrl: url,

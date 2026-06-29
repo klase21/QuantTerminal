@@ -126,6 +126,22 @@ function contextString(value: JsonObject | undefined, field: string) {
   return typeof candidate === "string" ? candidate : null
 }
 
+function firstContextString(value: JsonObject | undefined, fields: string[]) {
+  for (const field of fields) {
+    const candidate = contextString(value, field)
+    if (candidate) return candidate
+  }
+  return null
+}
+
+function firstContextScalar(value: JsonObject | undefined, fields: string[]) {
+  for (const field of fields) {
+    const candidate = value?.[field]
+    if (typeof candidate === "string" || typeof candidate === "number") return String(candidate)
+  }
+  return null
+}
+
 function inheritedStatusTone(label: string): InheritedReplayContextState["tone"] {
   if (label === "CURRENT" || label === "VERIFIED") return "current"
   if (label === "PARTIAL" || label === "STALE" || label === "DEGRADED") return "partial"
@@ -139,6 +155,7 @@ function inheritedReplayContextStatus(
   replayAvailability: string | null,
   isComplete: boolean,
 ): Pick<InheritedReplayContextState, "label" | "tone"> {
+  if (!validationAvailability && !replayAvailability) return { label: "UNAVAILABLE", tone: "unavailable" }
   if (!isComplete) return { label: "PARTIAL", tone: "partial" }
 
   const states = [validationAvailability, replayAvailability].map((value) => value?.toUpperCase() ?? "UNAVAILABLE")
@@ -412,8 +429,8 @@ export default function TradePage() {
   const [retainedCandidateRecords, setRetainedCandidateRecords] = useState<RetainedTradeCandidateRecord[]>([])
   const [stableFocusCandidate, setStableFocusCandidate] = useState<MarketMoverCandidate | null>(null)
   const [inheritedReplayContext, setInheritedReplayContext] = useState<InheritedReplayContextState>({
-    label: productContextId ? "LOADING" : "MISSING",
-    tone: productContextId ? "loading" : "missing",
+    label: productContextId ? "LOADING" : "UNAVAILABLE",
+    tone: productContextId ? "loading" : "unavailable",
     detail: productContextId
       ? "Loading inherited Replay context."
       : "No shared contextId supplied. Direct Trade remains available.",
@@ -426,8 +443,8 @@ export default function TradePage() {
   useEffect(() => {
     if (!productContextId) {
       setInheritedReplayContext({
-        label: "MISSING",
-        tone: "missing",
+        label: "UNAVAILABLE",
+        tone: "unavailable",
         detail: "No shared contextId supplied. Direct Trade remains available.",
         context: null,
       })
@@ -462,8 +479,8 @@ export default function TradePage() {
     }
     if (lifecycle.value.sourcePage !== "replay" || lifecycle.value.destinationIntent !== "prepare_execution") {
       setInheritedReplayContext({
-        label: "DEGRADED",
-        tone: "partial",
+        label: "UNAVAILABLE",
+        tone: "unavailable",
         detail: "Shared context does not describe a Replay to Trade handoff.",
         context: null,
       })
@@ -642,7 +659,27 @@ export default function TradePage() {
   const inheritedValidationDetail = contextString(inheritedContext?.validationResult?.value, "detail") ?? "No inherited validation result"
   const inheritedReplayAvailability = contextString(inheritedContext?.replayResult?.value, "availability") ?? "UNAVAILABLE"
   const inheritedThesis = contextString(inheritedContext?.thesis?.value, "title") ?? "UNAVAILABLE"
-  const inheritedEvidence = inheritedContext?.evidenceSummary ? "AVAILABLE" : "UNAVAILABLE"
+  const inheritedEvidence = firstContextString(inheritedContext?.evidenceSummary?.value, ["coverageStatus", "freshnessStatus", "status"])
+    ?? (inheritedContext?.evidenceSummary ? "AVAILABLE" : "UNAVAILABLE")
+  const inheritedFreshness = inheritedContext?.freshness?.freshness
+    ?? contextString(inheritedContext?.freshness?.value, "status")
+    ?? inheritedContext?.evidenceSummary?.freshness
+    ?? "UNAVAILABLE"
+  const inheritedStructure = [
+    contextString(inheritedContext?.marketStructureContext?.value, "structure"),
+    contextString(inheritedContext?.marketStructureContext?.value, "sector"),
+    contextString(inheritedContext?.marketStructureContext?.value, "breadth"),
+  ].filter((value): value is string => Boolean(value)).join(" / ") || "UNAVAILABLE"
+  const inheritedOpportunity = firstContextString(inheritedContext?.opportunityContext?.value, ["setup", "direction", "status"])
+    ?? "UNAVAILABLE"
+  const inheritedSignal = firstContextString(inheritedContext?.signalContext?.value, ["reason", "setup", "direction", "status"])
+    ?? "UNAVAILABLE"
+  const inheritedConfidence = firstContextScalar(inheritedContext?.confidenceContext?.value, ["confidence", "value", "status", "label"])
+    ?? firstContextScalar(inheritedContext?.opportunityContext?.value, ["confidence"])
+    ?? "UNAVAILABLE"
+  const inheritedSymbol = inheritedContext?.symbol ?? "UNAVAILABLE"
+  const inheritedExchange = inheritedContext?.exchange ?? "UNAVAILABLE"
+  const inheritedTimeframe = inheritedContext?.timeframe ?? "UNAVAILABLE"
   const inheritedValidationTone = inheritedStatusTone(inheritedValidationLabel)
 
   const persistSetups = (setups: SavedSetup[]) => {
@@ -844,6 +881,14 @@ export default function TradePage() {
               <MiniMetric label="Replay Result" value={inheritedReplayAvailability} />
               <MiniMetric label="Thesis" value={inheritedThesis} />
               <MiniMetric label="Evidence" value={inheritedEvidence} />
+              <MiniMetric label="Market Structure" value={inheritedStructure} />
+              <MiniMetric label="Opportunity" value={inheritedOpportunity} />
+              <MiniMetric label="Signal" value={inheritedSignal} />
+              <MiniMetric label="Confidence" value={inheritedConfidence} />
+              <MiniMetric label="Freshness" value={inheritedFreshness} />
+              <MiniMetric label="Symbol" value={inheritedSymbol} />
+              <MiniMetric label="Exchange" value={inheritedExchange} />
+              <MiniMetric label="Timeframe" value={inheritedTimeframe} />
             </div>
             <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#3d503d]">{inheritedReplayContext.detail}</div>
           </div>

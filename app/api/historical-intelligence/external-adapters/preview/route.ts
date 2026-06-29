@@ -5,6 +5,7 @@ import {
   previewExternalEventAdapter,
 } from "@/core/historical-intelligence/externalEventAdapterRegistry"
 import type { ExternalEventSourceType } from "@/core/historical-intelligence/externalEventAdapterTypes"
+import { enforceNonProductionRouteIsolation } from "@/lib/runtime/nonProductionRouteIsolation"
 
 const SOURCE_TYPES = new Set<ExternalEventSourceType>([
   "polymarket",
@@ -28,6 +29,9 @@ function limitFrom(value: string | null) {
 }
 
 export async function GET(request: Request) {
+  const isolationResponse = enforceNonProductionRouteIsolation(request)
+  if (isolationResponse) return isolationResponse
+
   const { searchParams } = new URL(request.url)
   const sourceType = sourceTypeFrom(searchParams.get("sourceType"))
 

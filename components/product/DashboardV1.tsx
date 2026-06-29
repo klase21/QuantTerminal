@@ -9,12 +9,10 @@ import {
   Database,
   Droplets,
   Gauge,
-  History,
   Info,
   LineChart,
   Newspaper,
   RadioTower,
-  ShieldAlert,
   Target,
   TrendingUp,
   Zap,
@@ -24,6 +22,7 @@ import {
   createDashboardToMarketsContext,
   type ProductContextFreshness,
 } from "@/lib/product-context"
+import type { SourceMetadataEnvelope } from "@/lib/data-governance"
 
 type Bias = "Bullish" | "Bearish" | "Neutral"
 
@@ -102,6 +101,8 @@ type MacroItem = {
   change?: string
   signal?: string
   updatedAt?: number
+  sourceDate?: string
+  sourceTime?: string
   tone?: CauseTone
 }
 
@@ -111,6 +112,7 @@ type MacroResponse = {
   updatedAt?: number
   source?: string
   unavailableReason?: string
+  _source?: SourceMetadataEnvelope
 }
 
 type SectorRotationSnapshot = {
@@ -126,6 +128,7 @@ type SectorRotationResponse = {
   source?: string
   updatedAt?: string
   sectors?: SectorRotationSnapshot[]
+  _source?: SourceMetadataEnvelope
 }
 
 type FuturesSectorSnapshot = {
@@ -197,10 +200,12 @@ type EtfFlowResponse = {
   sourceUrl?: string
   isStale?: boolean
   staleReason?: string
+  _source?: SourceMetadataEnvelope
   flows?: Array<{
     asset: "BTC" | "ETH"
     latestDate: string
     sourceDate?: string
+    sourceTimestamp?: string
     netFlow: number
     unit: string
     sourceUrl: string
@@ -208,30 +213,6 @@ type EtfFlowResponse = {
     isStale?: boolean
     staleReason?: string
   }>
-}
-
-type HistoricalEvidenceResponse = {
-  ok?: boolean
-  status?: "available" | "unavailable"
-  source?: string
-  statistics?: {
-    totalCases?: number
-    dominantOutcome?: string
-    byHorizon?: {
-      "24h"?: {
-        averageReturn?: number | null
-        winRate?: number | null
-      }
-    }
-  }
-  diagnostics?: {
-    cacheStatus?: string
-    generatedAt?: string | null
-    source?: string | null
-    schemaVersion?: string | null
-    analogCount?: number
-  }
-  reason?: string
 }
 
 type MarketDriverCategory =
@@ -535,147 +516,6 @@ function signalFromText(value?: string) {
   return compactText(value)
 }
 
-function concreteEvidence(value?: string) {
-  const normalized = value?.toLowerCase() ?? ""
-  if (!normalized) return null
-  if (normalized.includes("dxy")) return normalized.includes("-") || normalized.includes("down") ? "Dollar Weakness" : "Dollar Strength"
-  if (normalized.includes("breadth")) return normalized.includes("weak") || normalized.includes("negative") ? "Broad Market Weakness" : "Broad Market Strength"
-  if (normalized.includes("funding")) return normalized.includes("flat") ? "Positioning Stable" : "Positioning Pressure"
-  if (normalized.includes("vwap")) return normalized.includes("loss") ? "Support Broken" : "Key Support Holding"
-  if (normalized.includes("sell") || normalized.includes("short")) return "Strong Selling Pressure"
-  if (normalized.includes("flow") || normalized.includes("volume")) return "Strong Buying Pressure"
-  if (normalized.includes("breakout")) return "BREAKOUT TEST"
-  if (normalized.includes("liquidation")) return "Liquidation Pressure"
-  if (normalized.includes("macro")) return "Macro Pressure"
-
-  return null
-}
-
-function topEvidence(candidate?: MarketMoverCandidate) {
-  const breakdown: string[] | undefined = candidate?.scoreBreakdown
-    ?.filter((item) => item.polarity !== "negative")
-    .sort((left, right) => right.value - left.value)
-    .map((item): string | null => concreteEvidence(item.label))
-    .filter((item): item is string => Boolean(item))
-
-  if (breakdown?.length) return breakdown
-
-  return [
-    concreteEvidence(candidate?.trigger),
-    concreteEvidence(candidate?.reason),
-  ].filter((item): item is string => Boolean(item))
-}
-
-function evidenceConflictsWithDirection(evidence: string[], direction: Bias) {
-  const text = evidence.join(" ").toLowerCase()
-  if (direction === "Bullish") return text.includes("selling") || text.includes("broken") || text.includes("weakness")
-  if (direction === "Bearish") return text.includes("buying") || text.includes("support holding") || text.includes("strength")
-  return false
-}
-
-function signalEvidenceSummary(evidence: string[], direction: Bias) {
-  if (direction === "Neutral") {
-    return {
-      headline: "MIXED SIGNALS",
-      support: evidence[0] ?? "NO CLEAR SETUP",
-      note: evidence.some((item) => /buying|selling/i.test(item)) ? "OFFSET BY OTHER FACTORS" : null,
-    }
-  }
-
-  if (evidenceConflictsWithDirection(evidence, direction)) {
-    return {
-      headline: "CONFLICTING SIGNALS",
-      support: evidence[0] ?? "NO DATA",
-      note: "OFFSET BY OTHER FACTORS",
-    }
-  }
-
-  return {
-    headline: evidence[0] ?? "NO DATA",
-    support: evidence[1] ?? null,
-    note: null,
-  }
-}
-
-function failureFromText(value?: string, chaseRisk?: number) {
-  const normalized = value?.toLowerCase() ?? ""
-  const number = normalized.match(/\d+(?:\.\d+)?/)?.[0]
-  if (normalized.includes("below") || normalized.includes("loss")) return number ? `Break Below ${Math.round(Number(number))}` : "Break Below Key Level"
-  if (normalized.includes("above") || normalized.includes("reject")) return number ? `Reject Above ${Math.round(Number(number))}` : "Reject Above Key Level"
-  if (normalized.includes("outside")) return number ? `Break Below ${Math.round(Number(number))}` : "Break Outside Range"
-  if (normalized.includes("vwap")) return "Lose Key Support"
-  if (normalized.includes("flow") || normalized.includes("volume")) return "Flow Reversal"
-  if (normalized.includes("dxy")) return "Dollar Spike"
-  if (normalized.includes("breadth")) return "Breadth Breakdown"
-  if (Number.isFinite(chaseRisk) && (chaseRisk ?? 0) > 70) return "Avoid Chasing"
-
-  return null
-}
-
-function actionFromCandidate(candidate?: MarketMoverCandidate) {
-  const action = candidate?.action?.toUpperCase()
-  const trigger = `${candidate?.trigger ?? ""} ${candidate?.setup ?? ""}`.toLowerCase()
-
-  if (action === "AVOID") return "AVOID CHASE"
-  if (action === "WAIT") return "CONFIRMATION REQUIRED"
-  if (action === "WATCH") {
-    if (trigger.includes("break")) return "WAIT FOR BREAKOUT"
-    if (trigger.includes("resistance") || trigger.includes("reject") || trigger.includes("above")) return "SELLERS DEFENDING RESISTANCE"
-    if (trigger.includes("support") || trigger.includes("pullback") || trigger.includes("vwap")) return "BUYERS DEFENDING SUPPORT"
-    if (trigger.includes("flow") || trigger.includes("volume")) return candidateBias(candidate) === "Bearish" ? "MOMENTUM WEAKENING" : "MOMENTUM IMPROVING"
-    return "CONFIRMATION REQUIRED"
-  }
-
-  if (candidateBias(candidate) === "Bearish") return "REDUCE RISK"
-  if (candidateBias(candidate) === "Bullish") return "CONFIRMATION REQUIRED"
-  return null
-}
-
-function formatLevel(value?: number | string) {
-  const numeric = typeof value === "number" ? value : Number(String(value ?? "").match(/\d+(?:\.\d+)?/)?.[0])
-  if (!Number.isFinite(numeric)) return null
-  return numeric
-}
-
-function displayLevel(value: number) {
-  return Math.round(value).toLocaleString()
-}
-
-function priceContext(candidate?: MarketMoverCandidate) {
-  const stop = formatLevel(candidate?.numericPlan?.stopLoss ?? candidate?.stopLoss)
-  const target = formatLevel(candidate?.numericPlan?.takeProfit1 ?? candidate?.takeProfit1)
-  const entryLow = formatLevel(candidate?.numericPlan?.entryLow)
-  const entryHigh = formatLevel(candidate?.numericPlan?.entryHigh)
-  const rangeValues = [entryLow, entryHigh].filter((item): item is number => item !== null).sort((left, right) => left - right)
-  const rangeLow = rangeValues[0]
-  const rangeHigh = rangeValues[rangeValues.length - 1]
-  const hasValidRange = rangeLow !== undefined && rangeHigh !== undefined && rangeLow < rangeHigh
-  const supportCandidates = [stop, hasValidRange ? rangeLow : null]
-    .filter((item): item is number => item !== null)
-    .filter((item) => !hasValidRange || item <= rangeLow)
-  const resistanceCandidates = [target, hasValidRange ? rangeHigh : null]
-    .filter((item): item is number => item !== null)
-    .filter((item) => !hasValidRange || item >= rangeHigh)
-  const support = supportCandidates.length ? Math.max(...supportCandidates) : null
-  const resistance = resistanceCandidates.length ? Math.min(...resistanceCandidates) : null
-  const hasValidTriggers = support !== null && resistance !== null && support <= (hasValidRange ? rangeLow : resistance) && resistance >= (hasValidRange ? rangeHigh : support) && support < resistance
-
-  return {
-    support: support !== null ? displayLevel(support) : null,
-    resistance: resistance !== null ? displayLevel(resistance) : null,
-    range: hasValidRange ? `${displayLevel(rangeLow)} - ${displayLevel(rangeHigh)}` : null,
-    bullishTrigger: hasValidTriggers ? `Break Above ${displayLevel(resistance)}` : null,
-    bearishTrigger: hasValidTriggers ? `Break Below ${displayLevel(support)}` : null,
-  }
-}
-
-function invalidationFromContext(candidate: MarketMoverCandidate | undefined, levels: ReturnType<typeof priceContext>) {
-  const bias = candidateBias(candidate)
-  if (bias === "Bullish" && levels.support) return `Break Below ${levels.support}`
-  if (bias === "Bearish" && levels.resistance) return `Break Above ${levels.resistance}`
-  return failureFromText(candidate?.invalidation, candidate?.chaseRisk)
-}
-
 function timeAgo(value?: string) {
   if (!value) return null
   const timestamp = new Date(value).getTime()
@@ -767,16 +607,24 @@ function buildCauses(
   sectorRotation?: SectorRotationResponse | null,
   futures?: FuturesIntelligenceResponse | null,
 ) {
+  const macroFreshness = macro?._source?.freshnessStatus
+  const usableMacroItems = macroFreshness === "LIVE" || macroFreshness === "CURRENT" || macroFreshness === "STALE"
+    ? macro?.items
+    : []
+  const sectorFreshness = sectorRotation?._source?.freshnessStatus
+  const usableSector = sectorFreshness === "LIVE" || sectorFreshness === "CURRENT" || sectorFreshness === "STALE"
+    ? sectorRotation?.sectors?.[0]
+    : undefined
   const moverCauses = [
     causeFromText(candidate?.trigger, candidateBias(candidate) === "Bearish" ? "negative" : candidateBias(candidate) === "Bullish" ? "positive" : "neutral", "SIGNAL"),
     causeFromText(candidate?.reason, "neutral", "EVIDENCE"),
     causeFromText(candidate?.setup, "neutral", "SETUP"),
   ]
 
-  const macroCauses = macro?.items?.slice(0, 4).map((item) => causeFromText(`${item.symbol ?? ""} ${item.change ?? ""} ${item.signal ?? ""}`, item.tone ?? "neutral", "MACRO")) ?? []
+  const macroCauses = usableMacroItems?.slice(0, 4).map((item) => causeFromText(`${item.symbol ?? ""} ${item.change ?? ""} ${item.signal ?? ""}`, item.tone ?? "neutral", "MACRO")) ?? []
   const narrativeCauses = narratives?.topNarratives?.slice(0, 2).map((item) => causeFromText(`${item} heat`, "neutral", "NARRATIVE")) ?? []
   const sectorCauses = [
-    sectorCause(sectorRotation?.sectors?.[0]),
+    sectorCause(usableSector),
     futuresCause(futures?.sectors?.[0]),
   ]
   const seen = new Set<string>()
@@ -809,15 +657,19 @@ function buildNarrativeHeat(narratives?: NarrativesResponse | null) {
 }
 
 function buildInformationFlow(macro?: MacroResponse | null, narratives?: NarrativesResponse | null) {
-  const formatTime = (value?: number) => {
+  const formatTime = (value?: number | string | null) => {
     if (!value) return null
     return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
   }
 
-  const macroItems = macro?.items?.slice(0, 2).map((item) => ({
-    time: formatTime(item.updatedAt ?? macro.updatedAt),
+  const macroFreshness = macro?._source?.freshnessStatus
+  const usableMacroItems = macroFreshness === "LIVE" || macroFreshness === "CURRENT" || macroFreshness === "STALE"
+    ? macro?.items
+    : []
+  const macroItems = usableMacroItems?.slice(0, 2).map((item) => ({
+    time: formatTime(macro?._source?.lastUpdatedAt),
     event: compactText(`${item.symbol ?? ""} ${item.change ?? ""}`),
-    tag: compactText(item.signal ?? undefined),
+    tag: compactText(`${item.signal ?? "MACRO"} · ${macroFreshness}`),
   }))
     .filter((item): item is InformationFlowItem => Boolean(item.time && item.event)) ?? []
 
@@ -890,7 +742,6 @@ const SURFACE_HERO = cn(COLOR_BORDER_STRONG, COLOR_SURFACE_LEVEL1, "shadow-[0_0_
 const SURFACE_PRIMARY = cn(COLOR_BORDER_SUBTLE, COLOR_SURFACE_LEVEL2, "shadow-[inset_0_1px_0_rgba(56,189,248,.06)]")
 const SURFACE_SECONDARY = cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL3)
 const SURFACE_ANALYTICS = cn(COLOR_BORDER_MUTED, COLOR_SURFACE_LEVEL4)
-const SURFACE_STRIP = cn("border-[#f97316]/20", COLOR_SURFACE_LEVEL4, "shadow-[inset_0_1px_0_rgba(249,115,22,.06)]")
 
 const SPACE_HERO = "px-5 py-6 md:px-8 md:py-8"
 const SPACE_SECTION = "gap-3"
@@ -1142,37 +993,6 @@ function TopRowCard({ title, icon, primary, rows }: { title: string; icon: React
   )
 }
 
-function GuidanceCard({ mover }: { mover?: MarketMoverCandidate }) {
-  const levels = priceContext(mover)
-  const doItems = [
-    actionFromCandidate(mover),
-    levels.bullishTrigger,
-    levels.bearishTrigger,
-  ].filter((item): item is string => Boolean(item))
-  const avoidItems = [
-    failureFromText(mover?.invalidation, mover?.chaseRisk),
-  ].filter((item): item is string => Boolean(item))
-
-  return (
-    <Card title="Execution Guidance" icon={<ShieldAlert className="h-3.5 w-3.5" />} level="level4">
-      <div className="grid gap-2">
-        <div className="rounded-md border border-[#22c55e]/15 bg-[#22c55e]/10 px-2 py-1.5">
-          <div className={cn(COLOR_STATE_POSITIVE, TYPO_ANALYTICS_TITLE)}>DO</div>
-          {(doItems.length ? doItems : ["NO DATA"]).map((item) => (
-            <div key={`do-${item}`} className={cn("mt-1 uppercase", COLOR_STATE_POSITIVE, TYPO_ANALYTICS_VALUE)}>{item}</div>
-          ))}
-        </div>
-        <div className="rounded-md border border-[#e53535]/15 bg-[#e53535]/10 px-2 py-1.5">
-          <div className={cn(COLOR_STATE_NEGATIVE, TYPO_ANALYTICS_TITLE)}>AVOID</div>
-          {(avoidItems.length ? avoidItems : ["NO DATA"]).map((item) => (
-            <div key={`avoid-${item}`} className={cn("mt-1 uppercase", COLOR_STATE_NEGATIVE, TYPO_ANALYTICS_VALUE)}>{item}</div>
-          ))}
-        </div>
-      </div>
-    </Card>
-  )
-}
-
 function TacticalAlerts({
   alerts,
   onInspectMarket,
@@ -1275,66 +1095,6 @@ function TacticalAlerts({
   )
 }
 
-function consistencyNote(mover: MarketMoverCandidate | undefined, causes: CauseTag[], futures: FuturesIntelligenceResponse | null) {
-  const direction = marketStateFromScore(mover)
-  const liquidity = liquidityCondition(futures)
-  const conflictingCause = causes.find((cause) => {
-    if (direction === "Bullish") return cause.tone === "negative"
-    if (direction === "Bearish") return cause.tone === "positive"
-    return false
-  })
-
-  if (direction === "Bullish" && liquidity?.label === "Liquidity Weakening") return "Bullish trend but liquidity weakening"
-  if (direction === "Bearish" && topEvidence(mover).some((item) => item.toLowerCase().includes("buying"))) return "Recovery attempt against broader weakness"
-  if (direction !== "Neutral" && conflictingCause) return `${direction} trend but ${conflictingCause.label.toLowerCase()}`
-  return null
-}
-
-function WhyThisSignal({ mover, causes, futures, marketDirection }: { mover?: MarketMoverCandidate; causes: CauseTag[]; futures: FuturesIntelligenceResponse | null; marketDirection: Bias }) {
-  const evidence = topEvidence(mover)
-  const evidenceRead = signalEvidenceSummary(evidence, marketDirection)
-  const action = actionFromCandidate(mover)
-  const levels = priceContext(mover)
-  const failure = invalidationFromContext(mover, levels)
-  const note = consistencyNote(mover, causes, futures)
-
-  if (!mover) {
-    return (
-      <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} level="level4">
-        <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", COLOR_TEXT_MUTED, TYPO_ANALYTICS_TITLE)}>NO SIGNAL DATA</div>
-      </Card>
-    )
-  }
-
-  return (
-    <Card title="Signal Evidence" icon={<Target className="h-3.5 w-3.5" />} level="level4">
-      <div className="grid gap-2 lg:grid-cols-3">
-        <div className="rounded-lg border border-[#38bdf8]/20 bg-[#38bdf8]/10 p-3">
-          <div className={cn(COLOR_ACCENT_CYAN, TYPO_ANALYTICS_TITLE)}>Evidence</div>
-          <div className={cn("mt-1.5 uppercase", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{evidenceRead.headline}</div>
-          {evidenceRead.support && <div className={cn("mt-1 uppercase", COLOR_TEXT_SECONDARY, TYPO_DRIVER_SUMMARY)}>{evidenceRead.support}</div>}
-          {(evidenceRead.note || note) && <div className={cn("mt-2 rounded border border-[#f97316]/20 bg-[#f97316]/10 px-2 py-1", COLOR_ACCENT_AMBER, TYPO_EVIDENCE_METADATA)}>{evidenceRead.note ?? note}</div>}
-        </div>
-        <div className="rounded-lg border border-[#e53535]/20 bg-[#e53535]/10 p-3">
-          <div className={cn(COLOR_STATE_NEGATIVE, TYPO_ANALYTICS_TITLE)}>Invalidation</div>
-          <div className={cn("mt-1.5", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{failure ?? "NO DATA"}</div>
-        </div>
-        <div className="rounded-lg border border-[#22c55e]/20 bg-[#22c55e]/10 p-3">
-          <div className={cn(COLOR_STATE_POSITIVE, TYPO_ANALYTICS_TITLE)}>Action</div>
-          <div className={cn("mt-1.5", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{action ?? "NO DATA"}</div>
-          <div className={cn("mt-2 grid gap-0.5", COLOR_TEXT_SECONDARY, TYPO_EVIDENCE_METADATA)}>
-            <div>Range: {levels.range ?? "NO DATA"}</div>
-            <div>Resistance: {levels.resistance ?? "NO DATA"}</div>
-            <div>Support: {levels.support ?? "NO DATA"}</div>
-            <div>{levels.bullishTrigger ?? "Bullish Trigger: NO DATA"}</div>
-            <div>{levels.bearishTrigger ?? "Bearish Trigger: NO DATA"}</div>
-          </div>
-        </div>
-      </div>
-    </Card>
-  )
-}
-
 function InformationFlow({ items }: { items: InformationFlowItem[] }) {
   return (
     <Card title="Information Flow" icon={<Newspaper className="h-3.5 w-3.5" />} level="level4">
@@ -1377,64 +1137,6 @@ function SystemStatus({ liquidationCount, alertCount, cacheUpdatedAt }: { liquid
         ) : null}
       </div>
     </Card>
-  )
-}
-
-function HistoricalEvidenceStrip({ data, loading }: { data: HistoricalEvidenceResponse | null; loading: boolean }) {
-  const horizon = data?.statistics?.byHorizon?.["24h"]
-  const available = data?.ok === true && data.status === "available" && (data.diagnostics?.analogCount ?? 0) > 0
-  const generatedAt = data?.diagnostics?.generatedAt
-  const source = data?.diagnostics?.source ?? data?.source
-  const reason = data?.diagnostics?.cacheStatus === "missing"
-    ? "cache not generated"
-    : data?.reason ?? "cached evidence unavailable"
-
-  return (
-    <section className={cn("rounded-lg border px-3 py-2", SURFACE_STRIP)}>
-      <div className="grid gap-2 lg:grid-cols-[190px_minmax(0,1fr)] lg:items-center">
-        <div className="border-l-2 border-[#f97316]/40 pl-3">
-          <div className={cn("flex items-center gap-2", COLOR_ACCENT_AMBER, TYPO_EVIDENCE_TITLE)}>
-            <History className="h-3.5 w-3.5" />
-            Historical Analog
-          </div>
-          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
-            Lightweight context strip
-          </div>
-        </div>
-        {available ? (
-          <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(150px,auto)] xl:items-stretch">
-            <div className={cn("rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
-              Similar Cases
-              <div className={cn("mt-0.5", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>{data?.statistics?.totalCases ?? data?.diagnostics?.analogCount}</div>
-            </div>
-            <div className={cn("rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
-              Avg Move 24h
-              <div className={cn("mt-0.5", TYPO_ANALYTICS_VALUE, (horizon?.averageReturn ?? 0) >= 0 ? COLOR_STATE_POSITIVE : COLOR_STATE_NEGATIVE)}>
-                {horizon?.averageReturn === null || horizon?.averageReturn === undefined ? "NO DATA" : `${horizon.averageReturn > 0 ? "+" : ""}${horizon.averageReturn.toFixed(2)}%`}
-              </div>
-            </div>
-            <div className={cn("rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
-              Continuation
-              <div className={cn("mt-0.5", COLOR_TEXT_PRIMARY, TYPO_ANALYTICS_VALUE)}>
-                {horizon?.winRate === null || horizon?.winRate === undefined ? "NO DATA" : `${horizon.winRate.toFixed(1)}%`}
-              </div>
-            </div>
-            <div className={cn("rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_MUTED, TYPO_EVIDENCE_METADATA)}>
-              Outcome
-              <div className={cn("mt-0.5", COLOR_ACCENT_AMBER, TYPO_ANALYTICS_VALUE)}>{data?.statistics?.dominantOutcome?.toUpperCase() ?? "NO DATA"}</div>
-            </div>
-            <div className={cn("flex flex-col justify-center rounded border px-2.5 py-1.5", COLOR_BORDER_MUTED, COLOR_BACKGROUND_DEEP, COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>
-              {source ?? "UNKNOWN SOURCE"} · {generatedAt ? new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "NO GENERATED TIME"}
-            </div>
-          </div>
-        ) : (
-          <div className={cn("rounded border px-3 py-2", loading ? BADGE_LOADING : BADGE_UNAVAILABLE, TYPO_EVIDENCE_METADATA)}>
-            <span className={COLOR_TEXT_SECONDARY}>{loading ? "Historical Analog Loading" : "Historical Analog Unavailable"}</span>
-            {!loading ? <span className={cn("ml-2", COLOR_TEXT_DIM)}>Reason: {reason}</span> : null}
-          </div>
-        )}
-      </div>
-    </section>
   )
 }
 
@@ -1482,6 +1184,10 @@ function healthBadgeClass(health: string) {
   if (health === "MISSING") return BADGE_MISSING
   if (health === "UNAVAILABLE") return BADGE_UNAVAILABLE
   return BADGE_UNAVAILABLE
+}
+
+function dashboardDrivers(summary?: MarketDriverSummary | null) {
+  return summary?.drivers.filter((driver) => driver.category !== "historical_analog") ?? []
 }
 
 function evidencePriority(health: string) {
@@ -1652,7 +1358,7 @@ function MarketDirectionPanel({
               <div className={cn("mt-2", COLOR_TEXT_SECONDARY, TYPO_HERO_METADATA_LABEL)}>Confidence</div>
             </div>
             <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-[#f97316]/25 bg-[linear-gradient(135deg,rgba(124,61,18,.34),rgba(3,8,5,.34))] p-4 shadow-[inset_0_1px_0_rgba(249,115,22,.12)]">
-              <div className={cn(TYPO_HERO_METADATA_VALUE, COLOR_ACCENT_AMBER)}>{data.drivers.length}</div>
+              <div className={cn(TYPO_HERO_METADATA_VALUE, COLOR_ACCENT_AMBER)}>{dashboardDrivers(data).length}</div>
               <div className={cn("mt-2", COLOR_TEXT_SECONDARY, TYPO_HERO_METADATA_LABEL)}>Driver Count</div>
             </div>
             <div className="flex min-h-[96px] flex-col justify-center rounded-lg border border-[#1c2c1c] bg-[linear-gradient(135deg,rgba(20,30,20,.82),rgba(3,8,5,.36))] p-4 shadow-[inset_0_1px_0_rgba(160,176,160,.1)]">
@@ -1674,15 +1380,16 @@ function WhyMarketMoving({
   data: MarketDriverSummary | null
   state: MarketDriverLoadState
 }) {
-  const primaryDrivers = data?.drivers.slice(0, 3) ?? []
-  const extraDriverCount = Math.max(0, (data?.drivers.length ?? 0) - 3)
+  const drivers = dashboardDrivers(data)
+  const primaryDrivers = drivers.slice(0, 3)
+  const extraDriverCount = Math.max(0, drivers.length - 3)
   const slots = [0, 1, 2]
 
   return (
     <Card title="Top Drivers" icon={<Info className="h-3.5 w-3.5" />} level="level2">
       {state === "loading" ? (
         <div className={cn(DASHBOARD_INNER_PANEL, "p-5 text-center", BADGE_LOADING, TYPO_SECTION_TITLE)}>Loading Ranked Drivers</div>
-      ) : data?.drivers.length ? (
+      ) : drivers.length ? (
         <div className={cn("grid", SPACE_CARD)}>
           <div className={cn(COLOR_TEXT_MUTED, TYPO_DRIVER_SUMMARY)}>
             Ranked reasons behind the current market direction.
@@ -1752,17 +1459,25 @@ function WhyMarketMoving({
 function SupportingEvidence({
   data,
   state,
+  etfFlow,
   reserve,
   reserveState,
   reserveReason,
 }: {
   data: MarketDriverSummary | null
   state: MarketDriverLoadState
+  etfFlow: EtfFlowResponse | null
   reserve: ReserveIntelligenceResponse | null
   reserveState: ReserveIntelligenceLoadState
   reserveReason: string | null
 }) {
   const driverByCategory = (category: MarketDriverCategory) => data?.drivers.find((driver) => driver.category === category)
+  const etfRows = etfFlow?.flows ?? []
+  const etfDriver = driverByCategory("etf")
+  const etfFreshness = etfFlow?._source?.freshnessStatus
+  const etfHealth = etfFlow?._source?.sourceStatus === "DEGRADED" && etfFreshness !== "STALE"
+    ? "PARTIAL"
+    : etfFreshness ?? "UNAVAILABLE"
   const reserveEvidence = reserve?.status === "available" ? reserve.observations?.[0] : null
   const staleCategories = new Set(data?.staleCategories ?? [])
   const missingCategories = new Set(data?.missingCategories ?? [])
@@ -1796,7 +1511,15 @@ function SupportingEvidence({
         ? "MISSING"
         : "UNAVAILABLE"
   const evidenceCards = [
-    makeDriverEvidence("ETF", "etf"),
+    etfDriver || !etfRows.length
+      ? makeDriverEvidence("ETF", "etf")
+      : {
+          id: "etf",
+          label: "ETF",
+          health: etfHealth,
+          observation: etfRows.map((flow) => `${flow.asset} ${formatFlow(flow.netFlow)}`).join(" / "),
+          source: `${etfFlow?._source?.sourceName ?? "ETF Flow"} · ${etfRows.map((flow) => flow.sourceDate ?? flow.latestDate).join(" / ")}`,
+        },
     {
       id: "reserve",
       label: "Reserve",
@@ -2004,6 +1727,7 @@ function EtfFlowCard({ data }: { data: EtfFlowResponse | null }) {
   const eth = flows.find((flow) => flow.asset === "ETH")
   const rows = [btc, eth].filter((flow): flow is NonNullable<typeof flow> => Boolean(flow))
   const reason = data?.staleReason ?? data?.unavailableReason ?? "NO DATA"
+  const freshness = data?._source?.freshnessStatus ?? "UNAVAILABLE"
 
   return (
     <BottomCard title="ETF Flow" icon={<TrendingUp className="h-3.5 w-3.5" />}>
@@ -2019,13 +1743,13 @@ function EtfFlowCard({ data }: { data: EtfFlowResponse | null }) {
               <div className={cn(TYPO_ANALYTICS_VALUE, flow.netFlow >= 0 ? COLOR_STATE_POSITIVE : COLOR_STATE_NEGATIVE)}>{formatFlow(flow.netFlow)}</div>
             </div>
           ))}
-          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Source: Farside</div>
+          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Source: Farside · Freshness: {freshness}</div>
         </div>
       ) : (
         <div>
           <div className={cn("rounded border px-3 py-2", BADGE_MISSING, TYPO_BADGE)}>NO DATA</div>
           <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>{reason}</div>
-          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Source: Farside</div>
+          <div className={cn("mt-1", COLOR_TEXT_DIM, TYPO_EVIDENCE_METADATA)}>Source: Farside · Freshness: {freshness}</div>
         </div>
       )}
     </BottomCard>
@@ -2085,8 +1809,6 @@ export default function DashboardV1({
   const [etfFlow, setEtfFlow] = useState<EtfFlowResponse | null>(cachedDashboard?.etfFlow ?? null)
   const [sectorRotation, setSectorRotation] = useState<SectorRotationResponse | null>(cachedDashboard?.sectorRotation ?? null)
   const [futures, setFutures] = useState<FuturesIntelligenceResponse | null>(cachedDashboard?.futures ?? null)
-  const [historicalEvidence, setHistoricalEvidence] = useState<HistoricalEvidenceResponse | null>(null)
-  const [historicalEvidenceLoading, setHistoricalEvidenceLoading] = useState(true)
   const [marketDrivers, setMarketDrivers] = useState<MarketDriverSummary | null>(null)
   const [marketDriverLoadState, setMarketDriverLoadState] = useState<MarketDriverLoadState>("loading")
   const [marketDriverUnavailableReason, setMarketDriverUnavailableReason] = useState<string | null>(null)
@@ -2233,7 +1955,7 @@ export default function DashboardV1({
         if (!active || controller.signal.aborted) return
         const summary = value.summary ?? null
         setMarketDrivers(summary)
-        setMarketDriverLoadState(summary?.drivers.length ? "ready" : "empty")
+        setMarketDriverLoadState(dashboardDrivers(summary).length ? "ready" : "empty")
       })
       .catch((error: unknown) => {
         if (!active) return
@@ -2305,36 +2027,6 @@ export default function DashboardV1({
     }
   }, [activeSymbol])
 
-  useEffect(() => {
-    let active = true
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 3500)
-    setHistoricalEvidence(null)
-    setHistoricalEvidenceLoading(true)
-
-    void fetch(`/api/historical-analog?symbol=${encodeURIComponent(activeSymbol)}&interval=1h`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => response.ok ? response.json() as Promise<HistoricalEvidenceResponse> : null)
-      .then((value) => {
-        if (active && !controller.signal.aborted) setHistoricalEvidence(value)
-      })
-      .catch(() => {
-        // Historical evidence is optional and must never block Dashboard.
-      })
-      .finally(() => {
-        clearTimeout(timeout)
-        if (active) setHistoricalEvidenceLoading(false)
-      })
-
-    return () => {
-      active = false
-      clearTimeout(timeout)
-      controller.abort()
-    }
-  }, [activeSymbol])
-
   const moverCandidates = useMemo(() => {
     const focus = marketMovers?.focusCandidate ? [marketMovers.focusCandidate] : []
     const candidates = marketMovers?.candidates ?? []
@@ -2355,7 +2047,6 @@ export default function DashboardV1({
   }, [marketMovers?.updatedAt, moverCandidates])
 
   const topMover = moverCandidates[0]
-  const marketDirection = marketStateFromScore(topMover)
   const causes = useMemo(() => buildCauses(topMover, macro, narratives, sectorRotation, futures), [topMover, macro, narratives, sectorRotation, futures])
   const narrativeItems = useMemo(() => buildNarrativeHeat(narratives), [narratives])
   const informationItems = useMemo(() => buildInformationFlow(macro, narratives), [macro, narratives])
@@ -2375,7 +2066,7 @@ export default function DashboardV1({
     const health = hasMatchingDriverSummary
       ? dashboardHealthFromDriverState(marketDriverLoadState, marketDrivers)
       : "PARTIAL"
-    const primaryDrivers = hasMatchingDriverSummary ? marketDrivers.drivers.slice(0, 3) : []
+    const primaryDrivers = hasMatchingDriverSummary ? dashboardDrivers(marketDrivers).slice(0, 3) : []
     const source = hasMatchingDriverSummary
       ? primaryDrivers[0]?.evidence.source ?? "market-driver"
       : "market-movers"
@@ -2401,7 +2092,7 @@ export default function DashboardV1({
           ? {
               value: {
                 kind: "dashboard_evidence_preview",
-                driverCount: marketDrivers.drivers.length,
+                driverCount: dashboardDrivers(marketDrivers).length,
                 primaryDrivers: primaryDrivers.map((driver) => ({
                   category: driver.category,
                   title: driver.title,
@@ -2468,11 +2159,11 @@ export default function DashboardV1({
           <SupportingEvidence
             data={marketDrivers}
             state={marketDriverLoadState}
+            etfFlow={etfFlow}
             reserve={reserveIntelligence}
             reserveState={reserveIntelligenceLoadState}
             reserveReason={reserveIntelligenceUnavailableReason}
           />
-          <HistoricalEvidenceStrip data={historicalEvidence} loading={historicalEvidenceLoading} />
         </section>
 
         <section className={cn("grid min-w-0", SPACE_SECTION)}>
@@ -2488,10 +2179,7 @@ export default function DashboardV1({
             </div>
           </div>
 
-          <WhyThisSignal mover={topMover} causes={causes} futures={futures} marketDirection={marketDirection} />
-
-          <div className={cn("grid lg:grid-cols-4", SPACE_SECTION)}>
-            <GuidanceCard mover={topMover} />
+          <div className={cn("grid lg:grid-cols-3", SPACE_SECTION)}>
             <EtfFlowCard data={etfFlow} />
             <LiquidityConditionsCard futures={futures} />
             <BottomCard title="Narrative Heatmap" icon={<Database className="h-3.5 w-3.5" />}>

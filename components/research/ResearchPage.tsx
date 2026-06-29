@@ -49,6 +49,7 @@ import {
   type ProductContextFreshness,
   type SharedProductContextV1,
 } from "@/lib/product-context"
+import type { SourceMetadataEnvelope } from "@/lib/data-governance"
 import { safeFetchJson } from "@/lib/runtime/safeFetch"
 
 const RESEARCH_REPLAY_CONTEXT_TTL_MS = 30 * 60 * 1000
@@ -73,7 +74,17 @@ type PredictionResponse = {
 
 type MacroResponse = {
   updatedAt?: number
-  items?: Array<{ symbol?: string; change?: string; signal?: string; tone?: string; updatedAt?: number }>
+  items?: Array<{
+    symbol?: string
+    change?: string
+    signal?: string
+    tone?: string
+    updatedAt?: number
+    sourceDate?: string
+    sourceTime?: string
+  }>
+  unavailableReason?: string
+  _source?: SourceMetadataEnvelope
 }
 
 type InheritedScannerContextState = {
@@ -309,7 +320,7 @@ export default function ResearchPage() {
   const [marketMemoryLoading, setMarketMemoryLoading] = useState(false)
   const [marketMemoryError, setMarketMemoryError] = useState<string | null>(null)
   const [inheritedScannerContext, setInheritedScannerContext] = useState<InheritedScannerContextState>({
-    label: productContextId ? "LOADING" : "MISSING",
+    label: productContextId ? "LOADING" : "UNAVAILABLE",
     tone: productContextId ? "neutral" : "neutral",
     detail: productContextId
       ? "Loading inherited Scanner context."
@@ -331,7 +342,7 @@ export default function ResearchPage() {
   useEffect(() => {
     if (!productContextId) {
       setInheritedScannerContext({
-        label: "MISSING",
+        label: "UNAVAILABLE",
         tone: "neutral",
         detail: "No shared contextId supplied. Direct Research remains available.",
         context: null,
@@ -367,7 +378,7 @@ export default function ResearchPage() {
     }
     if (lifecycle.value.sourcePage !== "scanner" || lifecycle.value.destinationIntent !== "evaluate_thesis") {
       setInheritedScannerContext({
-        label: "DEGRADED",
+        label: "UNAVAILABLE",
         tone: "warn",
         detail: "Shared context does not describe a Scanner to Research handoff.",
         context: null,
@@ -508,12 +519,16 @@ export default function ResearchPage() {
 
   const topNarratives = narratives.data?.heatmap?.slice(0, 8) ?? []
   const predictionMarkets = predictions.data?.markets?.slice(0, 5) ?? []
+  const macroFreshness = macro.data?._source?.freshnessStatus ?? "UNAVAILABLE"
+  const macroItems = macroFreshness === "LIVE" || macroFreshness === "CURRENT" || macroFreshness === "STALE"
+    ? macro.data?.items ?? []
+    : []
   const informationItems = [
-    ...(macro.data?.items?.slice(0, 3).map((item) => ({
+    ...(macroItems.slice(0, 3).map((item) => ({
       label: `${item.symbol ?? "MACRO"} ${item.change ?? ""}`.trim(),
-      tag: item.signal ?? item.tone ?? "MACRO",
-      time: time(item.updatedAt ?? macro.data?.updatedAt),
-    })) ?? []),
+      tag: `${item.signal ?? item.tone ?? "MACRO"} · ${macroFreshness}`,
+      time: dateTime(macro.data?._source?.lastUpdatedAt),
+    }))),
     ...(narratives.data?.topNarratives?.slice(0, 3).map((item) => ({
       label: `${item} Heat`,
       tag: "NARRATIVE",
@@ -673,10 +688,12 @@ export default function ResearchPage() {
     },
     {
       source: "Macro Flow",
-      freshness: macro.data?.updatedAt ? "CURRENT" : "UNAVAILABLE",
-      coverage: informationItems.length ? "PARTIAL" : "UNAVAILABLE",
-      generated: dateTime(macro.data?.updatedAt),
-      reason: informationItems.length ? "Macro or narrative flow items available." : (macro.error ?? "Macro and narrative flow returned no current items."),
+      freshness: macroFreshness,
+      coverage: macroItems.length ? "PARTIAL" : "UNAVAILABLE",
+      generated: dateTime(macro.data?._source?.lastUpdatedAt),
+      reason: macroItems.length
+        ? `${macroItems.length} source-backed Stooq observations available.`
+        : macro.data?.unavailableReason ?? macro.error ?? "Macro source timestamp or observations unavailable.",
     },
   ]
   const marketsHref = buildInvestigationHref("/markets", {
@@ -798,10 +815,14 @@ export default function ResearchPage() {
       createdAt: createdAtIso,
       expiresAt: new Date(createdAt.getTime() + RESEARCH_REPLAY_CONTEXT_TTL_MS).toISOString(),
       thesis,
+      opportunityContext: inheritedScanner?.opportunityContext,
+      signalContext: inheritedScanner?.signalContext,
+      marketStructureContext: inheritedScanner?.marketStructureContext,
       evidenceSummary,
       supportingEvidence: supporting,
       conflictingEvidence: conflicting,
-      freshness,
+      confidenceContext: inheritedScanner?.confidenceContext,
+      freshness: freshness ?? inheritedScanner?.freshness,
       replayTarget: {
         value: {
           caseId: selectedCase.state.id,

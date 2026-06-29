@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { enqueueFromAdapterPreview } from "@/core/historical-intelligence/externalEventReviewQueueService"
 import type { ExternalEventSourceType } from "@/core/historical-intelligence/externalEventAdapterTypes"
+import { enforceNonProductionRouteIsolation } from "@/lib/runtime/nonProductionRouteIsolation"
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +12,11 @@ export async function POST(request: Request) {
       asset?: string
       limit?: number
       mode?: "mock" | "live"
+    }
+
+    if (body.mode !== "live") {
+      const isolationResponse = enforceNonProductionRouteIsolation(request)
+      if (isolationResponse) return isolationResponse
     }
 
     if (!body.sourceType) {

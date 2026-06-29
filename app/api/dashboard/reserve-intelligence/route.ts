@@ -5,8 +5,19 @@ import { NextResponse } from "next/server"
 
 import { isDeployableSnapshot } from "@/core/deployable-snapshots"
 import type { DeployableReserveIntelligenceObservation } from "@/core/reserve-intelligence"
+import {
+  createSourceDegraded,
+  createSourceSuccess,
+  createSourceUnavailable,
+  normalizeSourceMetadata,
+  type SourceMetadataEnvelope,
+} from "@/lib/data-governance/envelope"
+import { evaluateFreshness } from "@/lib/data-governance/freshnessPolicy"
+import type { SourceUnavailableReason } from "@/lib/data-governance/unavailable"
 
 export const dynamic = "force-dynamic"
+
+const SOURCE_ID = "exchange-reserve"
 
 type ReserveIntelligenceSnapshot = {
   schemaVersion: number
@@ -52,7 +63,78 @@ function compareObservation(
   return left.asset.localeCompare(right.asset)
 }
 
+function unavailableSourceMetadata(input: {
+  reason: SourceUnavailableReason
+  retrievedAt: string
+  observedAt?: string | null
+}) {
+  const freshness = evaluateFreshness({
+    sourceId: SOURCE_ID,
+    lastUpdatedAt: input.observedAt ?? null,
+    retrievedAt: input.retrievedAt,
+  })
+  const unavailable = createSourceUnavailable(SOURCE_ID, input.reason)
+  return normalizeSourceMetadata(SOURCE_ID, {
+    freshnessStatus: freshness.status,
+    qualityLevel: unavailable.metadata.qualityLevel,
+    sourceStatus: unavailable.metadata.sourceStatus,
+    lastUpdatedAt: freshness.lastUpdatedAt,
+    retrievedAt: input.retrievedAt,
+    unavailableReason: unavailable.metadata.unavailableReason,
+    cacheStatus: unavailable.metadata.cacheStatus,
+  })
+}
+
+function availableSourceMetadata(input: {
+  snapshot: ReserveIntelligenceSnapshot
+  observations: DeployableReserveIntelligenceObservation[]
+  retrievedAt: string
+}): SourceMetadataEnvelope {
+  const freshness = evaluateFreshness({
+    sourceId: SOURCE_ID,
+    lastUpdatedAt: input.snapshot.metadata.observedAt,
+    retrievedAt: input.retrievedAt,
+  })
+
+  if (freshness.status === "EXPIRED" || freshness.status === "UNAVAILABLE") {
+    return unavailableSourceMetadata({
+      reason: freshness.status === "EXPIRED" ? "EXPIRED" : "INVALID_RESPONSE",
+      retrievedAt: input.retrievedAt,
+      observedAt: input.snapshot.metadata.observedAt,
+    })
+  }
+
+  const metadata = {
+    freshnessStatus: freshness.status,
+    lastUpdatedAt: freshness.lastUpdatedAt,
+    retrievedAt: input.retrievedAt,
+    cacheStatus: "HIT" as const,
+  }
+  if (freshness.status === "STALE") {
+    return createSourceDegraded(SOURCE_ID, input.observations, "STALE_DATA", undefined, {
+      ...metadata,
+      qualityLevel: "LOW",
+    }).metadata
+  }
+
+  const partial = input.snapshot.metadata.coverage !== "full"
+    || input.snapshot.metadata.freshness !== "current"
+    || input.observations.some((observation) => observation.quality !== "verified")
+  if (partial) {
+    return createSourceDegraded(SOURCE_ID, input.observations, "PARTIAL_DATA", undefined, {
+      ...metadata,
+      qualityLevel: "LOW",
+    }).metadata
+  }
+
+  return createSourceSuccess(SOURCE_ID, input.observations, {
+    ...metadata,
+    qualityLevel: "MEDIUM",
+  }).metadata
+}
+
 export async function GET(request: Request) {
+  const retrievedAt = new Date().toISOString()
   const { searchParams } = new URL(request.url)
   const symbol = searchParams.get("symbol")?.trim().toUpperCase() ?? ""
   const asset = symbol ? baseAsset(symbol) : null
@@ -64,6 +146,10 @@ export async function GET(request: Request) {
         ok: false,
         status: "unavailable",
         reason: "Reserve Intelligence deployable artifact is invalid.",
+        _source: unavailableSourceMetadata({
+          reason: "INVALID_RESPONSE",
+          retrievedAt,
+        }),
       }, { status: 200 })
     }
 
@@ -90,6 +176,11 @@ export async function GET(request: Request) {
         coverage: snapshot.metadata.coverage,
         observations: [],
         reason: snapshot.metadata.reason ?? "Reserve Intelligence observations unavailable.",
+        _source: unavailableSourceMetadata({
+          reason: "EMPTY_RESPONSE",
+          retrievedAt,
+          observedAt: snapshot.metadata.observedAt,
+        }),
       })
     }
 
@@ -102,6 +193,11 @@ export async function GET(request: Request) {
       freshness: snapshot.metadata.freshness,
       coverage: snapshot.metadata.coverage,
       observations: selected,
+      _source: availableSourceMetadata({
+        snapshot,
+        observations: selected,
+        retrievedAt,
+      }),
     })
   } catch (error) {
     return NextResponse.json({
@@ -110,6 +206,10 @@ export async function GET(request: Request) {
       reason: error instanceof Error
         ? error.message
         : "Reserve Intelligence unavailable.",
+      _source: unavailableSourceMetadata({
+        reason: "SOURCE_UNAVAILABLE",
+        retrievedAt,
+      }),
     }, { status: 200 })
   }
 }

@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server"
 
+import {
+  createSourceDegraded,
+  createSourceSuccess,
+  createSourceUnavailable,
+} from "@/lib/data-governance/envelope"
+
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
@@ -127,15 +133,34 @@ export async function GET(req: Request) {
     getBinance(symbol),
     getBybit(symbol),
   ])
-
-  return NextResponse.json({
+  const retrievedAt = new Date().toISOString()
+  const payload = {
     ok: Boolean(binance.ok || bybit.ok),
     symbol,
-    updatedAt: new Date().toISOString(),
+    updatedAt: retrievedAt,
     binance,
     bybit,
     fundingRelationship: relationship(binance.ok ? binance.fundingRate : null, bybit.ok ? bybit.fundingRate : null),
     openInterestRelationship: relationship(binance.ok ? binance.oiNotional : null, bybit.ok ? bybit.oiNotional : null),
+  }
+  const sourceResult = binance.ok && bybit.ok
+    ? createSourceSuccess("exchange-comparison", payload, {
+        freshnessStatus: "UNAVAILABLE",
+        qualityLevel: "MEDIUM",
+        retrievedAt,
+        cacheStatus: "BYPASS",
+      })
+    : binance.ok || bybit.ok
+      ? createSourceDegraded("exchange-comparison", payload, "PARTIAL_DATA", undefined, {
+          freshnessStatus: "UNAVAILABLE",
+          retrievedAt,
+          cacheStatus: "BYPASS",
+        })
+      : createSourceUnavailable("exchange-comparison", "SOURCE_UNAVAILABLE")
+
+  return NextResponse.json({
+    ...payload,
+    _source: sourceResult.metadata,
   }, {
     headers: {
       "Cache-Control": "no-store, max-age=0",

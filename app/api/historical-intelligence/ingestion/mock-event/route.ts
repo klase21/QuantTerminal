@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { ingestMockHistoricalEvent } from "@/core/historical-intelligence/historicalEventIngestionService"
 import type { HistoricalRawMockEvent } from "@/core/historical-intelligence/historicalEventIngestionTypes"
+import { enforceNonProductionRouteIsolation } from "@/lib/runtime/nonProductionRouteIsolation"
 
 const DEFAULT_EVENT: HistoricalRawMockEvent = {
   kind: "cpi",
@@ -13,6 +14,9 @@ const DEFAULT_EVENT: HistoricalRawMockEvent = {
 }
 
 export async function POST(request: Request) {
+  const isolationResponse = enforceNonProductionRouteIsolation(request)
+  if (isolationResponse) return isolationResponse
+
   try {
     const body = (await request.json().catch(() => DEFAULT_EVENT)) as Partial<HistoricalRawMockEvent>
     const raw: HistoricalRawMockEvent = {

@@ -10,6 +10,8 @@ export type MacroQuote = {
   tone: MacroTone
   source: "stooq"
   updatedAt: number
+  sourceDate: string
+  sourceTime: string
 }
 
 export type MacroSnapshot = {
@@ -155,6 +157,8 @@ export async function getMacroSnapshot(): Promise<MacroSnapshot> {
       tone: item.tone(quote.changePercent),
       source: "stooq",
       updatedAt,
+      sourceDate: quote.date,
+      sourceTime: quote.time,
     })
   }
 

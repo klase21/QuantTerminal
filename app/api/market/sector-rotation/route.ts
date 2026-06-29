@@ -3,6 +3,13 @@ import { NextResponse } from "next/server"
 import { SECTOR_REGISTRY } from "@/core/registry/sectorRegistry"
 import { buildRealMarketRotation, type BinanceTicker24h, type UpbitTicker } from "@/core/market/realMarketRotation"
 import type { ConnectorQualityStatus } from "@/core/marketDataTypes"
+import {
+  createSourceDegraded,
+  createSourceSuccess,
+  createSourceUnavailable,
+  normalizeSourceMetadata,
+} from "@/lib/data-governance/envelope"
+import { evaluateFreshness } from "@/lib/data-governance/freshnessPolicy"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -33,6 +40,47 @@ interface BinanceExchangeInfoSymbol {
 
 interface BinanceExchangeInfoResponse {
   symbols?: BinanceExchangeInfoSymbol[]
+}
+
+type TimestampedBinanceTicker = BinanceTicker24h & { closeTime?: number }
+type TimestampedUpbitTicker = UpbitTicker & { timestamp?: number }
+
+function sourceTimestamp(value: unknown): string | null {
+  const timestamp = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return null
+  const date = new Date(timestamp)
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null
+}
+
+function oldestSourceTimestamp(values: Array<string | null>): string | null {
+  const valid = values.filter((value): value is string => Boolean(value))
+  if (!valid.length) return null
+  return valid.reduce((oldest, value) => Date.parse(value) < Date.parse(oldest) ? value : oldest)
+}
+
+function aggregateSourceTimestamp(
+  binance: BinanceTicker24h[],
+  upbit: UpbitTicker[],
+): string | null {
+  const contributorTimestamps: string[] = []
+
+  if (binance.length) {
+    const timestamps = binance.map((ticker) => sourceTimestamp((ticker as TimestampedBinanceTicker).closeTime))
+    if (timestamps.some((timestamp) => timestamp === null)) return null
+    const oldest = oldestSourceTimestamp(timestamps)
+    if (!oldest) return null
+    contributorTimestamps.push(oldest)
+  }
+
+  if (upbit.length) {
+    const timestamps = upbit.map((ticker) => sourceTimestamp((ticker as TimestampedUpbitTicker).timestamp))
+    if (timestamps.some((timestamp) => timestamp === null)) return null
+    const oldest = oldestSourceTimestamp(timestamps)
+    if (!oldest) return null
+    contributorTimestamps.push(oldest)
+  }
+
+  return oldestSourceTimestamp(contributorTimestamps)
 }
 
 function uniqueRegistryBinanceSymbols() {
@@ -339,10 +387,56 @@ export async function GET() {
       updatedAt: new Date().toISOString(),
       connectorQuality,
     })
+    const responseMode = result.ok && notes.length ? "partial" : result.mode
+    const lastUpdatedAt = aggregateSourceTimestamp(binance, upbitTickers)
+    const freshness = evaluateFreshness({
+      sourceId: "sector-rotation",
+      lastUpdatedAt,
+      retrievedAt: result.updatedAt,
+    })
+    const partial = responseMode === "partial" || result.dataQuality?.status !== "healthy"
+    const sourceResult = !result.ok || !result.sectors.length
+      ? createSourceUnavailable("sector-rotation", "EMPTY_RESPONSE")
+      : freshness.status === "EXPIRED" || freshness.status === "UNAVAILABLE"
+        ? createSourceUnavailable("sector-rotation", freshness.status === "EXPIRED" ? "EXPIRED" : "INVALID_RESPONSE")
+        : freshness.status === "STALE"
+          ? createSourceDegraded("sector-rotation", result, "STALE_DATA", undefined, {
+              freshnessStatus: freshness.status,
+              qualityLevel: "LOW",
+              lastUpdatedAt,
+              retrievedAt: result.updatedAt,
+              cacheStatus: "BYPASS",
+            })
+          : partial
+            ? createSourceDegraded("sector-rotation", result, "PARTIAL_DATA", undefined, {
+                freshnessStatus: freshness.status,
+                qualityLevel: "MEDIUM",
+                lastUpdatedAt,
+                retrievedAt: result.updatedAt,
+                cacheStatus: "BYPASS",
+              })
+            : createSourceSuccess("sector-rotation", result, {
+                freshnessStatus: freshness.status,
+                qualityLevel: "MEDIUM",
+                lastUpdatedAt,
+                retrievedAt: result.updatedAt,
+                cacheStatus: "BYPASS",
+              })
+    const sourceMetadata = sourceResult.status === "UNAVAILABLE"
+      ? normalizeSourceMetadata("sector-rotation", {
+          freshnessStatus: freshness.status,
+          qualityLevel: sourceResult.metadata.qualityLevel,
+          sourceStatus: sourceResult.metadata.sourceStatus,
+          lastUpdatedAt,
+          retrievedAt: result.updatedAt,
+          unavailableReason: sourceResult.metadata.unavailableReason,
+          cacheStatus: sourceResult.metadata.cacheStatus,
+        })
+      : sourceResult.metadata
 
     return NextResponse.json({
       ...result,
-      mode: result.ok && notes.length ? "partial" : result.mode,
+      mode: responseMode,
       notes: [...result.notes, ...notes],
       binanceValidation: {
         requestedSymbols: binanceResult.requestedSymbols,
@@ -353,13 +447,25 @@ export async function GET() {
         exchangeInfoCache: binanceResult.exchangeInfoCache,
         failedChunks: binanceResult.failedChunks,
       },
+      _source: sourceMetadata,
     })
   } catch (error) {
+    const retrievedAt = new Date().toISOString()
+    const unavailable = createSourceUnavailable("sector-rotation", "SOURCE_UNAVAILABLE")
+    const sourceMetadata = normalizeSourceMetadata("sector-rotation", {
+      freshnessStatus: unavailable.metadata.freshnessStatus,
+      qualityLevel: unavailable.metadata.qualityLevel,
+      sourceStatus: unavailable.metadata.sourceStatus,
+      retrievedAt,
+      unavailableReason: unavailable.metadata.unavailableReason,
+      cacheStatus: unavailable.metadata.cacheStatus,
+    })
+
     return NextResponse.json(
       {
         ok: false,
         source: "binance-upbit-real-market",
-        updatedAt: new Date().toISOString(),
+        updatedAt: retrievedAt,
         mode: "error",
         sectors: [],
         assets: [],
@@ -383,6 +489,7 @@ export async function GET() {
           connectors: [],
         },
         notes: [error instanceof Error ? error.message : "Unknown sector rotation error"],
+        _source: sourceMetadata,
       },
       { status: 500 }
     )

@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Activity, AlertTriangle, BarChart3, BookOpen, Building2, Droplets, Gauge, Layers, LineChart, RadioTower, ShieldCheck, TrendingUp, Zap } from "lucide-react"
+import { Activity, AlertTriangle, BarChart3, BookOpen, Building2, Droplets, Gauge, Layers, LineChart, RadioTower, ShieldCheck, Zap } from "lucide-react"
 
 import AdvancedChartModal from "@/components/charts/AdvancedChartModal"
 import MarketCandleChart from "@/components/charts/MarketCandleChart"
 import type { MarketMoversResponse, MarketMoverCandidate } from "@/lib/market-movers/types"
 import type { MarketStructureIntelligenceResponse } from "@/core/market-structure/marketStructureTypes"
 import type { RealMarketRotationResponse, SectorRotationSnapshot } from "@/core/marketDataTypes"
+import type { SourceMetadataEnvelope } from "@/lib/data-governance"
 import useDepthHeatmap from "@/hooks/useDepthHeatmap"
 import useKlineSocket from "@/hooks/useKlineSocket"
 import useMarketSocket from "@/hooks/useMarketSocket"
@@ -133,10 +134,12 @@ type EtfFlowResponse = {
   ok?: boolean
   source?: string
   updatedAt?: string
+  _source?: SourceMetadataEnvelope
   flows?: Array<{
     asset: "BTC" | "ETH"
     latestDate: string
     sourceDate: string
+    sourceTimestamp?: string
     netFlow: number
     unit: string
     trend1d?: "UP" | "DOWN" | "FLAT"
@@ -146,6 +149,10 @@ type EtfFlowResponse = {
   isStale?: boolean
   staleReason?: string
   unavailableReason?: string
+}
+
+type SectorRotationResponse = RealMarketRotationResponse & {
+  _source?: SourceMetadataEnvelope
 }
 
 type ReserveIntelligenceResponse = {
@@ -327,12 +334,16 @@ function InlineStatus({
 }
 
 function marketsContextFreshness(
-  sectorRotation: RealMarketRotationResponse | null,
+  sectorRotation: SectorRotationResponse | null,
   marketStructure: MarketStructureIntelligenceResponse | null,
 ): ProductContextFreshness {
-  if (sectorRotation?.dataQuality?.stale) return "STALE"
-  if (sectorRotation?.ok && sectorRotation.mode === "partial") return "UNKNOWN"
-  if (sectorRotation?.ok || marketStructure?.ok) return "CURRENT"
+  const rotationFreshness = sectorRotation?._source?.freshnessStatus
+  if (rotationFreshness === "STALE") return "STALE"
+  if (
+    (rotationFreshness === "LIVE" || rotationFreshness === "CURRENT")
+    && sectorRotation?._source?.sourceStatus === "DEGRADED"
+  ) return "UNKNOWN"
+  if (rotationFreshness === "LIVE" || rotationFreshness === "CURRENT" || marketStructure?.ok) return "CURRENT"
   return "UNAVAILABLE"
 }
 
@@ -797,7 +808,7 @@ export default function MarketsPage() {
   const [liquidationLoadState, setLiquidationLoadState] = useState<LiquidationLoadState>("idle")
   const [marketMovers, setMarketMovers] = useState<MarketMoversResponse | null>(null)
   const [marketMoversReason, setMarketMoversReason] = useState<string | null>(null)
-  const [sectorRotation, setSectorRotation] = useState<RealMarketRotationResponse | null>(null)
+  const [sectorRotation, setSectorRotation] = useState<SectorRotationResponse | null>(null)
   const [sectorRotationReason, setSectorRotationReason] = useState<string | null>(null)
   const [exchangeComparison, setExchangeComparison] = useState<ExchangeComparisonResponse | null>(null)
   const [exchangeComparisonReason, setExchangeComparisonReason] = useState<string | null>(null)
@@ -825,7 +836,7 @@ export default function MarketsPage() {
   const { trades } = useTradeSocket(symbol)
   const depthFrames = useDepthHeatmap(symbol)
   const [inheritedDashboardContext, setInheritedDashboardContext] = useState<InheritedDashboardContextState>({
-    label: productContextId ? "LOADING" : "MISSING",
+    label: productContextId ? "LOADING" : "UNAVAILABLE",
     detail: productContextId
       ? "Loading inherited Dashboard context."
       : "No shared contextId supplied. Direct Markets remains available.",
@@ -843,7 +854,7 @@ export default function MarketsPage() {
   useEffect(() => {
     if (!productContextId) {
       setInheritedDashboardContext({
-        label: "MISSING",
+        label: "UNAVAILABLE",
         detail: "No shared contextId supplied. Direct Markets remains available.",
         context: null,
       })
@@ -872,7 +883,7 @@ export default function MarketsPage() {
     }
     if (lifecycle.value.sourcePage !== "dashboard" || lifecycle.value.destinationIntent !== "explore_market") {
       setInheritedDashboardContext({
-        label: "DEGRADED",
+        label: "UNAVAILABLE",
         detail: "Shared context does not describe a Dashboard to Markets handoff.",
         context: null,
       })
@@ -926,7 +937,7 @@ export default function MarketsPage() {
       setMarketMovers,
       setMarketMoversReason,
     )
-    void loadJson<RealMarketRotationResponse>(
+    void loadJson<SectorRotationResponse>(
       "/api/market/sector-rotation",
       setSectorRotation,
       setSectorRotationReason,
@@ -1128,19 +1139,27 @@ export default function MarketsPage() {
     setPreviousOi((prev) => prev[symbol] === undefined ? { ...prev, [symbol]: currentOi } : prev)
   }, [currentOi, symbol])
 
-  const rankedOpportunities = marketMovers?.candidates?.length
+  const marketMoverRows = marketMovers?.candidates?.length
     ? marketMovers.candidates
     : marketMovers?.suppressed?.slice(0, 4) ?? []
-  const topSectors = sectorRotation?.sectors?.slice(0, 4) ?? []
-  const sectorAssets = sectorRotation?.assets ?? []
+  const sectorFreshness = sectorRotation?._source?.freshnessStatus ?? "UNAVAILABLE"
+  const sectorUsable = sectorFreshness === "LIVE" || sectorFreshness === "CURRENT" || sectorFreshness === "STALE"
+  const sectorPartial = sectorRotation?._source?.sourceStatus === "DEGRADED" && sectorFreshness !== "STALE"
+  const sectorUnavailableReason = sectorRotation?.notes?.[0]
+    ?? sectorRotation?._source?.unavailableReason
+    ?? sectorRotationReason
+  const topSectors = sectorUsable ? sectorRotation?.sectors?.slice(0, 4) ?? [] : []
+  const sectorAssets = sectorUsable ? sectorRotation?.assets ?? [] : []
   const advancingAssets = sectorAssets.filter((asset) => asset.priceChange24h > 0).length
   const decliningAssets = sectorAssets.filter((asset) => asset.priceChange24h < 0).length
-  const mappedAssets = sectorRotation?.coverage?.mappedAssets ?? sectorAssets.length
+  const mappedAssets = sectorUsable ? sectorRotation?.coverage?.mappedAssets ?? sectorAssets.length : 0
   const breadthState = mappedAssets
     ? advancingAssets > decliningAssets ? "BROAD BID" : decliningAssets > advancingAssets ? "BROAD OFFER" : "MIXED"
     : "UNAVAILABLE"
   const topStructureSectors = marketStructure?.sectors?.slice(0, 3) ?? []
   const etfRows = etfFlow?.flows ?? []
+  const etfFreshness = etfFlow?._source?.freshnessStatus ?? (etfFlow?.isStale ? "STALE" : "UNAVAILABLE")
+  const etfPartial = etfFlow?._source?.sourceStatus === "DEGRADED" && etfFreshness !== "STALE"
   const reserveRows = reserveIntelligence?.observations ?? []
   const marketMoverSuppressed = marketMovers?.suppressed?.slice(0, 5) ?? []
   const selectedAsset = symbol.replace(/USDT$/, "")
@@ -1148,7 +1167,7 @@ export default function MarketsPage() {
   const selectedReserve = reserveRows.find((row) => row.asset?.toUpperCase() === selectedAsset)
   const discoveryHealth = [
     marketMovers?.ok,
-    sectorRotation?.ok,
+    sectorUsable,
     exchangeComparison?.ok,
     marketStructure?.ok,
     etfFlow?.ok,
@@ -1166,13 +1185,15 @@ export default function MarketsPage() {
     const createdAt = new Date()
     const createdAtIso = createdAt.toISOString()
     const freshness = marketsContextFreshness(sectorRotation, marketStructure)
-    const observedAtCandidates = [sectorRotation?.updatedAt, marketStructure?.updatedAt]
-      .filter((value): value is string => Boolean(value) && Number.isFinite(Date.parse(value)))
-      .map((value) => new Date(value).toISOString())
-      .sort()
-    const observedAt = observedAtCandidates.at(-1)
-    const topSector = sectorRotation?.sectors?.[0] ?? marketStructure?.topSector
-    const source = marketStructure?.source ?? sectorRotation?.source ?? "markets"
+    const topSector = topSectors[0] ?? marketStructure?.topSector
+    const usesSectorRotation = Boolean(topSectors[0])
+    const observedAtSource = usesSectorRotation ? sectorRotation?._source?.lastUpdatedAt : marketStructure?.updatedAt
+    const observedAt = observedAtSource && Number.isFinite(Date.parse(observedAtSource))
+      ? new Date(observedAtSource).toISOString()
+      : undefined
+    const source = usesSectorRotation
+      ? sectorRotation?._source?.sourceId ?? sectorRotation?.source ?? "sector-rotation"
+      : marketStructure?.source ?? "markets"
     const handoff = createMarketsToScannerContext({
       contextId: marketsScannerContextId(createdAt),
       symbol,
@@ -1289,32 +1310,29 @@ export default function MarketsPage() {
             <div className="grid gap-2 rounded-lg border border-amber-300/15 bg-black/35 p-3">
               <InlineStatus label="Mover Scan" value={marketMovers?.summary?.attention ?? marketMoversReason ?? "LOADING"} tone={marketMovers?.ok ? "green" : "amber"} />
               <InlineStatus label="Breadth" value={breadthState} tone={breadthState === "BROAD BID" ? "green" : breadthState === "BROAD OFFER" ? "red" : "amber"} />
-              <InlineStatus label="Top Sector" value={sectorRotation?.sectors?.[0]?.sector ?? marketStructure?.topSector?.sector ?? "NO DATA"} tone="cyan" />
+              <InlineStatus label="Top Sector" value={topSectors[0]?.sector ?? marketStructure?.topSector?.sector ?? "NO DATA"} tone="cyan" />
               <InlineStatus label="Capital Flow" value={selectedEtf ? `${selectedEtf.asset} ${compactUsd(selectedEtf.netFlow * 1_000_000)}` : reserveRows.length ? `${reserveRows.length} reserve observations` : etfFlowReason ?? reserveReason ?? "NO DATA"} tone={selectedEtf || reserveRows.length ? "cyan" : "amber"} />
             </div>
           </div>
         </MarketsSection>
 
         <MarketsSection
-          title="Ranked Opportunities"
-          subtitle="Existing market movers scan; no synthetic ranking added"
-          icon={<TrendingUp className="h-3.5 w-3.5" />}
+          title="Market Movers"
+          subtitle="Existing mover feed for live exploration; prioritization remains in Scanner"
+          icon={<Activity className="h-3.5 w-3.5" />}
           status={apiStatus(marketMovers?.ok, marketMovers?.mode === "fallback")}
           className="border-amber-300/25"
         >
-          {rankedOpportunities.length ? (
+          {marketMoverRows.length ? (
             <div className="grid gap-1.5">
-              <div className="grid grid-cols-[44px_96px_96px_minmax(180px,1fr)_92px_92px] rounded border border-zinc-900 bg-black/60 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600 max-lg:hidden">
-                <span>Rank</span>
+              <div className="grid grid-cols-[96px_96px_minmax(180px,1fr)_92px] rounded border border-zinc-900 bg-black/60 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600 max-lg:hidden">
                 <span>Symbol</span>
                 <span>State</span>
                 <span>Reason</span>
-                <span className="text-right">Score</span>
                 <span className="text-right">Next</span>
               </div>
-              {rankedOpportunities.slice(0, 6).map((candidate, index) => (
-                <div key={`opportunity-${candidate.symbol}-${index}`} className="grid gap-2 rounded border border-zinc-900 bg-black/35 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] lg:grid-cols-[44px_96px_96px_minmax(180px,1fr)_92px_92px] lg:items-center">
-                  <div className="text-2xl leading-none text-amber-100">#{index + 1}</div>
+              {marketMoverRows.slice(0, 6).map((candidate, index) => (
+                <div key={`mover-${candidate.symbol}-${index}`} className="grid gap-2 rounded border border-zinc-900 bg-black/35 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] lg:grid-cols-[96px_96px_minmax(180px,1fr)_92px] lg:items-center">
                   <button
                     type="button"
                     onClick={() => setSymbol(candidate.symbol)}
@@ -1324,13 +1342,12 @@ export default function MarketsPage() {
                   </button>
                   <div className={opportunityTone(candidate)}>{candidate.qualityState}</div>
                   <div className="text-zinc-500">{candidate.reason}</div>
-                  <div className="text-right text-cyan-100 lg:text-right">{candidate.score}</div>
                   <div className="text-right text-zinc-500">{candidate.action}</div>
                 </div>
               ))}
             </div>
           ) : (
-            <EmptyState title="UNAVAILABLE" reason={marketMoversReason ?? "Market movers scan has not returned ranked opportunities."} />
+            <EmptyState title="UNAVAILABLE" reason={marketMoversReason ?? "Market movers feed has not returned symbols."} />
           )}
         </MarketsSection>
 
@@ -1339,17 +1356,17 @@ export default function MarketsPage() {
             title="Market Breadth"
             subtitle="Advancing and declining mapped assets"
             icon={<Gauge className="h-3.5 w-3.5" />}
-            status={apiStatus(sectorRotation?.ok, sectorRotation?.mode === "partial", sectorRotation?.dataQuality?.stale)}
+            status={apiStatus(sectorUsable, sectorPartial, sectorFreshness === "STALE")}
           >
-            {mappedAssets ? (
+            {sectorUsable && mappedAssets ? (
               <div className="grid gap-2 md:grid-cols-4">
-                <MetricCard label="Breadth" value={breadthState} sub="Mapped universe" tone={breadthState === "BROAD BID" ? "green" : breadthState === "BROAD OFFER" ? "red" : "amber"} size="md" />
+                <MetricCard label="Breadth" value={breadthState} sub={`Mapped universe / ${sectorFreshness}`} tone={breadthState === "BROAD BID" ? "green" : breadthState === "BROAD OFFER" ? "red" : "amber"} size="md" />
                 <MetricCard label="Advancers" value={fmt(advancingAssets, 0)} sub={`${mappedAssets} mapped assets`} tone="green" size="md" />
                 <MetricCard label="Decliners" value={fmt(decliningAssets, 0)} sub={`${sectorRotation?.coverage?.sectors ?? 0} sectors`} tone="red" size="md" />
                 <MetricCard label="Coverage" value={fmt(sectorRotation?.coverage?.mappedAssets, 0)} sub={sectorRotation?.mode ?? "NO DATA"} tone="cyan" size="md" />
               </div>
             ) : (
-              <EmptyState title="UNAVAILABLE" reason={sectorRotationReason ?? "Market breadth requires sector rotation data."} />
+              <EmptyState title="UNAVAILABLE" reason={sectorUnavailableReason ?? "Market breadth requires source-backed sector rotation data."} />
             )}
           </MarketsSection>
 
@@ -1357,7 +1374,7 @@ export default function MarketsPage() {
             title="Sector Rotation"
             subtitle="Category leadership from existing rotation source"
             icon={<Layers className="h-3.5 w-3.5" />}
-            status={apiStatus(sectorRotation?.ok, sectorRotation?.mode === "partial", sectorRotation?.dataQuality?.stale)}
+            status={apiStatus(sectorUsable, sectorPartial, sectorFreshness === "STALE")}
           >
             {topSectors.length ? (
               <div className="grid gap-1.5">
@@ -1372,7 +1389,7 @@ export default function MarketsPage() {
                 ))}
               </div>
             ) : (
-              <EmptyState title="UNAVAILABLE" reason={sectorRotationReason ?? "Sector rotation has not returned sector rows."} />
+              <EmptyState title="UNAVAILABLE" reason={sectorUnavailableReason ?? "Sector rotation has not returned source-backed sector rows."} />
             )}
           </MarketsSection>
         </div>
@@ -1415,16 +1432,16 @@ export default function MarketsPage() {
             title="ETF / Capital Flow"
             subtitle="Existing ETF and reserve intelligence only"
             icon={<ShieldCheck className="h-3.5 w-3.5" />}
-            status={apiStatus(Boolean(etfFlow?.ok || reserveIntelligence?.status === "available"), Boolean(reserveIntelligence?.coverage === "partial"), etfFlow?.isStale || reserveIntelligence?.freshness === "stale")}
+            status={apiStatus(Boolean(etfRows.length || reserveIntelligence?.status === "available"), Boolean(etfPartial || reserveIntelligence?.coverage === "partial"), etfFreshness === "STALE" || reserveIntelligence?.freshness === "stale")}
           >
             <div className="grid gap-2 md:grid-cols-2">
               <div className="rounded border border-zinc-900 bg-black/35 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">ETF Flow</div>
-                  {apiStatus(etfFlow?.ok, false, etfFlow?.isStale)}
+                  {apiStatus(Boolean(etfRows.length), etfPartial, etfFreshness === "STALE")}
                 </div>
                 <div className="mt-3 text-2xl font-black uppercase leading-none text-white">{selectedEtf ? compactUsd(selectedEtf.netFlow * 1_000_000) : "NO DATA"}</div>
-                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">{selectedEtf ? `${selectedEtf.asset} / ${selectedEtf.sourceDate}` : etfFlow?.unavailableReason ?? etfFlowReason ?? "ETF flow unavailable for selected asset."}</div>
+                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-600">{selectedEtf ? `${selectedEtf.asset} / ${selectedEtf.sourceDate} / ${etfFreshness}` : etfFlow?.unavailableReason ?? etfFlowReason ?? "ETF flow unavailable for selected asset."}</div>
               </div>
               <div className="rounded border border-zinc-900 bg-black/35 p-3">
                 <div className="flex items-center justify-between gap-2">

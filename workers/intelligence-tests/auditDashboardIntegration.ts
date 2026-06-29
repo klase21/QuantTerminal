@@ -39,18 +39,19 @@ export async function auditDashboardIntegration() {
   const evidence = position(dashboard, "<SupportingEvidence")
   const historical = position(dashboard, "<HistoricalEvidenceStrip")
   const prediction = position(dashboard, "<PredictionMarketsCard")
+  const tactical = position(dashboard, "<TacticalAlerts")
   const checks = {
     marketDirectionVisible: direction >= 0,
     driverSectionVisible: drivers >= 0,
     evidenceSectionVisible: evidence >= 0,
-    historicalAnalogPreserved: historical >= 0,
+    historicalAnalogRemoved: historical < 0 && !dashboard.includes("/api/historical-analog"),
     predictionMarketsPreserved: prediction >= 0,
     conclusionWhyEvidenceOrder: (
       direction >= 0
       && drivers > direction
       && evidence > drivers
-      && historical > evidence
-      && prediction > historical
+      && prediction > evidence
+      && tactical > prediction
     ),
     marketDriverApiConnected: (
       dashboard.includes("/api/market-drivers?symbol=")
@@ -60,6 +61,11 @@ export async function auditDashboardIntegration() {
       dashboard.includes("/api/dashboard/reserve-intelligence?symbol=")
       && dashboard.includes("Reserve Intelligence")
       && reserveApi.includes("reserve-intelligence-latest.json")
+    ),
+    reserveSourceEnvelopePresent: (
+      reserveApi.includes('const SOURCE_ID = "exchange-reserve"')
+      && reserveApi.includes("evaluateFreshness")
+      && reserveApi.includes("_source:")
     ),
     loadingStatePresent: dashboard.includes("Loading Market Direction"),
     emptyStatePresent: dashboard.includes("No Market Driver Evidence"),

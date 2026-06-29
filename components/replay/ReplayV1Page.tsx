@@ -886,7 +886,7 @@ export default function ReplayV1Page() {
   const [orderbookReason, setOrderbookReason] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [inheritedResearchContext, setInheritedResearchContext] = useState<InheritedResearchContextState>({
-    label: productContextId ? "LOADING" : "MISSING",
+    label: productContextId ? "LOADING" : "UNAVAILABLE",
     tone: productContextId ? "loading" : "missing",
     detail: productContextId
       ? "Loading inherited Research context."
@@ -903,7 +903,7 @@ export default function ReplayV1Page() {
   useEffect(() => {
     if (!productContextId) {
       setInheritedResearchContext({
-        label: "MISSING",
+        label: "UNAVAILABLE",
         tone: "missing",
         detail: "No shared contextId supplied. Direct Replay remains available.",
         context: null,
@@ -939,8 +939,8 @@ export default function ReplayV1Page() {
     }
     if (lifecycle.value.sourcePage !== "research" || lifecycle.value.destinationIntent !== "validate_historically") {
       setInheritedResearchContext({
-        label: "DEGRADED",
-        tone: "degraded",
+        label: "UNAVAILABLE",
+        tone: "missing",
         detail: "Shared context does not describe a Research to Replay validation handoff.",
         context: null,
       })
@@ -956,15 +956,19 @@ export default function ReplayV1Page() {
     const inheritedFreshness = lifecycle.value.freshness?.freshness
     const label = inheritedFreshness === "STALE"
       ? "STALE" as const
-      : hasThesis && hasEvidence
+      : inheritedFreshness === "UNAVAILABLE" || inheritedFreshness === "MISSING"
+        ? "DEGRADED" as const
+        : inheritedFreshness === "CURRENT" && hasThesis && hasEvidence
         ? "CURRENT" as const
         : "PARTIAL" as const
     setInheritedResearchContext({
       label,
-      tone: label === "CURRENT" ? "current" : label === "STALE" ? "degraded" : "partial",
-      detail: hasThesis
-        ? "Research-owned thesis and available evidence loaded for display only."
-        : "Research context loaded without a thesis. Replay will not invent one.",
+      tone: label === "CURRENT" ? "current" : label === "STALE" || label === "DEGRADED" ? "degraded" : "partial",
+      detail: inheritedFreshness === "UNAVAILABLE" || inheritedFreshness === "MISSING"
+        ? "Research context loaded with unavailable freshness. Available fields remain display-only."
+        : hasThesis
+          ? "Research-owned thesis and available evidence loaded for display only."
+          : "Research context loaded without a thesis. Replay will not invent one.",
       context: lifecycle.value,
     })
   }, [productContextId])
@@ -1016,17 +1020,30 @@ export default function ReplayV1Page() {
   }, [events])
   const replayHourLabel = String(Number(hour)).padStart(2, "0")
   const replayWindowLabel = `${date} ${replayHourLabel}:00-${replayHourLabel}:59 UTC`
-  const thesisTitle = investigationContext.thesis?.title ?? `${symbol} Replay Validation`
-  const thesisQuestion = investigationContext.thesis?.question ?? "No inherited thesis supplied. Replay is using the selected market window only."
+  const inheritedContext = inheritedResearchContext.context
+  const sharedThesisTitle = contextString(inheritedContext?.thesis?.value, "title")
+  const sharedThesisQuestion = contextString(inheritedContext?.thesis?.value, "question")
+  const thesisTitle = sharedThesisTitle ?? investigationContext.thesis?.title ?? `${symbol} Replay Validation`
+  const thesisQuestion = sharedThesisQuestion ?? investigationContext.thesis?.question ?? "No inherited thesis supplied. Replay is using the selected market window only."
   const selectedCase = investigationContext.selectedHistoricalCase
   const selectedEvent = investigationContext.selectedEvent
-  const inheritedContext = inheritedResearchContext.context
-  const inheritedThesisTitle = contextString(inheritedContext?.thesis?.value, "title") ?? "UNAVAILABLE"
+  const inheritedThesisTitle = sharedThesisTitle ?? "UNAVAILABLE"
+  const inheritedEvidenceSummary = contextString(inheritedContext?.evidenceSummary?.value, "coverageStatus")
+    ?? contextString(inheritedContext?.evidenceSummary?.value, "freshnessStatus")
+    ?? "UNAVAILABLE"
   const inheritedSupportingCount = inheritedContext?.supportingEvidence?.value.length
     ?? contextNumber(inheritedContext?.evidenceSummary?.value, "supportingEvidenceCount")
   const inheritedConflictingCount = inheritedContext?.conflictingEvidence?.value.length
     ?? contextNumber(inheritedContext?.evidenceSummary?.value, "contradictingEvidenceCount")
-  const inheritedConfidence = contextDisplayValue(inheritedContext?.confidenceContext?.value) ?? "UNAVAILABLE"
+  const inheritedConfidence = contextDisplayValue(inheritedContext?.confidenceContext?.value)
+    ?? contextDisplayValue(inheritedContext?.opportunityContext?.value)
+    ?? "UNAVAILABLE"
+  const inheritedStructure = [
+    contextString(inheritedContext?.marketStructureContext?.value, "structure"),
+    contextString(inheritedContext?.marketStructureContext?.value, "sector"),
+    contextString(inheritedContext?.marketStructureContext?.value, "breadth"),
+  ].filter((value): value is string => Boolean(value)).join(" / ") || "UNAVAILABLE"
+  const inheritedInvestigationState = contextString(inheritedContext?.replayTarget?.value, "caseId") ?? "UNAVAILABLE"
   const inheritedFreshness = inheritedContext?.freshness?.freshness
     ?? inheritedContext?.evidenceSummary?.freshness
     ?? "UNKNOWN"
@@ -1101,8 +1118,15 @@ export default function ReplayV1Page() {
       createdAt: createdAtIso,
       expiresAt: new Date(createdAt.getTime() + REPLAY_TRADE_CONTEXT_TTL_MS).toISOString(),
       thesis: inheritedThesis,
+      opportunityContext: inheritedContext?.opportunityContext,
+      signalContext: inheritedContext?.signalContext,
+      marketStructureContext: inheritedContext?.marketStructureContext,
       evidenceSummary: inheritedContext?.evidenceSummary,
+      supportingEvidence: inheritedContext?.supportingEvidence,
+      conflictingEvidence: inheritedContext?.conflictingEvidence,
+      confidenceContext: inheritedContext?.confidenceContext,
       freshness: inheritedContext?.freshness,
+      replayTarget: inheritedContext?.replayTarget,
       validationResult: {
         value: {
           status: validationStatus.label,
@@ -1508,10 +1532,13 @@ export default function ReplayV1Page() {
               <div className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Inherited Research Context</div>
               <StatusBadge label={inheritedResearchContext.label} tone={inheritedResearchContext.tone} />
             </div>
-            <div className="mt-2 grid gap-2 md:grid-cols-5">
+            <div className="mt-2 grid gap-2 md:grid-cols-4 xl:grid-cols-8">
               <SnapshotMetric label="Thesis" value={inheritedThesisTitle} />
+              <SnapshotMetric label="Evidence Summary" value={inheritedEvidenceSummary} />
               <SnapshotMetric label="Supporting" value={inheritedSupportingCount === null || inheritedSupportingCount === undefined ? "UNAVAILABLE" : String(inheritedSupportingCount)} tone="cyan" />
               <SnapshotMetric label="Conflicting" value={inheritedConflictingCount === null || inheritedConflictingCount === undefined ? "UNAVAILABLE" : String(inheritedConflictingCount)} />
+              <SnapshotMetric label="Market Structure" value={inheritedStructure} />
+              <SnapshotMetric label="Investigation" value={inheritedInvestigationState} tone="cyan" />
               <SnapshotMetric label="Confidence" value={inheritedConfidence} />
               <SnapshotMetric label="Freshness" value={inheritedFreshness} tone={inheritedFreshness === "CURRENT" ? "green" : "amber"} />
             </div>
@@ -1533,6 +1560,7 @@ export default function ReplayV1Page() {
               </div>
             </div>
             <div className="grid gap-2 xl:grid-cols-2">
+              <EvidenceRow label="Inherited Context" status={inheritedResearchContext.label} tone={inheritedResearchContext.tone} detail={inheritedResearchContext.detail} />
               <EvidenceRow label="Price Evidence" status={chartStatus.label} tone={chartStatus.tone} detail={chartStatus.detail} />
               <EvidenceRow label="OI / Funding" status={positioningStatus.label} tone={positioningStatus.tone} detail={positioningStatus.detail} />
               <EvidenceRow label="Liquidations" status={liquidationStatus.label} tone={liquidationStatus.tone} detail={liquidationStatus.detail} />

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 
 import { getPredictionMarkets } from "@/lib/data-sources/polymarketClient"
+import {
+  createSourceSuccess,
+  createSourceUnavailable,
+  normalizeSourceMetadata,
+} from "@/lib/data-governance/envelope"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -18,8 +23,7 @@ function category(title: string) {
 
 export async function GET() {
   const payload = await getPredictionMarkets()
-
-  return NextResponse.json({
+  const responsePayload = {
     status: payload.marketEvents.length ? "available" : "unavailable",
     source: payload.source,
     updatedAt: payload.updatedAt,
@@ -32,5 +36,33 @@ export async function GET() {
       attentionRank: index + 1,
     })),
     diagnostics: payload.diagnostics,
+  }
+  const sourceResult = payload.marketEvents.length
+    ? createSourceSuccess("prediction-markets", responsePayload, {
+        freshnessStatus: "UNAVAILABLE",
+        qualityLevel: "MEDIUM",
+        retrievedAt: payload.updatedAt,
+        cacheStatus: "BYPASS",
+      })
+    : createSourceUnavailable(
+        "prediction-markets",
+        payload.unavailableReason === "NO MEANINGFUL MARKET INTEREST"
+          ? "EMPTY_RESPONSE"
+          : "SOURCE_UNAVAILABLE",
+      )
+  const sourceMetadata = sourceResult.status === "UNAVAILABLE"
+    ? normalizeSourceMetadata("prediction-markets", {
+        freshnessStatus: sourceResult.metadata.freshnessStatus,
+        qualityLevel: sourceResult.metadata.qualityLevel,
+        sourceStatus: sourceResult.metadata.sourceStatus,
+        retrievedAt: payload.updatedAt,
+        unavailableReason: sourceResult.metadata.unavailableReason,
+        cacheStatus: sourceResult.metadata.cacheStatus,
+      })
+    : sourceResult.metadata
+
+  return NextResponse.json({
+    ...responsePayload,
+    _source: sourceMetadata,
   })
 }

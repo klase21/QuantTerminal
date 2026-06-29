@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getMarketMemory } from "@/core/historical-intelligence/marketMemoryEngine"
 import type { MarketMemoryQuery } from "@/core/historical-intelligence/marketMemoryTypes"
 import type { HistoricalReplayEventType } from "@/core/historical-intelligence/mockHistoricalIntelligenceRepository"
+import { enforceNonProductionRouteIsolation } from "@/lib/runtime/nonProductionRouteIsolation"
 
 const EVENT_TYPES = new Set<HistoricalReplayEventType>([
   "macro",
@@ -18,6 +19,9 @@ function eventType(value: string | null): HistoricalReplayEventType | undefined 
 }
 
 export async function GET(request: Request) {
+  const isolationResponse = enforceNonProductionRouteIsolation(request)
+  if (isolationResponse) return isolationResponse
+
   const { searchParams } = new URL(request.url)
   const requestedEventType = searchParams.get("eventType")
 

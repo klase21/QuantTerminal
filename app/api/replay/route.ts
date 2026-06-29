@@ -6,6 +6,7 @@ import {
   getReplayCasesByEventType,
   type HistoricalReplayEventType,
 } from "@/core/historical-intelligence/mockHistoricalIntelligenceRepository"
+import { enforceNonProductionRouteIsolation } from "@/lib/runtime/nonProductionRouteIsolation"
 
 const REPLAY_EVENT_TYPES = new Set<HistoricalReplayEventType>([
   "macro",
@@ -20,6 +21,9 @@ function isReplayEventType(value: string): value is HistoricalReplayEventType {
 }
 
 export async function GET(request: Request) {
+  const isolationResponse = enforceNonProductionRouteIsolation(request)
+  if (isolationResponse) return isolationResponse
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
   const eventType = searchParams.get("eventType")
