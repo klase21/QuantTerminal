@@ -1,0 +1,6 @@
+export * from "@/lib/persistence/postgres/adapter"
+export * from "@/lib/persistence/postgres/schema"
+export * from "@/lib/persistence/postgres/repository"
+export * from "@/lib/persistence/postgres/serialization"
+export * from "@/lib/persistence/postgres/validation"
+export * from "@/lib/persistence/postgres/health"
