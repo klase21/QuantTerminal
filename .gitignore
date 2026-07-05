@@ -5,6 +5,8 @@ node_modules
 dist
 build
 coverage
+!app/api/repository/coverage/
+!app/api/repository/coverage/route.ts
 *.log
 
 # QuantTerminal local data

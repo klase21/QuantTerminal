@@ -5,7 +5,7 @@ export type PredictionMarketEvent = {
   volume: number | null
   liquidity: number | null
   openInterest: number | null
-  lastUpdated: string
+  lastUpdated: string | null
   source: "polymarket-gamma"
   url?: string
 }
@@ -335,7 +335,9 @@ export async function getPredictionMarkets(query?: string): Promise<PredictionMa
           volume,
           liquidity: numericField(market.liquidity),
           openInterest: numericField(market.openInterest),
-          lastUpdated: market.updatedAt || new Date().toISOString(),
+          lastUpdated: market.updatedAt && Number.isFinite(Date.parse(market.updatedAt))
+            ? new Date(market.updatedAt).toISOString()
+            : null,
           source: "polymarket-gamma" as const,
           url: slug ? `https://polymarket.com/event/${slug}` : undefined,
         }

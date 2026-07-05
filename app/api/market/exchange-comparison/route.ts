@@ -4,7 +4,9 @@ import {
   createSourceDegraded,
   createSourceSuccess,
   createSourceUnavailable,
+  normalizeSourceMetadata,
 } from "@/lib/data-governance/envelope"
+import { evaluateFreshness } from "@/lib/data-governance/freshnessPolicy"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -16,6 +18,13 @@ const REQUEST_TIMEOUT_MS = 5500
 function num(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function sourceTimestamp(value: unknown) {
+  const timestamp = num(value)
+  return timestamp !== null && timestamp > 0
+    ? new Date(timestamp).toISOString()
+    : null
 }
 
 function publicReason(error: unknown, fallback: string) {
@@ -55,8 +64,8 @@ async function fetchJson<T>(url: string): Promise<T> {
 async function getBinance(symbol: string) {
   try {
     const [openInterest, premium] = await Promise.all([
-      fetchJson<{ openInterest?: string }>(`${BINANCE_FAPI}/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`),
-      fetchJson<{ markPrice?: string; indexPrice?: string; lastFundingRate?: string }>(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`),
+      fetchJson<{ openInterest?: string; time?: number }>(`${BINANCE_FAPI}/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`),
+      fetchJson<{ markPrice?: string; indexPrice?: string; lastFundingRate?: string; time?: number }>(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`),
     ])
     const markPrice = num(premium.markPrice || premium.indexPrice)
     const openInterestValue = num(openInterest.openInterest)
@@ -64,12 +73,17 @@ async function getBinance(symbol: string) {
     if (markPrice === null || openInterestValue === null || fundingRate === null) {
       return { ok: false, source: "binance-futures", reason: "Binance response missing funding, mark price, or open interest." }
     }
+    const timestamps = [sourceTimestamp(openInterest.time), sourceTimestamp(premium.time)]
+    const observedAt = timestamps.every((value) => value !== null)
+      ? (timestamps as string[]).reduce((oldest, value) => Date.parse(value) < Date.parse(oldest) ? value : oldest)
+      : null
     return {
       ok: true,
       source: "binance-futures",
       fundingRate,
       openInterest: openInterestValue,
       oiNotional: openInterestValue * markPrice,
+      observedAt,
     }
   } catch (error) {
     return {
@@ -85,6 +99,7 @@ async function getBybit(symbol: string) {
     const payload = await fetchJson<{
       retCode?: number
       retMsg?: string
+      time?: number
       result?: {
         list?: Array<{
           symbol?: string
@@ -110,6 +125,7 @@ async function getBybit(symbol: string) {
       fundingRate,
       openInterest,
       oiNotional: openInterest * lastPrice,
+      observedAt: sourceTimestamp(payload.time),
     }
   } catch (error) {
     return {
@@ -134,6 +150,18 @@ export async function GET(req: Request) {
     getBybit(symbol),
   ])
   const retrievedAt = new Date().toISOString()
+  const successfulVenues = [binance, bybit].filter((venue) => venue.ok)
+  const sourceTimestamps = successfulVenues
+    .map((venue) => "observedAt" in venue ? venue.observedAt : null)
+    .filter((value): value is string => typeof value === "string" && Number.isFinite(Date.parse(value)))
+  const lastUpdatedAt = sourceTimestamps.length === successfulVenues.length && sourceTimestamps.length
+    ? sourceTimestamps.reduce((oldest, value) => Date.parse(value) < Date.parse(oldest) ? value : oldest)
+    : null
+  const freshness = evaluateFreshness({
+    sourceId: "exchange-comparison",
+    lastUpdatedAt,
+    retrievedAt,
+  })
   const payload = {
     ok: Boolean(binance.ok || bybit.ok),
     symbol,
@@ -144,23 +172,51 @@ export async function GET(req: Request) {
     openInterestRelationship: relationship(binance.ok ? binance.oiNotional : null, bybit.ok ? bybit.oiNotional : null),
   }
   const sourceResult = binance.ok && bybit.ok
-    ? createSourceSuccess("exchange-comparison", payload, {
-        freshnessStatus: "UNAVAILABLE",
-        qualityLevel: "MEDIUM",
-        retrievedAt,
-        cacheStatus: "BYPASS",
-      })
+    ? freshness.status === "UNAVAILABLE"
+      ? createSourceDegraded("exchange-comparison", payload, "PARTIAL_DATA", undefined, {
+          freshnessStatus: freshness.status,
+          qualityLevel: "LOW",
+          lastUpdatedAt,
+          retrievedAt,
+          cacheStatus: "BYPASS",
+        })
+      : freshness.status === "STALE" || freshness.status === "EXPIRED"
+        ? createSourceDegraded("exchange-comparison", payload, "STALE_DATA", undefined, {
+            freshnessStatus: freshness.status,
+            qualityLevel: "LOW",
+            lastUpdatedAt,
+            retrievedAt,
+            cacheStatus: "BYPASS",
+          })
+        : createSourceSuccess("exchange-comparison", payload, {
+            freshnessStatus: freshness.status,
+            qualityLevel: "MEDIUM",
+            lastUpdatedAt,
+            retrievedAt,
+            cacheStatus: "BYPASS",
+          })
     : binance.ok || bybit.ok
       ? createSourceDegraded("exchange-comparison", payload, "PARTIAL_DATA", undefined, {
-          freshnessStatus: "UNAVAILABLE",
+          freshnessStatus: freshness.status,
+          lastUpdatedAt,
           retrievedAt,
           cacheStatus: "BYPASS",
         })
       : createSourceUnavailable("exchange-comparison", "SOURCE_UNAVAILABLE")
+  const sourceMetadata = sourceResult.status === "UNAVAILABLE"
+    ? normalizeSourceMetadata("exchange-comparison", {
+        freshnessStatus: sourceResult.metadata.freshnessStatus,
+        qualityLevel: sourceResult.metadata.qualityLevel,
+        sourceStatus: sourceResult.metadata.sourceStatus,
+        retrievedAt,
+        unavailableReason: sourceResult.metadata.unavailableReason,
+        cacheStatus: sourceResult.metadata.cacheStatus,
+      })
+    : sourceResult.metadata
 
   return NextResponse.json({
     ...payload,
-    _source: sourceResult.metadata,
+    _source: sourceMetadata,
   }, {
     headers: {
       "Cache-Control": "no-store, max-age=0",

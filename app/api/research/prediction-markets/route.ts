@@ -2,10 +2,12 @@ import { NextResponse } from "next/server"
 
 import { getPredictionMarkets } from "@/lib/data-sources/polymarketClient"
 import {
+  createSourceDegraded,
   createSourceSuccess,
   createSourceUnavailable,
   normalizeSourceMetadata,
 } from "@/lib/data-governance/envelope"
+import { evaluateFreshness } from "@/lib/data-governance/freshnessPolicy"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -23,6 +25,17 @@ function category(title: string) {
 
 export async function GET() {
   const payload = await getPredictionMarkets()
+  const sourceTimestamps = payload.marketEvents
+    .map((market) => market.lastUpdated)
+    .filter((value): value is string => typeof value === "string" && Number.isFinite(Date.parse(value)))
+  const lastUpdatedAt = sourceTimestamps.length === payload.marketEvents.length && sourceTimestamps.length
+    ? sourceTimestamps.reduce((oldest, value) => Date.parse(value) < Date.parse(oldest) ? value : oldest)
+    : null
+  const freshness = evaluateFreshness({
+    sourceId: "prediction-markets",
+    lastUpdatedAt,
+    retrievedAt: payload.updatedAt,
+  })
   const responsePayload = {
     status: payload.marketEvents.length ? "available" : "unavailable",
     source: payload.source,
@@ -32,18 +45,36 @@ export async function GET() {
       probability: market.probability,
       volume: market.volume,
       liquidity: market.liquidity,
+      lastUpdated: market.lastUpdated,
       category: category(market.title),
       attentionRank: index + 1,
     })),
     diagnostics: payload.diagnostics,
   }
   const sourceResult = payload.marketEvents.length
-    ? createSourceSuccess("prediction-markets", responsePayload, {
-        freshnessStatus: "UNAVAILABLE",
-        qualityLevel: "MEDIUM",
-        retrievedAt: payload.updatedAt,
-        cacheStatus: "BYPASS",
-      })
+    ? freshness.status === "UNAVAILABLE"
+      ? createSourceDegraded("prediction-markets", responsePayload, "PARTIAL_DATA", undefined, {
+          freshnessStatus: freshness.status,
+          qualityLevel: "LOW",
+          lastUpdatedAt,
+          retrievedAt: payload.updatedAt,
+          cacheStatus: "BYPASS",
+        })
+      : freshness.status === "STALE" || freshness.status === "EXPIRED"
+        ? createSourceDegraded("prediction-markets", responsePayload, "STALE_DATA", undefined, {
+            freshnessStatus: freshness.status,
+            qualityLevel: "LOW",
+            lastUpdatedAt,
+            retrievedAt: payload.updatedAt,
+            cacheStatus: "BYPASS",
+          })
+        : createSourceSuccess("prediction-markets", responsePayload, {
+            freshnessStatus: freshness.status,
+            qualityLevel: "MEDIUM",
+            lastUpdatedAt,
+            retrievedAt: payload.updatedAt,
+            cacheStatus: "BYPASS",
+          })
     : createSourceUnavailable(
         "prediction-markets",
         payload.unavailableReason === "NO MEANINGFUL MARKET INTEREST"
@@ -55,6 +86,7 @@ export async function GET() {
         freshnessStatus: sourceResult.metadata.freshnessStatus,
         qualityLevel: sourceResult.metadata.qualityLevel,
         sourceStatus: sourceResult.metadata.sourceStatus,
+        lastUpdatedAt,
         retrievedAt: payload.updatedAt,
         unavailableReason: sourceResult.metadata.unavailableReason,
         cacheStatus: sourceResult.metadata.cacheStatus,
