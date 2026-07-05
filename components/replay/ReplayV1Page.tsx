@@ -15,6 +15,15 @@ import {
   type ProductContextFreshness,
   type SharedProductContextV1,
 } from "@/lib/product-context"
+import {
+  checkReplayCoverageGate,
+  type ReplayCoverageGateResult,
+} from "@/lib/replay/replayCoverageGate"
+import { adaptReplayRepositoryDataset } from "@/lib/replay/replayRepositoryAdapter"
+import {
+  queryReplayRepositoryDataset,
+  type ReplayRepositoryDataset,
+} from "@/lib/replay/replayRepositoryClient"
 
 const REPLAY_TRADE_CONTEXT_TTL_MS = 30 * 60 * 1000
 
@@ -51,7 +60,7 @@ type CryptoReplayFundingPoint = {
   fundingRate: number | null
   openInterest: number | null
   openInterestValue: number | null
-  source?: "cryptohftdata" | "binance-historical" | "current-fallback"
+  source?: "cryptohftdata" | "binance-historical" | "current-fallback" | "repository"
 }
 
 type CryptoReplayCandle = {
@@ -74,7 +83,7 @@ type ReplayChartCandle = {
 
 type CryptoReplayResponse = {
   ok: boolean
-  source: "cryptohftdata" | "replay-cache"
+  source: "cryptohftdata" | "replay-cache" | "repository"
   exchange: string
   symbol: string
   window?: {
@@ -505,6 +514,7 @@ function hasUsablePositioning(data: CryptoReplayResponse | null) {
 
 function positioningSourceLabel(rows: CryptoReplayFundingPoint[]) {
   const source = rows.find((row) => row.fundingRate !== null || row.openInterest !== null || row.openInterestValue !== null)?.source
+  if (source === "repository") return "Historical Repository"
   if (source === "binance-historical") return "Binance historical fallback"
   if (source === "current-fallback") return "Current fallback"
   if (rows.length) return "CryptoHFTData"
@@ -885,6 +895,11 @@ export default function ReplayV1Page() {
   const [orderbookLoading, setOrderbookLoading] = useState(false)
   const [orderbookReason, setOrderbookReason] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [repositoryCoverageGate, setRepositoryCoverageGate] = useState<ReplayCoverageGateResult | null>(null)
+  const [replayMode, setReplayMode] = useState<"provider" | "repository">("provider")
+  const [repositoryTradeCursor, setRepositoryTradeCursor] = useState<string | null>(null)
+  const [repositoryTradesTruncated, setRepositoryTradesTruncated] = useState(false)
+  const [repositoryTradesLoading, setRepositoryTradesLoading] = useState(false)
   const [inheritedResearchContext, setInheritedResearchContext] = useState<InheritedResearchContextState>({
     label: productContextId ? "LOADING" : "UNAVAILABLE",
     tone: productContextId ? "loading" : "missing",
@@ -972,6 +987,11 @@ export default function ReplayV1Page() {
       context: lifecycle.value,
     })
   }, [productContextId])
+
+  useEffect(() => {
+    setRepositoryCoverageGate(null)
+    setReplayMode("provider")
+  }, [symbol, date])
 
   const priceSeries = useMemo(() => {
     if (chartCandles.length) return priceSeriesFromChartCandles(chartCandles)
@@ -1341,11 +1361,47 @@ export default function ReplayV1Page() {
     setLoading(true)
     setLoadingStage("metadata")
     setError(null)
+    setRepositoryCoverageGate(null)
+    setRepositoryTradeCursor(null)
+    setRepositoryTradesTruncated(false)
     setChartCandles([])
     setChartSource(null)
     setChartReason(null)
     setOrderbookReason(null)
     setReplayData(emptyReplayResponse(exchange, symbol, date, hour))
+    const coverageController = new AbortController()
+    abortControllersRef.current.push(coverageController)
+    const coveragePromise = checkReplayCoverageGate({
+      symbol,
+      utcDay: date,
+      signal: coverageController.signal,
+    })
+
+    if (replayMode === "repository") {
+      try {
+        const gate = await coveragePromise
+        if (coverageController.signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+        setRepositoryCoverageGate(gate)
+        if (!gate.repositoryReady || gate.projectionStatus !== "AVAILABLE") {
+          setReplayMode("provider")
+          setError(`${gate.degradedReason ?? "COVERAGE_API_ERROR"}: ${gate.detail}`)
+          return
+        }
+        await loadRepositoryReplay(gate, coverageController.signal, loadId)
+      } finally {
+        if (mountedRef.current && loadIdRef.current === loadId) {
+          setLoading(false)
+          setLoadingStage(null)
+        }
+      }
+      return
+    }
+
+    void coveragePromise.then((gate) => {
+      if (!coverageController.signal.aborted && mountedRef.current && loadIdRef.current === loadId) {
+        setRepositoryCoverageGate(gate)
+      }
+    })
     const chartController = new AbortController()
     abortControllersRef.current.push(chartController)
     const chartTimeout = window.setTimeout(() => chartController.abort(), 6000)
@@ -1380,6 +1436,107 @@ export default function ReplayV1Page() {
         setLoading(false)
         setLoadingStage(null)
       }
+    }
+  }
+
+  async function loadRepositoryReplay(gate: ReplayCoverageGateResult, signal: AbortSignal, loadId: number) {
+    setLoadingStage("repository datasets")
+    const datasets: ReplayRepositoryDataset[] = ["market", "open_interest", "liquidation", "funding"]
+    const results = await Promise.all(datasets.map((dataset) => queryReplayRepositoryDataset({
+      gate,
+      symbol,
+      utcDay: date,
+      hour: Number(hour),
+      dataset,
+      signal,
+    })))
+    if (signal.aborted || !mountedRef.current || loadIdRef.current !== loadId) return
+
+    const unavailable: Array<{ dataset: string; reason: string }> = []
+    const adapted = results.map((result, index) => {
+      const dataset = datasets[index]
+      if (result.status !== "SUCCESS") {
+        unavailable.push({ dataset, reason: result.reason })
+        return null
+      }
+      const value = adaptReplayRepositoryDataset(result.value)
+      if (value.status === "INVALID_RESPONSE") {
+        unavailable.push({ dataset, reason: value.errors.join(" ") || "Repository dataset response is invalid." })
+        return null
+      }
+      if (value.status === "EMPTY") unavailable.push({ dataset, reason: "Repository dataset returned no rows for this hour." })
+      return value
+    }).filter((value): value is NonNullable<typeof value> => value !== null)
+
+    const candles = adapted.flatMap((value) => value.candles)
+    const positioning = adapted.flatMap((value) => value.positioning)
+    const liquidations = adapted.flatMap((value) => value.liquidations)
+    const repositoryResponse: CryptoReplayResponse = {
+      ...emptyReplayResponse(exchange, symbol, date, hour),
+      ok: candles.length > 0 || positioning.length > 0 || liquidations.length > 0,
+      source: "repository",
+      candles: candles.map((item) => ({ ...item })),
+      funding: positioning.map((item) => ({ ...item })),
+      liquidations: liquidations.map((item) => ({ ...item })),
+      diagnostics: {
+        downloaded: adapted.filter((item) => item.status === "SUCCESS").map((item) => ({ dataset: item.dataset })),
+        unavailable,
+        errors: [],
+      },
+    }
+    setReplayData(repositoryResponse)
+    setChartCandles(candles.map((candle) => ({
+      time: Math.floor(new Date(candle.timestamp).getTime() / 1000),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+    })))
+    setChartSource(candles.length ? "Historical Repository (bounded hour)" : null)
+    setChartReason(candles.length ? null : datasetReason(repositoryResponse, "market"))
+    setError(unavailable.length ? `Repository replay loaded with ${unavailable.length} unavailable dataset${unavailable.length === 1 ? "" : "s"}.` : null)
+  }
+
+  async function loadRepositoryTrades() {
+    const gate = repositoryCoverageGate
+    if (replayMode !== "repository" || !gate?.repositoryReady || gate.projectionStatus !== "AVAILABLE") {
+      setError("Repository AggTrade is unavailable because the coverage gate is closed.")
+      return
+    }
+    const controller = new AbortController()
+    abortControllersRef.current.push(controller)
+    setRepositoryTradesLoading(true)
+    try {
+      const result = await queryReplayRepositoryDataset({
+        gate,
+        symbol,
+        utcDay: date,
+        hour: Number(hour),
+        dataset: "agg_trade",
+        limit: 1000,
+        ...(repositoryTradeCursor ? { cursor: repositoryTradeCursor } : {}),
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted || !mountedRef.current) return
+      if (result.status !== "SUCCESS") {
+        setError(result.reason)
+        return
+      }
+      const adapted = adaptReplayRepositoryDataset(result.value)
+      if (adapted.status === "INVALID_RESPONSE") {
+        setError(adapted.errors.join(" ") || "Repository AggTrade page is invalid.")
+        return
+      }
+      setReplayData((previous) => previous ? {
+        ...previous,
+        trades: [...previous.trades, ...adapted.trades.map((trade) => ({ ...trade }))],
+      } : previous)
+      setRepositoryTradeCursor(adapted.nextCursor)
+      setRepositoryTradesTruncated(adapted.truncated)
+      setError(adapted.status === "EMPTY" ? "Repository AggTrade returned no rows for this page." : null)
+    } finally {
+      if (mountedRef.current) setRepositoryTradesLoading(false)
     }
   }
 
@@ -1519,12 +1676,24 @@ export default function ReplayV1Page() {
               <div className="grid gap-2 md:grid-cols-3">
                 <SnapshotMetric label="Replay Duration" value="1 Hour" />
                 <SnapshotMetric label="Data Source" value="Chart + Microstructure" />
-                <SnapshotMetric label="Source Mode" value="Manual Load" tone="cyan" />
+                <div className="border border-zinc-900 bg-black px-3 py-2">
+                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">Source Mode</div>
+                  <div className="mt-1 grid grid-cols-2 border border-zinc-800" role="group" aria-label="Replay source mode">
+                    <button type="button" onClick={() => setReplayMode("provider")} className={cn("px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.1em]", replayMode === "provider" ? "bg-cyan-400/20 text-cyan-100" : "text-zinc-500")}>Provider</button>
+                    <button
+                      type="button"
+                      onClick={() => setReplayMode("repository")}
+                      disabled={Boolean(repositoryCoverageGate && !repositoryCoverageGate.repositoryReady)}
+                      title={repositoryCoverageGate && !repositoryCoverageGate.repositoryReady ? repositoryCoverageGate.detail : "Use bounded Historical Repository datasets"}
+                      className={cn("border-l border-zinc-800 px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] disabled:cursor-not-allowed disabled:text-zinc-700", replayMode === "repository" ? "bg-emerald-400/20 text-emerald-100" : "text-zinc-500")}
+                    >Repository</button>
+                  </div>
+                </div>
               </div>
               {!hasLoaded && !loading ? (
                 <EmptyState title="Replay Ready" reason="Select a market window and click Load Replay." />
               ) : null}
-              {hasLoaded && error ? <EmptyState title="Replay Provider Error" reason={error} /> : null}
+              {hasLoaded && error ? <EmptyState title={replayMode === "repository" ? "Repository Replay Limited" : "Replay Provider Error"} reason={error} /> : null}
             </div>
           </div>
           <div className="border-t border-zinc-900 px-3 py-2">
@@ -1663,10 +1832,13 @@ export default function ReplayV1Page() {
           <div className="p-3">
             <button
               type="button"
-              onClick={() => void loadManualDatasets(["trades"], "trades")}
+              onClick={() => void (replayMode === "repository" ? loadRepositoryTrades() : loadManualDatasets(["trades"], "trades"))}
+              disabled={repositoryTradesLoading || (replayMode === "repository" && (!repositoryCoverageGate?.repositoryReady || (!repositoryTradesTruncated && replayData?.trades.length !== 0)))}
               className="mb-2 border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-300 hover:border-cyan-300/40 hover:text-cyan-100"
             >
-              Load Trades
+              {replayMode === "repository"
+                ? repositoryTradesLoading ? "Loading Repository Trades" : repositoryTradeCursor ? "Load Next Trade Page" : "Load Repository Trades"
+                : "Load Trades"}
             </button>
             {timelineEvents.length ? (
               <div className="overflow-x-auto border border-zinc-900 bg-black">
@@ -1835,7 +2007,20 @@ export default function ReplayV1Page() {
             <SnapshotMetric label="Cache Schema" value={replayData?.diagnostics?.cache?.schemaVersion ?? "NO DATA"} />
             <SnapshotMetric label="Downloaded Sets" value={String(replayData?.diagnostics?.downloaded?.length ?? 0)} />
             <SnapshotMetric label="Unavailable Sets" value={String(replayData?.diagnostics?.unavailable?.length ?? 0)} />
+            <SnapshotMetric
+              label="Repository Gate"
+              value={repositoryCoverageGate?.projectionStatus ?? "NOT CHECKED"}
+              tone={repositoryCoverageGate?.repositoryReady ? "green" : "amber"}
+            />
           </div>
+          {repositoryCoverageGate && !repositoryCoverageGate.repositoryReady ? (
+            <div className="px-3 pb-3">
+              <EmptyState
+                title="Repository Replay Limited"
+                reason={`${repositoryCoverageGate.degradedReason}: ${repositoryCoverageGate.detail}`}
+              />
+            </div>
+          ) : null}
         </Section>
 
         <Section title="Navigation Actions" icon={<Activity className="h-3.5 w-3.5" />} className="border-zinc-900 bg-[#111911]">

@@ -50,6 +50,11 @@ import {
   type SharedProductContextV1,
 } from "@/lib/product-context"
 import type { SourceMetadataEnvelope } from "@/lib/data-governance"
+import {
+  adaptResearchRepositoryCoverage,
+  type ResearchRepositorySummary,
+} from "@/lib/research/researchRepositoryAdapter"
+import { loadResearchRepositoryCoverage } from "@/lib/research/researchRepositoryClient"
 import { safeFetchJson } from "@/lib/runtime/safeFetch"
 
 const RESEARCH_REPLAY_CONTEXT_TTL_MS = 30 * 60 * 1000
@@ -319,6 +324,10 @@ export default function ResearchPage() {
   const [marketMemory, setMarketMemory] = useState<MarketMemoryResponse | null>(null)
   const [marketMemoryLoading, setMarketMemoryLoading] = useState(false)
   const [marketMemoryError, setMarketMemoryError] = useState<string | null>(null)
+  const [repositoryDate, setRepositoryDate] = useState(investigationContext.selectedHistoricalCase?.timestamp.slice(0, 10) ?? "2026-07-01")
+  const [repositorySummary, setRepositorySummary] = useState<ResearchRepositorySummary | null>(null)
+  const [repositoryStatus, setRepositoryStatus] = useState<"NOT_CHECKED" | "LOADING" | "AVAILABLE" | "STALE" | "PROJECTION_MISSING" | "UNAVAILABLE">("NOT_CHECKED")
+  const [repositoryReason, setRepositoryReason] = useState<string | null>(null)
   const [inheritedScannerContext, setInheritedScannerContext] = useState<InheritedScannerContextState>({
     label: productContextId ? "LOADING" : "UNAVAILABLE",
     tone: productContextId ? "neutral" : "neutral",
@@ -330,12 +339,14 @@ export default function ResearchPage() {
   const historicalController = useRef<AbortController | null>(null)
   const eventImpactController = useRef<AbortController | null>(null)
   const marketMemoryController = useRef<AbortController | null>(null)
+  const repositoryController = useRef<AbortController | null>(null)
 
   useEffect(() => {
     return () => {
       historicalController.current?.abort()
       eventImpactController.current?.abort()
       marketMemoryController.current?.abort()
+      repositoryController.current?.abort()
     }
   }, [])
 
@@ -432,6 +443,14 @@ export default function ResearchPage() {
     setMarketMemoryLoading(false)
   }, [investigationContext.exchange, investigationContext.symbol, investigationContext.timeframe])
 
+  useEffect(() => {
+    repositoryController.current?.abort()
+    repositoryController.current = null
+    setRepositorySummary(null)
+    setRepositoryStatus("NOT_CHECKED")
+    setRepositoryReason(null)
+  }, [investigationContext.symbol, repositoryDate])
+
   async function loadHistoricalIntelligence() {
     historicalController.current?.abort()
     const controller = new AbortController()
@@ -515,6 +534,34 @@ export default function ResearchPage() {
       return
     }
     setMarketMemory(result.data)
+  }
+
+  async function loadRepositorySummary() {
+    repositoryController.current?.abort()
+    const controller = new AbortController()
+    repositoryController.current = controller
+    setRepositoryStatus("LOADING")
+    setRepositoryReason(null)
+    setRepositorySummary(null)
+    const result = await loadResearchRepositoryCoverage({
+      symbol: investigationContext.symbol,
+      utcDay: repositoryDate,
+      signal: controller.signal,
+    })
+    if (controller.signal.aborted) return
+    if (result.status !== "AVAILABLE") {
+      setRepositoryStatus(result.status === "VALIDATION_ERROR" ? "UNAVAILABLE" : result.status)
+      setRepositoryReason(result.reason)
+      return
+    }
+    const adapted = adaptResearchRepositoryCoverage(result.value)
+    if (adapted.status !== "SUCCESS") {
+      setRepositoryStatus("UNAVAILABLE")
+      setRepositoryReason(adapted.reason)
+      return
+    }
+    setRepositorySummary(adapted.value)
+    setRepositoryStatus("AVAILABLE")
   }
 
   const topNarratives = narratives.data?.heatmap?.slice(0, 8) ?? []
@@ -1143,6 +1190,52 @@ export default function ResearchPage() {
                 ) : <div className="mt-2"><EmptyState title="Unavailable" reason={predictions.data?.status ?? predictions.error ?? "No attention markets available."} /></div>}
               </div>
             </div>
+          </div>
+        </Card>
+
+        <Card title="Repository Coverage" icon={<Database className="h-3.5 w-3.5" />}>
+          <div className="grid gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-2 rounded border border-zinc-900 bg-black/45 p-3">
+              <label className="min-w-[180px]">
+                <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">UTC Day</span>
+                <input
+                  type="date"
+                  value={repositoryDate}
+                  onChange={(event) => setRepositoryDate(event.target.value)}
+                  className="mt-1 w-full rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs font-black uppercase text-white outline-none [color-scheme:dark]"
+                />
+              </label>
+              <div className="flex items-center gap-2">
+                <StatusBadge tone={repositoryStatus === "AVAILABLE" ? "good" : repositoryStatus === "STALE" ? "warn" : "neutral"}>{repositoryStatus.replaceAll("_", " ")}</StatusBadge>
+                <button
+                  type="button"
+                  onClick={() => void loadRepositorySummary()}
+                  disabled={repositoryStatus === "LOADING"}
+                  className="rounded border border-cyan-300/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:cursor-wait disabled:opacity-50"
+                >
+                  {repositoryStatus === "LOADING" ? "Reading Projection" : "Load Repository Coverage"}
+                </button>
+              </div>
+            </div>
+
+            {repositorySummary ? (
+              <div className="grid gap-2">
+                {repositorySummary.rows.map((row) => (
+                  <div key={row.dataset} className="grid gap-2 rounded border border-zinc-900 bg-black/45 p-2 text-[10px] font-black uppercase tracking-[0.1em] md:grid-cols-[150px_100px_120px_100px_100px_minmax(0,1fr)]">
+                    <span className="text-white">{row.label}</span>
+                    <span className="text-cyan-100">{row.coverageStatus}</span>
+                    <span className="text-zinc-400">{row.actualRecords.toLocaleString()} / {row.expectedRecords === null ? "VARIABLE" : row.expectedRecords.toLocaleString()}</span>
+                    <span className="text-amber-100">{row.providerTier}</span>
+                    <span className="text-zinc-400">{row.canonical ? "CANONICAL" : "NON-CANONICAL"}</span>
+                    <span className="text-zinc-500">Confidence {row.confidence.toFixed(2)} / {row.verified ? "Verified" : "Unverified"} / {row.resolution}</span>
+                  </div>
+                ))}
+              </div>
+            ) : repositoryStatus === "NOT_CHECKED" ? (
+              <EmptyState title="Manual Load Required" reason={`Read precomputed ${investigationContext.symbol} Repository coverage for a UTC day.`} />
+            ) : repositoryStatus !== "LOADING" ? (
+              <EmptyState title="Repository Coverage Unavailable" reason={repositoryReason ?? repositoryStatus} />
+            ) : null}
           </div>
         </Card>
 
