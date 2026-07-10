@@ -1,0 +1,107 @@
+:root {
+  color-scheme: dark;
+
+  --qt-color-background: #030805;
+  --qt-color-surface: #070d07;
+  --qt-color-surface-raised: #0a0f0a;
+  --qt-color-surface-emphasis: #111911;
+  --qt-color-border: #142014;
+  --qt-color-border-strong: #1c2c1c;
+  --qt-color-text-primary: #f4f7f4;
+  --qt-color-text-secondary: #a0b0a0;
+  --qt-color-text-muted: #6b7d6b;
+  --qt-color-focus: #38bdf8;
+  --qt-color-info: #38bdf8;
+  --qt-color-success: #22c55e;
+  --qt-color-warning: #f59e0b;
+  --qt-color-danger: #e53535;
+  --qt-color-evidence: #38bdf8;
+  --qt-color-reasoning: #a78bfa;
+  --qt-color-counter-evidence: #f59e0b;
+  --qt-color-repository: #67e8f9;
+
+  --qt-font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --qt-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --qt-type-display-size: 1.75rem;
+  --qt-type-heading-size: 1.125rem;
+  --qt-type-title-size: 0.875rem;
+  --qt-type-body-size: 0.8125rem;
+  --qt-type-caption-size: 0.6875rem;
+  --qt-type-label-size: 0.625rem;
+  --qt-type-line-compact: 1.25;
+  --qt-type-line-body: 1.5;
+
+  --qt-space-1: 0.25rem;
+  --qt-space-2: 0.5rem;
+  --qt-space-3: 0.75rem;
+  --qt-space-4: 1rem;
+  --qt-space-5: 1.25rem;
+  --qt-space-6: 1.5rem;
+  --qt-space-8: 2rem;
+  --qt-space-10: 2.5rem;
+  --qt-control-height-sm: 2rem;
+  --qt-control-height-md: 2.5rem;
+  --qt-touch-target: 2.75rem;
+
+  --qt-radius-control: 0.25rem;
+  --qt-radius-card: 0.375rem;
+  --qt-radius-panel: 0.5rem;
+  --qt-radius-overlay: 0.5rem;
+  --qt-border-width: 1px;
+  --qt-border-width-strong: 2px;
+  --qt-elevation-base: none;
+  --qt-elevation-raised: 0 8px 24px rgb(0 0 0 / 0.24);
+  --qt-elevation-overlay: 0 16px 48px rgb(0 0 0 / 0.42);
+  --qt-opacity-disabled: 0.48;
+  --qt-opacity-muted: 0.72;
+  --qt-opacity-scrim: 0.72;
+
+  --qt-motion-immediate: 0ms;
+  --qt-motion-quick: 120ms;
+  --qt-motion-standard: 180ms;
+  --qt-motion-deliberate: 260ms;
+  --qt-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --qt-z-base: 0;
+  --qt-z-raised: 10;
+  --qt-z-overlay: 40;
+  --qt-z-modal: 50;
+
+  --qt-breakpoint-mobile: 393px;
+  --qt-breakpoint-tablet: 768px;
+  --qt-breakpoint-laptop: 1024px;
+  --qt-breakpoint-desktop: 1440px;
+  --qt-breakpoint-wide: 1800px;
+  --qt-density-comfortable: 1.25;
+  --qt-density-standard: 1;
+  --qt-density-compact: 0.875;
+}
+
+[data-qt-foundation]:focus-visible,
+[data-qt-foundation] :focus-visible {
+  outline: 2px solid var(--qt-color-focus);
+  outline-offset: 2px;
+}
+
+[data-qt-foundation][data-qt-density="comfortable"] {
+  --qt-density-current: var(--qt-density-comfortable);
+}
+
+[data-qt-foundation],
+[data-qt-foundation][data-qt-density="standard"] {
+  --qt-density-current: var(--qt-density-standard);
+}
+
+[data-qt-foundation][data-qt-density="compact"] {
+  --qt-density-current: var(--qt-density-compact);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-qt-foundation] *,
+  [data-qt-foundation] *::before,
+  [data-qt-foundation] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
