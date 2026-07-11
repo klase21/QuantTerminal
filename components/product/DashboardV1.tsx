@@ -23,6 +23,8 @@ import {
   type ProductContextFreshness,
 } from "@/lib/product-context"
 import type { SourceMetadataEnvelope } from "@/lib/data-governance"
+import { DashboardV2View } from "@/components/product/dashboard-v2"
+import { buildDashboardV2ViewModel, type DashboardCacheKey } from "@/lib/dashboard/adapters"
 
 type Bias = "Bullish" | "Bearish" | "Neutral"
 
@@ -83,6 +85,7 @@ type NarrativeHeatmapRow = {
 }
 
 type NarrativesResponse = {
+  sources?: string[]
   heatmap?: NarrativeHeatmapRow[]
   topNarratives?: string[]
   regionalLeaders?: {
@@ -237,6 +240,7 @@ type MarketDriverSummary = {
     impactScore: number
     quality: "verified" | "degraded" | "unavailable" | "unknown"
     evidence: {
+      sourceArtifactId?: string | null
       source: string
       observedAt: string | null
       summary: string
@@ -524,6 +528,24 @@ function timeAgo(value?: string) {
   if (minutes < 1) return "Detected: now"
   if (minutes < 60) return `Detected: ${minutes}m ago`
   return `Detected: ${Math.round(minutes / 60)}h ago`
+}
+
+function marketDirectionLabel(bias: Bias) {
+  if (bias === "Bullish") return "Uptrend"
+  if (bias === "Bearish") return "Downtrend"
+  return "Neutral"
+}
+
+function marketHrefForAlert(alert: TacticalAlert) {
+  const params = new URLSearchParams({
+    symbol: alert.asset,
+    source: "tactical-alert",
+    setup: alert.label ?? "Setup Unavailable",
+    direction: marketDirectionLabel(alert.bias),
+  })
+  if (alert.confidence !== null) params.set("confidence", String(alert.confidence))
+  if (alert.explanation) params.set("reason", alert.explanation)
+  return `/markets?${params.toString()}`
 }
 
 function causeFromText(value?: string, tone: CauseTone = "neutral", category = "MARKET"): CauseTag | null {
@@ -1017,21 +1039,8 @@ function TacticalAlerts({
     if (hasMeaningfulNumericScores) return String(score)
     return null
   }
-  const directionLabel = (bias: Bias) => {
-    if (bias === "Bullish") return "Uptrend"
-    if (bias === "Bearish") return "Downtrend"
-    return "Neutral"
-  }
   const marketHref = (alert: TacticalAlert) => {
-    const params = new URLSearchParams({
-      symbol: alert.asset,
-      source: "tactical-alert",
-      setup: alert.label ?? "Live Market Signal",
-      direction: directionLabel(alert.bias),
-    })
-    if (alert.confidence !== null) params.set("confidence", String(alert.confidence))
-    if (alert.explanation) params.set("reason", alert.explanation)
-    return `/markets?${params.toString()}`
+    return marketHrefForAlert(alert)
   }
 
   return (
@@ -1798,6 +1807,7 @@ export default function DashboardV1({
   const activeSymbol = useMemo(() => normalizeDashboardSymbol(symbol), [symbol])
   const cachedDashboard = useMemo(() => loadDashboardCache(activeSymbol), [activeSymbol])
   const [cacheUpdatedAt, setCacheUpdatedAt] = useState<string | null>(cachedDashboard?.cachedAt ?? null)
+  const [failedCacheKeys, setFailedCacheKeys] = useState<DashboardCacheKey[]>([])
   const [marketMovers, setMarketMovers] = useState<MarketMoversResponse | null>(cachedDashboard?.marketMovers ?? null)
   const [narratives, setNarratives] = useState<NarrativesResponse | null>(cachedDashboard?.narratives ?? null)
   const [narrativeLoadState, setNarrativeLoadState] = useState<NarrativeLoadState>(
@@ -1831,6 +1841,7 @@ export default function DashboardV1({
       sectorRotation: cachedDashboard?.sectorRotation ?? null,
       futures: cachedDashboard?.futures ?? null,
     }
+    setFailedCacheKeys([])
 
     function commitCache() {
       nextCache.cachedAt = new Date().toISOString()
@@ -1852,6 +1863,11 @@ export default function DashboardV1({
         commitCache()
       } catch {
         // Keep cached or existing state visible.
+        if (active) {
+          setFailedCacheKeys((current) => current.includes(cacheKey as DashboardCacheKey)
+            ? current
+            : [...current, cacheKey as DashboardCacheKey])
+        }
       } finally {
         clearTimeout(timeout)
       }
@@ -2050,6 +2066,39 @@ export default function DashboardV1({
   const causes = useMemo(() => buildCauses(topMover, macro, narratives, sectorRotation, futures), [topMover, macro, narratives, sectorRotation, futures])
   const narrativeItems = useMemo(() => buildNarrativeHeat(narratives), [narratives])
   const informationItems = useMemo(() => buildInformationFlow(macro, narratives), [macro, narratives])
+  const dashboardV2Model = useMemo(() => buildDashboardV2ViewModel({
+    symbol: activeSymbol,
+    marketDrivers,
+    marketDriverState: marketDriverLoadState,
+    marketDriverUnavailableReason,
+    opportunities: alerts,
+    predictionMarkets,
+    etfFlow,
+    reserve: reserveIntelligence,
+    macro,
+    futures,
+    narratives,
+    narrativeState: narrativeLoadState,
+    narrativeUnavailableReason,
+    liquidationCount,
+    failedCacheKeys,
+  }), [
+    activeSymbol,
+    alerts,
+    etfFlow,
+    failedCacheKeys,
+    futures,
+    macro,
+    marketDriverLoadState,
+    marketDriverUnavailableReason,
+    marketDrivers,
+    predictionMarkets,
+    narrativeLoadState,
+    narrativeUnavailableReason,
+    narratives,
+    liquidationCount,
+    reserveIntelligence,
+  ])
 
   function openMarketsWithSharedContext(alert: TacticalAlert, href: string) {
     const createdAt = new Date()
@@ -2135,6 +2184,18 @@ export default function DashboardV1({
     router.push(href)
   }
 
+  return (
+    <DashboardV2View
+      model={dashboardV2Model}
+      onInspectOpportunity={(opportunityId) => {
+        const index = dashboardV2Model.opportunities.findIndex((opportunity) => opportunity.id === opportunityId)
+        const alert = index >= 0 ? alerts[index] : undefined
+        if (alert) openMarketsWithSharedContext(alert, marketHrefForAlert(alert))
+      }}
+    />
+  )
+
+  /* Legacy presentation retained during the sectional migration for parity reference. */
   return (
     <main className={cn("min-h-screen px-3 py-3 lg:px-4", COLOR_BACKGROUND_BASE, COLOR_TEXT_PRIMARY)}>
       <div className={cn("mx-auto grid max-w-[1800px]", SPACE_SECTION)}>
