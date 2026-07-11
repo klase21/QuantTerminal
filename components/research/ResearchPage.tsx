@@ -56,6 +56,8 @@ import {
 } from "@/lib/research/researchRepositoryAdapter"
 import { loadResearchRepositoryCoverage } from "@/lib/research/researchRepositoryClient"
 import { safeFetchJson } from "@/lib/runtime/safeFetch"
+import { ResearchV2View } from "@/components/research-v2"
+import { buildResearchV2ViewModel, type StructuredResearchEvidenceInput } from "@/lib/research-presentation/adapters"
 
 const RESEARCH_REPLAY_CONTEXT_TTL_MS = 30 * 60 * 1000
 
@@ -63,6 +65,7 @@ type NarrativeResponse = {
   updatedAt?: number
   heatmap?: Array<{ narrative: string; total: number }>
   topNarratives?: string[]
+  _source?: SourceMetadataEnvelope
 }
 
 type PredictionResponse = {
@@ -74,7 +77,10 @@ type PredictionResponse = {
     liquidity: number | null
     category: string
     attentionRank: number
+    lastUpdated?: string | null
   }>
+  updatedAt?: string | null
+  _source?: SourceMetadataEnvelope
 }
 
 type MacroResponse = {
@@ -900,6 +906,121 @@ export default function ResearchPage() {
 
     router.push(replayHref)
   }
+
+  const structuredEvidence: StructuredResearchEvidenceInput[] = [
+    ...(historical?.contradiction?.supportingEvidence.map((evidence) => ({ evidence, validity: historical.validity, role: "SUPPORTING" as const })) ?? []),
+    ...(historical?.contradiction?.contradictingEvidence.map((evidence) => ({ evidence, validity: historical.validity, role: "CONFLICTING" as const })) ?? []),
+    ...(eventImpact?.contradiction?.supportingEvidence.map((evidence) => ({ evidence, validity: eventImpact.validity, role: "SUPPORTING" as const })) ?? []),
+    ...(eventImpact?.contradiction?.contradictingEvidence.map((evidence) => ({ evidence, validity: eventImpact.validity, role: "CONFLICTING" as const })) ?? []),
+    ...memories.flatMap((memory) => [
+      ...(memory.contradiction?.supportingEvidence.map((evidence) => ({ evidence, validity: memory.validity, role: "SUPPORTING" as const })) ?? []),
+      ...(memory.contradiction?.contradictingEvidence.map((evidence) => ({ evidence, validity: memory.validity, role: "CONFLICTING" as const })) ?? []),
+    ]),
+  ]
+  const researchV2Model = buildResearchV2ViewModel({
+    symbol: investigationContext.symbol,
+    exchange: investigationContext.exchange,
+    timeframe: investigationContext.timeframe,
+    title: investigationContext.thesis?.title ?? `${investigationContext.symbol} Research Investigation`,
+    question: investigationContext.thesis?.question ?? `What supplied evidence is available for ${investigationContext.symbol}?`,
+    thesisId: investigationContext.thesis?.thesisId ?? null,
+    decisionBrief: decisionBrief ? {
+      currentView: decisionBrief.currentView,
+      freshnessStatus: decisionBrief.freshnessStatus,
+      coverageStatus: decisionBrief.coverageStatus,
+      supportingEvidenceCount: decisionBrief.supportingEvidenceCount,
+      contradictingEvidenceCount: decisionBrief.contradictingEvidenceCount,
+      sourceArtifactIds: decisionBrief.sourceArtifactIds,
+    } : null,
+    evidence: structuredEvidence,
+    secondaryContext: topNarratives.map((item) => ({
+      id: `narrative:${item.narrative}`,
+      title: item.narrative,
+      summary: `${item.total} tagged narrative items were supplied by the aggregate feed.`,
+      source: narratives.data?._source?.sourceName ?? narratives.data?._source?.sourceId ?? null,
+      observedAt: narratives.data?.updatedAt ? new Date(narratives.data.updatedAt).toISOString() : null,
+      polling: { loading: narratives.loading, error: narratives.error, hasPayload: Boolean(narratives.data) },
+      limitation: "Narrative counts are secondary aggregate context, not primary evidence or causal reasoning.",
+    })),
+    primarySourceCandidates: [
+      { metadata: macro.data?._source ?? null, label: "Macro source" },
+      { metadata: predictions.data?._source ?? null, label: "Prediction-market source" },
+    ],
+    predictionMarkets: predictionMarkets.map((market) => ({ ...market, attentionLabel: attentionLabel(market) })),
+    predictionSource: predictions.data?._source ?? null,
+    predictionPolling: { loading: predictions.loading, error: predictions.error, hasPayload: Boolean(predictions.data) },
+    relatedResearch: [
+      ...cases.map((item) => ({
+        id: item.state.id,
+        kind: "HISTORICAL_ANALOG" as const,
+        title: `${item.state.symbol} / ${item.state.interval} / ${dateTime(item.state.timestamp)}`,
+        summary: `Supplied historical case from ${source}.`,
+        identity: item.state.id,
+        selected: item.state.id === selectedCase?.state.id,
+        validity: historical?.validity,
+        availability: "AVAILABLE" as const,
+        limitation: "Historical similarity is context and is not a causal claim.",
+      })),
+      ...(eventImpact ? [{
+        id: eventImpact.events[0]?.eventId ?? "event-impact-result",
+        kind: "EVENT_IMPACT" as const,
+        title: eventImpact.events[0]?.title ?? "Event Impact",
+        summary: eventImpact.reason ?? `${eventImpact.sampleCount} supplied event outcomes.`,
+        identity: eventImpact.events[0]?.eventId ?? null,
+        validity: eventImpact.validity,
+        availability: eventImpact.status === "available" ? "AVAILABLE" as const : "UNAVAILABLE" as const,
+        limitation: eventImpact.reason ?? "Event outcomes are historical context, not a recommendation.",
+      }] : []),
+      ...memories.map((memory) => ({
+        id: memory.memoryId,
+        kind: "MARKET_MEMORY" as const,
+        title: memory.title,
+        summary: memory.summary,
+        identity: memory.memoryId,
+        validity: memory.validity,
+        availability: "AVAILABLE" as const,
+        limitation: "Market Memory is supplied historical research context.",
+      })),
+    ],
+    repository: {
+      utcDay: repositoryDate,
+      status: repositoryStatus,
+      reason: repositoryReason,
+      rows: repositorySummary?.rows.map((row) => ({
+        dataset: row.dataset,
+        label: row.label,
+        coverageStatus: row.coverageStatus,
+        actualRecords: row.actualRecords,
+        expectedRecords: row.expectedRecords,
+        providerTier: row.providerTier,
+        canonical: row.canonical,
+        verified: row.verified,
+        providerConfidence: row.confidence,
+        resolution: row.resolution,
+      })) ?? [],
+    },
+    selectedHistoricalCaseId: selectedCase?.state.id ?? null,
+    availableHistoricalCaseIds: cases.map((item) => item.state.id),
+    handoffs: [
+      { id: "markets", label: "Markets", href: marketsHref, available: true, description: "Continue with the current symbol and investigation context.", unavailableReason: null, actionRequired: false },
+      { id: "replay", label: "Replay", href: replayHref, available: Boolean(replayHref && selectedCase), description: "Inspect the selected supplied historical case.", unavailableReason: replayHref ? null : "Select a supplied historical case before opening Replay.", actionRequired: true },
+      { id: "explorer", label: "Historical Explorer", href: explorerHref, available: true, description: "Inspect historical intelligence with current context.", unavailableReason: null, actionRequired: false },
+      { id: "trade", label: "Trade", href: tradeHref, available: true, description: "Continue to decision planning without autonomous execution.", unavailableReason: null, actionRequired: false },
+    ],
+  })
+
+  return <ResearchV2View model={researchV2Model} actions={{
+    onLoadHistorical: loadHistoricalIntelligence,
+    onLoadEventImpact: loadEventImpact,
+    onLoadMarketMemory: loadMarketMemory,
+    onLoadRepository: loadRepositorySummary,
+    onRepositoryDateChange: setRepositoryDate,
+    onSelectHistoricalCase: setSelectedCaseId,
+    onOpenReplay: openReplayWithSharedContext,
+    historicalLoading,
+    eventImpactLoading,
+    marketMemoryLoading,
+  }} />
 
   return (
     <main className="min-h-screen bg-black px-3 py-3 text-white lg:px-4">

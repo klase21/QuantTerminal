@@ -12,6 +12,7 @@ import { Inline, Section, Stack, SurfacePanel } from "@/components/layout/founda
 import { RepositoryLink } from "@/components/navigation"
 import { DashboardV2View } from "@/components/product/dashboard-v2"
 import { ReplayV2View } from "@/components/replay-v2"
+import { ResearchV2View } from "@/components/research-v2"
 import { Badge, Button, Chip, Divider, IconButton, Progress, Spinner } from "@/components/ui/foundation"
 import {
   PREVIEW_FIXTURE_LABEL,
@@ -24,6 +25,7 @@ import {
 import { AVAILABILITY_STATES, LIFECYCLE_STATES, type AvailabilityState } from "@/lib/design-system"
 import { buildDashboardV2ViewModel, type DashboardMarketDriverInput } from "@/lib/dashboard/adapters"
 import { buildReplayV2ViewModel } from "@/lib/replay-presentation/adapters"
+import { buildResearchV2ViewModel } from "@/lib/research-presentation/adapters"
 import { Search } from "lucide-react"
 
 const staleEvidence = {
@@ -142,6 +144,24 @@ const syntheticReplayModel = buildReplayV2ViewModel({
   researchHref: "/research?symbol=EXAMPLEUSDT&source=replay", repositoryGate: { repositoryReady: true, projectionStatus: "AVAILABLE", detail: "Synthetic projection fixture." },
 })
 const previewReplayActions = { exchange: "binance_futures", symbol: "EXAMPLEUSDT", date: "2025-01-15", hour: "8", sourceMode: "provider" as const, loading: false, loadingStage: null, repositoryModeDisabled: false, repositoryModeReason: null, onExchangeChange: () => undefined, onSymbolChange: () => undefined, onDateChange: () => undefined, onHourChange: () => undefined, onSourceModeChange: () => undefined, onLoadReplay: () => undefined, onLoadTrades: () => undefined, onLoadOrderbook: () => undefined }
+const previewResearchModel = buildResearchV2ViewModel({
+  symbol: "EXAMPLEUSDT", exchange: "example_exchange", timeframe: "1h", title: "Synthetic Research investigation", question: "What supplied evidence is available for this deliberately long synthetic investigation question at a 393px composition?",
+  decisionBrief: { currentView: "INSUFFICIENT_EVIDENCE", freshnessStatus: "UNKNOWN", coverageStatus: "PARTIAL", supportingEvidenceCount: 1, contradictingEvidenceCount: 1, sourceArtifactIds: ["synthetic-artifact-id"] },
+  evidence: [
+    { role: "SUPPORTING", validity: { schemaVersion: 1, observedAt: "2025-01-15T08:00:00.000Z", generatedAt: "2025-01-15T08:05:00.000Z", freshnessStatus: "VALID", coverageStatus: "FULL", reason: "Synthetic fixture." }, evidence: { evidenceId: "synthetic-support", sourceArtifactId: "synthetic-artifact-id", kind: "historical_case", title: "Synthetic structured evidence with a deliberately long title", summary: "Deterministic preview evidence, not a current market claim.", source: "Synthetic preview source", observedAt: "2025-01-15T08:00:00.000Z" } },
+    { role: "CONFLICTING", validity: { schemaVersion: 1, observedAt: "2025-01-14T08:00:00.000Z", generatedAt: "2025-01-15T08:05:00.000Z", freshnessStatus: "STALE", coverageStatus: "PARTIAL", reason: "Synthetic stale fixture." }, evidence: { evidenceId: "synthetic-conflict", kind: "outcome", title: "Synthetic counter evidence", summary: "Deterministic conflicting observation with no record identity.", source: "Synthetic preview source", observedAt: "2025-01-14T08:00:00.000Z" } },
+  ],
+  secondaryContext: [{ id: "synthetic-retained-context", title: "Synthetic retained aggregate", summary: "A prior payload remains visible after a deterministic polling error.", source: "Synthetic aggregate source", observedAt: null, polling: { loading: false, error: "Synthetic request failure", hasPayload: true }, limitation: "Secondary aggregate context only." }],
+  primarySourceCandidates: [
+    { label: "Synthetic attributable primary source", metadata: { sourceId: "synthetic-primary", sourceName: "Synthetic Primary Source", freshnessStatus: "CURRENT", qualityLevel: "HIGH", sourceStatus: "ACTIVE", lastUpdatedAt: "2025-01-15T08:00:00.000Z", retrievedAt: "2025-01-15T08:05:00.000Z", degradedReason: null, unavailableReason: null, fallbackSourceId: null, cacheStatus: "HIT", productionApproved: true } },
+    { label: "Insufficient source metadata", metadata: null },
+  ],
+  predictionMarkets: [{ title: "Synthetic prediction context with unknown freshness", probability: 42, volume: 1000, liquidity: 500, category: "synthetic", attentionRank: 1, lastUpdated: null, attentionLabel: "High Attention" }], predictionSource: null, predictionPolling: { loading: false, error: null, hasPayload: true },
+  relatedResearch: [{ id: "synthetic-selected-case", kind: "HISTORICAL_ANALOG", title: "Synthetic selected historical case", summary: "Supplied fixture context only.", identity: "synthetic-selected-case", selected: true, availability: "AVAILABLE", limitation: "No similarity or causality is inferred." }],
+  repository: { utcDay: "2025-01-15", status: "STALE", reason: "Synthetic stale projection.", rows: [] }, selectedHistoricalCaseId: "synthetic-selected-case", availableHistoricalCaseIds: ["synthetic-selected-case"],
+  handoffs: [{ id: "replay", label: "Replay", href: "/replay?symbol=EXAMPLEUSDT", available: true, description: "Synthetic contextual handoff.", unavailableReason: null, actionRequired: true }],
+})
+const previewResearchActions = { onLoadHistorical: () => undefined, onLoadEventImpact: () => undefined, onLoadMarketMemory: () => undefined, onLoadRepository: () => undefined, onRepositoryDateChange: () => undefined, onSelectHistoricalCase: () => undefined, onOpenReplay: () => undefined, historicalLoading: false, eventImpactLoading: false, marketMemoryLoading: false }
 
 export function ReactFoundationPreview() {
   return (
@@ -222,6 +242,12 @@ export function ReactFoundationPreview() {
           <h2 id="replay-v2-preview-title" className="text-lg font-semibold">Replay V2 composition</h2>
           <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: partial coverage, stale source, missing orderbook, manual AggTrade, unavailable reasoning, missing Repository identity, long timeline content, and narrow layout.</p>
           <ReplayV2View model={syntheticReplayModel} actions={previewReplayActions} embedded />
+        </Section>
+
+        <Section aria-labelledby="research-v2-preview-title">
+          <h2 id="research-v2-preview-title" className="text-lg font-semibold">Research V2 composition</h2>
+          <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: structured evidence, secondary context, strict primary-source gate, counter evidence, unavailable reasoning and graph, unknown prediction freshness, stale projection, selected case, missing Repository identity, long text, and narrow layout.</p>
+          <ResearchV2View model={previewResearchModel} actions={previewResearchActions} embedded />
         </Section>
       </Stack>
     </main>

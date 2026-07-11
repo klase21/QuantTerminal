@@ -1,0 +1,8 @@
+import React from "react"
+import { AvailabilityBadge, FreshnessIndicator, StatePanel } from "@/components/feedback"
+import { Badge } from "@/components/ui/foundation"
+import type { PrimarySourceViewModel } from "@/lib/research-presentation/contracts"
+
+export function PrimarySourcesSection({ sources }: { readonly sources: readonly PrimarySourceViewModel[] }) {
+  return <section aria-labelledby="primary-sources-title" className="grid gap-4"><div><p className="text-xs font-semibold uppercase text-[var(--qt-color-evidence)]">Primary Sources</p><h2 id="primary-sources-title" className="mt-1 text-lg font-semibold">Attributable source inspection</h2></div>{sources.length ? <div className="grid gap-3 md:grid-cols-2">{sources.map((source) => <article key={source.id} className="grid gap-3 rounded-[var(--qt-radius-card)] border border-[var(--qt-color-border)] bg-[var(--qt-color-surface)] p-[var(--qt-space-4)]"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="break-words text-sm font-semibold">{source.name}</h3><AvailabilityBadge availability={source.availability} /></div><div className="flex flex-wrap gap-2"><Badge tone={source.attributable ? "success" : "warning"}>{source.attributable ? "ATTRIBUTABLE" : "SOURCE DETAIL INSUFFICIENT"}</Badge>{source.quality ? <Badge tone="neutral">Quality: {source.quality}</Badge> : null}</div><FreshnessIndicator freshness={source.freshness} />{source.limitation ? <p className="text-xs text-[var(--qt-color-warning)]">{source.limitation}</p> : null}</article>)}</div> : <StatePanel state="EMPTY" title="Primary Sources" reason="No source candidate supplied attributable primary-source metadata." />}</section>
+}
