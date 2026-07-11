@@ -24,6 +24,9 @@ import {
   queryReplayRepositoryDataset,
   type ReplayRepositoryDataset,
 } from "@/lib/replay/replayRepositoryClient"
+import { ReplayV2View } from "@/components/replay-v2"
+import { buildReplayV2ViewModel } from "@/lib/replay-presentation/adapters"
+import type { MetricViewModel } from "@/lib/design-system"
 
 const REPLAY_TRADE_CONTEXT_TTL_MS = 30 * 60 * 1000
 
@@ -1102,6 +1105,86 @@ export default function ReplayV1Page() {
       : chartCandles.length || priceSeries.length
         ? { label: "PARTIAL", tone: "partial" as const, detail: "Replay can inspect the selected window; no separate validation score is generated." }
         : { label: "UNAVAILABLE", tone: "missing" as const, detail: chartReason ?? "Replay price evidence is unavailable." }
+  const replayV2Model = useMemo(() => {
+    const metric = (id: string, label: string, value: string | number | null, source: string, available = value !== null): MetricViewModel => ({
+      id,
+      label,
+      value,
+      lifecycle: available ? "READY" : "PARTIAL",
+      availability: available ? { state: "AVAILABLE" } : { state: "UNAVAILABLE", reason: `${label} was not supplied for this bounded window.` },
+      freshness: { state: "UNKNOWN", reason: "The current Replay payload does not supply a canonical freshness status for this display metric." },
+      provenance: { sourceId: source, sourceName: source, providerTier: "UNKNOWN" },
+    })
+    const researchParams = new URLSearchParams({
+      symbol,
+      exchange,
+      timeframe: investigationContext.timeframe,
+      date,
+      hour,
+      source: "replay",
+    })
+    const tradesStatus = replayData?.trades.length
+      ? { label: "PARTIAL", detail: `${replayData.trades.length} manually loaded trade rows.`, source: replayData.source, rowCount: replayData.trades.length }
+      : hasLoaded
+        ? { label: "UNAVAILABLE", detail: datasetReason(replayData, "trades"), source: replayData?.source ?? null, rowCount: 0 }
+        : { label: "MISSING", detail: "Trades have not been manually requested.", source: null, rowCount: 0 }
+    const marketMetrics: MetricViewModel[] = [
+      metric("replay-price", "Last price", lastPrice, chartSource ?? "Replay chart", lastPrice !== null),
+      metric("replay-open-interest", "Open interest", oiRows.at(-1)?.openInterest ?? null, positioningSource, oiRows.at(-1)?.openInterest !== null && oiRows.at(-1)?.openInterest !== undefined),
+      metric("replay-funding", "Funding rate", fundingRows.at(-1)?.fundingRate === null || fundingRows.at(-1)?.fundingRate === undefined ? null : `${(fundingRows.at(-1)!.fundingRate! * 100).toFixed(4)}%`, positioningSource, fundingRows.at(-1)?.fundingRate !== null && fundingRows.at(-1)?.fundingRate !== undefined),
+      metric("replay-liquidations", "Liquidation notional", liqStats.total ? compactUsd(liqStats.total) : null, replayData?.source ?? "Replay", liqStats.total > 0),
+    ]
+    const boundedOrderbookMetrics: MetricViewModel[] = latestBook ? [
+      metric("replay-best-bid", "Best bid", bookMetrics.bestBid, "Replay orderbook cache", bookMetrics.bestBid !== null),
+      metric("replay-best-ask", "Best ask", bookMetrics.bestAsk, "Replay orderbook cache", bookMetrics.bestAsk !== null),
+      metric("replay-spread", "Spread", bookMetrics.spread, "Replay orderbook cache", bookMetrics.spread !== null),
+      metric("replay-imbalance", "Depth imbalance", bookMetrics.imbalance === null ? null : `${bookMetrics.imbalance.toFixed(2)}%`, "Replay orderbook cache", bookMetrics.imbalance !== null),
+    ] : []
+    return buildReplayV2ViewModel({
+      symbol,
+      exchange,
+      timeframe: investigationContext.timeframe,
+      window: replayWindowLabel,
+      title: thesisTitle,
+      question: thesisQuestion,
+      hasLoaded,
+      loading,
+      summaryObservations: summaryLines,
+      chartCandles,
+      chartSource,
+      chartReason,
+      priceChange,
+      statuses: {
+        chart: { label: chartStatus.label, detail: chartStatus.detail, source: chartSource, rowCount: chartCandles.length || priceSeries.length },
+        positioning: { label: positioningStatus.label, detail: positioningStatus.detail, source: positioningSource, rowCount: positioningRows.length },
+        liquidation: { label: liquidationStatus.label, detail: liquidationStatus.detail, source: replayData?.source ?? null, rowCount: replayData?.liquidations.length ?? 0 },
+        orderbook: { label: orderbookStatus.label, detail: orderbookStatus.detail, source: latestBook ? "Replay orderbook cache" : null, rowCount: latestBook ? 1 : 0 },
+        trades: tradesStatus,
+      },
+      timelineEvents: events.map((event) => ({ ...event, source: replayData?.source ?? null })),
+      tradeCount: replayData?.trades.length ?? 0,
+      tradeLoading: repositoryTradesLoading,
+      tradesTruncated: repositoryTradesTruncated,
+      tradeContinuation: Boolean(repositoryTradeCursor),
+      marketMetrics,
+      orderbookMetrics: boundedOrderbookMetrics,
+      selectedHistoricalCase: selectedCase ? { id: selectedCase.id, timestamp: selectedCase.timestamp, source: selectedCase.source } : null,
+      researchHref: `/research?${researchParams.toString()}`,
+      repositoryGate: repositoryCoverageGate ? {
+        repositoryReady: repositoryCoverageGate.repositoryReady,
+        projectionStatus: repositoryCoverageGate.projectionStatus,
+        detail: repositoryCoverageGate.detail,
+      } : null,
+    })
+  }, [
+    symbol, exchange, date, hour, investigationContext.timeframe, replayWindowLabel, thesisTitle, thesisQuestion,
+    hasLoaded, loading, summaryLines, chartCandles, chartSource, chartReason, priceChange, chartStatus.label,
+    chartStatus.detail, priceSeries.length, positioningStatus.label, positioningStatus.detail, positioningSource,
+    positioningRows.length, liquidationStatus.label, liquidationStatus.detail, orderbookStatus.label,
+    orderbookStatus.detail, replayData, events, repositoryTradesLoading, repositoryTradesTruncated,
+    repositoryTradeCursor, lastPrice, oiRows, fundingRows, liqStats.total, latestBook, bookMetrics, selectedCase,
+    repositoryCoverageGate,
+  ])
   const tradeHref = `/trade?${new URLSearchParams({ symbol }).toString()}`
 
   function openTradeWithSharedContext() {
@@ -1621,6 +1704,33 @@ export default function ReplayV1Page() {
     }
   }, [])
 
+  return (
+    <ReplayV2View
+      model={replayV2Model}
+      orderbookVisualization={<DepthCurve book={latestBook} reason={orderbookReason} />}
+      actions={{
+        exchange,
+        symbol,
+        date,
+        hour,
+        sourceMode: replayMode,
+        loading,
+        loadingStage,
+        repositoryModeDisabled: Boolean(repositoryCoverageGate && !repositoryCoverageGate.repositoryReady),
+        repositoryModeReason: repositoryCoverageGate && !repositoryCoverageGate.repositoryReady ? repositoryCoverageGate.detail : null,
+        onExchangeChange: setExchange,
+        onSymbolChange: setSymbol,
+        onDateChange: setDate,
+        onHourChange: setHour,
+        onSourceModeChange: setReplayMode,
+        onLoadReplay: () => void loadReplay(),
+        onLoadTrades: () => void (replayMode === "repository" ? loadRepositoryTrades() : loadManualDatasets(["trades"], "trades")),
+        onLoadOrderbook: () => void loadOrderbook(),
+      }}
+    />
+  )
+
+  /* Legacy presentation retained during the sectional migration for parity reference. */
   return (
     <main className="min-h-screen bg-[#070d07] px-3 py-3 text-white lg:px-4">
       <div className="mx-auto grid max-w-[1900px] gap-3">

@@ -1,3 +1,5 @@
+"use client"
+
 import {
   ConfidenceIndicator,
   CounterEvidenceCard,
@@ -8,6 +10,8 @@ import {
 import { AvailabilityBadge, StatePanel } from "@/components/feedback"
 import { Inline, Section, Stack, SurfacePanel } from "@/components/layout/foundation-layout"
 import { RepositoryLink } from "@/components/navigation"
+import { DashboardV2View } from "@/components/product/dashboard-v2"
+import { ReplayV2View } from "@/components/replay-v2"
 import { Badge, Button, Chip, Divider, IconButton, Progress, Spinner } from "@/components/ui/foundation"
 import {
   PREVIEW_FIXTURE_LABEL,
@@ -18,6 +22,8 @@ import {
   previewUnavailableEvidence,
 } from "@/lib/design-system/fixtures/preview"
 import { AVAILABILITY_STATES, LIFECYCLE_STATES, type AvailabilityState } from "@/lib/design-system"
+import { buildDashboardV2ViewModel, type DashboardMarketDriverInput } from "@/lib/dashboard/adapters"
+import { buildReplayV2ViewModel } from "@/lib/replay-presentation/adapters"
 import { Search } from "lucide-react"
 
 const staleEvidence = {
@@ -35,6 +41,107 @@ const partialEvidence = {
   lifecycle: "PARTIAL" as const,
   coverage: { state: "PARTIAL" as const, actualRecords: 1, expectedRecords: 3, percent: 33.33, reason: "Synthetic preview coverage." },
 }
+
+const syntheticDashboardDrivers = {
+  symbol: "EXAMPLEUSDT",
+  timestamp: "2025-01-15T08:00:00.000Z",
+  marketDirection: "positive",
+  confidence: 62.5,
+  quality: "degraded",
+  availableCategories: ["funding", "open_interest", "historical_analog"],
+  missingCategories: ["liquidation", "exchange_flow", "treasury", "etf", "event_impact"],
+  staleCategories: ["open_interest"],
+  drivers: [
+    {
+      category: "funding",
+      title: "Synthetic funding evidence with a deliberately long title for responsive wrapping validation",
+      impactScore: 42,
+      quality: "verified",
+      evidence: {
+        sourceArtifactId: "synthetic-funding-evidence",
+        source: "Synthetic preview source",
+        observedAt: "2025-01-15T08:00:00.000Z",
+        summary: "Demonstration funding observation. This is not current market data.",
+        direction: "positive",
+      },
+    },
+    {
+      category: "open_interest",
+      title: "Synthetic stale open-interest evidence",
+      impactScore: 30,
+      quality: "degraded",
+      evidence: {
+        sourceArtifactId: "synthetic-open-interest-evidence",
+        source: "Synthetic preview source",
+        observedAt: "2025-01-14T08:00:00.000Z",
+        summary: "Demonstration stale observation. This is not current market data.",
+        direction: "neutral",
+      },
+    },
+    {
+      category: "historical_analog",
+      title: "Synthetic unsupported historical input",
+      impactScore: 25,
+      quality: "verified",
+      evidence: {
+        sourceArtifactId: "synthetic-historical-evidence",
+        source: "Synthetic preview source",
+        observedAt: "2025-01-15T07:00:00.000Z",
+        summary: "This fixture activates the Dashboard fail-closed gate.",
+        direction: "positive",
+      },
+    },
+  ],
+} satisfies DashboardMarketDriverInput
+
+const syntheticDashboardModel = buildDashboardV2ViewModel({
+  symbol: "EXAMPLEUSDT",
+  marketDrivers: syntheticDashboardDrivers,
+  marketDriverState: "ready",
+  opportunities: [{
+    asset: "EXAMPLEUSDT",
+    label: "Synthetic local setup label",
+    bias: "Bullish",
+    detectedAt: "2025-01-15T08:00:00.000Z",
+    context: "Synthetic preview context",
+    explanation: "Synthetic heuristic explanation requiring visible qualification.",
+  }],
+  predictionMarkets: {
+    ok: true,
+    source: "synthetic-preview",
+    marketEvents: [{
+      title: "Synthetic prediction-market observation",
+      venue: "Example fixture",
+      probability: 42,
+      lastUpdated: "2025-01-15T08:00:00.000Z",
+      source: "synthetic-preview",
+    }],
+  },
+  etfFlow: null,
+  reserve: null,
+  narratives: null,
+  narrativeState: "unavailable",
+  narrativeUnavailableReason: "Synthetic preview unavailable state.",
+  failedCacheKeys: ["predictionMarkets"],
+})
+
+const syntheticReplayModel = buildReplayV2ViewModel({
+  symbol: "EXAMPLEUSDT", exchange: "binance_futures", timeframe: "1h", window: "2025-01-15 08:00-08:59 UTC",
+  title: "Synthetic Replay investigation", question: "A deliberately long synthetic question verifies narrow-width wrapping without making a current market claim.",
+  hasLoaded: true, loading: false, summaryObservations: ["Synthetic bounded observation. This is not current market data."],
+  chartCandles: [{ time: 1736928000, open: 100, high: 102, low: 99, close: 101, volume: 10 }], chartSource: "Synthetic preview source", chartReason: null, priceChange: 1,
+  statuses: {
+    chart: { label: "CURRENT", detail: "Synthetic evidence available.", source: "Synthetic preview", rowCount: 1 },
+    positioning: { label: "PARTIAL", detail: "Synthetic partial coverage.", source: "Synthetic preview", rowCount: 1 },
+    liquidation: { label: "STALE", detail: "Synthetic stale source.", source: "Synthetic preview", rowCount: 1 },
+    orderbook: { label: "UNAVAILABLE", detail: "Synthetic orderbook intentionally omitted.", rowCount: 0 },
+    trades: { label: "MISSING", detail: "Manual synthetic AggTrade load has not run.", rowCount: 0 },
+  },
+  timelineEvents: [{ timestamp: "2025-01-15T08:01:00.000Z", type: "Synthetic long timeline observation", label: "Deterministic fixture value with no record identity and no causal claim." }],
+  tradeCount: 0, tradeLoading: false, tradesTruncated: true, tradeContinuation: true, marketMetrics: [], orderbookMetrics: [], selectedHistoricalCase: null,
+  researchHref: "/research?symbol=EXAMPLEUSDT&source=replay", repositoryGate: { repositoryReady: true, projectionStatus: "AVAILABLE", detail: "Synthetic projection fixture." },
+})
+const previewReplayActions = { exchange: "binance_futures", symbol: "EXAMPLEUSDT", date: "2025-01-15", hour: "8", sourceMode: "provider" as const, loading: false, loadingStage: null, repositoryModeDisabled: false, repositoryModeReason: null, onExchangeChange: () => undefined, onSymbolChange: () => undefined, onDateChange: () => undefined, onHourChange: () => undefined, onSourceModeChange: () => undefined, onLoadReplay: () => undefined, onLoadTrades: () => undefined, onLoadOrderbook: () => undefined }
 
 export function ReactFoundationPreview() {
   return (
@@ -103,6 +210,18 @@ export function ReactFoundationPreview() {
               </Stack>
             </SurfacePanel>
           </div>
+        </Section>
+
+        <Section aria-labelledby="dashboard-v2-preview-title">
+          <h2 id="dashboard-v2-preview-title" className="text-lg font-semibold">Dashboard V2 composition</h2>
+          <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: contaminated direction, partial cached data, stale evidence, unavailable reasoning, missing Repository identity, and long text.</p>
+          <DashboardV2View model={syntheticDashboardModel} embedded />
+        </Section>
+
+        <Section aria-labelledby="replay-v2-preview-title">
+          <h2 id="replay-v2-preview-title" className="text-lg font-semibold">Replay V2 composition</h2>
+          <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: partial coverage, stale source, missing orderbook, manual AggTrade, unavailable reasoning, missing Repository identity, long timeline content, and narrow layout.</p>
+          <ReplayV2View model={syntheticReplayModel} actions={previewReplayActions} embedded />
         </Section>
       </Stack>
     </main>
