@@ -13,6 +13,7 @@ import { RepositoryLink } from "@/components/navigation"
 import { DashboardV2View } from "@/components/product/dashboard-v2"
 import { ReplayV2View } from "@/components/replay-v2"
 import { ResearchV2View } from "@/components/research-v2"
+import { MarketsV2View } from "@/components/markets-v2"
 import { Badge, Button, Chip, Divider, IconButton, Progress, Spinner } from "@/components/ui/foundation"
 import {
   PREVIEW_FIXTURE_LABEL,
@@ -26,6 +27,7 @@ import { AVAILABILITY_STATES, LIFECYCLE_STATES, type AvailabilityState } from "@
 import { buildDashboardV2ViewModel, type DashboardMarketDriverInput } from "@/lib/dashboard/adapters"
 import { buildReplayV2ViewModel } from "@/lib/replay-presentation/adapters"
 import { buildResearchV2ViewModel } from "@/lib/research-presentation/adapters"
+import { buildMarketsV2ViewModel } from "@/lib/markets-presentation/adapters"
 import { Search } from "lucide-react"
 
 const staleEvidence = {
@@ -162,6 +164,19 @@ const previewResearchModel = buildResearchV2ViewModel({
   handoffs: [{ id: "replay", label: "Replay", href: "/replay?symbol=EXAMPLEUSDT", available: true, description: "Synthetic contextual handoff.", unavailableReason: null, actionRequired: true }],
 })
 const previewResearchActions = { onLoadHistorical: () => undefined, onLoadEventImpact: () => undefined, onLoadMarketMemory: () => undefined, onLoadRepository: () => undefined, onRepositoryDateChange: () => undefined, onSelectHistoricalCase: () => undefined, onOpenReplay: () => undefined, historicalLoading: false, eventImpactLoading: false, marketMemoryLoading: false }
+const previewMarketsSource = { sourceId: "synthetic-markets-source", sourceName: "Synthetic Markets Preview Source", freshnessStatus: "STALE" as const, qualityLevel: "MEDIUM" as const, sourceStatus: "DEGRADED" as const, lastUpdatedAt: "2025-01-15T08:00:00.000Z", retrievedAt: "2025-01-15T08:05:00.000Z", degradedReason: "PARTIAL_DATA" as const, unavailableReason: null, fallbackSourceId: null, cacheStatus: "HIT" as const, productionApproved: true }
+const previewMarketsModel = buildMarketsV2ViewModel({
+  symbol: "EXAMPLEUSDT", exchange: "example_exchange", timeframe: "1m",
+  inheritedDashboard: { label: "PARTIAL", detail: "Synthetic inherited context for preview only.", direction: null, driverCount: 2, evidenceCount: 1, freshness: "UNKNOWN" },
+  summaryMetrics: [{ id: "synthetic-price", label: "Synthetic supplied price", value: 100, available: true, source: "Synthetic preview source" }, { id: "synthetic-range", label: "Synthetic unavailable range with a deliberately long label", value: null, available: false }], moduleAvailability: [true, true, false, false],
+  sectorRotation: { request: { loading: false, error: null, hasPayload: true }, source: previewMarketsSource, mappedAssets: 6, registryAssets: 10, sectors: [{ sector: "SYNTHETIC SECTOR WITH LONG LABEL", rank: 1, rotationScore: 62, direction: "INFLOW", volumeShare: 12, avgPriceChange: 1.2, breadth: 66, assetCount: 6, positiveCount: 4, topSymbols: ["EXAMPLE", "FIXTURE"] }] },
+  etf: { request: { loading: false, error: null, hasPayload: true }, source: { ...previewMarketsSource, sourceId: "synthetic-etf-source", sourceName: "Synthetic ETF Preview Source", freshnessStatus: "CURRENT", sourceStatus: "ACTIVE", degradedReason: null }, row: { asset: "EXAMPLE", netFlow: 12.5, unit: "USD millions", sourceDate: "2025-01-15", sourceTimestamp: "2025-01-15T08:00:00.000Z" } },
+  reserve: { request: { loading: false, error: null, hasPayload: true }, freshness: "current", observedAt: "2025-01-15T08:00:00.000Z", row: { asset: "EXAMPLE", observationType: "balance", currentBalance: 500, currentBalanceUsd: 1000, balanceChange: null, balanceUsdChange: null } },
+  derivatives: { fundingRate: null, fundingSource: null, openInterestNotional: 500000, openInterestSource: "Synthetic fallback provenance", liquidationState: "unavailable", longLiquidationNotional: null, shortLiquidationNotional: null, venues: [{ name: "Synthetic venue", ok: true, source: "Synthetic provider", fundingRate: null, openInterestNotional: 500000 }], relationships: [], heuristics: [{ id: "synthetic-model", label: "Synthetic structure model", value: "SUPPLIED MODEL STATE", available: true, basis: "Deterministic synthetic source-model fixture.", qualification: "SOURCE_MODEL" }], liquidationDate: "2025-01-15", liquidationHour: "8" },
+  breadth: { request: { loading: false, error: null, hasPayload: true }, source: previewMarketsSource, universeSize: 6, advancers: 4, decliners: 2, registryAssets: 10, heuristicClassification: "BROAD BID" },
+  movers: [{ symbol: "EXAMPLEUSDT", priceChangePercent: 1.2, quoteVolume: 1000, qualityState: "WATCHLIST", action: "WATCH", reason: "Synthetic source-owned classification for secondary context only." }],
+})
+const previewMarketsActions = { onSelectSymbol: () => undefined, onOpenScanner: () => undefined }
 
 export function ReactFoundationPreview() {
   return (
@@ -248,6 +263,12 @@ export function ReactFoundationPreview() {
           <h2 id="research-v2-preview-title" className="text-lg font-semibold">Research V2 composition</h2>
           <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: structured evidence, secondary context, strict primary-source gate, counter evidence, unavailable reasoning and graph, unknown prediction freshness, stale projection, selected case, missing Repository identity, long text, and narrow layout.</p>
           <ResearchV2View model={previewResearchModel} actions={previewResearchActions} embedded />
+        </Section>
+
+        <Section aria-labelledby="markets-v2-preview-title">
+          <h2 id="markets-v2-preview-title" className="text-lg font-semibold">Markets V2 composition</h2>
+          <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: factual summary, unavailable regime, readiness separated from freshness, qualified sector model, partial coverage, factual ETF flow, reserve balance without flow substitution, fallback provenance, unavailable funding and liquidations, unavailable Macro and Prediction Markets, bounded breadth heuristic, missing constituents, secondary Movers, unavailable Repository, long labels, and 393px composition.</p>
+          <MarketsV2View model={previewMarketsModel} actions={previewMarketsActions} embedded />
         </Section>
       </Stack>
     </main>

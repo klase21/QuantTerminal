@@ -25,6 +25,8 @@ import {
   type SharedProductContextV1,
 } from "@/lib/product-context"
 import { useMarketStore } from "@/stores/useMarketStore"
+import { MarketsV2View } from "@/components/markets-v2"
+import { buildMarketsV2ViewModel } from "@/lib/markets-presentation/adapters"
 
 const MARKETS_SCANNER_CONTEXT_TTL_MS = 30 * 60 * 1000
 
@@ -581,7 +583,7 @@ function OrderbookDepth({ orderbook, depthFrames }: { orderbook: ReturnType<type
               <span className="text-zinc-400">{fmt(bid.quantity, 3)}</span>
             </div>
           ))}
-          {!bids.length && <div className="rounded border border-zinc-900 bg-black/40 p-4 text-center text-xs font-black text-zinc-600">NO BID DATA</div>}
+          {!bids.length && <div role="status" className="rounded border border-zinc-900 bg-black/40 p-4 text-center text-xs font-black text-zinc-600">BIDS UNAVAILABLE</div>}
         </div>
         <div className="grid gap-1">
           <div className="text-[9px] font-black uppercase tracking-[0.14em] text-rose-200">Asks</div>
@@ -591,7 +593,7 @@ function OrderbookDepth({ orderbook, depthFrames }: { orderbook: ReturnType<type
               <span className="text-zinc-400">{fmt(ask.quantity, 3)}</span>
             </div>
           ))}
-          {!asks.length && <div className="rounded border border-zinc-900 bg-black/40 p-4 text-center text-xs font-black text-zinc-600">NO ASK DATA</div>}
+          {!asks.length && <div role="status" className="rounded border border-zinc-900 bg-black/40 p-4 text-center text-xs font-black text-zinc-600">ASKS UNAVAILABLE</div>}
         </div>
       </div>
       <div className="mt-3 rounded border border-zinc-900 bg-black/40 p-2">
@@ -609,7 +611,7 @@ function OrderbookDepth({ orderbook, depthFrames }: { orderbook: ReturnType<type
             ))}
           </div>
         ) : (
-          <div className="py-3 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">NO DEPTH DATA</div>
+          <div role="status" className="py-3 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">DEPTH UNAVAILABLE</div>
         )}
       </div>
     </Card>
@@ -620,10 +622,12 @@ function SelectedSymbolLiquidations({
   symbol,
   onSummary,
   onStateChange,
+  onWindowChange,
 }: {
   symbol: string
   onSummary?: (summary: { longNotional: number; shortNotional: number }) => void
   onStateChange?: (state: LiquidationLoadState) => void
+  onWindowChange?: (window: { date: string; hour: string }) => void
 }) {
   const [liqDate, setLiqDate] = useState(replayDateDefault)
   const [liqHour, setLiqHour] = useState(utcHourDefault)
@@ -635,6 +639,10 @@ function SelectedSymbolLiquidations({
   useEffect(() => {
     onStateChange?.(liquidationState)
   }, [liquidationState, onStateChange])
+
+  useEffect(() => {
+    onWindowChange?.({ date: liqDate, hour: liqHour })
+  }, [liqDate, liqHour, onWindowChange])
 
   useEffect(() => {
     const requestId = requestIdRef.current + 1
@@ -744,8 +752,8 @@ function SelectedSymbolLiquidations({
     <Card title="Selected Symbol Liquidations" icon={<AlertTriangle className="h-3.5 w-3.5" />}>
       <div className="mb-2 grid gap-2 lg:grid-cols-[130px_1fr_96px_96px]">
         <div className="rounded border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-black uppercase text-cyan-100">Binance Futures</div>
-        <input type="date" min="2025-07-01" value={liqDate} onChange={(event) => setLiqDate(event.target.value)} className="rounded border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-black uppercase text-white" />
-        <select value={liqHour} onChange={(event) => setLiqHour(event.target.value)} className="rounded border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-black uppercase text-white">
+        <input aria-label="Liquidation UTC date" type="date" min="2025-07-01" value={liqDate} onChange={(event) => setLiqDate(event.target.value)} className="min-h-[var(--qt-touch-target)] rounded border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-black uppercase text-white" />
+        <select aria-label="Liquidation UTC hour" value={liqHour} onChange={(event) => setLiqHour(event.target.value)} className="min-h-[var(--qt-touch-target)] rounded border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-black uppercase text-white">
           {Array.from({ length: 24 }, (_, index) => <option key={index} value={String(index)}>{String(index).padStart(2, "0")}:00</option>)}
         </select>
         <div className="rounded border border-zinc-900 bg-black/45 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500">{liquidationState === "loading" ? "Loading" : symbol}</div>
@@ -806,6 +814,7 @@ export default function MarketsPage() {
   const [advancedChartOpen, setAdvancedChartOpen] = useState(false)
   const [liquidationSummary, setLiquidationSummary] = useState({ longNotional: 0, shortNotional: 0 })
   const [liquidationLoadState, setLiquidationLoadState] = useState<LiquidationLoadState>("idle")
+  const [liquidationWindow, setLiquidationWindow] = useState({ date: replayDateDefault(), hour: utcHourDefault() })
   const [marketMovers, setMarketMovers] = useState<MarketMoversResponse | null>(null)
   const [marketMoversReason, setMarketMoversReason] = useState<string | null>(null)
   const [sectorRotation, setSectorRotation] = useState<SectorRotationResponse | null>(null)
@@ -1242,6 +1251,143 @@ export default function MarketsPage() {
 
     router.push(scannerHrefWithContext(symbol, selectedExchange, selectedTimeframe))
   }
+
+  const registryAssetCount = sectorRotation?.coverageAudit?.reduce((sum, item) => sum + item.registrySymbols, 0) ?? null
+  const inheritedDriverNumber = Number(inheritedDriverCount)
+  const fundingPressure = liveFundingRate === null
+    ? null
+    : liveFundingRate > 0.00008
+      ? "Bullish"
+      : liveFundingRate < -0.00008
+        ? "Bearish"
+        : "Neutral"
+  const marketsV2Model = buildMarketsV2ViewModel({
+    symbol,
+    exchange: selectedExchange,
+    timeframe: selectedTimeframe,
+    inheritedDashboard: {
+      label: inheritedDashboardContext.label,
+      detail: inheritedDashboardContext.detail,
+      direction: inheritedDirection === "UNAVAILABLE" ? null : inheritedDirection,
+      driverCount: Number.isFinite(inheritedDriverNumber) ? inheritedDriverNumber : null,
+      evidenceCount: inheritedEvidenceCount || null,
+      freshness: inheritedFreshness,
+    },
+    summaryMetrics: [
+      { id: "price", label: "Price", value: ticker?.price ?? null, available: Boolean(ticker), source: "Binance realtime ticker" },
+      { id: "change-24h", label: "24h price change", value: ticker?.change24h ?? null, unit: "%", available: Number.isFinite(ticker?.change24h), source: "Binance realtime ticker" },
+      { id: "range-24h", label: "24h range", value: rangeValue === "NO DATA" ? null : rangeValue, available: rangeValue !== "NO DATA", source: "Binance 24h ticker" },
+    ],
+    moduleAvailability: [Boolean(marketMovers?.ok), sectorUsable, Boolean(exchangeComparison?.ok), Boolean(marketStructure?.ok), Boolean(etfFlow?.ok && etfFlow._source?.sourceStatus !== "UNAVAILABLE"), reserveIntelligence?.status === "available"],
+    sectorRotation: {
+      request: { loading: !sectorRotation && !sectorRotationReason, error: sectorRotationReason, hasPayload: Boolean(sectorRotation) },
+      source: sectorRotation?._source ?? null,
+      mappedAssets: sectorRotation?.coverage?.mappedAssets ?? null,
+      registryAssets: registryAssetCount,
+      sectors: topSectors.map((sector) => ({
+        sector: sector.sector,
+        rank: sector.rank,
+        rotationScore: sector.rotationScore,
+        direction: sector.direction,
+        volumeShare: sector.volumeShare,
+        avgPriceChange: sector.avgPriceChange,
+        breadth: sector.breadth,
+        assetCount: sector.assetCount,
+        positiveCount: sector.positiveCount,
+        topSymbols: sector.topSymbols,
+      })),
+    },
+    etf: {
+      request: { loading: !etfFlow && !etfFlowReason, error: etfFlowReason, hasPayload: Boolean(etfFlow) },
+      source: etfFlow?._source ?? null,
+      row: selectedEtf ? { asset: selectedEtf.asset, netFlow: selectedEtf.netFlow, unit: selectedEtf.unit, sourceDate: selectedEtf.sourceDate, sourceTimestamp: selectedEtf.sourceTimestamp ?? null } : null,
+    },
+    reserve: {
+      request: { loading: !reserveIntelligence && !reserveReason, error: reserveReason, hasPayload: Boolean(reserveIntelligence) },
+      freshness: reserveIntelligence?.freshness ?? null,
+      observedAt: reserveIntelligence?.observedAt ?? null,
+      row: selectedReserve ? {
+        asset: selectedReserve.asset,
+        observationType: selectedReserve.observationType,
+        currentBalance: selectedReserve.currentBalance,
+        currentBalanceUsd: selectedReserve.currentBalanceUsd,
+        balanceChange: selectedReserve.balanceChange,
+        balanceUsdChange: selectedReserve.balanceUsdChange,
+      } : null,
+    },
+    derivatives: {
+      fundingRate: liveFundingRate,
+      fundingSource: liveFundingRate === null ? null : liveFundingReason,
+      openInterestNotional: liveOiNotional,
+      openInterestSource: liveOiSource,
+      liquidationState: liquidationLoadState,
+      longLiquidationNotional: liquidationLoadState === "ready" ? liquidationSummary.longNotional : null,
+      shortLiquidationNotional: liquidationLoadState === "ready" ? liquidationSummary.shortNotional : null,
+      venues: exchangeComparison ? [
+        { name: "Binance", ok: Boolean(exchangeComparison.binance?.ok), source: exchangeComparison.binance?.source, fundingRate: exchangeComparison.binance?.fundingRate, openInterestNotional: exchangeComparison.binance?.oiNotional, reason: exchangeComparison.binance?.reason },
+        { name: "Bybit", ok: Boolean(exchangeComparison.bybit?.ok), source: exchangeComparison.bybit?.source, fundingRate: exchangeComparison.bybit?.fundingRate, openInterestNotional: exchangeComparison.bybit?.oiNotional, reason: exchangeComparison.bybit?.reason },
+      ] : [],
+      relationships: [
+        { label: "Funding relationship", value: exchangeComparison?.fundingRelationship ?? null },
+        { label: "Open-interest relationship", value: exchangeComparison?.openInterestRelationship ?? null },
+      ],
+      heuristics: [
+        { id: "funding-pressure", label: "Funding pressure", value: fundingPressure, available: fundingPressure !== null, basis: "Local thresholds over the selected supplied funding rate." },
+        { id: "oi-trend", label: "OI trend", value: oiTrend.label === "NO DATA" ? null : oiTrend.label, available: oiTrend.label !== "NO DATA", basis: oiTrend.reason },
+        { id: "local-structure", label: "Selected-symbol structure", value: hasStructureInputs ? structureValue : null, available: hasStructureInputs, basis: structureReason },
+        ...topStructureSectors.map((sector) => ({ id: `source-structure-${sector.sector}`, label: `${sector.sector} structure`, value: `${sector.operatorState} / ${fmt(sector.marketStructureScore, 0)}`, available: true, basis: "Supplied market-structure API classification and score.", qualification: "SOURCE_MODEL" as const })),
+      ],
+      liquidationDate: liquidationWindow.date,
+      liquidationHour: liquidationWindow.hour,
+    },
+    breadth: {
+      request: { loading: !sectorRotation && !sectorRotationReason, error: sectorRotationReason, hasPayload: Boolean(sectorRotation) },
+      source: sectorRotation?._source ?? null,
+      universeSize: mappedAssets || null,
+      advancers: mappedAssets ? advancingAssets : null,
+      decliners: mappedAssets ? decliningAssets : null,
+      registryAssets: registryAssetCount,
+      heuristicClassification: mappedAssets ? breadthState : null,
+    },
+    movers: marketMoverRows.slice(0, 6).map((candidate) => ({
+      symbol: candidate.symbol,
+      priceChangePercent: candidate.priceChangePercent,
+      quoteVolume: candidate.quoteVolume,
+      qualityState: candidate.qualityState,
+      action: candidate.action,
+      reason: candidate.reason,
+    })),
+  })
+
+  const realtimeDetail = <>
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
+      <Card title="Advanced Chart" icon={<BarChart3 className="h-3.5 w-3.5" />}>
+        <ChartPreview candles={candles} symbol={symbol} timeframe="1m" onOpen={() => setAdvancedChartOpen(true)} />
+      </Card>
+      <OrderbookDepth orderbook={orderbook} depthFrames={depthFrames} />
+    </div>
+    <div className="grid gap-3 xl:grid-cols-2">
+      <Card title="Trade Flow" icon={<Zap className="h-3.5 w-3.5" />}>
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded border border-zinc-900 bg-black/40 px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.1em]">
+          <span className="text-zinc-500">Buy: <span className="text-emerald-100">{fmt(buyVolume, 3)}</span></span>
+          <span className="text-zinc-700">/</span>
+          <span className="text-zinc-500">Sell: <span className="text-rose-100">{fmt(sellVolume, 3)}</span></span>
+          <span className="text-zinc-700">/</span>
+          <span className="text-zinc-500">CVD: <span className={cvd >= 0 ? "text-emerald-100" : "text-rose-100"}>{fmt(cvd, 3)}</span></span>
+        </div>
+        <div className="grid gap-1">
+          {trades.slice(0, 12).map((trade, index) => <div key={`${trade.time}-${index}`} className="grid grid-cols-[72px_1fr_80px_80px] rounded border border-zinc-900 bg-black/35 px-2 py-1 text-[11px] font-bold"><span className="text-zinc-500">{timeLabel(trade.time)}</span><span className={trade.side === "buy" ? "text-emerald-100" : "text-rose-100"}>{trade.side.toUpperCase()}</span><span className="text-right text-zinc-300">{fmt(trade.price, 2)}</span><span className="text-right text-zinc-500">{fmt(trade.qty, 4)}</span></div>)}
+          {!trades.length && <div className="rounded border border-zinc-900 bg-black/40 p-6 text-center text-xs font-black uppercase tracking-[0.16em] text-zinc-600">TRADE FLOW UNAVAILABLE</div>}
+        </div>
+      </Card>
+      <SelectedSymbolLiquidations symbol={symbol} onSummary={setLiquidationSummary} onStateChange={setLiquidationLoadState} onWindowChange={setLiquidationWindow} />
+    </div>
+  </>
+
+  return <>
+    <MarketsV2View model={marketsV2Model} actions={{ onSelectSymbol: setSymbol, onOpenScanner: openScannerWithSharedContext }} realtimeDetail={realtimeDetail} />
+    {advancedChartOpen && <AdvancedChartModal symbol={symbol} timeframe="1m" onClose={() => setAdvancedChartOpen(false)} />}
+  </>
 
   return (
     <main className="min-h-screen bg-[#070d07] px-3 py-3 text-zinc-100 lg:px-4">
