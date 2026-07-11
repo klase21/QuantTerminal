@@ -15,6 +15,7 @@ import { ReplayV2View } from "@/components/replay-v2"
 import { ResearchV2View } from "@/components/research-v2"
 import { MarketsV2View } from "@/components/markets-v2"
 import { ScannerV2View } from "@/components/scanner-v2"
+import { TradeV2View } from "@/components/trade-v2"
 import { Badge, Button, Chip, Divider, IconButton, Progress, Spinner } from "@/components/ui/foundation"
 import {
   PREVIEW_FIXTURE_LABEL,
@@ -30,6 +31,7 @@ import { buildReplayV2ViewModel } from "@/lib/replay-presentation/adapters"
 import { buildResearchV2ViewModel } from "@/lib/research-presentation/adapters"
 import { buildMarketsV2ViewModel } from "@/lib/markets-presentation/adapters"
 import { buildScannerV2ViewModel } from "@/lib/scanner-presentation/adapters"
+import { buildTradeV2ViewModel } from "@/lib/trade-presentation/adapters"
 import { Search } from "lucide-react"
 
 const staleEvidence = {
@@ -188,6 +190,18 @@ const previewScannerModel = buildScannerV2ViewModel({
     { symbol: "FALLBACKUSDT", sourceKind: "SCANNER_HEURISTIC", setup: "Synthetic fallback pattern", direction: null, reason: null, score: 61, priority: "Moderate", sourceConfidence: "61", sourceFreshness: null, retentionState: null, observedAt: null, scoreBreakdown: [], observations: [], riskContext: [] },
   ],
 })
+const previewTradeModel = buildTradeV2ViewModel({
+  candidateState: "ready",
+  selected: { symbol: "EXAMPLEUSDT", setup: "Synthetic selected candidate context with a deliberately long pattern label", direction: "LONG", explanation: "Synthetic source-model explanation separated from evidence.", score: 72, sourceFreshness: "FRESH", observedAt: "2025-01-15T08:00:00.000Z", risk: ["Synthetic supplied source-model risk context."] },
+  candidates: [{ symbol: "EXAMPLEUSDT", selected: true, retentionState: "AGING" }],
+  replay: { contextId: "synthetic-replay-context", label: "PARTIAL", detail: "Synthetic Replay context envelope available for display only.", available: true },
+  observations: [{ id: "synthetic-trade-price", label: "Synthetic structured factual observation", value: 100, source: "synthetic-ticker", available: true }, { id: "synthetic-trade-missing", label: "Synthetic unavailable observation", value: null, source: "synthetic-source", available: false }],
+  localHeuristicRisk: ["Synthetic local heuristic risk with disclosed basis."],
+  plan: { entryCondition: "Synthetic source-model level A", invalidationCondition: "Synthetic source-model level B", modelTargets: "Synthetic source-model level C", modelAction: "Synthetic planning context only", monitoringCondition: "Synthetic supplied monitoring text" },
+  records: [{ id: "synthetic-local-planning-record", symbol: "EXAMPLEUSDT", setupType: "Synthetic pattern", direction: "Uptrend", entryArea: "Level A", wrongArea: "Level B", targetArea: "Level C", createdTime: "2025-01-15T08:00:00.000Z", status: "Won" }],
+  hrefs: { replay: "/replay", research: "/research", markets: "/markets?symbol=EXAMPLEUSDT", scanner: "/scanner", dashboard: "/dashboard" },
+})
+const previewTradeActions = { onSelectCandidate: () => undefined, onTrack: () => undefined, onUpdateStatus: () => undefined, onDelete: () => undefined }
 
 export function ReactFoundationPreview() {
   return (
@@ -286,6 +300,12 @@ export function ReactFoundationPreview() {
           <h2 id="scanner-v2-preview-title" className="text-lg font-semibold">Scanner V2 composition</h2>
           <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: source-model and heuristic candidates, disclosed score basis, unavailable confidence and counter evidence, missing direction, retained payload failure, aging separate from freshness, structured observations, context-only identity, symbol-only Replay, unavailable Repository, optional Trade planning, long text, and 393px composition.</p>
           <ScannerV2View model={previewScannerModel} onOpenHandoff={() => undefined} embedded />
+        </Section>
+
+        <Section aria-labelledby="trade-v2-preview-title">
+          <h2 id="trade-v2-preview-title" className="text-lg font-semibold">Trade V2 / Decision Workspace composition</h2>
+          <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: planning-only boundary, selected context, Replay context, structured observations, separated model explanation, unavailable Counter Evidence and Scenarios, partial risk, source-model planning levels, local planning record, missing durable identity, unavailable Repository, long text, and 393px composition.</p>
+          <TradeV2View model={previewTradeModel} actions={previewTradeActions} embedded />
         </Section>
       </Stack>
     </main>

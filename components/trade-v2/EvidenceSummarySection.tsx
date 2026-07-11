@@ -1,0 +1,5 @@
+import React from "react"
+import { AvailabilityBadge } from "@/components/feedback"
+import type { DecisionEvidenceViewModel } from "@/lib/trade-presentation/contracts"
+
+export function EvidenceSummarySection({ model }: { readonly model: DecisionEvidenceViewModel }) { return <section aria-labelledby="evidence-summary-title" className="grid gap-4"><div><p className="text-xs font-semibold uppercase text-[var(--qt-color-evidence)]">Evidence before planning</p><h2 id="evidence-summary-title" className="mt-1 text-lg font-semibold">Evidence Summary</h2></div><article className="grid gap-3 rounded-[var(--qt-radius-card)] border border-[var(--qt-color-border)] bg-[var(--qt-color-surface)] p-[var(--qt-space-4)]"><div className="flex items-center justify-between gap-2"><span className="text-sm">Structured observation availability</span><AvailabilityBadge availability={model.availability} /></div><p className="text-sm">Source-model explanation: {model.sourceModelExplanation ?? "UNAVAILABLE"}</p><p className="text-xs text-[var(--qt-color-warning)]">{model.limitation}</p></article></section> }

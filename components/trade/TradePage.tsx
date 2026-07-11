@@ -13,6 +13,8 @@ import { useActiveSetupMemory, type ActiveSetupMemoryItem } from "@/hooks/market
 import { useMarketMovers } from "@/hooks/market-movers/useMarketMovers"
 import { useMarketStore } from "@/stores/useMarketStore"
 import type { MarketMoverCandidate } from "@/lib/market-movers/types"
+import { TradeV2View } from "@/components/trade-v2"
+import { buildTradeV2ViewModel } from "@/lib/trade-presentation/adapters"
 import {
   inspectContextCandidate,
   loadProductContext,
@@ -720,6 +722,67 @@ export default function TradePage() {
       reason: evidence[0]?.detail ?? evidence[0]?.title ?? "Selected trade setup",
     }).toString()}`
     : "/markets"
+
+  const tradeV2Model = buildTradeV2ViewModel({
+    candidateState: candidateListState,
+    selected: selected ? {
+      symbol: selected.symbol,
+      setup: selected.setup ?? null,
+      direction: selected.direction ?? null,
+      explanation: selected.reason ?? selected.qualityReason ?? null,
+      score: Number.isFinite(selected.score) ? selected.score : null,
+      sourceFreshness: selected.freshness ?? null,
+      observedAt: marketMovers?.updatedAt ?? null,
+      risk: [
+        selected.volatilityNote,
+        selected.invalidation ? `Source-model invalidation: ${selected.invalidation}` : null,
+        selected.riskReward ? `Source-model risk/reward: ${selected.riskReward}` : null,
+        Number.isFinite(selected.chaseRisk) ? `Source-model chase risk: ${selected.chaseRisk}` : null,
+        selected.planQuality ? `Source-model plan quality: ${selected.planQuality}` : null,
+      ].filter((item): item is string => Boolean(item)),
+    } : null,
+    candidates: [...candidates, ...liveTrackedSetups]
+      .filter((candidate, index, list) => list.findIndex((item) => item.symbol === candidate.symbol) === index)
+      .map((candidate) => ({
+        symbol: candidate.symbol,
+        selected: candidate.symbol === selected?.symbol,
+        retentionState: "displayState" in candidate ? candidate.displayState ?? null : isMemoryItem(candidate) ? candidate.lifecycle : null,
+      })),
+    replay: {
+      contextId: inheritedReplayContext.context?.contextId ?? null,
+      label: inheritedReplayContext.label,
+      detail: inheritedReplayContext.detail,
+      available: Boolean(inheritedReplayContext.context),
+    },
+    observations: [
+      { id: "trade-ticker-price", label: "Observed ticker price", value: ticker?.price ?? null, source: "market-store-ticker", available: Number.isFinite(ticker?.price) },
+      { id: "trade-ticker-change", label: "Observed 24h price change", value: ticker?.change24h ?? null, unit: "%", source: "market-store-ticker", available: Number.isFinite(ticker?.change24h) },
+      { id: "trade-open-interest", label: "Observed open interest notional", value: futuresSymbol?.oiNotional ?? null, unit: "USD", source: "futures-intelligence", available: Number.isFinite(futuresSymbol?.oiNotional) },
+      { id: "trade-funding", label: "Observed funding rate", value: futuresSymbol?.fundingRate ?? null, source: "futures-intelligence", available: Number.isFinite(futuresSymbol?.fundingRate) },
+      { id: "trade-buy-flow", label: "Observed buy-initiated quantity", value: trades.length ? buyQty : null, source: "realtime-trade-stream", available: trades.length > 0 },
+      { id: "trade-sell-flow", label: "Observed sell-initiated quantity", value: trades.length ? sellQty : null, source: "realtime-trade-stream", available: trades.length > 0 },
+      { id: "trade-bid-depth", label: "Observed top-ten bid depth", value: bidDepth, source: "realtime-orderbook", available: bidDepth !== null && bidDepth + (askDepth ?? 0) > 0 },
+      { id: "trade-ask-depth", label: "Observed top-ten ask depth", value: askDepth, source: "realtime-orderbook", available: askDepth !== null && askDepth + (bidDepth ?? 0) > 0 },
+      { id: "trade-long-liquidations", label: "Observed long liquidation notional", value: longLiq + shortLiq > 0 ? longLiq : null, unit: "USD", source: "realtime-liquidation-stream", available: longLiq + shortLiq > 0 },
+      { id: "trade-short-liquidations", label: "Observed short liquidation notional", value: longLiq + shortLiq > 0 ? shortLiq : null, unit: "USD", source: "realtime-liquidation-stream", available: longLiq + shortLiq > 0 },
+    ],
+    localHeuristicRisk: [
+      orderbookPressure.value !== "NO DATA" ? `Local orderbook heuristic: ${orderbookPressure.value}; basis: ${orderbookPressure.reason}` : null,
+      tradeFlow.value !== "NO DATA" ? `Local trade-flow heuristic: ${tradeFlow.value}; basis: ${tradeFlow.reason}` : null,
+      liquidationPressure.value !== "NO DATA" ? `Local liquidation heuristic: ${liquidationPressure.value}; basis: ${liquidationPressure.reason}` : null,
+    ].filter((item): item is string => Boolean(item)),
+    plan: plan ? {
+      entryCondition: plan.entryArea,
+      invalidationCondition: plan.wrongArea,
+      modelTargets: plan.targetArea,
+      modelAction: plan.action,
+      monitoringCondition: selected?.trigger ?? null,
+    } : null,
+    records: savedSetups,
+    hrefs: { replay: "/replay", research: "/research", markets: marketHref, scanner: "/scanner", dashboard: "/dashboard" },
+  })
+
+  return <TradeV2View model={tradeV2Model} actions={{ onSelectCandidate: setSelectedSymbol, onTrack: trackSetup, onUpdateStatus: updateStatus, onDelete: deleteSetup }} />
 
   return (
     <main className="min-h-screen bg-[#070d07] px-3 py-3 text-[#d4dbd4] lg:px-4">
