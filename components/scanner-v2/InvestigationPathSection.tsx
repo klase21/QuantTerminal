@@ -1,0 +1,7 @@
+import React from "react"
+import type { ScannerHandoffViewModel } from "@/lib/scanner-presentation/contracts"
+
+export function InvestigationPathSection({ handoffs, onOpen }: { readonly handoffs: readonly ScannerHandoffViewModel[]; readonly onOpen: (id: ScannerHandoffViewModel["id"]) => void }) {
+  const ordered = ["REPLAY", "RESEARCH", "MARKETS", "TRADE"] as const
+  return <section aria-labelledby="investigation-path-title" className="grid gap-4"><div><p className="text-xs font-semibold uppercase text-[var(--qt-color-evidence)]">Validation before planning</p><h2 id="investigation-path-title" className="mt-1 text-lg font-semibold">Investigation Path</h2></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{ordered.map((id) => { const item = handoffs.find((handoff) => handoff.id === id)!; return <article key={id} className="grid gap-3 rounded-[var(--qt-radius-card)] border border-[var(--qt-color-border)] bg-[var(--qt-color-surface)] p-[var(--qt-space-4)]"><h3 className="text-sm font-semibold">{id}</h3><p className="text-sm text-[var(--qt-color-text-secondary)]">{item.description}</p><button type="button" disabled={!item.available} onClick={() => onOpen(item.id)} className="min-h-[var(--qt-touch-target)] rounded-[var(--qt-radius-control)] border border-[var(--qt-color-border)] px-3 text-left text-sm font-semibold disabled:opacity-50">{item.label}</button><p className="text-xs text-[var(--qt-color-warning)]">{item.limitation}</p></article> })}</div></section>
+}

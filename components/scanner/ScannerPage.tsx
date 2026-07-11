@@ -9,6 +9,9 @@ import { useActiveSetupMemory } from "@/hooks/market-movers/useActiveSetupMemory
 import { useMarketMovers } from "@/hooks/market-movers/useMarketMovers"
 import { useSafePolling } from "@/hooks/system/useSafePolling"
 import type { MarketMoverCandidate } from "@/lib/market-movers/types"
+import { ScannerV2View } from "@/components/scanner-v2"
+import { buildScannerV2ViewModel } from "@/lib/scanner-presentation/adapters"
+import type { ScannerHandoffViewModel } from "@/lib/scanner-presentation/contracts"
 import {
   createContext,
   createScannerToResearchContext,
@@ -599,6 +602,59 @@ export default function ScannerPage() {
   const inheritedSector = marketsContextValue(inheritedMarkets?.marketStructureContext?.value, "sector")
   const inheritedBreadth = marketsContextValue(inheritedMarkets?.marketStructureContext?.value, "breadth")
   const inheritedFreshness = inheritedMarkets?.freshness?.freshness ?? "UNAVAILABLE"
+  const scannerV2Model = buildScannerV2ViewModel({
+    moverRequest: {
+      loading: moverState.loading,
+      error: moverState.error,
+      hasPayload: Boolean(movers),
+      lastUpdatedAt: moverState.lastUpdatedAt ?? null,
+    },
+    opportunityRequest: {
+      loading: opportunitiesState.loading,
+      error: opportunitiesState.error,
+      hasPayload: opportunitiesState.data !== null,
+      lastUpdatedAt: opportunitiesState.lastUpdatedAt ?? null,
+    },
+    candidates: candidates.length
+      ? candidates.map((candidate) => ({
+          symbol: candidate.symbol,
+          sourceKind: "MARKET_MOVERS_MODEL" as const,
+          setup: candidate.setup ?? null,
+          direction: candidate.direction ?? null,
+          reason: candidate.reason ?? null,
+          score: Number.isFinite(candidate.score) ? candidate.score : null,
+          priority: candidate.action ?? null,
+          sourceConfidence: candidate.confidence ?? null,
+          sourceFreshness: candidate.freshness ?? null,
+          retentionState: candidate.displayState ?? null,
+          observedAt: moverState.lastUpdatedAt ?? null,
+          scoreBreakdown: candidate.scoreBreakdown ?? [],
+          observations: [
+            { id: "price-change", label: "Observed 24h price change", value: Number.isFinite(candidate.priceChangePercent) ? candidate.priceChangePercent : null, unit: "%" },
+            { id: "quote-volume", label: "Observed quote volume", value: Number.isFinite(candidate.quoteVolume) ? candidate.quoteVolume : null },
+            { id: "trade-count", label: "Observed trade count", value: Number.isFinite(candidate.tradeCount) ? candidate.tradeCount : null },
+            { id: "last-price", label: "Observed last price", value: Number.isFinite(candidate.lastPrice) ? candidate.lastPrice : null },
+          ],
+          riskContext: [candidate.qualityReason, candidate.volatilityNote, candidate.suppressedReason].filter((item): item is string => Boolean(item)),
+        }))
+      : opportunities.map((item) => ({
+          symbol: item.symbol,
+          sourceKind: "SCANNER_HEURISTIC" as const,
+          setup: item.setup || null,
+          direction: item.direction || null,
+          reason: null,
+          score: Number.isFinite(item.score) ? item.score : null,
+          priority: item.priority || null,
+          sourceConfidence: item.confidence || null,
+          sourceFreshness: null,
+          retentionState: null,
+          observedAt: opportunitiesState.lastUpdatedAt ?? null,
+          scoreBreakdown: [],
+          observations: [],
+          riskContext: [],
+        })),
+    inheritedMarketsContext: { label: inheritedMarketsContext.label, detail: inheritedMarketsContext.detail },
+  })
 
   function openResearchWithSharedContext(item: ScannerCandidate) {
     const href = researchHref(item)
@@ -671,6 +727,17 @@ export default function ScannerPage() {
     router.push(href)
   }
 
+  function openScannerV2Handoff(id: ScannerHandoffViewModel["id"]) {
+    if (!primaryOpportunity) return
+    if (id === "RESEARCH") {
+      openResearchWithSharedContext(primaryOpportunity)
+      return
+    }
+    if (id === "REPLAY") router.push(replayHref(primaryOpportunity))
+    if (id === "MARKETS") router.push(marketHref(primaryOpportunity))
+    if (id === "TRADE") router.push(tradeHref(primaryOpportunity))
+  }
+
   useEffect(() => {
     console.debug("Scanner candidate trace", {
       moverCandidates: candidates.length,
@@ -679,181 +746,5 @@ export default function ScannerPage() {
     })
   }, [candidates.length, opportunities.length, scannerCandidates.length])
 
-  return (
-    <main className="min-h-screen bg-[#070d07] px-3 py-3 text-white lg:px-4">
-      <div className="mx-auto grid max-w-[1800px] gap-3">
-        <Card
-          title="Scanner Summary"
-          icon={<Radar className="h-3.5 w-3.5" />}
-          className={SURFACE.scannerHeader}
-          subtitle="Scan scope, freshness, and source health"
-        >
-          <div className="grid gap-2 md:grid-cols-[1.2fr_repeat(4,minmax(0,1fr))]">
-            <div className={cn(SURFACE.row, "p-3")}>
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">Attention Scan</div>
-                <Badge label={scannerHealth} />
-              </div>
-              <div className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#d4dbd4]">
-                What deserves attention right now?
-              </div>
-              <div className="mt-2 truncate text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">
-                Source: market movers + scanner opportunities / Freshness: {scannerFreshness}
-              </div>
-            </div>
-            <SummaryMetric label="Scanned" value={movers?.summary?.scanned ?? (moverState.error ? "Unavailable" : scannerCandidates.length)} reason={moverState.error} />
-            <SummaryMetric label="Tradeable" value={tradeableCount || "Unavailable"} reason={scannerCandidates.length ? null : "No candidate list available"} />
-            <SummaryMetric label="High Confidence" value={highConfidenceCount || "Unavailable"} reason={scannerCandidates.length ? null : "No confidence-ranked candidates"} />
-            <SummaryMetric label="Active Setups" value={activeSetups.length || "Unavailable"} reason={activeSetups.length ? null : "No active setup memory records"} />
-          </div>
-        </Card>
-
-        <Card
-          title="Priority Opportunities"
-          icon={<Radar className="h-3.5 w-3.5" />}
-          className={SURFACE.priority}
-          subtitle="Top ranked signals from existing Scanner intelligence"
-        >
-          {priorityOpportunities.length ? (
-            <div className="grid gap-2 xl:grid-cols-3">
-              {priorityOpportunities.map((item, index) => (
-                <PriorityOpportunityCard key={`priority-${item.symbol}-${item.setup}-${item.score}`} item={item} rank={index + 1} onOpenResearch={openResearchWithSharedContext} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="Unavailable" reason={opportunitiesState.error ?? moverState.error ?? "No trade candidates returned by market movers or scanner API."} />
-          )}
-        </Card>
-
-        <Card
-          title="Signal Feed"
-          icon={<Signal className="h-3.5 w-3.5" />}
-          className={SURFACE.primary}
-          subtitle="Additional ranked signals after the priority layer"
-        >
-          {signalFeed.length ? (
-            <div className="grid gap-2">
-              {signalFeed.map((item) => <OpportunityRow key={`feed-${item.symbol}-${item.setup}-${item.score}`} item={item} />)}
-            </div>
-          ) : (
-            <EmptyState title="Unavailable" reason={priorityOpportunities.length ? "No additional ranked signals beyond the priority layer." : "No ranked signal feed available."} />
-          )}
-        </Card>
-
-        <Card
-          title="Opportunity Filters"
-          icon={<Signal className="h-3.5 w-3.5" />}
-          className={SURFACE.secondary}
-          subtitle="Non-interactive category readiness using existing signal groups"
-        >
-          <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-6">
-            {byCategory.map((group) => (
-              <div key={group.category} className={cn(SURFACE.row, "p-2")}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">{group.category}</div>
-                  <div className="text-sm font-black text-[#d4dbd4]">{group.items.length}</div>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.1em]">
-                  <span className="text-[#6b7d6b]">Top</span>
-                  <span className="truncate text-[#d4dbd4]">{group.items[0]?.symbol ?? "Unavailable"}</span>
-                  <span className="text-emerald-100">{group.items[0] ? confidence(group.items[0]) : "NO DATA"}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card
-          title="Watchlist Candidates"
-          icon={<Activity className="h-3.5 w-3.5" />}
-          className={SURFACE.secondary}
-          subtitle="Existing active setup memory, reframed as monitor-next candidates"
-        >
-          {activeSetups.length ? (
-            <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
-              {activeSetups.slice(0, 15).map((setup) => (
-                <div key={`${setup.symbol}-${setup.firstSeenAt}`} className={cn(SURFACE.row, "p-2")}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs font-black text-[#d4dbd4]">{setup.symbol}</div>
-                    <Badge label={setup.lifecycle} />
-                  </div>
-                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{setupLabel(setup.setup)}</div>
-                  <div className="mt-1 flex justify-between text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">
-                    <span>{confidence(setup)}</span>
-                    <span>{setup.outcome}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="Unavailable" reason="No active setup memory records yet." />
-          )}
-        </Card>
-
-        <Card
-          title="Supporting Context"
-          icon={<Activity className="h-3.5 w-3.5" />}
-          className={SURFACE.support}
-          subtitle="Secondary context only; live validation remains in Markets"
-        >
-          <div className="mb-3 rounded border border-[#142014] bg-black/45 p-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[#6b7d6b]">Inherited Markets Context</div>
-              <Badge label={inheritedMarketsContext.label} />
-            </div>
-            <div className="mt-2 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
-              <SummaryMetric label="Market Structure" value={inheritedStructure} />
-              <SummaryMetric label="Sector" value={inheritedSector} />
-              <SummaryMetric label="Breadth" value={inheritedBreadth} />
-              <SummaryMetric label="Freshness" value={inheritedFreshness} />
-            </div>
-            <div className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#3d503d]">{inheritedMarketsContext.detail}</div>
-          </div>
-          <div className="grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
-            {movers?.summary ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div className={cn(SURFACE.row, "p-2")}>
-                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">Scanned</div>
-                  <div className="mt-1 text-lg font-black text-[#d4dbd4]">{movers.summary.scanned}</div>
-                </div>
-                <div className={cn(SURFACE.row, "p-2")}>
-                  <div className="text-[9px] font-black uppercase tracking-[0.14em] text-[#6b7d6b]">Tradable</div>
-                  <div className="mt-1 text-lg font-black text-emerald-100">{movers.summary.tradable}</div>
-                </div>
-                <div className={cn(SURFACE.row, "col-span-2 p-2 text-[10px] font-black uppercase tracking-[0.1em] text-[#a0b0a0]")}>
-                  Attention: {movers.summary.attention}
-                </div>
-              </div>
-            ) : (
-              <EmptyState title="Unavailable" reason={moverState.error ?? "Market movers summary unavailable."} />
-            )}
-            <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
-              {highestConfidence.length ? highestConfidence.map((item) => (
-                <div key={`high-${item.symbol}-${item.setup}`} className={cn(SURFACE.row, "p-2")}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-black text-[#d4dbd4]">{item.symbol}</div>
-                    <div className="text-lg font-black text-emerald-100">{item.confidence}</div>
-                  </div>
-                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">{item.setup}</div>
-                  <div className="mt-1 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#6b7d6b]">
-                    <span>{item.direction}</span>
-                    <Badge label={item.status} />
-                  </div>
-                </div>
-              )) : <EmptyState title="Unavailable" reason="No confidence-ranked opportunities available." />}
-            </div>
-          </div>
-        </Card>
-
-        <Card
-          title="Navigation Actions"
-          icon={<Zap className="h-3.5 w-3.5" />}
-          className={SURFACE.support}
-          subtitle="Continue from the highest-priority available signal"
-        >
-          <NavigationActions item={primaryOpportunity} onOpenResearch={openResearchWithSharedContext} />
-        </Card>
-      </div>
-    </main>
-  )
+  return <ScannerV2View model={scannerV2Model} onOpenHandoff={openScannerV2Handoff} />
 }

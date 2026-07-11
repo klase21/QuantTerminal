@@ -1,0 +1,7 @@
+import React from "react"
+import { EvidenceCard, MetricCard } from "@/components/evidence"
+import type { InvestigationCandidateViewModel } from "@/lib/scanner-presentation/contracts"
+
+export function CandidateEvidenceSection({ model }: { readonly model: InvestigationCandidateViewModel | null }) {
+  return <section aria-labelledby="candidate-evidence-title" className="grid gap-4"><div><p className="text-xs font-semibold uppercase text-[var(--qt-color-evidence)]">Observed conditions before priority explanation</p><h2 id="candidate-evidence-title" className="mt-1 text-lg font-semibold">Structured Observations</h2></div>{model?.observations.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{model.observations.map((item) => <MetricCard key={item.id} metric={item} />)}</div> : <p className="text-sm text-[var(--qt-color-text-muted)]">Structured observations are unavailable.</p>}{model?.evidence.length ? <div className="grid gap-3 lg:grid-cols-2">{model.evidence.map((item) => <EvidenceCard key={item.id} evidence={item} />)}</div> : null}{model?.modelBasis.length ? <article className="grid gap-2 rounded-[var(--qt-radius-card)] border border-[var(--qt-color-border)] bg-[var(--qt-color-surface)] p-[var(--qt-space-4)]"><h3 className="text-sm font-semibold">Model basis, not evidence proof</h3><ul className="grid gap-1 text-xs text-[var(--qt-color-text-secondary)]">{model.modelBasis.map((item) => <li key={item}>{item}</li>)}</ul></article> : null}</section>
+}

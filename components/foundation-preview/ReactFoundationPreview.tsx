@@ -14,6 +14,7 @@ import { DashboardV2View } from "@/components/product/dashboard-v2"
 import { ReplayV2View } from "@/components/replay-v2"
 import { ResearchV2View } from "@/components/research-v2"
 import { MarketsV2View } from "@/components/markets-v2"
+import { ScannerV2View } from "@/components/scanner-v2"
 import { Badge, Button, Chip, Divider, IconButton, Progress, Spinner } from "@/components/ui/foundation"
 import {
   PREVIEW_FIXTURE_LABEL,
@@ -28,6 +29,7 @@ import { buildDashboardV2ViewModel, type DashboardMarketDriverInput } from "@/li
 import { buildReplayV2ViewModel } from "@/lib/replay-presentation/adapters"
 import { buildResearchV2ViewModel } from "@/lib/research-presentation/adapters"
 import { buildMarketsV2ViewModel } from "@/lib/markets-presentation/adapters"
+import { buildScannerV2ViewModel } from "@/lib/scanner-presentation/adapters"
 import { Search } from "lucide-react"
 
 const staleEvidence = {
@@ -177,6 +179,15 @@ const previewMarketsModel = buildMarketsV2ViewModel({
   movers: [{ symbol: "EXAMPLEUSDT", priceChangePercent: 1.2, quoteVolume: 1000, qualityState: "WATCHLIST", action: "WATCH", reason: "Synthetic source-owned classification for secondary context only." }],
 })
 const previewMarketsActions = { onSelectSymbol: () => undefined, onOpenScanner: () => undefined }
+const previewScannerModel = buildScannerV2ViewModel({
+  moverRequest: { loading: false, error: null, hasPayload: true, lastUpdatedAt: "2025-01-15T08:00:00.000Z" },
+  opportunityRequest: { loading: false, error: "Synthetic retained-payload failure", hasPayload: true, lastUpdatedAt: "2025-01-15T08:00:00.000Z" },
+  inheritedMarketsContext: { label: "PARTIAL", detail: "Synthetic context identity without durable candidate identity." },
+  candidates: [
+    { symbol: "EXAMPLEUSDT", sourceKind: "MARKET_MOVERS_MODEL", setup: "Synthetic source-model pattern with a deliberately long title for narrow composition", direction: null, reason: "Synthetic source-model explanation separated from evidence.", score: 74, priority: "WATCH", sourceConfidence: "HIGH", sourceFreshness: "FRESH", retentionState: "AGING", observedAt: "2025-01-15T08:00:00.000Z", scoreBreakdown: [{ label: "Synthetic disclosed model factor", value: 12, polarity: "positive" }], observations: [{ id: "synthetic-metric", label: "Synthetic structured metric observation", value: 12.5, unit: "units" }], riskContext: ["Synthetic supplied source-model risk context without evidence linkage."] },
+    { symbol: "FALLBACKUSDT", sourceKind: "SCANNER_HEURISTIC", setup: "Synthetic fallback pattern", direction: null, reason: null, score: 61, priority: "Moderate", sourceConfidence: "61", sourceFreshness: null, retentionState: null, observedAt: null, scoreBreakdown: [], observations: [], riskContext: [] },
+  ],
+})
 
 export function ReactFoundationPreview() {
   return (
@@ -269,6 +280,12 @@ export function ReactFoundationPreview() {
           <h2 id="markets-v2-preview-title" className="text-lg font-semibold">Markets V2 composition</h2>
           <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: factual summary, unavailable regime, readiness separated from freshness, qualified sector model, partial coverage, factual ETF flow, reserve balance without flow substitution, fallback provenance, unavailable funding and liquidations, unavailable Macro and Prediction Markets, bounded breadth heuristic, missing constituents, secondary Movers, unavailable Repository, long labels, and 393px composition.</p>
           <MarketsV2View model={previewMarketsModel} actions={previewMarketsActions} embedded />
+        </Section>
+
+        <Section aria-labelledby="scanner-v2-preview-title">
+          <h2 id="scanner-v2-preview-title" className="text-lg font-semibold">Scanner V2 composition</h2>
+          <p className="text-sm text-[var(--qt-color-warning)]">Synthetic preview: source-model and heuristic candidates, disclosed score basis, unavailable confidence and counter evidence, missing direction, retained payload failure, aging separate from freshness, structured observations, context-only identity, symbol-only Replay, unavailable Repository, optional Trade planning, long text, and 393px composition.</p>
+          <ScannerV2View model={previewScannerModel} onOpenHandoff={() => undefined} embedded />
         </Section>
       </Stack>
     </main>

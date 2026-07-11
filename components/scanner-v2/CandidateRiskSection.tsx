@@ -1,0 +1,7 @@
+import React from "react"
+import { AvailabilityBadge, StatePanel } from "@/components/feedback"
+import type { InvestigationCandidateViewModel } from "@/lib/scanner-presentation/contracts"
+
+export function CandidateRiskSection({ model }: { readonly model: InvestigationCandidateViewModel | null }) {
+  return <section aria-labelledby="candidate-risk-title" className="grid gap-4"><div><p className="text-xs font-semibold uppercase text-[var(--qt-color-evidence)]">Uncertainty remains visible</p><h2 id="candidate-risk-title" className="mt-1 text-lg font-semibold">Risk and Counter Evidence</h2></div>{model ? <div className="grid gap-3 lg:grid-cols-2"><article className="grid gap-3 rounded-[var(--qt-radius-card)] border border-[var(--qt-color-border)] bg-[var(--qt-color-surface)] p-[var(--qt-space-4)]"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Source-model risk context</h3><AvailabilityBadge availability={model.risk.availability} /></div>{model.risk.sourceModelRisk.length ? <ul className="grid gap-1 text-sm">{model.risk.sourceModelRisk.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="text-sm text-[var(--qt-color-text-muted)]">UNAVAILABLE</p>}<p className="text-xs text-[var(--qt-color-warning)]">{model.risk.limitation}</p></article><StatePanel state={model.counterEvidence.lifecycle} title="Counter Evidence UNAVAILABLE" reason={model.counterEvidence.reason} /></div> : <StatePanel state="PARTIAL" title="Risk and Counter Evidence UNAVAILABLE" reason="No candidate was supplied." />}</section>
+}
