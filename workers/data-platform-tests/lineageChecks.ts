@@ -1,0 +1,2 @@
+import { validateLineageEdge } from "@/lib/data-platform/contracts"
+export const lineageValid = validateLineageEdge({ edgeId: "e1", source: { objectType: "RAW_OBJECT", objectId: "raw1", version: "1" }, destination: { objectType: "CANONICAL_RECORD", objectId: "rec1", version: "1" }, relationship: "NORMALIZED_FROM", version: "1", createdAt: "2026-07-12T00:00:00.000Z", processRunId: "run1", digest: "abc" })

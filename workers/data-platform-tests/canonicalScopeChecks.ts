@@ -1,0 +1,4 @@
+import { checkScopeCompatibility, type CanonicalScopeEnvelope } from "@/lib/data-platform/contracts"
+export const scope: CanonicalScopeEnvelope = { canonicalScopeId: "scope1", factWatermark: "wm1", projectionVersion: null, evidencePacketId: null, generatedAt: "2026-07-12T00:00:00.000Z", availability: "AVAILABLE", coverage: { state: "NOT_EVALUATED", basis: null }, freshness: { state: "NOT_EVALUATED", observedAt: null, policyVersion: null }, quality: { state: "PASS", evaluationId: "q1" }, consistency: { state: "PASS", resultId: "c1" }, providerCertification: { state: "PASS", providerId: "p1", registrationVersion: "1" }, publicationStatus: "PUBLISHED", limitations: [] }
+export const compatible = checkScopeCompatibility([scope, { ...scope }]).compatible
+export const incompatible = !checkScopeCompatibility([scope, { ...scope, canonicalScopeId: "scope2" }]).compatible

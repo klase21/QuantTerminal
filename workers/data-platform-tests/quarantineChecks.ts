@@ -1,0 +1,3 @@
+import { validateQuarantineCandidate, validateRepairAudit } from "@/lib/data-platform/contracts"
+export const quarantineValid = validateQuarantineCandidate({ quarantineId: "q1", datasetId: "funding", rawObject: { objectId: "raw1", uri: "object://raw1", checksum: "abc", archivedAt: "2026-07-12T00:00:00.000Z" }, attemptedCanonicalIdentity: "rec1", failedRules: [{ ruleId: "identity", mandatory: true, result: "FAIL", severity: "CRITICAL", details: [] }], conflictingRecordIds: [], normalizationAttempts: [], operatorDecision: null, resolutionHistory: [] })
+export const repairValid = validateRepairAudit({ repairId: "r1", resolutionType: "PROVIDER_CORRECTION", decidedBy: "operator", decidedAt: "2026-07-12T00:00:00.000Z", notes: ["Audited correction"] })
