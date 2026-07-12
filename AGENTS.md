@@ -143,7 +143,7 @@ Priority order:
 
 Rules:
 
-* Conclusion ¡æ Reasons ¡æ Evidence
+* Conclusion â†’ Reasons â†’ Evidence
 * Keep lightweight
 * Never block page load
 
@@ -396,3 +396,28 @@ Follow this order:
 4. Prefer unavailable state over incorrect data
 5. Prefer minimal changes over refactors
 6. Ask for clarification if uncertainty is high
+
+
+# Subagent Routing
+
+Automatically decide whether delegation is useful.
+
+Use:
+
+* `fast_scan` for lightweight read-only searches, file inspection,
+  codebase exploration, and bounded evidence gathering.
+* `routine_worker` for normal implementation, tests, documentation,
+  and routine bounded fixes.
+* `deep_worker` for complex debugging, architecture, security,
+  data integrity, or ambiguous multi-step work.
+
+Keep simple tasks on the main agent.
+
+Do not ask the user to choose a model unless the required model is
+unavailable.
+
+Avoid delegation when coordination overhead would exceed the likely
+benefit.
+
+Do not delegate the same task to multiple agents unless independent
+verification or genuinely parallel investigation is useful.

@@ -1,0 +1,5 @@
+export type LegacyCandidateClassification = "TYPED_FACT_CANDIDATE" | "REPOSITORY_ENVELOPE_CANDIDATE" | "UNSUPPORTED_CANDIDATE" | "CONFLICT_CANDIDATE" | "QUARANTINE"
+export type ParityDimension = "SEMANTIC_VALUES" | "BUSINESS_IDENTITY" | "CANONICAL_RECORD_ID" | "RECORD_VERSION" | "CHECKSUM" | "TIMESTAMPS" | "PUBLICATION_STATE" | "PAGINATION" | "BOUNDED_REPLAY"
+export interface SQLiteParityMapping { readonly legacyRecordKind: string; readonly classification: LegacyCandidateClassification; readonly targetDatasetId: string | null; readonly requiredDimensions: readonly ParityDimension[]; readonly limitations: readonly string[] }
+export interface ParityResult { readonly dimension: ParityDimension; readonly status: "PASS" | "FAIL" | "NOT_EVALUATED"; readonly sourceDigest: string | null; readonly targetDigest: string | null; readonly reason: string | null }
+export function parityComplete(results: readonly ParityResult[]): boolean { const dimensions = new Set(results.map((result) => result.dimension)); return dimensions.size === 9 && results.every((result) => result.status === "PASS") }

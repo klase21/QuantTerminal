@@ -1,0 +1,78 @@
+import type postgres from "postgres"
+import type { CanonicalFact } from "../contracts"
+
+const DECIMAL = /^-?\d+(?:\.\d+)?$/
+const decimal = (value: string) => DECIMAL.test(value) && Number.isFinite(Number(value))
+const timestamp = (value: string) => Number.isFinite(Date.parse(value))
+
+export function validateTypedCanonicalFact(fact: CanonicalFact): readonly string[] {
+  const errors: string[] = []
+  if (!timestamp(fact.observedAt) || !fact.providerId || !fact.symbolOrSubject || !/^[a-f0-9]{64}$/.test(fact.checksum)) errors.push("INVALID_COMMON_FACT_FIELDS")
+  if (fact.kind === "OHLCV") {
+    if (!fact.venue || !timestamp(fact.closeTime) || Date.parse(fact.closeTime) <= Date.parse(fact.observedAt) || ![fact.open,fact.high,fact.low,fact.close,fact.volume].every(decimal) || Number(fact.high) < Number(fact.low) || Number(fact.volume) < 0) errors.push("INVALID_OHLCV_FACT")
+  } else if (fact.kind === "FUNDING") {
+    if (!fact.venue || !timestamp(fact.fundingTime) || !decimal(fact.fundingRate)) errors.push("INVALID_FUNDING_FACT")
+  } else if (fact.kind === "OPEN_INTEREST") {
+    if (!fact.venue || !decimal(fact.openInterest) || Number(fact.openInterest) < 0 || !fact.unit || !fact.window) errors.push("INVALID_OPEN_INTEREST_FACT")
+  } else if (fact.kind === "LIQUIDATION") {
+    if (!fact.venue || !fact.providerRecordId || !timestamp(fact.eventTime) || !decimal(fact.price) || !decimal(fact.quantity) || Number(fact.price) <= 0 || Number(fact.quantity) <= 0) errors.push("INVALID_LIQUIDATION_FACT")
+  } else if (fact.kind === "PREDICTION_SNAPSHOT") {
+    if (!fact.marketId || !fact.outcomeId || !decimal(fact.probability) || Number(fact.probability) < 0 || Number(fact.probability) > 1) errors.push("INVALID_PREDICTION_FACT")
+  } else if (fact.kind === "ETF_OBSERVATION") {
+    if (!fact.instrumentId || !decimal(fact.flowValue) || !timestamp(fact.windowStart) || !timestamp(fact.windowEnd) || Date.parse(fact.windowEnd) <= Date.parse(fact.windowStart)) errors.push("INVALID_ETF_FACT")
+  } else if (fact.kind === "RESERVE_OBSERVATION") {
+    if (!fact.venue || !fact.asset || !decimal(fact.balance) || Number(fact.balance) < 0) errors.push("INVALID_RESERVE_FACT")
+  } else if (fact.kind === "MACRO_OBSERVATION") {
+    if (!fact.seriesId || !fact.period || !decimal(fact.value)) errors.push("INVALID_MACRO_FACT")
+  } else if (!fact.venue || !fact.rawObjectId || !timestamp(fact.windowStart) || !timestamp(fact.windowEnd) || Date.parse(fact.windowEnd) <= Date.parse(fact.windowStart) || (fact.recordCount !== null && (!Number.isInteger(fact.recordCount) || fact.recordCount < 0))) {
+    errors.push("INVALID_STREAM_MANIFEST_FACT")
+  }
+  return Object.freeze(errors)
+}
+
+export async function insertTypedCanonicalFact(sql: postgres.TransactionSql, fact: CanonicalFact, commitId: string, recordVersion: number): Promise<void> {
+  const common = {
+    factId: `${fact.identity.canonicalRecordId}:v${recordVersion}`,
+    recordId: fact.identity.canonicalRecordId,
+    businessId: fact.identity.businessIdentity,
+    version: recordVersion,
+    commitId,
+    providerId: fact.providerId,
+    registry: fact.governance.datasetRegistrySnapshotId,
+    provider: fact.governance.providerRegistrySnapshotId,
+    certification: fact.governance.providerCertificationSnapshotId,
+    policy: fact.governance.policyVersionId,
+    schema: fact.governance.schemaVersion,
+    normalization: fact.governance.normalizationVersion,
+    checksum: fact.checksum,
+    observedAt: fact.observedAt,
+  }
+  if (fact.kind === "OHLCV") {
+    await sql`INSERT INTO canonical.ohlcv (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,venue,symbol,resolution,open_time,close_time,open,high,low,close,volume,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.venue},${fact.symbolOrSubject},${fact.resolution},${fact.observedAt},${fact.closeTime},${fact.open},${fact.high},${fact.low},${fact.close},${fact.volume},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  } else if (fact.kind === "FUNDING") {
+    await sql`INSERT INTO canonical.funding (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,venue,symbol,funding_time,funding_rate,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.venue},${fact.symbolOrSubject},${fact.fundingTime},${fact.fundingRate},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  } else if (fact.kind === "OPEN_INTEREST") {
+    await sql`INSERT INTO canonical.open_interest (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,venue,symbol,observation_window,open_interest,unit,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.venue},${fact.symbolOrSubject},${fact.window},${fact.openInterest},${fact.unit},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  } else if (fact.kind === "LIQUIDATION") {
+    await sql`INSERT INTO canonical.liquidations (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,provider_record_id,venue,symbol,side,price,quantity,event_time,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.providerRecordId},${fact.venue},${fact.symbolOrSubject},${fact.side},${fact.price},${fact.quantity},${fact.eventTime},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  } else if (fact.kind === "PREDICTION_SNAPSHOT") {
+    await sql`INSERT INTO canonical.prediction_snapshots (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,market_id,outcome_id,subject,probability,volume,liquidity,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.marketId},${fact.outcomeId},${fact.symbolOrSubject},${fact.probability},${fact.volume},${fact.liquidity},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  } else if (fact.kind === "ETF_OBSERVATION") {
+    await sql`INSERT INTO canonical.etf_observations (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,instrument_id,flow_value,currency,window_start,window_end,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.instrumentId},${fact.flowValue},${fact.currency},${fact.windowStart},${fact.windowEnd},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  } else if (fact.kind === "RESERVE_OBSERVATION") {
+    await sql`INSERT INTO canonical.reserve_observations (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,venue,asset,balance,unit,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.venue},${fact.asset},${fact.balance},${fact.unit},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  } else if (fact.kind === "MACRO_OBSERVATION") {
+    await sql`INSERT INTO canonical.macro_observations (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,series_id,subject,value,unit,period,effective_at,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.seriesId},${fact.symbolOrSubject},${fact.value},${fact.unit},${fact.period},${fact.effectiveAt},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  } else {
+    await sql`INSERT INTO canonical.stream_manifests (fact_id,canonical_record_id,business_identity,record_version,commit_id,provider_id,stream_kind,venue,symbol,raw_object_id,window_start,window_end,first_sequence,last_sequence,record_count,registry_snapshot_id,provider_snapshot_id,provider_certification_snapshot_id,policy_version_id,schema_version,normalization_version,checksum,observed_at,recorded_at,created_at)
+      VALUES (${common.factId},${common.recordId},${common.businessId},${common.version},${common.commitId},${common.providerId},${fact.streamKind},${fact.venue},${fact.symbolOrSubject},${fact.rawObjectId},${fact.windowStart},${fact.windowEnd},${fact.firstSequence},${fact.lastSequence},${fact.recordCount},${common.registry},${common.provider},${common.certification},${common.policy},${common.schema},${common.normalization},${common.checksum},${common.observedAt},now(),now())`
+  }
+}

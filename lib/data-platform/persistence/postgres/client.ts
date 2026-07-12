@@ -1,0 +1,51 @@
+import postgres from "postgres"
+import { requireIsolatedTarget } from "./testSafety"
+
+export type PostgresRoleIntent = "MIGRATION_OWNER" | "CANONICAL_WRITER" | "BOUNDED_WRITER" | "READ_ONLY"
+
+export interface IsolatedPostgresConfig {
+  readonly connectionString: string
+  readonly roleIntent: PostgresRoleIntent
+  readonly maxConnections: number
+  readonly connectTimeoutSeconds: number
+  readonly idleTimeoutSeconds: number
+  readonly applicationName: string
+}
+
+export interface IsolatedPostgresClient {
+  readonly roleIntent: PostgresRoleIntent
+  readonly sql: postgres.Sql
+  transaction<T>(work: (sql: postgres.TransactionSql) => Promise<T>): Promise<T>
+  shutdown(): Promise<void>
+}
+
+export function validatePostgresConfig(config: IsolatedPostgresConfig): readonly string[] {
+  const errors: string[] = []
+  if (!config.connectionString.trim()) errors.push("CONNECTION_STRING_MISSING")
+  if (!Number.isInteger(config.maxConnections) || config.maxConnections < 1 || config.maxConnections > 4) errors.push("MAX_CONNECTIONS_OUT_OF_BOUNDS")
+  if (!Number.isInteger(config.connectTimeoutSeconds) || config.connectTimeoutSeconds < 1 || config.connectTimeoutSeconds > 30) errors.push("CONNECT_TIMEOUT_OUT_OF_BOUNDS")
+  if (!Number.isInteger(config.idleTimeoutSeconds) || config.idleTimeoutSeconds < 1 || config.idleTimeoutSeconds > 120) errors.push("IDLE_TIMEOUT_OUT_OF_BOUNDS")
+  if (!config.applicationName.trim()) errors.push("APPLICATION_NAME_MISSING")
+  return Object.freeze(errors)
+}
+
+export function createIsolatedPostgresClient(config: IsolatedPostgresConfig): IsolatedPostgresClient {
+  const errors = validatePostgresConfig(config)
+  if (errors.length) throw new Error(`Invalid isolated PostgreSQL configuration: ${errors.join(",")}`)
+  requireIsolatedTarget(config.connectionString)
+  const sql = postgres(config.connectionString, {
+    max: config.maxConnections,
+    connect_timeout: config.connectTimeoutSeconds,
+    idle_timeout: config.idleTimeoutSeconds,
+    prepare: false,
+    connection: { application_name: config.applicationName },
+  })
+  return Object.freeze({
+    roleIntent: config.roleIntent,
+    sql,
+    async transaction<T>(work: (transaction: postgres.TransactionSql) => Promise<T>): Promise<T> {
+      return sql.begin("ISOLATION LEVEL READ COMMITTED", work) as Promise<T>
+    },
+    async shutdown() { await sql.end({ timeout: 5 }) },
+  })
+}
