@@ -4,7 +4,7 @@
 
 Phase 2V reached the isolated PostgreSQL target after every mandatory preflight check passed. The repository integration suite completed successfully and cleaned the isolated schemas afterward.
 
-Final gate: `LIVE SUITE PASSED; EXTENDED CERTIFICATION REMAINS REQUIRED`
+Final gate: `D2 COMPLETE WITH CERTIFICATION LIMITATIONS`
 
 ## Baseline
 
@@ -103,4 +103,6 @@ Add explicit partial-migration failure and query-plan checks if those claims rem
 
 ## Completion Gate
 
-`LIVE SUITE PASSED; EXTENDED CERTIFICATION REMAINS REQUIRED`
+`D2 COMPLETE WITH CERTIFICATION LIMITATIONS`
+
+This wording was reconciled during D3 Phase 1. It does not change test evidence: partial-migration failure injection remains uncertified, and production deployment and consumer cutover remain blocked pending the required production-readiness review. The missing fixture-scale `EXPLAIN` review remains a documented non-integrity limitation.

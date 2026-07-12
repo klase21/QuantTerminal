@@ -116,7 +116,7 @@ Provision a disposable PostgreSQL database whose host or database name clearly c
 
 ## Final Gate
 
-`NOT SAFE TO COMPLETE D2`
+`D2 COMPLETE WITH CERTIFICATION LIMITATIONS`
 
 ## Phase 2V Verification Result
 
@@ -140,3 +140,7 @@ The permitted non-live baseline was rerun:
 The existing live suite passed migration rerun/checksum enforcement, reset/reapplication, canonical commit, duplicate/conflict, publication, correction, supersession, lineage, outbox, concurrency, seven rollback injection points, reconciliation, and role/privilege checks. It cleaned the isolated schemas afterward. No bounded production-code correction was required. Partial-migration failure injection and `EXPLAIN` review are not implemented by the existing suite and remain explicit extended-certification items.
 
 The detailed Phase 2V status is recorded in `docs/project/d2-phase-2-postgresql-certification-report.md`.
+
+## Gate Reconciliation
+
+D3 Phase 1 reconciled the final wording without changing historical test evidence. D2 is complete with certification limitations. D3 contract work is allowed. Production deployment and consumer cutover remain blocked until partial-migration failure injection is certified and the required production-readiness review is approved. The missing bounded-query `EXPLAIN` review remains a non-integrity limitation.

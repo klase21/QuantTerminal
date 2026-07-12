@@ -1,0 +1,16 @@
+import { createHash } from "node:crypto"
+import { createCandidateId, createJobRequestIdentity, createPopulationJobId, expandPopulationUnits, type PopulationCandidate, type PopulationJob, type PopulationJobProfile, type PopulationJobRequest } from "@/lib/data-platform/population"
+
+export const NOW = "2026-07-12T00:00:00.000Z"
+export const PROFILE: PopulationJobProfile = { profileId: "fixture-backfill", profileVersion: "1", kind: "BACKFILL", requiredDimensions: ["subjectOrSymbol","windowStart","windowEnd","resolution"], rawRetrievalRequired: true, mayReuseVerifiedManifest: true, retryPolicyId: "fixture-retry", retryPolicyVersion: "1", watermarkPolicyId: "fixture-watermark", watermarkPolicyVersion: "1" }
+export function jobRequest(occurrence = "fixture-occurrence", rerun: string | null = null): PopulationJobRequest {
+  const dimensions = { venue: "fixture-venue", subjectOrSymbol: "FIXTURE_SUBJECT", windowStart: NOW, windowEnd: "2026-07-13T00:00:00.000Z", resolution: "5m", partitionKey: "fixture-partition" }
+  const requestIdentity = createJobRequestIdentity({ profile: PROFILE, datasetId: "ohlcv", providerId: "fixture-provider", dimensions })
+  return { requestIdentity, occurrenceIdentity: occurrence, intentionalRerunIdentity: rerun, profile: PROFILE, datasetId: "ohlcv", providerId: "fixture-provider", dimensions, requestedAt: NOW, requestedBy: "d3-fixture" }
+}
+export function job(request = jobRequest()): PopulationJob { const jobId = createPopulationJobId(request.requestIdentity,request.occurrenceIdentity,request.intentionalRerunIdentity); return { jobId,request,currentState:"QUEUED",currentEventId:`event:${jobId}`,createdAt:NOW,updatedAt:NOW } }
+export function units(j = job(), count = 2) { return expandPopulationUnits(j,Array.from({length:count},(_,i)=>({ profileId:PROFILE.profileId,profileVersion:PROFILE.profileVersion,datasetId:"ohlcv",providerId:"fixture-provider",providerSnapshotId:"provider-snapshot-fixture",policyVersionId:"policy-version-fixture",venue:"fixture-venue",subjectOrSymbol:"FIXTURE_SUBJECT",windowStart:new Date(Date.parse(NOW)+i*86_400_000).toISOString(),windowEnd:new Date(Date.parse(NOW)+(i+1)*86_400_000).toISOString(),resolution:"5m",partitionKey:`partition-${i}`,requestFingerprint:`request-${i}`,requestParameters:{ partition:i },required:true })),NOW) }
+export function fundingCandidate(unitId: string, attemptId: string): PopulationCandidate {
+  const rawManifestId = "raw-object-fixture"; const sourceObservationId = "funding-source-fixture"; const parserVersion = "fixture-parser-1"; const payload = { symbol:"FIXTURE_SUBJECT",fundingRate:"0.0001",fundingTime:NOW }; const candidateChecksum=createHash("sha256").update(JSON.stringify(payload)).digest("hex")
+  return { kind:"FUNDING",candidateId:createCandidateId({rawManifestId,sourceObservationId,parserVersion,candidateOrdinal:"0"}),unitId,retrievalAttemptId:attemptId,rawManifestId,datasetId:"funding",providerId:"fixture-provider",providerSnapshotId:"provider-snapshot-fixture",sourceObservationId,sourceObservedAt:NOW,effectiveAt:null,parserVersion,candidateSchemaVersion:"1",payload,candidateChecksum,validationStatus:"ELIGIBLE",qualityEligibility:"ELIGIBLE",normalizationEligibility:"ELIGIBLE",createdAt:NOW }
+}
