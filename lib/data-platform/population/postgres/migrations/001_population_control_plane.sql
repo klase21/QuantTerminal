@@ -204,6 +204,15 @@ CREATE TABLE population.candidates (
   CHECK (jsonb_typeof(bounded_payload) = 'object')
 );
 
+CREATE TABLE population.candidate_conflicts (
+  conflict_id text PRIMARY KEY,
+  candidate_id text NOT NULL REFERENCES population.candidates(candidate_id),
+  existing_checksum text NOT NULL CHECK (existing_checksum ~ '^[0-9a-f]{64}$'),
+  incoming_checksum text NOT NULL CHECK (incoming_checksum ~ '^[0-9a-f]{64}$'),
+  detected_at timestamptz NOT NULL,
+  UNIQUE (candidate_id, incoming_checksum)
+);
+
 CREATE TABLE quality.candidate_validation_results (
   validation_run_id text PRIMARY KEY,
   candidate_id text REFERENCES population.candidates(candidate_id),
@@ -317,8 +326,8 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = control, pg_temp AS $$
 DECLARE v_unit control.population_units%ROWTYPE; v_lease_id text; v_event_id text;
 BEGIN
   IF p_expires_at <= p_now THEN RAISE EXCEPTION 'INVALID_LEASE_WINDOW'; END IF;
-  SELECT * INTO v_unit FROM control.population_units u
-    WHERE u.current_state IN ('PENDING','RETRYABLE') AND u.cancellation_requested_at IS NULL
+  SELECT u.* INTO v_unit FROM control.population_units u JOIN control.population_runs r ON r.job_id=u.job_id
+    WHERE r.run_id=p_run_id AND r.current_state='RUNNING' AND u.current_state IN ('PENDING','RETRYABLE') AND u.cancellation_requested_at IS NULL
     ORDER BY u.updated_at, u.unit_id FOR UPDATE SKIP LOCKED LIMIT 1;
   IF NOT FOUND THEN RETURN; END IF;
   v_lease_id := 'population-lease:' || v_unit.unit_id || ':' || (v_unit.current_fencing_token + 1)::text;
@@ -331,27 +340,32 @@ BEGIN
   RETURN QUERY SELECT v_unit.unit_id,v_lease_id,v_unit.current_fencing_token+1;
 END $$;
 
-CREATE FUNCTION control.heartbeat_population_lease(p_unit_id text, p_owner_id text, p_fencing_token bigint, p_now timestamptz, p_expires_at timestamptz)
+CREATE FUNCTION control.heartbeat_population_lease(p_unit_id text, p_lease_id text, p_owner_id text, p_fencing_token bigint, p_now timestamptz, p_expires_at timestamptz)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = control, pg_temp AS $$
 BEGIN
   UPDATE control.population_leases SET heartbeat_at=p_now,expires_at=p_expires_at
-    WHERE unit_id=p_unit_id AND owner_id=p_owner_id AND fencing_token=p_fencing_token AND released_at IS NULL AND expires_at>p_now;
+    WHERE lease_id=p_lease_id AND unit_id=p_unit_id AND owner_id=p_owner_id AND fencing_token=p_fencing_token AND released_at IS NULL AND expires_at>p_now;
   IF NOT FOUND THEN RAISE EXCEPTION 'STALE_FENCING_TOKEN'; END IF;
 END $$;
 
-CREATE FUNCTION control.advance_population_unit(p_unit_id text,p_owner_id text,p_fencing_token bigint,p_next_state control.population_unit_state,p_event_id text,p_now timestamptz)
+CREATE FUNCTION control.advance_population_unit(p_unit_id text,p_lease_id text,p_owner_id text,p_fencing_token bigint,p_next_state control.population_unit_state,p_event_id text,p_now timestamptz)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = control, pg_temp AS $$
 DECLARE v_previous control.population_unit_state;
 BEGIN
   SELECT current_state INTO v_previous FROM control.population_units
     WHERE unit_id=p_unit_id AND current_fencing_token=p_fencing_token AND cancellation_requested_at IS NULL FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'STALE_FENCING_TOKEN'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM control.population_leases WHERE unit_id=p_unit_id AND owner_id=p_owner_id AND fencing_token=p_fencing_token AND released_at IS NULL AND expires_at>p_now) THEN RAISE EXCEPTION 'LEASE_NOT_CURRENT'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM control.population_leases WHERE lease_id=p_lease_id AND unit_id=p_unit_id AND owner_id=p_owner_id AND fencing_token=p_fencing_token AND released_at IS NULL AND expires_at>p_now) THEN RAISE EXCEPTION 'LEASE_NOT_CURRENT'; END IF;
+  IF NOT ((v_previous='LEASED' AND p_next_state IN ('RETRIEVING','RETRYABLE','CANCELLED')) OR
+    (v_previous='RETRIEVING' AND p_next_state IN ('RAW_PERSISTED','RETRYABLE','QUARANTINED','FAILED','CANCELLED')) OR
+    (v_previous='RAW_PERSISTED' AND p_next_state IN ('CANDIDATES_READY','RETRYABLE','QUARANTINED','FAILED','CANCELLED')) OR
+    (v_previous='CANDIDATES_READY' AND p_next_state IN ('PROCESSING','QUARANTINED','FAILED','CANCELLED')) OR
+    (v_previous='PROCESSING' AND p_next_state IN ('COMPLETED','RETRYABLE','QUARANTINED','FAILED','CANCELLED'))) THEN RAISE EXCEPTION 'ILLEGAL_UNIT_TRANSITION'; END IF;
   UPDATE control.population_units SET current_state=p_next_state,updated_at=p_now WHERE unit_id=p_unit_id;
   INSERT INTO control.population_unit_events(event_id,unit_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at)
     VALUES(p_event_id,p_unit_id,'STATE_ADVANCED',v_previous,p_next_state,p_fencing_token,p_owner_id,p_now);
 END $$;
 
 REVOKE ALL ON FUNCTION control.claim_population_unit(text,text,timestamptz,timestamptz) FROM PUBLIC;
-REVOKE ALL ON FUNCTION control.heartbeat_population_lease(text,text,bigint,timestamptz,timestamptz) FROM PUBLIC;
-REVOKE ALL ON FUNCTION control.advance_population_unit(text,text,bigint,control.population_unit_state,text,timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION control.heartbeat_population_lease(text,text,text,bigint,timestamptz,timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION control.advance_population_unit(text,text,text,bigint,control.population_unit_state,text,timestamptz) FROM PUBLIC;

@@ -3,94 +3,119 @@
 ## Baseline
 
 - Branch: `epic/d2-canonical-persistence`
-- HEAD: `1cb1c8d778033cfe89b4c23f51a7d70160b7d906`
-- Baseline: dirty with approved uncommitted D3 Phase 0 and Phase 1 artifacts and bounded D2 report reconciliation
-- Pre-existing changes were preserved
+- Certification baseline: commit `4bf6f5d`, tag `d3-population-runtime-v1`
+- Initial working tree: clean
+- Node.js: 24.x
 
-## Database Target Classification
+## Isolated Target
 
-`D3_ISOLATED_POSTGRES_URL` was absent. `DATABASE_URL` was absent. `D2_ISOLATED_POSTGRES_URL` was present but explicitly rejected as a D3 fallback. No URL or credential was logged, no PostgreSQL client was created, and no migration/reset operation ran.
+- Host: `localhost`
+- Port: `55432`
+- Database: `quantterminal_d3_isolated`
+- PostgreSQL: `16.13 (Debian 16.13-1.pgdg13+1)`
+- D3 safety classification: PASS
+- D2 URL reuse guard: PASS
+- Application database URL reuse guard: PASS
+- Credentials logged: no
 
-## Changed Files
+The suite used only `D3_ISOLATED_POSTGRES_URL`. Reset and migration operations were constrained to the approved D3 schemas in the disposable D3 database. The D2 database name `quantterminal_d2_isolated` was never selected by a D3 connection.
 
-Phase 2 added isolated client/safety, migration/reset, adapter, unit expansion, test ports, D3 migration role/runtime additions, unit and integration harnesses, five architecture documents, this report, and a bounded ADR-009 clarification. Existing Phase 0/1 work remains present.
+## Bounded Corrections
 
-## Implemented Runtime Components
+Live PostgreSQL verification exposed defects that static tests could not prove. Corrections remained inside the approved D3 PostgreSQL runtime and test boundary:
 
-- D3-only target safety classification and bounded PostgreSQL client
-- D3 migration discovery, ledger/checksum, dependency gate, and explicit reset
-- Job deduplication and intentional rerun identity
-- Run creation and deterministic Unit expansion
-- fenced claim, heartbeat, checkpoint, Retrieval Attempt, and Candidate operations
-- validation and quality history links
-- one Candidate-to-submission uniqueness
-- D2 result mapping and durable Population outcomes
-- retry events, cancellation, aggregate state, watermark eligibility, resume reads, and reconciliation reads
-- in-memory immutable object storage and fixture-only Normalizer/D2 ports
+- aligned fixtures with immutable D2 registry snapshot identities;
+- ordered D3 reset before dependency reset and removed D3-owned functions and role-owned objects safely;
+- constrained Unit claims to the Run's owning Job;
+- made Unit advancement require lease identity, owner identity, and fencing token;
+- rejected stale Worker heartbeat, checkpoint, and completion operations;
+- added durable release, expiration, reclaim, cancellation, Run completion, and reconciliation behavior;
+- persisted immutable Candidate conflicts separately from idempotent duplicates;
+- required durable Candidate and D2 submission/outcome records before checkpoint advancement;
+- appended Job and Unit events when materialized state changes;
+- granted only the bounded D3 role capabilities required by controlled procedures.
 
-No executable provider, production object storage, production Worker loop, existing backfill connection, consumer migration, Coverage mutation, publication runtime, or canonical SQL write was introduced.
+No fencing, idempotency, conflict, or Watermark rule was weakened.
 
-## Results
+## Runtime Certification
 
 | Area | Result |
 |---|---|
-| Job and Unit identity | PASS - unit/static |
-| Migration discovery and static SQL | PASS - static |
-| D3 migrations applied | BLOCKED - D3 URL absent |
-| Job deduplication live | BLOCKED |
-| Run recovery live | BLOCKED |
-| Lease/fencing live | BLOCKED |
-| Checkpoints live | BLOCKED |
-| Retrieval persistence live | BLOCKED |
-| Object-storage test adapter | PASS - unit |
-| Typed Candidate behavior | PASS - identity/unit; database behavior BLOCKED |
-| D2 mapping | PASS - unit fake port; isolated integration BLOCKED |
-| Retry and cancellation | PASS - contract mapping; live races BLOCKED |
-| Partial aggregation | PASS - Phase 1 unit; live reconstruction BLOCKED |
-| Watermark eligibility | PASS - unit mapping; persistence BLOCKED |
-| Crash/recovery | BLOCKED |
-| Real concurrency | BLOCKED |
-| Privileges | BLOCKED |
-| Reconciliation | BLOCKED |
-| Query plans | BLOCKED |
+| Fresh migration and rerun | PASS |
+| Migration checksum enforcement | PASS |
+| D3 reset and reapplication | PASS |
+| Job deduplication and intentional rerun | PASS |
+| Run creation and deterministic Unit expansion | PASS |
+| Parallel claims and distinct Unit ownership | PASS |
+| Lease fencing and monotonic reclaim token | PASS |
+| Stale heartbeat/checkpoint/completion rejection | PASS |
+| Heartbeat, expiration, release, and reclaim | PASS |
+| Durable checkpoints | PASS |
+| Retrieval Attempts and retry classification | PASS |
+| Candidate identity, idempotency, and conflict | PASS |
+| Validation and quality links | PASS |
+| One logical Candidate-to-D2 submission | PASS |
+| D2 result mapping | PASS |
+| D2 conflict and failed/unknown Watermark blocking | PASS |
+| Retry scheduling and durable artifact reuse | PASS |
+| Cancellation race handling | PASS |
+| Partial Job aggregation | PASS |
+| Crash-boundary durable recovery | PASS |
+| D2 success-before-outcome reconciliation | PASS |
+| Event/materialized-state reconciliation | PASS |
+| Role privilege denials | PASS |
+| Eight bounded `EXPLAIN` paths | PASS |
 
-## Tests Executed
+The detailed evidence is recorded in `docs/project/d3-phase-2-postgresql-certification-report.md`.
 
-- TypeScript: PASS
-- D1 regression suite: PASS
-- D2 Phase 1 suite: PASS
-- D2 Phase 2 unit suite: PASS
-- D3 Phase 1 suite: PASS, 30 checks
-- D3 Phase 2 unit suite: PASS, 15 checks
-- Isolated D3 integration entry point: BLOCKED before connection
+## Regression Results
 
-Final scope validation also passed `git diff --check`, protected-path inspection, active runtime import inspection, and package/lockfile inspection. No production build was run because `AGENTS.md` prohibits it.
+| Validation | Result |
+|---|---|
+| TypeScript (`npx tsc --noEmit --incremental false`) | PASS |
+| D1 regression | PASS |
+| D2 Phase 1 | PASS |
+| D2 Phase 2 unit | PASS |
+| D3 Phase 1 | PASS |
+| D3 Phase 2 unit | PASS |
+| D3 live migration/orchestration | PASS |
+| D3 expanded live certification | PASS - 32 checks |
+| Protected-system scan | PASS |
+| Active-runtime import scan | PASS |
+| Package and lockfile review | PASS |
+| `git diff --check` | PASS |
+| Production build | NOT RUN - prohibited by `AGENTS.md` |
 
-## Tests Blocked
+## Changed Files
 
-All live migration, reset, PostgreSQL constraint, locking, concurrency, privilege, crash/recovery, reconciliation, and `EXPLAIN` checks are blocked by the missing dedicated target. The current integration suite also requires expansion to cover every specified live scenario before certification.
+- `lib/data-platform/population/postgres/adapter.ts`
+- `lib/data-platform/population/postgres/migrations/001_population_control_plane.sql`
+- `lib/data-platform/population/postgres/migrations/002_population_roles.sql`
+- `lib/data-platform/population/postgres/reset.ts`
+- `lib/data-platform/population/postgres/schema.ts`
+- `tests/data-platform/population/postgres/fixtures.ts`
+- `tests/data-platform/population/postgres/harness.ts`
+- `tests/data-platform/population/postgres/runCertificationSuite.ts`
+- `docs/project/d3-phase-2-implementation-report.md`
+- `docs/project/d3-phase-2-postgresql-certification-report.md`
 
 ## Protected Systems
 
-Existing Repository, SQLite, generic PostgreSQL, D2 contracts/migrations/runtime, historical backfills, providers, schedulers, workers, Coverage, Projection, Evidence, APIs, pages, UI, package files, lockfiles, environments, and deployment configuration remain unchanged.
+PASS. Existing Repository, SQLite, D2 persistence, consumers, APIs, Coverage, Projection, Evidence, historical backfills, production schedulers and workers, pages, UI, package files, lockfiles, environment files, Next.js configuration, and Vercel configuration remain unchanged. No active runtime imports the isolated D3 adapter.
 
-## Limitations and Risks
+## Remaining Limitations
 
-- PostgreSQL DDL and adapter SQL have not executed.
-- Role grants and denial boundaries are unverified.
-- Event/state reconciliation is only implemented for Job and Unit initial paths.
-- Crash injection and every required concurrency race are not yet implemented in the live suite.
-- Fixture ports prove orchestration boundaries, not production provider or storage behavior.
-- No production lease durations, retry numbers, quality thresholds, or SLAs are defined.
+- `EXPLAIN` evidence proves bounded queries execute and produce inspectable plans against fixtures; it is not a production-scale performance benchmark.
+- Fixture ports certify orchestration and persistence boundaries, not live-provider or production object-storage integration.
+- No production lease duration, retry budget, quality threshold, or SLA was introduced.
+- A final read-only identity probe confirmed the separate D2 target remained `quantterminal_d2_isolated` and contained no D3 `population` schema after certification.
 
-## Blockers
+These limitations do not weaken atomicity, fencing, stale-worker rejection, conflict mapping, Watermark blocking, or reconciliation.
 
-Phase 3 remains blocked until a dedicated safe D3 target is provided and the complete live verification suite passes, including stale-worker rejection, candidate/submission uniqueness, conflict/eligibility behavior, crash recovery, cancellation races, event reconciliation, privileges, and query plans.
+## Next Approval Gate
 
-## Exact Next Step
-
-Provide a disposable database through `D3_ISOLATED_POSTGRES_URL`, distinct from `DATABASE_URL` and `D2_ISOLATED_POSTGRES_URL`. Then expand and execute the live suite, make only bounded corrections, and rerun all regressions.
+D3 Phase 3 may begin within its separately approved scope. Existing backfills and consumers remain disconnected until a later explicit migration gate.
 
 ## Final Gate
 
-`NOT SAFE TO IMPLEMENT D3 PHASE 3`
+`SAFE TO IMPLEMENT D3 PHASE 3 WITH LIMITATIONS`
