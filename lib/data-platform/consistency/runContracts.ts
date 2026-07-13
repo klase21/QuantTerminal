@@ -1,0 +1,24 @@
+import type { ConsistencyInputReference } from "./contracts"
+
+export type ConsistencyKnowledgeMode = "AS_KNOWN_THEN" | "LATEST_CORRECTED" | "RETROSPECTIVE"
+export type ConsistencyRunLifecycleState = "PENDING" | "RUNNING" | "COMPLETED" | "PARTIAL" | "FAILED" | "CANCELLED" | "EXPIRED"
+export type ConsistencyRunEventType = "RUN_CREATED" | "RUN_STARTED" | "RUN_COMPLETED" | "RUN_PARTIAL" | "RUN_FAILED" | "RUN_CANCELLED" | "RUN_EXPIRED"
+export type ConsistencyRunActorType = "COORDINATOR" | "WORKER" | "OPERATOR" | "SYSTEM"
+export type ConsistencyRunFailure = "RULESET_MISSING" | "RULESET_VERSION_MISMATCH" | "REGISTRY_CHECKSUM_MISMATCH" | "POLICY_BINDING_MISSING" | "INPUT_SET_MISSING" | "INPUT_SET_CONFLICT" | "ILLEGAL_TRANSITION" | "EXECUTION_CANCELLED" | "EXECUTION_EXPIRED" | "DATABASE_RETRYABLE" | "DATABASE_PERMANENT" | "UNKNOWN_WRITE_OUTCOME"
+export type RunReconciliationReason = "EVENT_HISTORY_MISSING" | "EVENT_SEQUENCE_GAP" | "CURRENT_STATE_MISMATCH" | "SPECIFICATION_CHECKSUM_MISMATCH" | "TERMINAL_TIMESTAMP_MISMATCH" | "COMPLETION_SUMMARY_MISMATCH" | "MULTIPLE_TERMINAL_EVENTS"
+
+export interface ConsistencyRunIdentity { readonly runId: string; readonly inputSetIdentity: string }
+export interface ConsistencyRunPolicyBindings { readonly temporalPolicyId: string; readonly temporalPolicyVersion: string; readonly comparisonPolicyReferences: readonly { readonly policyId: string; readonly policyVersion: string }[]; readonly severityPolicyId: string; readonly severityPolicyVersion: string; readonly retryPolicyReference: string | null }
+export interface ConsistencyRunSpecification extends ConsistencyRunIdentity {
+  readonly ruleSetId: string; readonly ruleSetVersion: string; readonly subjectId: string
+  readonly eventTimeStart: string; readonly eventTimeEnd: string; readonly knowledgeMode: ConsistencyKnowledgeMode; readonly knowledgeTimeCutoff: string
+  readonly ruleRegistryChecksum: string; readonly policyBindings: ConsistencyRunPolicyBindings
+  readonly executionProfile: string; readonly specificationChecksum: string; readonly createdAt: string
+}
+export interface ConsistencyRunCompletionSummary { readonly summaryId: string; readonly runId: string; readonly requiredRuleCount: number; readonly completedRuleCount: number; readonly consistentResultCount: number; readonly inconsistentResultCount: number; readonly blockedResultCount: number; readonly failedEvaluationCount: number; readonly unresolvedCount: number; readonly terminalState: "COMPLETED" | "PARTIAL" | "FAILED"; readonly reasonCodes: readonly string[]; readonly summaryChecksum: string }
+export interface ConsistencyRunEvent { readonly eventId: string; readonly runId: string; readonly attemptId: null; readonly eventSequence: number; readonly eventType: ConsistencyRunEventType; readonly previousState: ConsistencyRunLifecycleState | null; readonly nextState: ConsistencyRunLifecycleState; readonly actorType: ConsistencyRunActorType; readonly actorId: string; readonly occurredAt: string; readonly policyVersionReferences: readonly string[]; readonly reasonCodes: readonly string[]; readonly details: readonly { readonly key: string; readonly value: string }[]; readonly eventChecksum: string }
+export interface ConsistencyRunRecord { readonly specification: ConsistencyRunSpecification; readonly currentState: ConsistencyRunLifecycleState; readonly lastEventSequence: number; readonly startedAt: string | null; readonly terminalAt: string | null; readonly completionSummary: ConsistencyRunCompletionSummary | null }
+export type ConsistencyRunCreateResult = { readonly status: "CREATED"; readonly run: ConsistencyRunRecord } | { readonly status: "DUPLICATE"; readonly run: ConsistencyRunRecord } | { readonly status: "CONFLICT"; readonly runId: string; readonly existingChecksum: string; readonly candidateChecksum: string; readonly conflictId: string }
+export type ConsistencyRunTransitionResult = { readonly status: "TRANSITIONED"; readonly run: ConsistencyRunRecord; readonly event: ConsistencyRunEvent } | { readonly status: "DUPLICATE"; readonly run: ConsistencyRunRecord; readonly event: ConsistencyRunEvent } | { readonly status: "REJECTED"; readonly runId: string; readonly failure: ConsistencyRunFailure }
+export interface ConsistencyRunTransitionCommand { readonly commandId: string; readonly runId: string; readonly specificationChecksum: string; readonly nextState: Exclude<ConsistencyRunLifecycleState, "PENDING">; readonly actorType: ConsistencyRunActorType; readonly actorId: string; readonly occurredAt: string; readonly policyVersionReferences: readonly string[]; readonly reasonCodes: readonly string[]; readonly details: readonly { readonly key: string; readonly value: string }[]; readonly completionSummary: ConsistencyRunCompletionSummary | null }
+export interface RunReconciliationResult { readonly consistent: boolean; readonly reasonCodes: readonly RunReconciliationReason[]; readonly affectedIdentities: readonly string[] }

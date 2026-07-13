@@ -3,7 +3,7 @@ import type { CanonicalFactReference, GovernanceBindings, PublicationState } fro
 export type RuleCategory = "TEMPORAL_ALIGNMENT" | "IDENTITY_ALIGNMENT" | "PROVIDER_AGREEMENT" | "DATASET_AGREEMENT" | "VALUE_DOMAIN_COMPATIBILITY" | "CADENCE_COMPATIBILITY" | "RESOLUTION_COMPATIBILITY" | "DIRECTIONAL_AGREEMENT" | "MAGNITUDE_AGREEMENT" | "PUBLICATION_STATE_COMPATIBILITY" | "CORRECTION_STATE_COMPATIBILITY"
 export type RuleSemanticClass = "FACTUAL" | "DIRECTIONAL" | "STRUCTURAL" | "CONTEXTUAL" | "HYPOTHESIS"
 export type ConsistencySeverity = "ADVISORY" | "BLOCKING"
-export type ConsistencyResultOutcome = "CONSISTENT" | "INCONSISTENT" | "PARTIAL" | "INDETERMINATE" | "NOT_APPLICABLE" | "BLOCKED_MISSING_INPUT" | "BLOCKED_INVALID_INPUT" | "BLOCKED_SUPERSEDED_INPUT"
+export type ConsistencyResultOutcome = "CONSISTENT" | "INCONSISTENT" | "PARTIAL" | "INDETERMINATE" | "NOT_APPLICABLE" | "BLOCKED_MISSING_INPUT" | "BLOCKED_INVALID_INPUT" | "BLOCKED_SUPERSEDED_INPUT" | "BLOCKED_FUTURE_KNOWLEDGE"
 export type ConsistencyRunOutcome = "COMPLETED" | "PARTIAL" | "BLOCKED" | "FAILED"
 export type ConsistencyRetryClassification = "NOT_RETRYABLE" | "RETRYABLE_DEPENDENCY" | "RETRYABLE_STORAGE"
 export type TemporalAlignmentMethod = "EXACT_TIMESTAMP" | "WINDOW_CONTAINMENT" | "NEAREST_PRIOR" | "NEAREST_OBSERVATION" | "INTERVAL_OVERLAP" | "AS_OF" | "EVENT_TO_WINDOW"
@@ -31,7 +31,7 @@ export interface ConsistencyRun {
   readonly completedAt: string; readonly outcome: ConsistencyRunOutcome; readonly retryClassification: ConsistencyRetryClassification
 }
 export interface ConsistencyDiagnostic { readonly diagnosticId: string; readonly code: string; readonly schemaVersion: string; readonly inputRoleIds: readonly string[]; readonly boundedValues: readonly { readonly name: string; readonly value: string; readonly unit: string | null }[]; readonly explanationCode: string }
-export interface ConsistencyResult {
+export interface ConsistencyResultBlueprint {
   readonly resultId: string; readonly runId: string; readonly ruleId: string; readonly ruleVersion: string; readonly orderedInputDigest: string
   readonly outcome: ConsistencyResultOutcome; readonly severity: ConsistencySeverity; readonly diagnostics: readonly ConsistencyDiagnostic[]
   readonly policyVersionId: string; readonly createdAt: string

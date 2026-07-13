@@ -1,0 +1,19 @@
+CREATE TABLE consistency.run_specifications (
+  run_id text PRIMARY KEY, rule_set_id text NOT NULL, rule_set_version text NOT NULL, subject_id text NOT NULL,
+  event_time_start timestamptz NOT NULL, event_time_end timestamptz NOT NULL, knowledge_mode text NOT NULL CHECK (knowledge_mode IN ('AS_KNOWN_THEN','LATEST_CORRECTED','RETROSPECTIVE')),
+  knowledge_time_cutoff timestamptz NOT NULL, input_set_identity text NOT NULL, rule_registry_checksum text NOT NULL CHECK (rule_registry_checksum ~ '^[0-9a-f]{64}$'),
+  temporal_policy_id text NOT NULL, temporal_policy_version text NOT NULL, comparison_policy_references jsonb NOT NULL CHECK (jsonb_typeof(comparison_policy_references)='array'),
+  severity_policy_id text NOT NULL, severity_policy_version text NOT NULL, retry_policy_reference text, execution_profile text NOT NULL,
+  specification_checksum text NOT NULL CHECK (specification_checksum ~ '^[0-9a-f]{64}$'), created_at timestamptz NOT NULL,
+  CHECK (event_time_end > event_time_start), UNIQUE (run_id, specification_checksum), FOREIGN KEY (rule_set_id, rule_set_version) REFERENCES consistency.rule_sets(rule_set_id, rule_set_version)
+);
+CREATE TABLE consistency.run_states (run_id text PRIMARY KEY REFERENCES consistency.run_specifications(run_id), current_state text NOT NULL CHECK (current_state IN ('PENDING','RUNNING','COMPLETED','PARTIAL','FAILED','CANCELLED','EXPIRED')), last_event_sequence integer NOT NULL CHECK(last_event_sequence>0), started_at timestamptz, terminal_at timestamptz, completion_summary_id text);
+CREATE TABLE consistency.run_events (
+  event_id text PRIMARY KEY, run_id text NOT NULL REFERENCES consistency.run_specifications(run_id), event_sequence integer NOT NULL CHECK(event_sequence>0), event_type text NOT NULL CHECK(event_type IN ('RUN_CREATED','RUN_STARTED','RUN_COMPLETED','RUN_PARTIAL','RUN_FAILED','RUN_CANCELLED','RUN_EXPIRED')),
+  previous_state text, next_state text NOT NULL CHECK(next_state IN ('PENDING','RUNNING','COMPLETED','PARTIAL','FAILED','CANCELLED','EXPIRED')), actor_type text NOT NULL CHECK(actor_type IN ('COORDINATOR','WORKER','OPERATOR','SYSTEM')), actor_id text NOT NULL, occurred_at timestamptz NOT NULL,
+  policy_version_references text[] NOT NULL, reason_codes text[] NOT NULL, bounded_details jsonb NOT NULL CHECK(jsonb_typeof(bounded_details)='array'), event_checksum text NOT NULL CHECK(event_checksum ~ '^[0-9a-f]{64}$'), UNIQUE(run_id,event_sequence)
+);
+CREATE TABLE consistency.run_completion_summaries (summary_id text PRIMARY KEY, run_id text NOT NULL UNIQUE REFERENCES consistency.run_specifications(run_id), required_rule_count integer NOT NULL CHECK(required_rule_count>=0), completed_rule_count integer NOT NULL CHECK(completed_rule_count>=0), consistent_result_count integer NOT NULL CHECK(consistent_result_count>=0), inconsistent_result_count integer NOT NULL CHECK(inconsistent_result_count>=0), blocked_result_count integer NOT NULL CHECK(blocked_result_count>=0), failed_evaluation_count integer NOT NULL CHECK(failed_evaluation_count>=0), unresolved_count integer NOT NULL CHECK(unresolved_count>=0), terminal_state text NOT NULL CHECK(terminal_state IN ('COMPLETED','PARTIAL','FAILED')), reason_codes text[] NOT NULL, summary_checksum text NOT NULL CHECK(summary_checksum ~ '^[0-9a-f]{64}$'));
+ALTER TABLE consistency.run_states ADD CONSTRAINT run_states_summary_fk FOREIGN KEY(completion_summary_id) REFERENCES consistency.run_completion_summaries(summary_id);
+CREATE TABLE consistency.run_creation_conflicts (conflict_id text PRIMARY KEY, run_id text NOT NULL, existing_checksum text NOT NULL, candidate_checksum text NOT NULL, detected_at timestamptz NOT NULL, CHECK(existing_checksum<>candidate_checksum));
+CREATE INDEX consistency_run_events_history_idx ON consistency.run_events(run_id,event_sequence);

@@ -93,7 +93,7 @@ CREATE TABLE evidence.consistency_references (
   reference_id text PRIMARY KEY,
   candidate_id text NOT NULL REFERENCES evidence.candidates(candidate_id),
   physical_packet_id text REFERENCES evidence.packet_versions(physical_packet_id),
-  result_id text NOT NULL REFERENCES consistency.results(result_id),
+  result_id text NOT NULL REFERENCES consistency.rule_results(result_id),
   evidence_role text NOT NULL CHECK (evidence_role IN ('SUPPORTING','CONFLICTING')),
   UNIQUE (candidate_id, result_id, evidence_role)
 );

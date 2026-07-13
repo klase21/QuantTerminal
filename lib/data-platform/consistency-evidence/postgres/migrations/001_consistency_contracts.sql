@@ -25,7 +25,7 @@ CREATE TABLE consistency.rules (
   FOREIGN KEY (rule_set_id, rule_set_version) REFERENCES consistency.rule_sets(rule_set_id, rule_set_version)
 );
 
-CREATE TABLE consistency.runs (
+CREATE TABLE consistency.rule_runs (
   run_id text PRIMARY KEY,
   rule_set_id text NOT NULL,
   rule_set_version text NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE consistency.runs (
 
 CREATE TABLE consistency.inputs (
   input_id text PRIMARY KEY,
-  run_id text NOT NULL REFERENCES consistency.runs(run_id),
+  run_id text NOT NULL REFERENCES consistency.rule_runs(run_id),
   input_ordinal integer NOT NULL CHECK (input_ordinal >= 0),
   role_id text NOT NULL,
   canonical_record_id text NOT NULL,
@@ -70,9 +70,9 @@ CREATE TABLE consistency.inputs (
   FOREIGN KEY (canonical_record_id, record_version) REFERENCES repository.record_versions(canonical_record_id, record_version)
 );
 
-CREATE TABLE consistency.results (
+CREATE TABLE consistency.rule_results (
   result_id text PRIMARY KEY,
-  run_id text NOT NULL REFERENCES consistency.runs(run_id),
+  run_id text NOT NULL REFERENCES consistency.rule_runs(run_id),
   rule_id text NOT NULL,
   rule_version text NOT NULL,
   ordered_input_digest text NOT NULL CHECK (ordered_input_digest ~ '^[0-9a-f]{64}$'),
@@ -86,7 +86,7 @@ CREATE TABLE consistency.results (
 
 CREATE TABLE consistency.result_diagnostics (
   diagnostic_id text PRIMARY KEY,
-  result_id text NOT NULL REFERENCES consistency.results(result_id),
+  result_id text NOT NULL REFERENCES consistency.rule_results(result_id),
   code text NOT NULL,
   schema_version text NOT NULL,
   explanation_code text NOT NULL,
@@ -104,6 +104,6 @@ CREATE TABLE consistency.recompute_requests (
   UNIQUE (trigger_type, triggering_object_id, triggering_object_version, dependency_graph_version)
 );
 
-CREATE INDEX consistency_runs_scope_idx ON consistency.runs (subject_id, window_start, window_end, knowledge_cutoff);
+CREATE INDEX consistency_rule_runs_scope_idx ON consistency.rule_runs (subject_id, window_start, window_end, knowledge_cutoff);
 CREATE INDEX consistency_inputs_fact_idx ON consistency.inputs (canonical_record_id, record_version);
-CREATE INDEX consistency_results_run_idx ON consistency.results (run_id, created_at, result_id);
+CREATE INDEX consistency_rule_results_run_idx ON consistency.rule_results (run_id, created_at, result_id);

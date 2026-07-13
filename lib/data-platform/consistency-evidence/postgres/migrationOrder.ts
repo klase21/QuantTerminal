@@ -2,4 +2,9 @@ export const D4_MIGRATION_ORDER = Object.freeze([
   "001_consistency_contracts.sql",
   "002_evidence_contracts.sql",
   "003_projection_and_roles.sql",
+  "004_consistency_run_lifecycle.sql",
+  "005_immutable_consistency_results.sql",
+  "006_dependency_recompute.sql",
+  "007_phase2v_certification_hardening.sql",
+  "008_core_evidence_assembly.sql",
 ] as const)
