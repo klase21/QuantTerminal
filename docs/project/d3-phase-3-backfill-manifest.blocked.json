@@ -1,0 +1,31 @@
+{
+  "documentType": "BACKFILL_MANIFEST_BLOCKED_DRAFT",
+  "manifestSchemaVersion": "1.0.0",
+  "manifestId": null,
+  "manifestChecksum": null,
+  "generatedAt": "2026-07-13T09:00:17.2878211Z",
+  "approvalStatus": "BLOCKED",
+  "frozenCutoffUtc": null,
+  "datasetRegistryVersion": "1.0.0",
+  "providerRegistryVersion": "1.0.0",
+  "instrumentInventoryId": null,
+  "objectStorageDestination": null,
+  "d2CanonicalTarget": null,
+  "normalizerRegistryId": null,
+  "partitionPolicyId": null,
+  "retryPolicyId": null,
+  "checksumPolicy": "SHA-256_REQUIRED",
+  "expectedPartitionCount": null,
+  "blockerRegister": "docs/project/d3-phase-3-blockers.json",
+  "reasonCodes": [
+    "HISTORICAL_REQUIREDNESS_UNRESOLVED",
+    "INSTRUMENT_UNIVERSE_UNRESOLVED",
+    "DURABLE_OBJECT_STORAGE_MISSING",
+    "PRODUCTION_NORMALIZER_REGISTRY_MISSING",
+    "D3_TO_D2_COMMIT_PORT_UNWIRED",
+    "DURABLE_D2_TARGET_UNAPPROVED",
+    "POLICY_VERSIONS_NOT_APPROVED",
+    "SOURCE_AVAILABILITY_INCOMPLETE"
+  ],
+  "executable": false
+}

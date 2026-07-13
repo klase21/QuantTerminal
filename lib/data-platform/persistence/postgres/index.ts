@@ -1,4 +1,6 @@
 export * from "./client"
+export * from "./durableClientFactory"
+export * from "./durableTargetSafety"
 export * from "./isolatedReset"
 export * from "./migrationRunner"
 export * from "./roleBlueprint"

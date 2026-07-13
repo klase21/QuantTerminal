@@ -6,9 +6,10 @@ import type { CanonicalCommit, CanonicalCommitCommand, CanonicalCommitResult, Ca
 import { isLegalPublicationTransition } from "../publication"
 import type { IsolatedPostgresClient } from "./client"
 import { insertTypedCanonicalFact, validateTypedCanonicalFact } from "./typedFactWriter"
-import type { CanonicalPersistenceAdapter, IsolatedAdapterOptions, ManifestResult, OutboxRead, PolicyVersionInput, ProviderSnapshotInput, PublicationCommand, PublicationResult, QuarantineConflictRead, RecordVersionRead, ReconciliationResult, RegistrationResult, RegistrySnapshotInput } from "./adapterTypes"
+import type { CanonicalPersistenceAdapter, IsolatedAdapterOptions, LatestCanonicalVersionResult, ManifestResult, OutboxRead, PolicyVersionInput, ProviderSnapshotInput, PublicationCommand, PublicationResult, QuarantineConflictRead, RecordVersionRead, ReconciliationResult, RegistrationResult, RegistrySnapshotInput } from "./adapterTypes"
 
 interface VersionRow { readonly canonical_record_id: string; readonly record_version: number; readonly checksum: string; readonly current_publication_state: PublicationState; readonly commit_id: string; readonly business_identity: string }
+interface LatestVersionRow extends VersionRow { readonly dataset_id: string; readonly provider_id: string; readonly registry_snapshot_id: string; readonly provider_snapshot_id: string; readonly provider_certification_snapshot_id: string; readonly policy_version_id: string; readonly schema_version: string; readonly normalization_version: string; readonly created_at: Date; readonly is_superseded: boolean }
 interface CountRow { readonly count: number }
 interface EnvelopeRow { readonly fact_table: string }
 
@@ -201,6 +202,27 @@ export function createCanonicalPersistenceAdapter(client: IsolatedPostgresClient
     async readCanonicalRecordVersion(canonicalRecordId, recordVersion): Promise<RecordVersionRead | null> {
       const rows = await client.sql<VersionRow[]>`SELECT canonical_record_id,record_version,checksum,current_publication_state,commit_id,business_identity FROM repository.record_versions WHERE canonical_record_id=${canonicalRecordId} AND record_version=${recordVersion}`
       return rows[0] ? { canonicalRecordId: rows[0].canonical_record_id, recordVersion: rows[0].record_version, checksum: rows[0].checksum, publicationState: rows[0].current_publication_state, commitId: rows[0].commit_id } : null
+    },
+    async readLatestCanonicalVersion(request): Promise<LatestCanonicalVersionResult> {
+      const reasons: string[] = []
+      if (!request.canonicalRecordId.trim()) reasons.push("CANONICAL_RECORD_ID_MISSING")
+      if (!request.datasetId.trim()) reasons.push("DATASET_ID_MISSING")
+      if (!request.businessIdentity.trim()) reasons.push("BUSINESS_IDENTITY_MISSING")
+      if (!request.providerId.trim()) reasons.push("PROVIDER_ID_MISSING")
+      if (reasons.length) return { status: "INVALID_REQUEST", reasons: Object.freeze(reasons) }
+      try {
+        const rows = await client.sql<LatestVersionRow[]>`SELECT rv.canonical_record_id,rv.record_version,rv.checksum,rv.current_publication_state,rv.commit_id,rv.business_identity,rv.dataset_id,e.provider_id,rv.registry_snapshot_id,rv.provider_snapshot_id,rv.provider_certification_snapshot_id,rv.policy_version_id,rv.schema_version,rv.normalization_version,rv.created_at,
+          EXISTS (SELECT 1 FROM repository.supersessions s WHERE s.canonical_record_id=rv.canonical_record_id AND s.predecessor_version=rv.record_version) AS is_superseded
+          FROM repository.record_versions rv JOIN repository.envelopes e ON e.envelope_id=rv.envelope_id
+          WHERE rv.canonical_record_id=${request.canonicalRecordId}
+          ORDER BY rv.record_version DESC LIMIT 1`
+        const row = rows[0]
+        if (!row) return { status: "NOT_FOUND" }
+        if (row.dataset_id !== request.datasetId || row.business_identity !== request.businessIdentity || row.provider_id !== request.providerId) return { status: "CONFLICT", reason: "IDENTITY_DIMENSIONS_MISMATCH" }
+        return { status: "FOUND", record: Object.freeze({ canonicalRecordId: row.canonical_record_id, recordVersion: row.record_version, checksum: row.checksum, publicationState: row.current_publication_state, commitId: row.commit_id, datasetId: row.dataset_id, businessIdentity: row.business_identity, providerId: row.provider_id, supersessionState: row.is_superseded ? "SUPERSEDED" : "ACTIVE", registrySnapshotId: row.registry_snapshot_id, providerSnapshotId: row.provider_snapshot_id, providerCertificationSnapshotId: row.provider_certification_snapshot_id, policyVersionId: row.policy_version_id, schemaVersion: row.schema_version, normalizationVersion: row.normalization_version, createdAt: row.created_at.toISOString() }) }
+      } catch (cause) {
+        return { status: "TARGET_UNAVAILABLE", reason: cause instanceof Error && cause.name ? `POSTGRES_TARGET_UNAVAILABLE:${cause.name}` : "POSTGRES_TARGET_UNAVAILABLE" }
+      }
     },
     async appendPublicationDecision(command: PublicationCommand): Promise<PublicationResult> {
       const current = await this.readCanonicalRecordVersion(command.canonicalRecordId, command.recordVersion)

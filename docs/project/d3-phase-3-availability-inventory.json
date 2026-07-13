@@ -1,0 +1,129 @@
+{
+  "generatedAt": "2026-07-13T10:00:42.945Z",
+  "registryVersion": "1.0.0",
+  "scopeStatus": "PARTIAL",
+  "frozenCutoffUtc": "2026-07-12T00:00:00.000Z",
+  "datasets": [
+    {
+      "datasetId": "ohlcv",
+      "provider": "binance-public-archive",
+      "venue": "BINANCE",
+      "market": "USD_M_FUTURES",
+      "format": "5m daily/monthly ZIP",
+      "earliestVerified": "2019-12-31T00:00:00.000Z",
+      "latestVerifiedBoundary": "2026-07-12T00:00:00.000Z",
+      "partitionUnit": "DAY_OR_MONTH",
+      "status": "VERIFIED_FOR_BTC_AND_CUTOFF_DAY"
+    },
+    {
+      "datasetId": "funding",
+      "provider": "binance-public-archive",
+      "venue": "BINANCE",
+      "market": "USD_M_FUTURES",
+      "format": "monthly fundingRate ZIP",
+      "earliestVerified": "2020-01-01T00:00:00.000Z",
+      "latestVerifiedBoundary": "2026-07-01T00:00:00.000Z",
+      "partitionUnit": "MONTH",
+      "status": "VERIFIED_FOR_BTC_AND_ETH_LEGACY"
+    },
+    {
+      "datasetId": "open-interest",
+      "provider": "binance-public-archive",
+      "venue": "BINANCE",
+      "market": "USD_M_FUTURES",
+      "format": "daily metrics ZIP",
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": "DAY",
+      "status": "PARTIAL_LEGACY_PILOT"
+    },
+    {
+      "datasetId": "liquidation",
+      "provider": "binance-public-archive",
+      "venue": "BINANCE",
+      "market": "USD_M_FUTURES",
+      "format": "daily liquidation ZIP",
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": "DAY",
+      "status": "BLOCKED_SOURCE"
+    },
+    {
+      "datasetId": "agg-trade",
+      "provider": "binance-public-archive",
+      "venue": "BINANCE",
+      "market": "USD_M_FUTURES",
+      "format": "daily aggTrades ZIP",
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": "DAY",
+      "status": "BLOCKED_NORMALIZER_BOUNDARY"
+    },
+    {
+      "datasetId": "orderbook",
+      "provider": "cryptohftdata",
+      "venue": null,
+      "market": null,
+      "format": "hourly provider objects",
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": "HOUR",
+      "status": "BLOCKED_COST_AND_SCOPE"
+    },
+    {
+      "datasetId": "prediction-market",
+      "provider": "governed-external",
+      "venue": null,
+      "market": null,
+      "format": null,
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": null,
+      "status": "BLOCKED_REQUIRED_PROVIDER"
+    },
+    {
+      "datasetId": "etf-flow",
+      "provider": "governed-external",
+      "venue": null,
+      "market": null,
+      "format": null,
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": null,
+      "status": "BLOCKED_REQUIRED_PROVIDER"
+    },
+    {
+      "datasetId": "reserve",
+      "provider": "governed-external",
+      "venue": null,
+      "market": null,
+      "format": null,
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": null,
+      "status": "BLOCKED_REQUIRED_PROVIDER"
+    },
+    {
+      "datasetId": "macro",
+      "provider": "governed-external",
+      "venue": null,
+      "market": null,
+      "format": null,
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": null,
+      "status": "BLOCKED_REQUIRED_PROVIDER"
+    },
+    {
+      "datasetId": "research-document",
+      "provider": "governed-external",
+      "venue": null,
+      "market": null,
+      "format": null,
+      "earliestVerified": null,
+      "latestVerifiedBoundary": null,
+      "partitionUnit": null,
+      "status": "BLOCKED_REQUIRED_TARGET"
+    }
+  ]
+}

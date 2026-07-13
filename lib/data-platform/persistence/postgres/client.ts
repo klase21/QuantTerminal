@@ -1,4 +1,5 @@
 import postgres from "postgres"
+import { requireDurableCanonicalTarget, type DurableCanonicalTargetPurpose } from "./durableTargetSafety"
 import { requireIsolatedTarget } from "./testSafety"
 
 export type PostgresRoleIntent = "MIGRATION_OWNER" | "CANONICAL_WRITER" | "BOUNDED_WRITER" | "READ_ONLY"
@@ -19,6 +20,8 @@ export interface IsolatedPostgresClient {
   shutdown(): Promise<void>
 }
 
+export type DurableCanonicalPostgresConfig = IsolatedPostgresConfig
+
 export function validatePostgresConfig(config: IsolatedPostgresConfig): readonly string[] {
   const errors: string[] = []
   if (!config.connectionString.trim()) errors.push("CONNECTION_STRING_MISSING")
@@ -29,10 +32,9 @@ export function validatePostgresConfig(config: IsolatedPostgresConfig): readonly
   return Object.freeze(errors)
 }
 
-export function createIsolatedPostgresClient(config: IsolatedPostgresConfig): IsolatedPostgresClient {
+function createPostgresClient(config: IsolatedPostgresConfig): IsolatedPostgresClient {
   const errors = validatePostgresConfig(config)
-  if (errors.length) throw new Error(`Invalid isolated PostgreSQL configuration: ${errors.join(",")}`)
-  requireIsolatedTarget(config.connectionString)
+  if (errors.length) throw new Error(`Invalid D2 PostgreSQL configuration: ${errors.join(",")}`)
   const sql = postgres(config.connectionString, {
     max: config.maxConnections,
     connect_timeout: config.connectTimeoutSeconds,
@@ -48,4 +50,14 @@ export function createIsolatedPostgresClient(config: IsolatedPostgresConfig): Is
     },
     async shutdown() { await sql.end({ timeout: 5 }) },
   })
+}
+
+export function createIsolatedPostgresClient(config: IsolatedPostgresConfig): IsolatedPostgresClient {
+  requireIsolatedTarget(config.connectionString)
+  return createPostgresClient(config)
+}
+
+export function createDurableCanonicalPostgresClient(config: DurableCanonicalPostgresConfig, purpose: DurableCanonicalTargetPurpose = "D2_DEDICATED"): IsolatedPostgresClient {
+  requireDurableCanonicalTarget(config.connectionString, purpose)
+  return createPostgresClient(config)
 }

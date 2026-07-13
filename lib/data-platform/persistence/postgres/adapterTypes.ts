@@ -9,6 +9,26 @@ export type ManifestResult = { readonly status: "SUCCESS" | "DUPLICATE"; readonl
 export interface PublicationCommand { readonly canonicalRecordId: string; readonly recordVersion: number; readonly nextState: PublicationState; readonly policyVersionId: string; readonly decidedAt: string; readonly reasonCodes: readonly string[] }
 export type PublicationResult = { readonly status: "SUCCESS"; readonly state: PublicationState; readonly decisionId: string } | { readonly status: "REJECTED"; readonly reason: string } | { readonly status: "RETRYABLE_FAILURE"; readonly reason: string }
 export interface RecordVersionRead { readonly canonicalRecordId: string; readonly recordVersion: number; readonly checksum: string; readonly publicationState: PublicationState; readonly commitId: string }
+export interface LatestCanonicalVersionRequest { readonly canonicalRecordId: string; readonly datasetId: string; readonly businessIdentity: string; readonly providerId: string }
+export interface LatestCanonicalVersionRead extends RecordVersionRead {
+  readonly datasetId: string
+  readonly businessIdentity: string
+  readonly providerId: string
+  readonly supersessionState: "ACTIVE" | "SUPERSEDED"
+  readonly registrySnapshotId: string
+  readonly providerSnapshotId: string
+  readonly providerCertificationSnapshotId: string
+  readonly policyVersionId: string
+  readonly schemaVersion: string
+  readonly normalizationVersion: string
+  readonly createdAt: string
+}
+export type LatestCanonicalVersionResult =
+  | { readonly status: "FOUND"; readonly record: LatestCanonicalVersionRead }
+  | { readonly status: "NOT_FOUND" }
+  | { readonly status: "CONFLICT"; readonly reason: "IDENTITY_DIMENSIONS_MISMATCH" }
+  | { readonly status: "INVALID_REQUEST"; readonly reasons: readonly string[] }
+  | { readonly status: "TARGET_UNAVAILABLE"; readonly reason: string }
 export interface OutboxRead { readonly eventId: string; readonly commitId: string; readonly eventType: "CANONICAL_RECORD_COMMITTED" | "PUBLICATION_STATE_CHANGED"; readonly canonicalRecordId: string; readonly recordVersion: number; readonly publicationDecisionId: string | null; readonly createdAt: string }
 export interface ReconciliationResult { readonly consistent: boolean; readonly counts: Readonly<{ fact: number; envelope: number; version: number; initialDecision: number; lineage: number; commitOutbox: number }>; readonly reasons: readonly string[] }
 export interface QuarantineConflictRead { readonly conflictId: string; readonly quarantineId: string; readonly canonicalRecordId: string; readonly recordVersion: number; readonly existingChecksum: string; readonly candidateChecksum: string; readonly detectedAt: string }
@@ -23,6 +43,7 @@ export interface CanonicalPersistenceAdapter {
   registerRawObjectManifest(input: RawObjectManifest): Promise<ManifestResult>
   executeCanonicalCommit(command: CanonicalCommitCommand): Promise<CanonicalCommitResult>
   readCanonicalRecordVersion(canonicalRecordId: string, recordVersion: number): Promise<RecordVersionRead | null>
+  readLatestCanonicalVersion(request: LatestCanonicalVersionRequest): Promise<LatestCanonicalVersionResult>
   appendPublicationDecision(command: PublicationCommand): Promise<PublicationResult>
   readLineageEdges(nodeId: string): Promise<readonly LineageEdge[]>
   verifyLineageAcyclic(): Promise<boolean>

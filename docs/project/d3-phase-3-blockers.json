@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-07-13T12:49:42.9470691Z",
+  "status": "NON_OHLCV_AND_PHASE_V_BLOCKERS_REMAIN",
+  "blockers": [
+    {
+      "id": "D3P3-B01",
+      "disposition": "RESOLVED",
+      "evidence": "Dataset classification is deterministic for all 17 registry entries.",
+      "remainingWork": "None for classification; future registry additions must be classified."
+    },
+    {
+      "id": "D3P3-B02",
+      "disposition": "PARTIALLY_RESOLVED",
+      "evidence": "Six active focus instruments have official Binance lifecycle metadata and checksums.",
+      "remainingWork": "Discover and govern delisted, renamed, transitioned, and any additional Replay-required instruments."
+    },
+    {
+      "id": "D3P3-B03",
+      "disposition": "RESOLVED",
+      "evidence": "The durable filesystem ObjectStoragePort is configured at D:\\QuantTerminalData\\raw-artifacts; path safety passed and 667807358976 bytes were available at preflight.",
+      "remainingWork": "No storage configuration work blocks the bounded OHLCV canary."
+    },
+    {
+      "id": "D3P3-B04",
+      "disposition": "PARTIALLY_RESOLVED",
+      "evidence": "Production normalizers exist for OHLCV, Funding, Open Interest, and Liquidation.",
+      "remainingWork": "Resolve stream-manifest identity and implement only verified provider formats for remaining required datasets."
+    },
+    {
+      "id": "D3P3-B05",
+      "disposition": "RESOLVED",
+      "evidence": "D2 exposes a purpose-gated durable non-production client factory and bounded latest canonical-version lookup; D3 uses only the certified public adapter.",
+      "remainingWork": "None for the commit boundary; durable target configuration and canary execution remain separate blockers."
+    },
+    {
+      "id": "D3P3-B06",
+      "disposition": "RESOLVED",
+      "evidence": "The bounded local-container administrative runner applied the complete unchanged migration 002 and ledger insert atomically. Checksum 15282384709e595158a1da55fe34b185f833f32389ed95a121ac2d8f0516e978 matches; the ordinary runner skips 001 and 002; qt_d3_backfill_owner remains NOCREATEROLE; all 16 foreign keys remain validated. The real BTCUSDT 5m canary committed 288 Facts and its exact rerun changed no authoritative count.",
+      "remainingWork": "None for OHLCV launch readiness. Broader crash timing and role-graph certification remain explicitly assigned to D3 Phase V."
+    },
+    {
+      "id": "D3P3-B07",
+      "disposition": "PARTIALLY_RESOLVED",
+      "evidence": "Checksum, immutable correction, and OHLCV daily partition policy bindings are approved from existing contracts.",
+      "remainingWork": "Approve retry and retention policy versions without inventing numeric values."
+    },
+    {
+      "id": "D3P3-B08",
+      "disposition": "STILL_BLOCKING",
+      "evidence": "Required governed-external datasets remain in authoritative scope.",
+      "remainingWork": "Certify exact prediction, ETF, reserve, macro, and research providers or explicitly govern a source-unavailable result."
+    },
+    {
+      "id": "D3P3-B09",
+      "disposition": "STILL_BLOCKING",
+      "evidence": "BTC OHLCV/Funding legacy boundaries and the six-symbol cutoff-day archives are verified.",
+      "remainingWork": "Complete earliest/latest availability discovery for every required dataset and instrument."
+    },
+    {
+      "id": "D3P3-B10",
+      "disposition": "STILL_BLOCKING",
+      "evidence": "Orderbook remains required and visible in scope.",
+      "remainingWork": "Obtain source-backed object count, raw-size, licensing, reconstruction, and capacity approval."
+    },
+    {
+      "id": "D3P3-B11",
+      "disposition": "RESOLVED",
+      "evidence": "Legacy SQLite is explicitly excluded from canonical Phase 3 counts and launch scope.",
+      "remainingWork": "A future import requires a separate certified lineage-preserving migration."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-07-13T09:00:17.2878211Z",
+  "measurementScope": "PHASE_3_EXECUTION_ONLY",
+  "rawDownloadedBytes": 0,
+  "objectStorageBytes": 0,
+  "artifacts": 0,
+  "retrievals": 0,
+  "candidates": 0,
+  "canonicalFacts": 0,
+  "note": "The existing local historical-backfill SQLite file was observed at 3150319616 bytes but is excluded from Phase 3 canonical population totals."
+}

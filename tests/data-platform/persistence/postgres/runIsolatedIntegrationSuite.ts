@@ -31,6 +31,8 @@ if (!isolatedUrl()) {
     check("identical retry is duplicate", duplicate.status === "DUPLICATE")
     if (first.status !== "SUCCESS") throw new Error("Initial commit did not succeed")
     check("commit reconciliation", (await harness.adapter.reconcileCommit(first.commit.commitId)).consistent)
+    const latestInitial = await harness.adapter.readLatestCanonicalVersion({ canonicalRecordId: first.fact.canonicalRecordId, datasetId: initial.fact.identity.datasetId, businessIdentity: initial.fact.identity.businessIdentity, providerId: initial.fact.providerId })
+    check("latest canonical version lookup returns exact immutable boundary", latestInitial.status === "FOUND" && latestInitial.record.recordVersion === 1 && latestInitial.record.checksum === initial.fact.checksum)
     check("lineage graph acyclic", await harness.adapter.verifyLineageAcyclic())
     check("one commit outbox event", (await harness.adapter.readOutboxEvents()).filter((event) => event.commitId === first.commit.commitId && event.eventType === "CANONICAL_RECORD_COMMITTED").length === 1)
 
@@ -50,6 +52,8 @@ if (!isolatedUrl()) {
     await harness.adapter.registerRawObjectManifest(correction.rawObject)
     const corrected = await harness.adapter.executeCanonicalCommit(correction)
     check("correction creates version two", corrected.status === "SUCCESS" && corrected.fact.recordVersion === 2)
+    const latestCorrection = await harness.adapter.readLatestCanonicalVersion({ canonicalRecordId: first.fact.canonicalRecordId, datasetId: correction.fact.identity.datasetId, businessIdentity: correction.fact.identity.businessIdentity, providerId: correction.fact.providerId })
+    check("latest canonical version lookup advances by record version", latestCorrection.status === "FOUND" && latestCorrection.record.recordVersion === 2 && latestCorrection.record.checksum === correction.fact.checksum)
     check("predecessor remains published while correction pending", (await harness.adapter.readCanonicalRecordVersion(first.fact.canonicalRecordId, 1))?.publicationState === "PUBLISHED")
     if (corrected.status !== "SUCCESS") throw new Error("Correction commit did not succeed")
     await harness.adapter.appendPublicationDecision({ canonicalRecordId: corrected.fact.canonicalRecordId, recordVersion: 2, nextState: "CERTIFIED", policyVersionId: correction.fact.governance.policyVersionId, decidedAt: "2026-01-01T00:04:00.000Z", reasonCodes: ["ISOLATED_TEST"] })

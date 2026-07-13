@@ -1,0 +1,54 @@
+{
+  "generatedAt": "2026-07-13T12:49:42.9470691Z",
+  "manifestId": "bfm_ac1eae24383333dc00ee964ffa4e35e97c5b7829cec6b9dab34a5fcb75c48c24",
+  "manifestChecksum": "ac1eae24383333dc00ee964ffa4e35e97c5b7829cec6b9dab34a5fcb75c48c24",
+  "manifestExecutable": true,
+  "frozenCutoffUtc": "2026-07-12T00:00:00.000Z",
+  "executablePartitions": 6,
+  "blockedPartitions": 0,
+  "totalEnumeratedPartitions": 6,
+  "fullExpectedPartitions": null,
+  "objectStorage": {
+    "safe": true,
+    "target": "D:\\QuantTerminalData\\raw-artifacts",
+    "availableBytes": 667807346688,
+    "reasons": []
+  },
+  "d2Target": {
+    "safe": true,
+    "connectivity": "PASS_LIVE",
+    "redactedTarget": "localhost:55432/quantterminal_backfill",
+    "database": "quantterminal_backfill",
+    "role": "qt_d2_backfill_owner",
+    "reasons": []
+  },
+  "d3Target": {
+    "safe": true,
+    "connectivity": "PASS_LIVE",
+    "redactedTarget": "localhost:55432/quantterminal_backfill",
+    "database": "quantterminal_backfill",
+    "role": "qt_d3_backfill_owner",
+    "reasons": []
+  },
+  "integratedTopology": {
+    "profileImplemented": true,
+    "configured": true,
+    "requiredDatabase": "quantterminal_backfill",
+    "d2MigrationStatus": "COMPLETE",
+    "d3MigrationStatus": "COMPLETE",
+    "liveForeignKeyCount": 16,
+    "expectedForeignKeyCount": 16,
+    "temporaryPrivilegesRevoked": true,
+    "errors": []
+  },
+  "canary": {
+    "status": "PASS_REAL_AND_IDEMPOTENT_RERUN",
+    "partitionId": "ohlcv:binance-usdm-perpetual:BTC-USDT:5m:2026-07-11",
+    "sourceChecksum": "b817f60117a855d9d9b440ea26152f0318ba1654e3d69e2c481fd2f746343833",
+    "canonicalFacts": 288,
+    "rejectedCandidates": 0,
+    "duplicateFactsOnRerun": 288,
+    "authoritativeCountChangedOnRerun": false
+  },
+  "gate": "SAFE_TO_START_OHLCV_FULL_HISTORY_WITH_LIMITATIONS"
+}

@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-07-13T09:00:17.2878211Z",
+  "status": "NOT_STARTED_SCOPE_GATE_BLOCKED",
+  "manifestId": null,
+  "manifestChecksum": null,
+  "expectedPartitions": null,
+  "completedPartitions": 0,
+  "remainingPartitions": null,
+  "terminalStates": {},
+  "providerRequests": 0,
+  "rawBytesRetrieved": 0,
+  "artifactsStored": 0,
+  "retrievalAttempts": 0,
+  "candidatesCreated": 0,
+  "candidatesRejected": 0,
+  "canonicalFactsCommitted": 0,
+  "duplicates": 0,
+  "conflicts": 0,
+  "gapsCreated": 0,
+  "elapsedExecutionSeconds": 0,
+  "resumeCommand": null,
+  "reason": "No execution is safe until the authoritative Manifest and durable source/storage/normalizer/D2 bindings are approved."
+}
