@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-07-13T12:49:42.9470691Z",
+  "generatedAt": "2026-07-13T13:31:41.559Z",
   "manifestId": "bfm_ac1eae24383333dc00ee964ffa4e35e97c5b7829cec6b9dab34a5fcb75c48c24",
   "manifestChecksum": "ac1eae24383333dc00ee964ffa4e35e97c5b7829cec6b9dab34a5fcb75c48c24",
   "manifestExecutable": true,
   "frozenCutoffUtc": "2026-07-12T00:00:00.000Z",
-  "executablePartitions": 6,
+  "executablePartitions": 13813,
   "blockedPartitions": 0,
-  "totalEnumeratedPartitions": 6,
-  "fullExpectedPartitions": null,
+  "totalEnumeratedPartitions": 13813,
+  "fullExpectedPartitions": 13813,
   "objectStorage": {
     "safe": true,
     "target": "D:\\QuantTerminalData\\raw-artifacts",
-    "availableBytes": 667807346688,
+    "availableBytes": 667807080448,
     "reasons": []
   },
   "d2Target": {
@@ -50,5 +50,19 @@
     "duplicateFactsOnRerun": 288,
     "authoritativeCountChangedOnRerun": false
   },
-  "gate": "SAFE_TO_START_OHLCV_FULL_HISTORY_WITH_LIMITATIONS"
+  "ohlcvExecution": {
+    "status": "SAFE_TO_RESUME",
+    "snapshotId": "ohlcv-execution:40697e4c234c6c087999e02e024d367f7aa2aa4f90471d7c67179cae589769ee",
+    "snapshotChecksum": "40697e4c234c6c087999e02e024d367f7aa2aa4f90471d7c67179cae589769ee",
+    "completePartitions": 21,
+    "pendingPartitions": 13792,
+    "activeLeases": 0,
+    "gaps": 0,
+    "failures": 0,
+    "conflicts": 0,
+    "canonicalFacts": 5660,
+    "lineageEdges": 5660,
+    "coverageDecisions": 21
+  },
+  "gate": "D3_OHLCV_FULL_HISTORICAL_BACKFILL_SAFE_TO_RESUME"
 }

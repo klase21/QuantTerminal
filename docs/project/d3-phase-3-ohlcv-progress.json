@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "1.0.0",
+  "snapshotId": "ohlcv-execution:40697e4c234c6c087999e02e024d367f7aa2aa4f90471d7c67179cae589769ee",
+  "snapshotChecksum": "40697e4c234c6c087999e02e024d367f7aa2aa4f90471d7c67179cae589769ee",
+  "generatedAt": "2026-07-13T13:36:09.012Z",
+  "totalPartitions": 13813,
+  "completePartitions": 21,
+  "pendingPartitions": 13792,
+  "activeLeases": 0,
+  "classifications": {
+    "populated": 20,
+    "skippedAlreadyComplete": 1,
+    "emptyConfirmed": 0,
+    "sourceUnavailable": 0,
+    "notApplicable": 0,
+    "gaps": 0,
+    "retryableFailures": 0,
+    "exhaustedFailures": 0,
+    "conflicts": 0,
+    "blocked": 0
+  },
+  "unitStates": {
+    "COMPLETED": 20
+  },
+  "perInstrument": [
+    {
+      "providerSymbol": "BNBUSDT",
+      "earliestSourceDay": "2020-02-10",
+      "finalEligibleDay": "2026-07-11",
+      "expectedPartitions": 2344,
+      "completedPartitions": 3,
+      "remainingPartitions": 2341
+    },
+    {
+      "providerSymbol": "BTCUSDT",
+      "earliestSourceDay": "2019-12-31",
+      "finalEligibleDay": "2026-07-11",
+      "expectedPartitions": 2385,
+      "completedPartitions": 5,
+      "remainingPartitions": 2380
+    },
+    {
+      "providerSymbol": "DOGEUSDT",
+      "earliestSourceDay": "2020-07-10",
+      "finalEligibleDay": "2026-07-11",
+      "expectedPartitions": 2193,
+      "completedPartitions": 3,
+      "remainingPartitions": 2190
+    },
+    {
+      "providerSymbol": "ETHUSDT",
+      "earliestSourceDay": "2019-12-31",
+      "finalEligibleDay": "2026-07-11",
+      "expectedPartitions": 2385,
+      "completedPartitions": 4,
+      "remainingPartitions": 2381
+    },
+    {
+      "providerSymbol": "SOLUSDT",
+      "earliestSourceDay": "2020-09-14",
+      "finalEligibleDay": "2026-07-11",
+      "expectedPartitions": 2127,
+      "completedPartitions": 3,
+      "remainingPartitions": 2124
+    },
+    {
+      "providerSymbol": "XRPUSDT",
+      "earliestSourceDay": "2020-01-06",
+      "finalEligibleDay": "2026-07-11",
+      "expectedPartitions": 2379,
+      "completedPartitions": 3,
+      "remainingPartitions": 2376
+    }
+  ],
+  "throughput": {
+    "startedAt": "2026-07-13T13:25:04.893Z",
+    "lastCompletedAt": "2026-07-13T13:28:46.065Z",
+    "elapsedMs": 664110,
+    "completedFullHistoryPartitions": 20,
+    "partitionsPerHour": 108.41577449518905,
+    "estimatedRemainingMs": 457970256
+  },
+  "capacity": {
+    "availableArtifactBytes": 667807080448,
+    "estimatedCompressedSourceBytes": 179707130,
+    "measuredCanaryRelationBytes": 72794112,
+    "estimatedPostgresBytes": 51163508815
+  },
+  "persisted": {
+    "facts": 5660,
+    "raw_objects": 21,
+    "artifact_bytes": 242873,
+    "lineage": 5660,
+    "publication": 5660,
+    "retrievals": 21,
+    "downloaded_bytes": 242873,
+    "candidates": 5660,
+    "submissions": 5660,
+    "outcomes": 5660,
+    "coverage": 21,
+    "checkpoints": 63,
+    "retries": 0,
+    "conflicts": 0,
+    "active": 0
+  },
+  "recent": []
+}

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-13T12:49:42.9470691Z",
+  "generatedAt": "2026-07-13T13:31:41.559Z",
   "status": "NON_OHLCV_AND_PHASE_V_BLOCKERS_REMAIN",
   "blockers": [
     {
@@ -18,7 +18,7 @@
       "id": "D3P3-B03",
       "disposition": "RESOLVED",
       "evidence": "The durable filesystem ObjectStoragePort is configured at D:\\QuantTerminalData\\raw-artifacts; path safety passed and 667807358976 bytes were available at preflight.",
-      "remainingWork": "No storage configuration work blocks the bounded OHLCV canary."
+      "remainingWork": "None for OHLCV execution; capacity remains sufficient for the frozen snapshot."
     },
     {
       "id": "D3P3-B04",
@@ -30,7 +30,7 @@
       "id": "D3P3-B05",
       "disposition": "RESOLVED",
       "evidence": "D2 exposes a purpose-gated durable non-production client factory and bounded latest canonical-version lookup; D3 uses only the certified public adapter.",
-      "remainingWork": "None for the commit boundary; durable target configuration and canary execution remain separate blockers."
+      "remainingWork": "None for the OHLCV commit boundary."
     },
     {
       "id": "D3P3-B06",
@@ -52,9 +52,9 @@
     },
     {
       "id": "D3P3-B09",
-      "disposition": "STILL_BLOCKING",
-      "evidence": "BTC OHLCV/Funding legacy boundaries and the six-symbol cutoff-day archives are verified.",
-      "remainingWork": "Complete earliest/latest availability discovery for every required dataset and instrument."
+      "disposition": "PARTIALLY_RESOLVED",
+      "evidence": "Provider-native index discovery plus confirming HEAD requests established exact 5-minute OHLCV boundaries for all six governed instruments and froze 13813 partitions through 2026-07-11. Other required datasets are not covered by this OHLCV execution snapshot.",
+      "remainingWork": "Complete earliest/latest availability discovery for non-OHLCV required datasets."
     },
     {
       "id": "D3P3-B10",
