@@ -25,6 +25,7 @@ import {
   createFilesystemObjectStorage,
   createIntegratedBackfillClientsFromEnvironment,
   createFundingExecutionSnapshot,
+  createBoundedFundingEventPartition,
   createFundingPartitionId,
   D3_PHASE3_MANIFEST,
   instrumentForSymbol,
@@ -225,7 +226,7 @@ async function acquire(storage: Awaited<ReturnType<typeof createFilesystemObject
   const chunks: Buffer[] = []
   for await (const chunk of storage.read(objectStorageKey)) chunks.push(Buffer.from(chunk))
   const at = isoNow()
-  return { buffer: Buffer.concat(chunks), raw: Object.freeze({ objectId: reference.rawObjectId, datasetId: partition.datasetId, providerId: partition.providerId, venue: partition.venue, symbolOrSubject: partition.providerSymbol, windowStart: partition.windowStart, windowEnd: partition.windowEnd, contentHash, sizeBytes: buffer.byteLength, mediaType, compression, retrievedAt: at, providerSnapshotId: providerRegistryId(partition), retentionClass: "ARCHIVE", verificationState: reference.verificationState, objectStorageKey, createdAt: at }) }
+  return { buffer: Buffer.concat(chunks), raw: Object.freeze({ objectId: reference.rawObjectId, datasetId: partition.datasetId, providerId: partition.providerId, venue: partition.venue, symbolOrSubject: partition.providerSymbol, windowStart: partition.sourceWindowStart ?? partition.windowStart, windowEnd: partition.sourceWindowEnd ?? partition.windowEnd, contentHash, sizeBytes: buffer.byteLength, mediaType, compression, retrievedAt: at, providerSnapshotId: providerRegistryId(partition), retentionClass: "ARCHIVE", verificationState: reference.verificationState, objectStorageKey, createdAt: at }) }
 }
 
 async function ensureGovernance(partition: FundingExecutionPartition, d2Adapter: ReturnType<typeof createCanonicalPersistenceAdapter>): Promise<void> {
@@ -334,9 +335,9 @@ async function processClaimedPartition(
   const sourceParsed = partition.sourceKind === "BINANCE_VISION_MONTHLY"
     ? parseFundingCsv(extractFirstCsvFromZip(acquired.buffer))
     : parseFundingRestJson(acquired.buffer.toString("utf8"), partition.providerSymbol)
-  const parsed = Object.freeze({ rows: Object.freeze(sourceParsed.rows.filter((row) => row.fundingTime >= partition.earliestEligibleEventTime && row.fundingTime <= partition.finalEligibleEventTime && row.fundingTime < snapshot.frozenCutoffUtc)), rejected: sourceParsed.rejected })
+  const parsed = Object.freeze({ rows: Object.freeze(sourceParsed.rows.map((row, sourceOrdinal) => ({ row, sourceOrdinal })).filter(({ row }) => row.fundingTime >= partition.earliestEligibleEventTime && row.fundingTime <= partition.finalEligibleEventTime && row.fundingTime < snapshot.frozenCutoffUtc)), rejected: sourceParsed.rejected })
   if (parsed.rows.length === 0 || Object.keys(parsed.rejected).length > 0) throw new Error(`FUNDING_SOURCE_VALIDATION_FAILED:${partition.partitionId}:${JSON.stringify(parsed.rejected)}`)
-  const createdAt = isoNow(); const candidates = parsed.rows.map((row, index) => candidate(partition, row, index, lease.unitId, retrievalAttemptId, acquired.raw, createdAt))
+  const createdAt = isoNow(); const candidates = parsed.rows.map(({ row, sourceOrdinal }, index) => candidate(partition, row, partition.preserveSourceRowOrdinal ? sourceOrdinal : index, lease.unitId, retrievalAttemptId, acquired.raw, createdAt))
   for (const value of candidates) {
     const persisted = await d3Adapter.persistCandidate(value)
     if (persisted.status === "CONFLICT") throw new Error(`FUNDING_CANDIDATE_CONFLICT:${value.candidateId}`)
@@ -402,6 +403,8 @@ async function run(snapshot: FundingExecutionSnapshot, clients: Awaited<ReturnTy
   const maxPartitions = positiveInt("--max-partitions", 1)
   const symbol = arg("--instrument")?.toUpperCase() ?? null
   const from = arg("--from"); const to = arg("--to")
+  const eventFrom = arg("--event-from"); const eventTo = arg("--event-to")
+  if ((eventFrom === null) !== (eventTo === null)) throw new Error("FUNDING_BOUNDED_EVENT_WINDOW_REQUIRES_BOTH_BOUNDS")
   const completed = await completedPartitionMap(clients.d2, clients.d3)
   let selected = snapshot.partitions.filter((partition) => !completed[partition.partitionId] && (!symbol || partition.providerSymbol === symbol) && (!from || partition.windowStart >= from) && (!to || partition.windowEnd <= to))
   if (command === "retry-failed" || command === "retry-gaps") {
@@ -412,6 +415,10 @@ async function run(snapshot: FundingExecutionSnapshot, clients: Awaited<ReturnTy
     selected = selected.filter((partition) => keys.has(partition.partitionId))
   }
   selected = selected.slice(0, maxPartitions)
+  if (eventFrom && eventTo) {
+    if (selected.length !== 1 || selected[0].sourceKind !== "BINANCE_VISION_MONTHLY") throw new Error("FUNDING_BOUNDED_EVENT_WINDOW_REQUIRES_ONE_MONTHLY_PARTITION")
+    selected = [createBoundedFundingEventPartition(selected[0], eventFrom, eventTo)]
+  }
   if (selected.length === 0) { console.log(JSON.stringify({ status: "NO_ELIGIBLE_PARTITIONS", progress: await status(snapshot, clients) })); return }
   await unlink(stopPath(snapshot.snapshotId)).catch(() => undefined)
   const results: FundingPartitionProgress[] = []

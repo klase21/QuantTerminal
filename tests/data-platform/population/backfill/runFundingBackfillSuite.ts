@@ -2,6 +2,7 @@ import {
   createBinanceOfficialFundingTailPartition,
   createBinanceVisionFundingPartition,
   createFundingExecutionSnapshot,
+  createBoundedFundingEventPartition,
   createFundingPartitionId,
   createFundingUnitIdentity,
   D3_PHASE3_MANIFEST,
@@ -33,5 +34,17 @@ check("Funding identity includes cadence and source", createFundingPartitionId("
 check("Funding Unit cannot collide with OHLCV", createFundingUnitIdentity(first.parentManifestId, "instrument", "BINANCE_VISION_MONTHLY", "2026-06").startsWith("funding-unit:"))
 check("Funding concurrency fixed to one", first.globalConcurrency === 1 && first.providerDownloadConcurrency === 1)
 check("snapshot checksum identity", first.snapshotId === `funding-execution:${first.snapshotChecksum}`)
+
+const april = first.partitions.find((partition) => partition.providerSymbol === "BTCUSDT" && partition.sourcePeriod === "2026-04")!
+const boundedApril = createBoundedFundingEventPartition(april, "2026-04-13T00:00:00.000Z", "2026-05-01T00:00:00.000Z")
+check("bounded Funding subset has a distinct Unit identity", boundedApril.partitionId !== april.partitionId && boundedApril.unitIdentity !== april.unitIdentity)
+check("bounded Funding subset retains source-object window", boundedApril.sourceWindowStart === april.windowStart && boundedApril.sourceWindowEnd === april.windowEnd)
+check("bounded Funding subset preserves source row ordinals", boundedApril.preserveSourceRowOrdinal === true)
+check("bounded Funding subset uses exact event window", boundedApril.windowStart === "2026-04-13T00:00:00.000Z" && boundedApril.windowEnd === "2026-05-01T00:00:00.000Z")
+check("full source window is not needlessly re-identified", createBoundedFundingEventPartition(april, april.windowStart, april.windowEnd) === april)
+
+let invalidBoundedWindowRejected = false
+try { createBoundedFundingEventPartition(april, "2026-03-31T00:00:00.000Z", "2026-05-01T00:00:00.000Z") } catch { invalidBoundedWindowRejected = true }
+check("bounded Funding subset fails closed outside source window", invalidBoundedWindowRejected)
 
 if (failures) process.exitCode = 1

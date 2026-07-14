@@ -162,7 +162,18 @@ async function discoverBoundary(symbol: string, activationTimestamp: string): Pr
 
 async function completedPartitionMap(d2: Awaited<ReturnType<typeof createIntegratedBackfillClientsFromEnvironment>>["d2"], d3: Awaited<ReturnType<typeof createIntegratedBackfillClientsFromEnvironment>>["d3"]): Promise<Readonly<Record<string, string>>> {
   const units = await d3.sql<Array<{ partition_key: string; unit_id: string; outcomes: number; coverage: number }>>`SELECT u.partition_key,u.unit_id,(SELECT count(*)::int FROM control.population_outcomes o WHERE o.unit_id=u.unit_id AND o.outcome_kind IN ('COMMITTED','DUPLICATE')) outcomes,(SELECT count(*)::int FROM coverage.watermark_eligibility_decisions w WHERE w.unit_id=u.unit_id AND w.eligibility_result='ELIGIBLE') coverage FROM control.population_units u WHERE u.dataset_id='ohlcv' AND u.provider_id='binance-public-archive' AND u.current_state='COMPLETED'`
-  const facts = await d2.sql<Array<{ symbol: string; utc_day: string; facts: number; lineage: number }>>`SELECT o.symbol,to_char(o.open_time AT TIME ZONE 'UTC','YYYY-MM-DD') AS utc_day,count(*)::int facts,count(*) FILTER (WHERE EXISTS(SELECT 1 FROM repository.lineage_edges e WHERE e.destination_node_id=o.canonical_record_id AND e.destination_node_version=o.record_version::text))::int lineage FROM canonical.ohlcv o WHERE o.provider_id='binance-public-archive' AND o.resolution='5m' GROUP BY o.symbol,to_char(o.open_time AT TIME ZONE 'UTC','YYYY-MM-DD')`
+  const facts = await d2.sql<Array<{ symbol: string; utc_day: string; facts: number; lineage: number }>>`
+    WITH raw_lineage AS (
+      SELECT DISTINCT destination_node_id,destination_node_version
+      FROM repository.lineage_edges
+      WHERE source_node_type='RAW_OBJECT' AND destination_node_type='CANONICAL_FACT'
+    )
+    SELECT o.symbol,to_char(o.open_time AT TIME ZONE 'UTC','YYYY-MM-DD') AS utc_day,count(*)::int facts,
+      count(l.destination_node_id)::int lineage
+    FROM canonical.ohlcv o
+    LEFT JOIN raw_lineage l ON l.destination_node_id=o.canonical_record_id AND l.destination_node_version=o.record_version::text
+    WHERE o.provider_id='binance-public-archive' AND o.resolution='5m'
+    GROUP BY o.symbol,to_char(o.open_time AT TIME ZONE 'UTC','YYYY-MM-DD')`
   const factsByKey = new Map(facts.map((row) => [`${row.symbol}:5m:${row.utc_day}`, row]))
   const completed: Record<string, string> = {}
   for (const unit of units) {

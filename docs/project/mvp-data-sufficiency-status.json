@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "mvp-data-sufficiency-status/v1",
+  "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+  "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+  "populationStatusEnum": ["DATA_SUFFICIENT", "DATA_SUFFICIENT_WITH_LIMITATION", "DATA_INSUFFICIENT", "SOURCE_BLOCKED"],
+  "featureStatusEnum": ["DATA_SUFFICIENT", "DATA_SUFFICIENT_WITH_LIMITATION", "DATA_INSUFFICIENT", "SOURCE_BLOCKED", "NOT_YET_PROJECTED"],
+  "features": [
+    {"page":"Dashboard","feature":"Market Direction","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding"],"limitation":"Consumer Projection and D4 Evidence are not implemented."},
+    {"page":"Dashboard","feature":"Derivatives State","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["open-interest","funding"],"limitation":"Liquidation enrichment is outside MVP-0B."},
+    {"page":"Dashboard","feature":"Trading Intensity","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["agg-trade"],"limitation":"Projection must query bounded Canonical Stream Segments."},
+    {"page":"Markets","feature":"Instrument Summaries","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding"],"limitation":"Current Consumer Projection is not implemented."},
+    {"page":"Scanner","feature":"Comparable Ranking Inputs","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding","agg-trade"],"limitation":"Ranking governance and durable candidate projection remain pending."},
+    {"page":"Trade","feature":"Market Context","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding","agg-trade"],"limitation":"Trade Decision Context and Evidence remain pending."},
+    {"page":"Shared","feature":"Coverage Display","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding","agg-trade"],"limitation":"Persisted Coverage is eligible; shared read model is not implemented."},
+    {"page":"Replay","feature":"Full Historical Replay","populationStatus":"DATA_INSUFFICIENT","featureStatus":"DATA_INSUFFICIENT","requiredDatasets":["ohlcv","open-interest","funding","agg-trade","order-book"],"limitation":"Not certified by the Recent Market Corpus; Order Book history remains separate."},
+    {"page":"Research","feature":"Final Evidence Conclusions","populationStatus":"DATA_SUFFICIENT_WITH_LIMITATION","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding","agg-trade"],"limitation":"D4 Evidence activation and historical event corpus remain pending."}
+  ],
+  "publicationBoundary": {"repositoryState":"PENDING","corpusEligibility":"ELIGIBLE","consumerProjectionStatus":"NOT_CREATED"}
+}

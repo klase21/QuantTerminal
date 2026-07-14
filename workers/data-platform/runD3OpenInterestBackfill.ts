@@ -159,17 +159,20 @@ async function readSnapshot(): Promise<OpenInterestExecutionSnapshot> {
 
 async function completedPartitionMap(clients: Clients): Promise<Readonly<Record<string, string>>> {
   const units = await clients.d3.sql<Array<{ partition_key: string; unit_id: string; outcomes: number; coverage: number }>>`SELECT u.partition_key,u.unit_id,(SELECT count(*)::int FROM control.population_outcomes o WHERE o.unit_id=u.unit_id AND o.outcome_kind IN ('COMMITTED','DUPLICATE')) outcomes,(SELECT count(*)::int FROM coverage.watermark_eligibility_decisions w WHERE w.unit_id=u.unit_id AND w.eligibility_result='ELIGIBLE') coverage FROM control.population_units u WHERE u.dataset_id='open-interest' AND u.current_state='COMPLETED'`
+  const links = await clients.d3.sql<Array<{ unit_id: string; canonical_record_id: string; record_version: number }>>`SELECT c.unit_id,s.canonical_record_id,s.record_version FROM population.canonical_submissions s JOIN population.candidates c ON c.candidate_id=s.candidate_id WHERE c.dataset_id='open-interest' AND s.result_status IN ('SUCCESS','DUPLICATE')`
+  const facts = await clients.d2.sql<Array<{ canonical_record_id: string; record_version: number }>>`SELECT DISTINCT f.canonical_record_id,f.record_version FROM canonical.open_interest f JOIN repository.lineage_edges e ON e.destination_node_id=f.canonical_record_id AND e.destination_node_version=f.record_version::text WHERE e.source_node_type='RAW_OBJECT'`
+  const factKeys = new Set(facts.map((fact) => `${fact.canonical_record_id}:${fact.record_version}`))
+  const linksByUnit = new Map<string, Array<{ canonical_record_id: string; record_version: number }>>()
+  for (const link of links) {
+    const current = linksByUnit.get(link.unit_id) ?? []
+    current.push(link)
+    linksByUnit.set(link.unit_id, current)
+  }
   const completed: Record<string, string> = {}
   for (const unit of units) {
     if (!unit.partition_key.startsWith("open-interest:") || unit.outcomes < 1 || unit.coverage !== 1) continue
-    const links = await clients.d3.sql<Array<{ canonical_record_id: string; record_version: number }>>`SELECT s.canonical_record_id,s.record_version FROM population.canonical_submissions s JOIN population.candidates c ON c.candidate_id=s.candidate_id WHERE c.unit_id=${unit.unit_id} AND s.result_status IN ('SUCCESS','DUPLICATE')`
-    if (links.length !== unit.outcomes) continue
-    let verified = 0
-    for (const link of links) {
-      const rows = await clients.d2.sql<Array<{ canonical_record_id: string }>>`SELECT f.canonical_record_id FROM canonical.open_interest f WHERE f.canonical_record_id=${link.canonical_record_id} AND f.record_version=${link.record_version} AND EXISTS(SELECT 1 FROM repository.lineage_edges e WHERE e.destination_node_id=f.canonical_record_id AND e.destination_node_version=f.record_version::text)`
-      if (rows.length === 1) verified += 1
-    }
-    if (verified === links.length) completed[unit.partition_key] = unit.unit_id
+    const unitLinks = linksByUnit.get(unit.unit_id) ?? []
+    if (unitLinks.length === unit.outcomes && unitLinks.every((link) => factKeys.has(`${link.canonical_record_id}:${link.record_version}`))) completed[unit.partition_key] = unit.unit_id
   }
   return Object.freeze(completed)
 }

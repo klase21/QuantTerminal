@@ -59,6 +59,11 @@ export interface FundingExecutionPartition {
   readonly initialState: FundingPartitionInitialState
   readonly retryState: "NOT_ATTEMPTED"
   readonly existingCompletionReference: string | null
+  /** Present only for a bounded event subset of a larger provider source object. */
+  readonly sourcePartitionId?: string
+  readonly sourceWindowStart?: string
+  readonly sourceWindowEnd?: string
+  readonly preserveSourceRowOrdinal?: true
 }
 
 export interface FundingExecutionSnapshotContent {
@@ -136,6 +141,38 @@ export function createFundingPartitionId(canonicalInstrumentId: string, sourceKi
 
 export function createFundingUnitIdentity(parentManifestId: string, canonicalInstrumentId: string, sourceKind: FundingSourceKind, sourcePeriod: string): string {
   return `funding-unit:${canonicalChecksum({ parentManifestId, datasetId: "funding", cadence: "EVENT_8H", canonicalInstrumentId, sourceKind, sourcePeriod })}`
+}
+
+export function createBoundedFundingEventPartition(
+  partition: FundingExecutionPartition,
+  eventWindowStart: string,
+  eventWindowEnd: string,
+): FundingExecutionPartition {
+  const start = Date.parse(eventWindowStart)
+  const end = Date.parse(eventWindowEnd)
+  const sourceStart = Date.parse(partition.windowStart)
+  const sourceEnd = Date.parse(partition.windowEnd)
+  if (![start, end, sourceStart, sourceEnd].every(Number.isFinite) || start >= end || start < sourceStart || end > sourceEnd) {
+    throw new Error("FUNDING_BOUNDED_EVENT_WINDOW_INVALID")
+  }
+  if (start === sourceStart && end === sourceEnd) return partition
+  const scope = canonicalChecksum({ sourcePartitionId: partition.partitionId, eventWindowStart, eventWindowEnd })
+  const partitionId = `${partition.partitionId}:bounded:${scope}`
+  return Object.freeze({
+    ...partition,
+    partitionId,
+    windowStart: eventWindowStart,
+    windowEnd: eventWindowEnd,
+    earliestEligibleEventTime: new Date(Math.max(start, Date.parse(partition.earliestEligibleEventTime))).toISOString(),
+    finalEligibleEventTime: new Date(Math.min(end - 1, Date.parse(partition.finalEligibleEventTime))).toISOString(),
+    unitIdentity: `funding-unit:${canonicalChecksum({ parentManifestId: partition.parentManifestId, sourcePartitionId: partition.partitionId, eventWindowStart, eventWindowEnd })}`,
+    initialState: "PENDING",
+    existingCompletionReference: null,
+    sourcePartitionId: partition.partitionId,
+    sourceWindowStart: partition.windowStart,
+    sourceWindowEnd: partition.windowEnd,
+    preserveSourceRowOrdinal: true,
+  })
 }
 
 function partitionBase(manifest: BackfillManifest, boundary: FundingAvailabilityBoundary, sourceKind: FundingSourceKind, sourcePeriod: string, completed: Readonly<Record<string, string>>) {
