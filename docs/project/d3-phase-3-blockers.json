@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T09:18:15.814Z",
+  "generatedAt": "2026-07-14T09:35:09.149Z",
   "status": "NON_OHLCV_AND_PHASE_V_BLOCKERS_REMAIN",
   "blockers": [
     {
@@ -119,7 +119,7 @@
     {
       "id": "D3P3-LIQ-B01",
       "disposition": "STILL_BLOCKING",
-      "evidence": "The repository's assumed Binance Vision USD-M liquidationSnapshot prefix is empty and all six governed 2026-07-11 objects return HTTP 404. Binance's official force-order stream is live-only and intentionally sampled. CryptoHFTData provides third-party observed events but is not approved for Liquidation and documents lower-bound completeness.",
+      "evidence": "Complete canonical observed-event history remains blocked: the Binance Vision USD-M liquidationSnapshot prefix is empty, Binance's official force-order stream is live-only and sampled, and CryptoHFTData is not approved for D3 Liquidation and documents lower-bound completeness. The available Coinalyze provider supplies five-minute aggregates and does not resolve this event-history blocker.",
       "remainingWork": "Make an explicit source-approval decision. If CryptoHFTData is approved, bind its lower-bound completeness, licensing, six-instrument availability, and source-selection policy into the governed registry."
     },
     {
@@ -139,6 +139,18 @@
       "disposition": "STILL_BLOCKING",
       "evidence": "No approved provider inventory establishes exact historical availability for all six governed instruments, so full-history events, source bytes, and capacity are unknown.",
       "remainingWork": "After source approval, verify per-instrument availability and run one persisted Canary before estimating or enumerating full history."
+    },
+    {
+      "id": "D3P3-LIQ-B05",
+      "disposition": "MIGRATION_REQUIRED",
+      "evidence": "Coinalyze Internal Web is implemented and production-approved in the legacy source registry as EXPERIMENTAL supplemental evidence. The 2026-07-01 BTCUSDT run wrote 298 five-minute LONG/SHORT aggregate records and its exact rerun returned 298 duplicates with zero writes. The path uses PersistenceRepository and legacy SQLite, stores no Raw Artifact, and is absent from the D3 provider registry and D2 Canonical boundary.",
+      "remainingWork": "Create a distinct additive D3/D2 aggregate-bar contract and provider binding, preserve explicit mapping and ephemeral request-key gates, add Raw Artifact/Retrieval lineage and bounded Coverage, then run the 2026-07-01 partition as a new D3 Canary."
+    },
+    {
+      "id": "D3P3-LIQ-L01",
+      "disposition": "LIMITATION",
+      "evidence": "Only BTCUSDT has a verified Coinalyze mapping: BTCUSDT_PERP.A with BTCUSDT_PERP_LQS.A and BTCUSDT_PERP_LQB.A. The other five governed instruments have no approved mapping or verified historical boundary.",
+      "remainingWork": "Approve mappings individually from source evidence; never infer provider symbols from suffix rules."
     }
   ]
 }

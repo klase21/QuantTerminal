@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T09:18:15.814Z",
+  "generatedAt": "2026-07-14T09:35:09.149Z",
   "status": "BLOCKED",
   "governedScope": {
     "venue": "BINANCE_USD_M_FUTURES",
@@ -14,7 +14,20 @@
     "frozenCutoff": "2026-07-12T00:00:00.000Z"
   },
   "selectedSource": null,
-  "sourceCompletenessClassification": "UNKNOWN",
+  "sourceCompletenessClassification": "CANONICAL_EVENT_HISTORY_BLOCKED_EXPERIMENTAL_AGGREGATES_AVAILABLE",
+  "sourceTaxonomy": {
+    "completeCanonicalObservedLiquidationEvents": {
+      "status": "BLOCKED",
+      "selectedSource": null
+    },
+    "coinalyzeInternalAggregatedLiquidationBars": {
+      "status": "AVAILABLE_IN_LEGACY_REPOSITORY_WITH_LIMITATIONS",
+      "classification": "EXPERIMENTAL_AGGREGATED_LIQUIDATION_BARS",
+      "canonical": false,
+      "supplementalEvidenceEligible": true,
+      "d3Compatible": false
+    }
+  },
   "candidates": [
     {
       "source": "BINANCE_VISION_USD_M_LIQUIDATION_SNAPSHOT",
@@ -40,10 +53,19 @@
     },
     {
       "source": "COINALYZE_INTERNAL_WEB",
-      "approvedProvider": false,
+      "approvedProvider": true,
+      "approvedIn": "LEGACY_SOURCE_REGISTRY_ONLY",
+      "approvedInD3ProviderRegistry": false,
       "historicalObservedEvents": false,
-      "classification": "UNSUPPORTED",
-      "evidence": "The repository integration is experimental five-minute aggregated liquidation volume, not provider-native observed events."
+      "classification": "EXPERIMENTAL_AGGREGATED_LIQUIDATION_BARS",
+      "providerTier": "EXPERIMENTAL",
+      "canonical": false,
+      "verified": false,
+      "confidence": 0.65,
+      "mappingScope": [
+        "BTCUSDT"
+      ],
+      "evidence": "The legacy provider implementation and 2026-07-01 execution are present. It supplies five-minute LONG/SHORT provider-visible liquidation volume as supplemental evidence, not individual forced-order events."
     }
   ],
   "canary": {
@@ -62,6 +84,21 @@
     "sha256": "922b2a714201166a09e2d5aa6990ac45a0fbb647b008f9f564e44b340d9fe7b4",
     "persistedThroughD3": false
   },
+  "priorLegacyCoinalyzeExecution": {
+    "status": "PASS_EXPERIMENTAL_LEGACY_REPOSITORY",
+    "instrument": "BTCUSDT",
+    "utcDay": "2026-07-01",
+    "endpoint": "POST /chart/getTheBars/",
+    "resolution": "5m",
+    "sourceBars": 288,
+    "nonEmptyBars": 221,
+    "mappedAggregateRecords": 298,
+    "firstRunWrites": 298,
+    "rerunDuplicates": 298,
+    "rerunWrites": 0,
+    "persistedThroughD3": false,
+    "durableRawArtifact": false
+  },
   "storageDecision": {
     "status": "DEFERRED_PENDING_SOURCE_APPROVAL",
     "provisionalModel": "CANONICAL_FACT",
@@ -69,7 +106,21 @@
   },
   "contractReadiness": {
     "status": "BLOCKED",
-    "reasonCode": "FORCE_ORDER_FIELD_RETENTION_INCOMPLETE"
+    "reasonCodes": [
+      "FORCE_ORDER_FIELD_RETENTION_INCOMPLETE",
+      "COINALYZE_AGGREGATE_CONTRACT_ABSENT_FROM_D3"
+    ]
+  },
+  "coinalyzeMigrationReadiness": {
+    "status": "MIGRATION_REQUIRED",
+    "requiredWork": [
+      "REGISTER_EXPERIMENTAL_PROVIDER_IN_D3",
+      "DEFINE_DISTINCT_AGGREGATE_BAR_DATASET_OR_TARGET_KIND",
+      "PERSIST_RAW_ARTIFACT_AND_RETRIEVAL_LINEAGE",
+      "ADD_TYPED_LONG_SHORT_VOLUME_CONTRACT",
+      "ADD_BOUNDED_FIVE_MINUTE_COVERAGE",
+      "PRESERVE_EXPLICIT_MAPPING_AND_EPHEMERAL_REQUEST_KEY_GATES"
+    ]
   },
   "persistedCounts": {
     "rawArtifacts": 0,
@@ -83,6 +134,6 @@
     "checkpoints": 0,
     "units": 0
   },
-  "nextStep": "SOURCE_APPROVAL_DECISION",
+  "nextStep": "D3_COINALYZE_AGGREGATED_LIQUIDATION_MIGRATION_AND_CANARY",
   "gate": "D3_LIQUIDATION_HISTORICAL_SOURCE_DISCOVERY_BLOCKED"
 }
