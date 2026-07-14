@@ -1,13 +1,13 @@
 import { Suspense } from "react"
 
-import DashboardLayout from "@/components/DashboardLayout"
+import MvpCutoverPage, { MvpCutoverLoadingShell } from "@/components/mvp-cutover/MvpCutoverPage"
 import { TerminalAppShell } from "@/components/layout/PrimaryNavigation"
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-black text-white" />}>
+    <Suspense fallback={<MvpCutoverLoadingShell view="dashboard" />}>
       <TerminalAppShell>
-        <DashboardLayout />
+        <MvpCutoverPage view="dashboard" />
       </TerminalAppShell>
     </Suspense>
   )

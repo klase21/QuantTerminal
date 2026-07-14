@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "mvp-legacy-path-retirement/v1",
+  "classificationEnum": ["REMOVED_FROM_DEFAULT_PATH","RETAINED_FOR_ROLLBACK","RETAINED_FOR_TEST_ONLY","STILL_REQUIRED_FOR_LIVE_OVERLAY","OUT_OF_SCOPE"],
+  "entries": [
+    {"path":"components/dashboard-v2/DashboardLayout.tsx","classification":"RETAINED_FOR_ROLLBACK"},
+    {"path":"components/markets-v2/MarketsPage.tsx","classification":"RETAINED_FOR_ROLLBACK"},
+    {"path":"components/scanner/ScannerPage.tsx","classification":"RETAINED_FOR_ROLLBACK"},
+    {"path":"components/trade/TradePage.tsx","classification":"RETAINED_FOR_ROLLBACK"},
+    {"path":"components/replay-v1/ReplayV1Page.tsx","classification":"RETAINED_FOR_ROLLBACK"},
+    {"path":"components/research-v2/ResearchPage.tsx","classification":"RETAINED_FOR_ROLLBACK"},
+    {"path":"lib/stores/marketStore.ts","classification":"STILL_REQUIRED_FOR_LIVE_OVERLAY"},
+    {"path":"lib/hooks/useMarketSocket.ts","classification":"STILL_REQUIRED_FOR_LIVE_OVERLAY"},
+    {"path":"app/api/replay/route.ts","classification":"OUT_OF_SCOPE","reason":"Dormant route is not used by the six cutover pages."},
+    {"path":"lib/core/replay/mockReplayData.ts","classification":"RETAINED_FOR_TEST_ONLY","reason":"No primary cutover route imports it."}
+  ],
+  "defaultPathPolicy": "Projection read failures render classified states and never invoke rollback components."
+}
+

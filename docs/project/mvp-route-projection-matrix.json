@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "mvp-route-projection-matrix/v1",
+  "projectionCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+  "routes": [
+    {"route":"/dashboard","view":"dashboard","primaryKinds":["DashboardMarketStateProjection","CoverageDataStatusProjection","SourceLineageSummaryProjection","EventAnnotationProjection"],"boundedCount":43,"liveOverlay":"BINANCE_REALTIME_QUOTE","legacyDefault":false},
+    {"route":"/markets","view":"markets","primaryKinds":["InstrumentMarketSummaryProjection","CoverageDataStatusProjection","SourceLineageSummaryProjection"],"boundedCount":36,"liveOverlay":"BINANCE_REALTIME_QUOTE","legacyDefault":false},
+    {"route":"/scanner","view":"scanner","primaryKinds":["ScannerCandidateProjection","CoverageDataStatusProjection","ResearchEvidenceProjection"],"boundedCount":31,"liveOverlay":"NONE","legacyDefault":false},
+    {"route":"/trade","view":"trade","primaryKinds":["TradeDecisionContextProjection","InstrumentMarketSummaryProjection","ResearchEvidenceProjection","CoverageDataStatusProjection"],"boundedCount":8,"liveOverlay":"BINANCE_REALTIME_QUOTE","legacyDefault":false},
+    {"route":"/replay","view":"replay","primaryKinds":["ReplayTimelineProjection","EventAnnotationProjection","CoverageDataStatusProjection","SourceLineageSummaryProjection"],"boundedCount":7,"liveOverlay":"PROTECTED_ORDER_BOOK_SEPARATE","legacyDefault":false},
+    {"route":"/research","view":"research","primaryKinds":["ResearchEvidenceProjection","SourceLineageSummaryProjection","CoverageDataStatusProjection","EventAnnotationProjection"],"boundedCount":7,"liveOverlay":"NONE","legacyDefault":false}
+  ]
+}
+

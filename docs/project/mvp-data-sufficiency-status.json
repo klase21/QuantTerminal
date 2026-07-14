@@ -3,15 +3,15 @@
   "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
   "projectionCorpusId": "mvp-projection-corpus:3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
   "projectionCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
-  "featureStatusEnum": ["PROJECTION_READY", "PROJECTION_READY_WITH_LIMITATION", "NOT_YET_PROJECTED", "SOURCE_BLOCKED", "NOT_IN_MVP_SCOPE"],
-  "summary": {"featureCount":52,"projectionReady":43,"projectionReadyWithLimitation":6,"sourceBlocked":1,"notInMvpScope":2,"notYetProjected":0},
+  "featureStatusEnum": ["FUNCTIONAL_PROJECTION_BACKED", "FUNCTIONAL_PROJECTION_BACKED_WITH_LIMITATION", "SOURCE_BLOCKED", "NOT_IN_MVP_SCOPE", "BROKEN"],
+  "summary": {"featureCount":52,"functionalProjectionBacked":43,"functionalProjectionBackedWithLimitation":6,"sourceBlocked":1,"notInMvpScope":2,"broken":0},
   "pages": [
-    {"page":"Dashboard","status":"PROJECTION_READY_WITH_LIMITATION","limitation":"Liquidation is optional and complete historical events remain blocked."},
-    {"page":"Markets","status":"PROJECTION_READY_WITH_LIMITATION","limitation":"Realtime structure remains a protected live path until MVP-4 composes it with governed summaries."},
-    {"page":"Scanner","status":"PROJECTION_READY","limitation":"Ranking is investigation priority, not expected profit."},
-    {"page":"Trade","status":"PROJECTION_READY","limitation":"Context only; no action, order, sizing, or execution instruction."},
-    {"page":"Replay","status":"PROJECTION_READY_WITH_LIMITATION","limitation":"Bounded Evidence windows are ready; Liquidation, Order Book, and news enrichment remain limited."},
-    {"page":"Research","status":"PROJECTION_READY_WITH_LIMITATION","limitation":"Bounded Evidence corpus is ready; automatic historical polling remains disabled by design."}
+    {"page":"Dashboard","status":"FUNCTIONAL_PROJECTION_BACKED_WITH_LIMITATION","limitation":"Liquidation is optional and complete historical events remain blocked."},
+    {"page":"Markets","status":"FUNCTIONAL_PROJECTION_BACKED_WITH_LIMITATION","limitation":"Protected live structure remains separate from governed summaries."},
+    {"page":"Scanner","status":"FUNCTIONAL_PROJECTION_BACKED","limitation":"Ranking is investigation priority, not expected profit."},
+    {"page":"Trade","status":"FUNCTIONAL_PROJECTION_BACKED","limitation":"Context only; no action, order, sizing, or execution instruction."},
+    {"page":"Replay","status":"FUNCTIONAL_PROJECTION_BACKED_WITH_LIMITATION","limitation":"Liquidation, historical Order Book, and news enrichment remain limited."},
+    {"page":"Research","status":"FUNCTIONAL_PROJECTION_BACKED_WITH_LIMITATION","limitation":"Automatic historical polling remains disabled by design."}
   ],
-  "publicationBoundary": {"d2SourcePublication":"PENDING","d4Evidence":"INTERNALLY_PERSISTED","projectionLifecycle":"GENERATED","consumerExposure":"READY_FOR_CUTOVER","pageApiConsumer":"UNCHANGED"}
+  "publicationBoundary": {"d2SourcePublication":"PENDING","d4Evidence":"INTERNALLY_PERSISTED","projectionLifecycle":"GENERATED","storedProjectionExposure":"READY_FOR_CUTOVER","effectiveConsumerExposure":"CONSUMER_VISIBLE","pageApiConsumer":"PROJECTION_BACKED"}
 }

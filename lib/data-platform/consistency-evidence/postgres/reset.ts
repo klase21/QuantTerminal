@@ -3,6 +3,7 @@ import type { ConsistencyPostgresRuntime } from "./client"
 export interface D4ResetCommand { readonly explicitOptIn: "RESET_D4_ISOLATED_DATABASE"; readonly auditIdentity: string }
 export interface D4FullResetCommand { readonly explicitOptIn: "RESET_D4_FULL_ISOLATED_REBUILD"; readonly auditIdentity: string }
 const D4_TABLES = Object.freeze([
+  "projection.mvp_consumer_exposure_invalidations", "projection.mvp_consumer_exposure_decisions",
   "projection.mvp_projection_conflicts", "projection.mvp_projection_dependencies", "projection.mvp_projection_versions", "projection.mvp_projection_definitions",
   "evidence.mvp_market_assessments", "evidence.core_packet_conflicts", "evidence.core_packet_lineage", "evidence.core_packet_requirements", "evidence.core_packet_fact_references", "evidence.core_packet_result_references", "evidence.core_packet_candidates", "evidence.core_packet_versions", "evidence.core_candidates", "evidence.core_packet_identities", "evidence.core_assembly_profiles",
   "consistency.recompute_step_lease_events", "consistency.recompute_step_lease_state",
@@ -42,6 +43,7 @@ export async function resetD4FullIsolated(runtime: ConsistencyPostgresRuntime, c
     await sql.unsafe("DROP ROLE IF EXISTS qt_d4_read_only")
     await sql.unsafe("DROP ROLE IF EXISTS qt_d4_consistency_worker")
     await sql.unsafe("DROP ROLE IF EXISTS qt_d4_evidence_assembler")
+    await sql.unsafe("DROP ROLE IF EXISTS qt_d4_projection_publisher")
   })
 }
 export async function verifyD4Reset(runtime: ConsistencyPostgresRuntime): Promise<boolean> {

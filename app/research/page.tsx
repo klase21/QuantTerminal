@@ -1,13 +1,13 @@
 import { Suspense } from "react"
 
-import ResearchPage from "@/components/research/ResearchPage"
+import MvpCutoverPage, { MvpCutoverLoadingShell } from "@/components/mvp-cutover/MvpCutoverPage"
 import { TerminalAppShell } from "@/components/layout/PrimaryNavigation"
 
 export default function ResearchRoute() {
   return (
     <TerminalAppShell>
-      <Suspense fallback={null}>
-        <ResearchPage />
+      <Suspense fallback={<MvpCutoverLoadingShell view="research" />}>
+        <MvpCutoverPage view="research" />
       </Suspense>
     </TerminalAppShell>
   )
