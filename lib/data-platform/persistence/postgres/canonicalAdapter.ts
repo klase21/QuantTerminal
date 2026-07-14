@@ -89,6 +89,7 @@ async function countFact(sql: postgres.Sql, table: string, commitId: string): Pr
   const query = table === "OHLCV" ? sql<CountRow[]>`SELECT count(*)::int AS count FROM canonical.ohlcv WHERE commit_id=${commitId}`
     : table === "FUNDING" ? sql<CountRow[]>`SELECT count(*)::int AS count FROM canonical.funding WHERE commit_id=${commitId}`
     : table === "OPEN_INTEREST" ? sql<CountRow[]>`SELECT count(*)::int AS count FROM canonical.open_interest WHERE commit_id=${commitId}`
+    : table === "AGG_TRADE" ? sql<CountRow[]>`SELECT count(*)::int AS count FROM canonical.agg_trades WHERE commit_id=${commitId}`
     : table === "LIQUIDATION" ? sql<CountRow[]>`SELECT count(*)::int AS count FROM canonical.liquidations WHERE commit_id=${commitId}`
     : table === "PREDICTION_SNAPSHOT" ? sql<CountRow[]>`SELECT count(*)::int AS count FROM canonical.prediction_snapshots WHERE commit_id=${commitId}`
     : table === "ETF_OBSERVATION" ? sql<CountRow[]>`SELECT count(*)::int AS count FROM canonical.etf_observations WHERE commit_id=${commitId}`

@@ -11,5 +11,5 @@ export const fencingRequired = sql.includes("current_fencing_token bigint NOT NU
 export const candidateSubmissionUnique = sql.includes("candidate_id text NOT NULL UNIQUE REFERENCES population.candidates")
 export const appendOnlyHistoryPresent = sql.includes("population_job_events") && sql.includes("population_run_events") && sql.includes("population_unit_events")
 export const rawBytesExcluded = !/raw_bytes\s+(bytea|blob)/i.test(sql)
-export const d2MigrationsUntouchedByOrder = names.length === 2 && names[0] === "001_population_control_plane.sql" && names[1] === "002_population_roles.sql"
+export const d2MigrationsUntouchedByOrder = names.length === 3 && names[0] === "001_population_control_plane.sql" && names[1] === "002_population_roles.sql" && names[2] === "003_agg_trade_candidates.sql"
 export const supersessionNotLineage = !sql.includes("SUPERSEDES")

@@ -15,7 +15,7 @@ if (!isolatedUrl()) {
     await harness.reset()
     await harness.migrate()
     const rerun = await applyApprovedMigrations(harness.client, "d2-isolated-rerun")
-    check("migration rerun skips", rerun.length === 4 && rerun.every((result) => result.status === "SKIPPED"))
+    check("migration rerun skips", rerun.length === 7 && rerun.every((result) => result.status === "SKIPPED"))
     await harness.client.sql`UPDATE control.migration_ledger SET migration_checksum=${"0".repeat(64)} WHERE migration_id='004'`
     const changedChecksum = await applyApprovedMigrations(harness.client, "d2-isolated-checksum-test")
     const changedResult = changedChecksum.at(-1)

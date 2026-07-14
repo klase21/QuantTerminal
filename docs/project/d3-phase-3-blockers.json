@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T06:16:32.879Z",
+  "generatedAt": "2026-07-14T08:28:24.637Z",
   "status": "NON_OHLCV_AND_PHASE_V_BLOCKERS_REMAIN",
   "blockers": [
     {
@@ -67,6 +67,54 @@
       "disposition": "RESOLVED",
       "evidence": "Legacy SQLite is explicitly excluded from canonical Phase 3 counts and launch scope.",
       "remainingWork": "A future import requires a separate certified lineage-preserving migration."
+    },
+    {
+      "id": "D3P3-AGG-B01",
+      "disposition": "RESOLVED_BY_SEGMENT_MODEL",
+      "evidence": "The row-model capacity failure remains historical evidence. Additive D2 migration 008 and the Segment runner persist one immutable Parquet Segment plus bounded manifest lifecycle metadata per daily partition. The real 24,898-event Segment Canary measured 999,669 Segment bytes; the full conservative capacity gate requires 658,265,843,123 Artifact bytes including a 20 percent margin and 65,741,090,092 PostgreSQL bytes including reserved growth. Both pass against measured capacity.",
+      "remainingWork": "Monitor the narrow 9,520,003,661-byte Artifact margin on every resume; stop before launch if concurrent dataset growth consumes it."
+    },
+    {
+      "id": "D3P3-AGG-L01",
+      "disposition": "PARTIALLY_RESOLVED",
+      "evidence": "The immutable AggTrades child execution snapshot binds the provider-native per-record source, identity policy, and production normalizer without changing the parent Manifest identity used by active OHLCV, Funding, and OI snapshots.",
+      "remainingWork": "Reconcile the historical parent Manifest stream-boundary binding in a future governed Manifest version after active snapshots are retired."
+    },
+    {
+      "id": "D3P3-AGG-L02",
+      "disposition": "PARTIALLY_RESOLVED",
+      "evidence": "Funding, OI, and AggTrades reconciliation passed. The existing OHLCV reconciler entered an unbounded correlated lineage query and its read-only statements were cancelled without affecting persisted state.",
+      "remainingWork": "Optimize and certify the OHLCV read-only reconciliation query in its own bounded operational change."
+    },
+    {
+      "id": "D3P3-AGG-L03",
+      "disposition": "PARTIALLY_RESOLVED",
+      "evidence": "The AggTrades command surface uses the governed per-partition engine, bounded concurrency, durable stop marker, identity-based completion lookup, and capacity gate. A live insufficient-capacity run attempted zero partitions as required.",
+      "remainingWork": "After capacity expansion, live-certify graceful stop/resume and failed/Gap-only retry behavior before unattended long-running execution."
+    },
+    {
+      "id": "D3P3-AGG-L04",
+      "disposition": "PARTIALLY_RESOLVED",
+      "evidence": "The protected D4 foundation bootstrap is pinned to D2 migrations 001-004 and returns D2_DEPENDENCY_INVENTORY_MISMATCH against the current directory. This was already true at the task baseline because migrations 005 and 006 existed; additive migration 007 is also intentionally absent from the old pinned inventory. D4 files were not modified.",
+      "remainingWork": "Certify a bounded D4 dependency-inventory compatibility update in the owning D4 scope before a fresh D4 foundation bootstrap uses the expanded D2 migration chain."
+    },
+    {
+      "id": "D3P3-AGG-L05",
+      "disposition": "RESOLVED_BY_SEGMENT_MODEL",
+      "evidence": "Segment execution writes one Candidate, one submission, one outcome, and one Coverage decision per partition. The live Segment Canary Coverage outcome_ids cardinality is exactly one and bounded_dimensions is 267 bytes.",
+      "remainingWork": "Retain the one-outcome-per-Segment invariant."
+    },
+    {
+      "id": "D3P3-AGG-SEG-L01",
+      "disposition": "LIMITATION",
+      "evidence": "The capacity gate passes with a 20 percent safety factor, but the measured Artifact margin is only 9,520,003,661 bytes after reserved non-AggTrades growth.",
+      "remainingWork": "Recalculate capacity from current free space before every resume; expand the Artifact volume if the gate stops passing."
+    },
+    {
+      "id": "D2_DEPENDENCY_INVENTORY_MISMATCH",
+      "disposition": "DEFERRED_D4_MAINTENANCE",
+      "evidence": "D4's dependency bootstrap remains pinned to an earlier D2 migration inventory. D4 was not invoked or modified; D2 migration 008 is intentionally additive.",
+      "remainingWork": "Perform a bounded D4-owned dependency-inventory compatibility update after Segment storage certification."
     }
   ]
 }

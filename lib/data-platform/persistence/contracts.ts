@@ -30,7 +30,7 @@ export interface CanonicalFactReference extends CanonicalRecordIdentity {
 }
 
 export type CanonicalFactTable =
-  | "OHLCV" | "FUNDING" | "OPEN_INTEREST" | "LIQUIDATION"
+  | "OHLCV" | "FUNDING" | "OPEN_INTEREST" | "AGG_TRADE" | "LIQUIDATION"
   | "PREDICTION_SNAPSHOT" | "ETF_OBSERVATION" | "RESERVE_OBSERVATION"
   | "MACRO_OBSERVATION" | "STREAM_MANIFEST"
 
@@ -64,13 +64,50 @@ export interface OpenInterestFact extends FactBase {
   readonly valueUnit: "PROVIDER_NATIVE_QUOTE_VALUE" | null
   readonly window: "5m"
 }
+export interface AggTradeFact extends FactBase {
+  readonly kind: "AGG_TRADE"
+  readonly canonicalInstrumentId: string
+  readonly marketType: "USD_M_FUTURES"
+  readonly aggregateTradeId: string
+  readonly price: string
+  readonly quantity: string
+  readonly firstTradeId: string
+  readonly lastTradeId: string
+  readonly tradeTime: string
+  readonly sourceTimestamp: string
+  readonly buyerIsMaker: boolean
+}
 export interface LiquidationFact extends FactBase { readonly kind: "LIQUIDATION"; readonly side: "BUY" | "SELL"; readonly price: string; readonly quantity: string; readonly eventTime: string; readonly providerRecordId: string }
 export interface PredictionSnapshotFact extends FactBase { readonly kind: "PREDICTION_SNAPSHOT"; readonly marketId: string; readonly outcomeId: string; readonly probability: string; readonly volume: string | null; readonly liquidity: string | null }
 export interface EtfObservationFact extends FactBase { readonly kind: "ETF_OBSERVATION"; readonly instrumentId: string; readonly flowValue: string; readonly currency: string; readonly windowStart: string; readonly windowEnd: string }
 export interface ReserveObservationFact extends FactBase { readonly kind: "RESERVE_OBSERVATION"; readonly asset: string; readonly balance: string; readonly unit: string }
 export interface MacroObservationFact extends FactBase { readonly kind: "MACRO_OBSERVATION"; readonly seriesId: string; readonly value: string; readonly unit: string; readonly period: string }
-export interface StreamManifestFact extends FactBase { readonly kind: "STREAM_MANIFEST"; readonly streamKind: "AGG_TRADE" | "ORDERBOOK"; readonly rawObjectId: string; readonly windowStart: string; readonly windowEnd: string; readonly firstSequence: string | null; readonly lastSequence: string | null; readonly recordCount: number | null }
-export type CanonicalFact = OhlcvFact | FundingFact | OpenInterestFact | LiquidationFact | PredictionSnapshotFact | EtfObservationFact | ReserveObservationFact | MacroObservationFact | StreamManifestFact
+export interface StreamManifestFact extends FactBase {
+  readonly kind: "STREAM_MANIFEST"
+  readonly streamKind: "AGG_TRADE" | "ORDERBOOK"
+  readonly rawObjectId: string
+  readonly windowStart: string
+  readonly windowEnd: string
+  readonly firstSequence: string | null
+  readonly lastSequence: string | null
+  readonly recordCount: number | null
+  readonly sourceDatasetId?: string | null
+  readonly canonicalStreamId?: string | null
+  readonly canonicalInstrumentId?: string | null
+  readonly sourcePartitionKey?: string | null
+  readonly segmentContractVersion?: string | null
+  readonly segmentObjectKey?: string | null
+  readonly segmentContentChecksum?: string | null
+  readonly columnarFormat?: string | null
+  readonly compressionFormat?: string | null
+  readonly segmentByteLength?: number | null
+  readonly eventTimeMin?: string | null
+  readonly eventTimeMax?: string | null
+  readonly validationStatus?: string | null
+  readonly eventOrderPolicy?: string | null
+  readonly sourceRawObjectChecksum?: string | null
+}
+export type CanonicalFact = OhlcvFact | FundingFact | OpenInterestFact | AggTradeFact | LiquidationFact | PredictionSnapshotFact | EtfObservationFact | ReserveObservationFact | MacroObservationFact | StreamManifestFact
 
 export interface RepositoryEnvelope {
   readonly envelopeId: string

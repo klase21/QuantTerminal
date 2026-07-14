@@ -13,6 +13,7 @@ export interface ProductionNormalizationInput extends CandidateNormalizationInpu
 function required(value: string, field: string): string { if (!value.trim()) throw new Error(`NORMALIZER_${field}_MISSING`); return value.trim() }
 function timestamp(value: string, field: string): string { try { return normalizeIsoTimestamp(value) } catch { throw new Error(`NORMALIZER_${field}_INVALID`) } }
 function decimal(value: string, field: string): string { if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)) throw new Error(`NORMALIZER_${field}_INVALID`); return value }
+function providerDecimal(value: string, field: string): string { if (!/^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value) || !Number.isFinite(Number(value))) throw new Error(`NORMALIZER_${field}_INVALID`); return value }
 function positiveInteger(value: number, field: string): number { if (!Number.isInteger(value) || value <= 0) throw new Error(`NORMALIZER_${field}_INVALID`); return value }
 
 function governance(input: ProductionNormalizationInput): GovernanceBindings {
@@ -60,6 +61,16 @@ function normalizeOpenInterest(input: ProductionNormalizationInput & { readonly 
   return command(input, fact)
 }
 
+function normalizeAggTrade(input: ProductionNormalizationInput & { readonly candidate: Extract<PopulationCandidate, { readonly kind: "AGG_TRADE" }> }): CanonicalCommitCommand {
+  const p = input.candidate.payload
+  const tradeTime = timestamp(p.tradeTime, "TRADE_TIME")
+  const integer = (value: string, field: string) => { if (!/^\d+$/.test(value)) throw new Error(`NORMALIZER_${field}_INVALID`); return value }
+  const truth = { kind: "AGG_TRADE", providerId: input.candidate.providerId, venue: "BINANCE", symbol: required(p.symbol, "SYMBOL").toUpperCase(), canonicalInstrumentId: required(p.canonicalInstrumentId, "CANONICAL_INSTRUMENT"), marketType: p.marketType, aggregateTradeId: integer(p.aggregateTradeId, "AGGREGATE_TRADE_ID"), price: providerDecimal(p.price, "PRICE"), quantity: providerDecimal(p.quantity, "QUANTITY"), firstTradeId: integer(p.firstTradeId, "FIRST_TRADE_ID"), lastTradeId: integer(p.lastTradeId, "LAST_TRADE_ID"), tradeTime, sourceTimestamp: integer(p.sourceTimestamp, "SOURCE_TIMESTAMP"), buyerIsMaker: p.buyerIsMaker }
+  if (truth.marketType !== "USD_M_FUTURES" || BigInt(truth.firstTradeId) > BigInt(truth.lastTradeId)) throw new Error("NORMALIZER_AGG_TRADE_METADATA_INVALID")
+  const fact = completeFact({ kind: "AGG_TRADE", providerId: input.candidate.providerId, venue: "BINANCE", symbolOrSubject: truth.symbol, observedAt: timestamp(input.candidate.sourceObservedAt, "OBSERVED_AT"), effectiveAt: input.candidate.effectiveAt ? timestamp(input.candidate.effectiveAt, "EFFECTIVE_AT") : tradeTime, governance: governance(input), canonicalInstrumentId: truth.canonicalInstrumentId, marketType: truth.marketType, aggregateTradeId: truth.aggregateTradeId, price: truth.price, quantity: truth.quantity, firstTradeId: truth.firstTradeId, lastTradeId: truth.lastTradeId, tradeTime, sourceTimestamp: truth.sourceTimestamp, buyerIsMaker: truth.buyerIsMaker }, truth)
+  return command(input, fact)
+}
+
 function normalizeLiquidation(input: ProductionNormalizationInput & { readonly candidate: Extract<PopulationCandidate, { readonly kind: "LIQUIDATION" }> }): CanonicalCommitCommand {
   const p = input.candidate.payload; const eventTime = timestamp(p.eventTime, "EVENT_TIME"); const truth = { kind: "LIQUIDATION", providerId: input.candidate.providerId, venue: "BINANCE", symbol: required(p.symbol, "SYMBOL").toUpperCase(), side: p.side, price: decimal(p.price, "PRICE"), quantity: decimal(p.quantity, "QUANTITY"), eventTime, providerRecordId: required(p.providerRecordId, "PROVIDER_RECORD_ID") }
   const fact = completeFact({ kind: "LIQUIDATION", providerId: input.candidate.providerId, venue: "BINANCE", symbolOrSubject: truth.symbol, observedAt: timestamp(input.candidate.sourceObservedAt, "OBSERVED_AT"), effectiveAt: input.candidate.effectiveAt ? timestamp(input.candidate.effectiveAt, "EFFECTIVE_AT") : eventTime, governance: governance(input), side: truth.side, price: truth.price, quantity: truth.quantity, eventTime, providerRecordId: truth.providerRecordId }, truth)
@@ -72,6 +83,7 @@ export class ProductionNormalizerRegistry {
     if (input.candidate.kind === "OHLCV" && input.candidate.datasetId === "ohlcv") return normalizeOhlcv({ ...input, candidate: input.candidate })
     if (input.candidate.kind === "FUNDING" && input.candidate.datasetId === "funding") return normalizeFunding({ ...input, candidate: input.candidate })
     if (input.candidate.kind === "OPEN_INTEREST" && input.candidate.datasetId === "open-interest") return normalizeOpenInterest({ ...input, candidate: input.candidate })
+    if (input.candidate.kind === "AGG_TRADE" && input.candidate.datasetId === "agg-trade") return normalizeAggTrade({ ...input, candidate: input.candidate })
     if (input.candidate.kind === "LIQUIDATION" && input.candidate.datasetId === "liquidation") return normalizeLiquidation({ ...input, candidate: input.candidate })
     throw new Error("PRODUCTION_NORMALIZER_NOT_REGISTERED")
   }

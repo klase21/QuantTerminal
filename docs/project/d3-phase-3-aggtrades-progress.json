@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0.0",
+  "snapshotId": "agg-trades-execution:734d5a61150a7b89d2fdee7210950b37393f27dfc456c6d643fe46987e280a8d",
+  "generatedAt": "2026-07-14T07:25:38.718Z",
+  "totalPartitions": 13813,
+  "completePartitions": 1,
+  "pendingPartitions": 13812,
+  "capacity": {
+    "status": "BLOCKED",
+    "reasonCodes": [
+      "POSTGRES_CAPACITY_INSUFFICIENT"
+    ],
+    "requiredPostgresBytes": 133299958629815,
+    "requiredArtifactBytes": 136714059201
+  },
+  "persisted": {
+    "facts": 24898,
+    "raw_objects": 1,
+    "bytes": "364309",
+    "lineage": 24898,
+    "units": 1,
+    "candidates": 24898,
+    "outcomes": 24898,
+    "coverage": 1,
+    "checkpoints": 6,
+    "active": 0
+  }
+}

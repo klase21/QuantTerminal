@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T06:16:32.879Z",
+  "generatedAt": "2026-07-14T08:28:24.637Z",
   "manifestId": "bfm_ac1eae24383333dc00ee964ffa4e35e97c5b7829cec6b9dab34a5fcb75c48c24",
   "manifestChecksum": "ac1eae24383333dc00ee964ffa4e35e97c5b7829cec6b9dab34a5fcb75c48c24",
   "manifestExecutable": true,
@@ -81,5 +81,42 @@
     "coverageDecisions": 7,
     "canary": "PASS_REAL_AND_IDEMPOTENT_RERUN"
   },
-  "gate": "D3_OPEN_INTEREST_FULL_HISTORICAL_BACKFILL_SAFE_TO_RESUME"
+  "aggTradesExecution": {
+    "status": "BLOCKED_CAPACITY",
+    "source": "BINANCE_VISION_USDM_DAILY_AGGTRADES",
+    "cadence": "PROVIDER_NATIVE_TICK",
+    "snapshotId": "agg-trades-execution:734d5a61150a7b89d2fdee7210950b37393f27dfc456c6d643fe46987e280a8d",
+    "snapshotChecksum": "734d5a61150a7b89d2fdee7210950b37393f27dfc456c6d643fe46987e280a8d",
+    "totalPartitions": 13813,
+    "completePartitions": 1,
+    "pendingPartitions": 13812,
+    "activeLeases": 0,
+    "canonicalFacts": 24898,
+    "lineageEdges": 24898,
+    "coverageDecisions": 1,
+    "canary": "PASS_REAL_AND_IDEMPOTENT_RERUN",
+    "capacityReason": "POSTGRES_CAPACITY_INSUFFICIENT",
+    "requiredPostgresBytes": 133299958629815,
+    "availablePostgresBytes": 1021333368832
+  },
+  "aggTradesSegmentExecution": {
+    "status": "SAFE_TO_RESUME_WITH_LIMITATIONS",
+    "snapshotId": "agg-trades-segment-execution:56c3568bcf7ad0716125f72be098f32861e35ca26a8944a45464b339a6aa4c98",
+    "snapshotChecksum": "56c3568bcf7ad0716125f72be098f32861e35ca26a8944a45464b339a6aa4c98",
+    "totalPartitions": 13813,
+    "completePartitions": 2,
+    "pendingPartitions": 13811,
+    "activeLeases": 0,
+    "segmentManifests": 2,
+    "segmentLineageEdges": 2,
+    "coverageDecisions": 2,
+    "canary": "PASS_REAL_AND_IDEMPOTENT_RERUN",
+    "capacityStatus": "PASS_NARROW_MARGIN",
+    "requiredArtifactBytesWith20PercentMargin": 658265843123,
+    "measuredArtifactFreeBytes": 667785846784,
+    "requiredPostgresBytesWith20PercentMargin": 65741090092,
+    "measuredPostgresFreeBytes": 1021333368832,
+    "legacyRowFactsPreserved": 24898
+  },
+  "gate": "SAFE_TO_START_D3_AGGTRADES_SEGMENT_FULL_HISTORICAL_BACKFILL_WITH_LIMITATIONS"
 }

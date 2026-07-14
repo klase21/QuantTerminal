@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T06:16:32.879Z",
+  "generatedAt": "2026-07-14T08:28:24.637Z",
   "measurementScope": "PHASE_3_EXECUTION_ONLY",
   "executionSnapshotPartitions": 13813,
   "completedPartitions": 21,
@@ -34,5 +34,48 @@
     "retries": 0,
     "conflicts": 0
   },
-  "note": "The existing local historical-backfill SQLite file was observed at 3150319616 bytes but is excluded from Phase 3 canonical population totals. Top-level counts retain the earlier OHLCV operational summary; Open Interest is reported separately to avoid conflating concurrent dataset progress."
+  "aggTradesExecution": {
+    "snapshotPartitions": 13813,
+    "completedPartitions": 1,
+    "pendingPartitions": 13812,
+    "estimatedRecords": 9744688442,
+    "conservativeRecords": 10249907317,
+    "measuredCompressedSourceBytes": 136714059201,
+    "estimatedCanonicalStorageBytes": 126680949746000,
+    "conservativeCanonicalStorageBytes": 133248795121000,
+    "requiredPostgresBytesIncludingReservedGrowth": 133299958629815,
+    "measuredPostgresFreeBytes": 1021333368832,
+    "measuredArtifactFreeBytes": 667785846784,
+    "canaryDownloadedBytes": 364309,
+    "canaryAcceptedCandidates": 24898,
+    "canaryRejectedCandidates": 0,
+    "canaryCanonicalFacts": 24898,
+    "canaryLineageEdges": 24898,
+    "canaryCoverageDecisions": 1,
+    "canaryConflicts": 0,
+    "capacityStatus": "BLOCKED"
+  },
+  "aggTradesSegmentExecution": {
+    "snapshotPartitions": 13813,
+    "completedPartitions": 2,
+    "pendingPartitions": 13811,
+    "conservativeRecords": 10249907317,
+    "measuredCompressedSourceBytes": 136714059201,
+    "canarySourceBytes": 364309,
+    "canarySegmentBytes": 999669,
+    "canaryEvents": 24898,
+    "measuredSegmentBytesPerEvent": 40.15057434332075,
+    "estimatedSegmentBytes": 411539665744,
+    "requiredArtifactBytesWith20PercentMargin": 658265843123,
+    "measuredArtifactFreeBytes": 667785846784,
+    "artifactMarginBytes": 9520003661,
+    "requiredPostgresBytesWith20PercentMargin": 65741090092,
+    "measuredPostgresFreeBytes": 1021333368832,
+    "persistedSegmentBytes": 4703455,
+    "segmentManifests": 2,
+    "segmentLineageEdges": 2,
+    "manifestRelationBytes": 147456,
+    "capacityStatus": "PASS_NARROW_MARGIN"
+  },
+  "note": "The existing local historical-backfill SQLite file was observed at 3150319616 bytes but is excluded from Phase 3 canonical population totals. The legacy row-model AggTrades capacity failure and 24898 certification Facts are preserved; full execution now targets immutable Parquet Segments and bounded PostgreSQL manifests."
 }

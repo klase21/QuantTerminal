@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0.0",
+  "snapshotId": "agg-trades-segment-execution:56c3568bcf7ad0716125f72be098f32861e35ca26a8944a45464b339a6aa4c98",
+  "generatedAt": "2026-07-14T08:28:24.637Z",
+  "totalPartitions": 13813,
+  "completePartitions": 2,
+  "pendingPartitions": 13811,
+  "active": 0,
+  "capacity": {
+    "status": "PASS",
+    "reasonCodes": [],
+    "sourceBytesToProcess": 136713694892,
+    "partitionCountToProcess": 13812,
+    "requiredPostgresBytes": 65741090092,
+    "requiredArtifactBytes": 658265843123,
+    "estimatedSegmentBytes": 411539665744,
+    "safetyBasisPoints": 12000
+  },
+  "persisted": {
+    "manifests": 2,
+    "lineage": 2,
+    "manifest_bytes": "147456"
+  }
+}

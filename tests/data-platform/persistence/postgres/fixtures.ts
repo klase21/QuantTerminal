@@ -1,5 +1,5 @@
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
-import { deriveCanonicalRecordIdentity, plannedCommitIdentity, type CanonicalCommitCommand, type FundingFact, type RawObjectManifest } from "@/lib/data-platform/persistence"
+import { deriveCanonicalRecordIdentity, plannedCommitIdentity, type AggTradeFact, type CanonicalCommitCommand, type FundingFact, type RawObjectManifest } from "@/lib/data-platform/persistence"
 import type { PolicyVersionInput, ProviderSnapshotInput, RegistrySnapshotInput } from "@/lib/data-platform/persistence/postgres"
 
 export const FIXTURE_TIME = "2026-01-01T00:00:00.000Z"
@@ -24,4 +24,13 @@ export function fundingCommand(input: { readonly suffix?: string; readonly rate?
   const provisional: CanonicalCommitCommand = { operationType: input.correction ? "PROVIDER_CORRECTION" : "INITIAL_VERSION", idempotencyKey: `d2-test:${identity.canonicalRecordId}:v${version}:${suffix}`, initiatedAt: FIXTURE_TIME, rawObject: manifest, fact, targetRecordVersion: version, predecessor: input.predecessor ?? null, requiredLineage: [] }
   const commitId = plannedCommitIdentity(provisional)
   return { ...provisional, requiredLineage: [{ edgeId: `edge_${canonicalChecksum([manifest.objectId, identity.canonicalRecordId, version])}`, source: { nodeType: "RAW_OBJECT", nodeId: manifest.objectId, nodeVersion: manifest.contentHash }, destination: { nodeType: "CANONICAL_FACT", nodeId: identity.canonicalRecordId, nodeVersion: String(version) }, relationship: "NORMALIZED_FROM", commitId, createdAt: FIXTURE_TIME, digest: fact.checksum }] }
+}
+
+export function aggTradeFact(): AggTradeFact {
+  const base: AggTradeFact = {
+    kind: "AGG_TRADE", identity: { datasetId: "agg-trade", businessIdentity: "pending", canonicalRecordId: "pending" }, providerId: "d2-test-provider", venue: "BINANCE", symbolOrSubject: "BTCUSDT", observedAt: FIXTURE_TIME, effectiveAt: FIXTURE_TIME,
+    checksum: canonicalChecksum(["agg-trade", "123456789"]), governance: { datasetRegistrySnapshotId: registrySnapshot.snapshotId, providerRegistrySnapshotId: providerSnapshot.snapshotId, providerCertificationSnapshotId: certificationSnapshot.snapshotId, policyVersionId: policyVersion.policyVersionId, schemaVersion: "1", normalizationVersion: "1" },
+    canonicalInstrumentId: "binance-usdm-perpetual:BTC-USDT", marketType: "USD_M_FUTURES", aggregateTradeId: "123456789", price: "97500.12345678", quantity: "0.01000000", firstTradeId: "987654321", lastTradeId: "987654322", tradeTime: FIXTURE_TIME, sourceTimestamp: String(Date.parse(FIXTURE_TIME)), buyerIsMaker: true,
+  }
+  return { ...base, identity: deriveCanonicalRecordIdentity(base) }
 }
