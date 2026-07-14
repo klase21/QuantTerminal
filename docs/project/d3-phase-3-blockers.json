@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T08:28:24.637Z",
+  "generatedAt": "2026-07-14T09:18:15.814Z",
   "status": "NON_OHLCV_AND_PHASE_V_BLOCKERS_REMAIN",
   "blockers": [
     {
@@ -115,6 +115,30 @@
       "disposition": "RESOLVED_D4_MAINTENANCE",
       "evidence": "D4's explicit dependency inventory now pins D2 migrations 001-008 by filename, order, SHA-256 checksum, and per-migration certified provenance. The D4 foundation suite passes and rejects missing, reordered, substituted, duplicate, unexpected, old 001-004-only, and checksum-drifted inventories.",
       "remainingWork": "None for dependency inventory alignment. Future D2 migrations still require an explicit reviewed D4 inventory update."
+    },
+    {
+      "id": "D3P3-LIQ-B01",
+      "disposition": "STILL_BLOCKING",
+      "evidence": "The repository's assumed Binance Vision USD-M liquidationSnapshot prefix is empty and all six governed 2026-07-11 objects return HTTP 404. Binance's official force-order stream is live-only and intentionally sampled. CryptoHFTData provides third-party observed events but is not approved for Liquidation and documents lower-bound completeness.",
+      "remainingWork": "Make an explicit source-approval decision. If CryptoHFTData is approved, bind its lower-bound completeness, licensing, six-instrument availability, and source-selection policy into the governed registry."
+    },
+    {
+      "id": "D3P3-LIQ-B02",
+      "disposition": "BLOCKED_AFTER_SOURCE_APPROVAL",
+      "evidence": "Inspected Binance-compatible historical records contain no provider event or order ID, while exact physical duplicates can occur.",
+      "remainingWork": "Approve a deterministic source-bound identity using immutable object identity and row ordinal or an equivalently complete governed event tuple, with explicit duplicate classification."
+    },
+    {
+      "id": "D3P3-LIQ-B03",
+      "disposition": "BLOCKED_AFTER_SOURCE_APPROVAL",
+      "evidence": "The current Liquidation Candidate and Fact retain only side, one price, one quantity, event time, and optional provider record ID. They cannot retain order type, time in force, original quantity, order price, average price, order status, last fill, accumulated fill, and trade time as distinct provider-native truth.",
+      "remainingWork": "Add the missing typed fields through an additive D2/D3 contract and migration before a real Canary."
+    },
+    {
+      "id": "D3P3-LIQ-B04",
+      "disposition": "STILL_BLOCKING",
+      "evidence": "No approved provider inventory establishes exact historical availability for all six governed instruments, so full-history events, source bytes, and capacity are unknown.",
+      "remainingWork": "After source approval, verify per-instrument availability and run one persisted Canary before estimating or enumerating full history."
     }
   ]
 }

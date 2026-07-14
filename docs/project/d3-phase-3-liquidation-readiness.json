@@ -1,0 +1,88 @@
+{
+  "generatedAt": "2026-07-14T09:18:15.814Z",
+  "status": "BLOCKED",
+  "governedScope": {
+    "venue": "BINANCE_USD_M_FUTURES",
+    "instruments": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT",
+      "XRPUSDT",
+      "DOGEUSDT"
+    ],
+    "frozenCutoff": "2026-07-12T00:00:00.000Z"
+  },
+  "selectedSource": null,
+  "sourceCompletenessClassification": "UNKNOWN",
+  "candidates": [
+    {
+      "source": "BINANCE_VISION_USD_M_LIQUIDATION_SNAPSHOT",
+      "approvedProvider": true,
+      "historicalObservedEvents": false,
+      "classification": "UNSUPPORTED",
+      "evidence": "The USD-M liquidationSnapshot prefix is empty and all six governed 2026-07-11 object probes returned HTTP 404."
+    },
+    {
+      "source": "BINANCE_USD_M_FORCE_ORDER_WEBSOCKET",
+      "approvedProvider": true,
+      "historicalObservedEvents": false,
+      "classification": "LIVE_ONLY_STREAM",
+      "evidence": "The official stream emits only the latest liquidation order per symbol within each 1000 ms interval."
+    },
+    {
+      "source": "CRYPTOHFTDATA_BINANCE_FUTURES_LIQUIDATIONS",
+      "approvedProvider": false,
+      "historicalObservedEvents": true,
+      "classification": "THIRD_PARTY_OBSERVED_EVENTS",
+      "earliestProviderDocumentedAvailability": "2025-06-28T00:00:00.000Z",
+      "evidence": "A 101-row BTCUSDT hourly Parquet/Zstd object was verified; the provider states exchange broadcasts may be sampled or throttled and totals are a lower bound."
+    },
+    {
+      "source": "COINALYZE_INTERNAL_WEB",
+      "approvedProvider": false,
+      "historicalObservedEvents": false,
+      "classification": "UNSUPPORTED",
+      "evidence": "The repository integration is experimental five-minute aggregated liquidation volume, not provider-native observed events."
+    }
+  ],
+  "canary": {
+    "status": "NOT_RUN",
+    "reasonCode": "NO_APPROVED_HISTORICAL_OBSERVED_EVENT_SOURCE",
+    "rerunStatus": "NOT_RUN",
+    "persisted": false
+  },
+  "discoveryProbe": {
+    "source": "CRYPTOHFTDATA",
+    "instrument": "BTCUSDT",
+    "partition": "2025-08-01T20:00:00.000Z/PT1H",
+    "compressedBytes": 4383,
+    "decompressedBytes": 10854,
+    "rows": 101,
+    "sha256": "922b2a714201166a09e2d5aa6990ac45a0fbb647b008f9f564e44b340d9fe7b4",
+    "persistedThroughD3": false
+  },
+  "storageDecision": {
+    "status": "DEFERRED_PENDING_SOURCE_APPROVAL",
+    "provisionalModel": "CANONICAL_FACT",
+    "reason": "The bounded observed density is low, but complete inventory and PostgreSQL overhead are not yet measured."
+  },
+  "contractReadiness": {
+    "status": "BLOCKED",
+    "reasonCode": "FORCE_ORDER_FIELD_RETENTION_INCOMPLETE"
+  },
+  "persistedCounts": {
+    "rawArtifacts": 0,
+    "rawObjects": 0,
+    "retrievals": 0,
+    "candidates": 0,
+    "canonicalFacts": 0,
+    "lineage": 0,
+    "publication": 0,
+    "coverage": 0,
+    "checkpoints": 0,
+    "units": 0
+  },
+  "nextStep": "SOURCE_APPROVAL_DECISION",
+  "gate": "D3_LIQUIDATION_HISTORICAL_SOURCE_DISCOVERY_BLOCKED"
+}

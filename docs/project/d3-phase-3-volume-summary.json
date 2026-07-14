@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T08:28:24.637Z",
+  "generatedAt": "2026-07-14T09:18:15.814Z",
   "measurementScope": "PHASE_3_EXECUTION_ONLY",
   "executionSnapshotPartitions": 13813,
   "completedPartitions": 21,
@@ -76,6 +76,27 @@
     "segmentLineageEdges": 2,
     "manifestRelationBytes": 147456,
     "capacityStatus": "PASS_NARROW_MARGIN"
+  },
+  "liquidationDiscovery": {
+    "status": "BLOCKED_SOURCE_APPROVAL",
+    "canaryExecuted": false,
+    "canaryRerunExecuted": false,
+    "persistedRawArtifacts": 0,
+    "persistedCanonicalFacts": 0,
+    "persistedLineageEdges": 0,
+    "persistedCoverageDecisions": 0,
+    "cryptoHftDataDiscoveryProbe": {
+      "compressedBytes": 4383,
+      "decompressedBytes": 10854,
+      "events": 101,
+      "compressedBytesPerEvent": 43.396039603960396,
+      "sha256": "922b2a714201166a09e2d5aa6990ac45a0fbb647b008f9f564e44b340d9fe7b4",
+      "persistedThroughD3": false
+    },
+    "estimatedFullHistoryEvents": null,
+    "estimatedFullHistorySourceBytes": null,
+    "postgresBytesPerEvent": null,
+    "capacityStatus": "UNKNOWN_UNTIL_APPROVED_CANARY"
   },
   "note": "The existing local historical-backfill SQLite file was observed at 3150319616 bytes but is excluded from Phase 3 canonical population totals. The legacy row-model AggTrades capacity failure and 24898 certification Facts are preserved; full execution now targets immutable Parquet Segments and bounded PostgreSQL manifests."
 }
