@@ -1,0 +1,908 @@
+{
+  "schemaVersion": "mvp-certification-slice/v1",
+  "certificationId": "mvp-certification:2858e13dfb200f2d22fbd2e448bd3422174e97855ecb4acf531e0eee1efbdd26",
+  "certificationChecksum": "2858e13dfb200f2d22fbd2e448bd3422174e97855ecb4acf531e0eee1efbdd26",
+  "checksumScope": "mvp-certification-slice-basis/v1",
+  "mvpProfile": {
+    "id": "mvp-six-instrument-certification-slice",
+    "version": "1.0.0"
+  },
+  "status": "COMPLETE",
+  "slice": {
+    "start": "2026-07-11T00:00:00.000Z",
+    "end": "2026-07-12T00:00:00.000Z"
+  },
+  "instruments": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "DOGEUSDT"
+  ],
+  "requiredDatasets": [
+    "ohlcv",
+    "funding",
+    "open-interest",
+    "agg-trade"
+  ],
+  "identityBindingVersion": "1.0.0",
+  "identityBindings": [
+    {
+      "datasetId": "ohlcv",
+      "targetKind": "OHLCV",
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "sourceId": "BINANCE_VISION_USDM_DAILY_KLINES",
+      "venue": "BINANCE",
+      "marketType": "USD_M_FUTURES",
+      "granularity": "5m",
+      "timestampSemantic": "INTERVAL_START"
+    },
+    {
+      "datasetId": "funding",
+      "targetKind": "FUNDING",
+      "providerIds": [
+        "binance-vision",
+        "binance-official-rest-funding-rate"
+      ],
+      "sourceId": "BINANCE_OFFICIAL_FUNDING_HISTORY",
+      "venue": "BINANCE",
+      "marketType": "USD_M_FUTURES",
+      "granularity": "EVENT_8H",
+      "timestampSemantic": "PROVIDER_EVENT_TIME"
+    },
+    {
+      "datasetId": "open-interest",
+      "targetKind": "OPEN_INTEREST",
+      "providerIds": [
+        "binance-vision"
+      ],
+      "sourceId": "BINANCE_VISION_USDM_DAILY_METRICS",
+      "venue": "BINANCE",
+      "marketType": "USD_M_FUTURES",
+      "granularity": "5m",
+      "timestampSemantic": "PROVIDER_OBSERVATION_TIME"
+    },
+    {
+      "datasetId": "agg-trade",
+      "targetKind": "CANONICAL_STREAM_SEGMENT",
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "sourceId": "BINANCE_VISION_USDM_DAILY_AGGTRADES",
+      "venue": "BINANCE",
+      "marketType": "USD_M_FUTURES",
+      "granularity": "tick",
+      "timestampSemantic": "PROVIDER_EVENT_TIME"
+    }
+  ],
+  "totals": {
+    "certificationCells": 24,
+    "ohlcvBars": 1728,
+    "fundingEvents": 18,
+    "openInterestObservations": 1722,
+    "aggTradeSegments": 6,
+    "aggTradeEvents": 1562227,
+    "conflicts": 0
+  },
+  "publicationBoundary": {
+    "eligibilityStatus": "D3_ELIGIBLE",
+    "repositoryState": "PENDING",
+    "transitionStatus": "NOT_SUPPORTED_IN_THIS_SPRINT",
+    "reason": "D2_HAS_NO_ELIGIBLE_PUBLICATION_STATE_AND_NO_APPROVED_CERTIFIER_WORKER"
+  },
+  "persistedOhlcvTruth": {
+    "fact_count": 89468,
+    "completed_units": 312,
+    "candidate_count": 89468,
+    "outcome_count": 89468,
+    "coverage_count": 312,
+    "active_leases": 0
+  },
+  "results": [
+    {
+      "symbol": "BTCUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:BTC-USDT",
+      "datasetId": "ohlcv",
+      "expectedCount": 288,
+      "observedCount": 288,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 288,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.999Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "71cb348134936bcf398a9fc52a4bc3c9a0c6fb42668cccddc0cd182801bbbcd7",
+      "lineageCount": 288,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 288,
+      "canonicalReferenceDigest": "ccaa9d286d290b781de1fe6faaad53cd366cbf8d19d17f9072bbca08000e192d",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "BTCUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:BTC-USDT",
+      "datasetId": "funding",
+      "expectedCount": 3,
+      "observedCount": 3,
+      "providerIds": [
+        "binance-official-rest-funding-rate"
+      ],
+      "granularities": [
+        "EVENT_8H"
+      ],
+      "eventCount": 3,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T16:00:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "f619bd24f87facc58d36931e6e8c1b638b5d93220e42a2244128329974ffce45",
+      "lineageCount": 3,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 3,
+      "canonicalReferenceDigest": "9fb2ecdb590f3365312d5a3635137efc072d50cbcc33b49c2d8be1de721ec0c0",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "BTCUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:BTC-USDT",
+      "datasetId": "open-interest",
+      "expectedCount": 287,
+      "observedCount": 287,
+      "providerIds": [
+        "binance-vision"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 287,
+      "eventTimeMinimum": "2026-07-11T00:05:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:55:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "99b5ad8d606f493fdd41a3a19adc1a34933f21e3cd8b62d766d3ec5e80721347",
+      "lineageCount": 287,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 287,
+      "canonicalReferenceDigest": "1ec34bc5fe9adb0d84d629eb5629eb749b199bfca044498543d7d5ee4bb0e104",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "BTCUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:BTC-USDT",
+      "datasetId": "agg-trade",
+      "expectedCount": 1,
+      "observedCount": 1,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "tick"
+      ],
+      "eventCount": 494149,
+      "eventTimeMinimum": "2026-07-11T00:00:00.428Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.846Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "31ca0fe3596227f3788308f0fa652bf7d12ceec48d5ee2331016039c5222e829",
+      "lineageCount": 1,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 1,
+      "canonicalReferenceDigest": "bd174a082c3224c8292f0c9e8db97e44539a900a63ff9b9a5d4a557a4c5f63ef",
+      "segmentChecksum": "8f541df0fb04c0e7bb1439fa1a09944785fc4f2eca621e07fa3ef381f4e3f181",
+      "segmentByteLength": "14877266"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:ETH-USDT",
+      "datasetId": "ohlcv",
+      "expectedCount": 288,
+      "observedCount": 288,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 288,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.999Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "16ce68b879268f981d57552c38e6ca272408fc240e58b2f8f9d1bb6a3703b5a9",
+      "lineageCount": 288,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 288,
+      "canonicalReferenceDigest": "8f65e09a94e041ceed44d726fa0ccc90730121eedfadb3115e04a0b868e32493",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "ETHUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:ETH-USDT",
+      "datasetId": "funding",
+      "expectedCount": 3,
+      "observedCount": 3,
+      "providerIds": [
+        "binance-official-rest-funding-rate"
+      ],
+      "granularities": [
+        "EVENT_8H"
+      ],
+      "eventCount": 3,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T16:00:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "3c4b6fec9b6484651683be1897596192514a0bf9e4ddf6a0e6e90c6fd57d470a",
+      "lineageCount": 3,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 3,
+      "canonicalReferenceDigest": "a36408bcd984e48ccb299f4a8b300f77ef3bdb6426daa5569792b994195823c6",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "ETHUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:ETH-USDT",
+      "datasetId": "open-interest",
+      "expectedCount": 287,
+      "observedCount": 287,
+      "providerIds": [
+        "binance-vision"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 287,
+      "eventTimeMinimum": "2026-07-11T00:05:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:55:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "fa2849a09d750027373300084d6176cc6c12433575fcc2bec89adbd2f7c38650",
+      "lineageCount": 287,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 287,
+      "canonicalReferenceDigest": "b7e93438abe9a6a02b1a303c0884769a45cd4ba32686e88a35d03976f7eb869b",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "ETHUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:ETH-USDT",
+      "datasetId": "agg-trade",
+      "expectedCount": 1,
+      "observedCount": 1,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "tick"
+      ],
+      "eventCount": 583399,
+      "eventTimeMinimum": "2026-07-11T00:00:00.051Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.774Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "8e990744d1b813fe756cb71159a39df4164def56c54f1faca6e4f6eea6997d77",
+      "lineageCount": 1,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 1,
+      "canonicalReferenceDigest": "41bb5c7e21e2b9325f8797133474c8f92a6b3db0f10f138f43ee8f42461a8689",
+      "segmentChecksum": "6ef1a4cee546464ea4082fc54fd57847f0755730405e181fb118382bb699366a",
+      "segmentByteLength": "19187163"
+    },
+    {
+      "symbol": "SOLUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:SOL-USDT",
+      "datasetId": "ohlcv",
+      "expectedCount": 288,
+      "observedCount": 288,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 288,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.999Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "c5e7211de4b3da9cbe543cc2921c9a7108280ab5100a165126d96f1212787ccd",
+      "lineageCount": 288,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 288,
+      "canonicalReferenceDigest": "0993b9e7a251fd7c62e5f3cee035dcc4ecd8846d22e28970a3eaf2c7ebe664b6",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "SOLUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:SOL-USDT",
+      "datasetId": "funding",
+      "expectedCount": 3,
+      "observedCount": 3,
+      "providerIds": [
+        "binance-official-rest-funding-rate"
+      ],
+      "granularities": [
+        "EVENT_8H"
+      ],
+      "eventCount": 3,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T16:00:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "d6011e71dc0c557f6eca41cf0ff2cbb47a09cae1e215f646e2f6d240692d9128",
+      "lineageCount": 3,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 3,
+      "canonicalReferenceDigest": "8222e32fae7e8e34acdb355aa8d622e01af70faac3a301b6f8e795f253f03dd1",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "SOLUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:SOL-USDT",
+      "datasetId": "open-interest",
+      "expectedCount": 287,
+      "observedCount": 287,
+      "providerIds": [
+        "binance-vision"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 287,
+      "eventTimeMinimum": "2026-07-11T00:05:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:55:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "468787227559c09598cfac40089731e73d21b12a6a6801c8efdb40ceb075897d",
+      "lineageCount": 287,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 287,
+      "canonicalReferenceDigest": "75d70e754a59090c85183c96373f0958ba404744b2d00c87ee3f4a9c740982b5",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "SOLUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:SOL-USDT",
+      "datasetId": "agg-trade",
+      "expectedCount": 1,
+      "observedCount": 1,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "tick"
+      ],
+      "eventCount": 152963,
+      "eventTimeMinimum": "2026-07-11T00:00:00.426Z",
+      "eventTimeMaximum": "2026-07-11T23:59:57.741Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "098ff7399c3c4dc078109f3237ecf6e013f37b53ab054843c3f2a467374efbfb",
+      "lineageCount": 1,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 1,
+      "canonicalReferenceDigest": "0575d9a44ec8ed68f608716007d138f0c75690a8fb92ff85a0a4d8cee0f8a422",
+      "segmentChecksum": "805c61bae0b3528fa50a49777413e20edf161d7588162a952cc9ac617dd13f58",
+      "segmentByteLength": "5475921"
+    },
+    {
+      "symbol": "BNBUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:BNB-USDT",
+      "datasetId": "ohlcv",
+      "expectedCount": 288,
+      "observedCount": 288,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 288,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.999Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "9cf6d642d841c8b84abfe371ac5cd2066e43283a34f23efaaa6cf79be2c3ddf1",
+      "lineageCount": 288,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 288,
+      "canonicalReferenceDigest": "49e14332d8f3b1d31e6d38387240d9dde8f072d694ef95c8890b50ca49fac67e",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "BNBUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:BNB-USDT",
+      "datasetId": "funding",
+      "expectedCount": 3,
+      "observedCount": 3,
+      "providerIds": [
+        "binance-official-rest-funding-rate"
+      ],
+      "granularities": [
+        "EVENT_8H"
+      ],
+      "eventCount": 3,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T16:00:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "d36c7f84a3fef346ed7a865bff06fe8524b877405763b03f36716cb60986cfd8",
+      "lineageCount": 3,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 3,
+      "canonicalReferenceDigest": "7d3dcdbe1f4c893f4745df9b33576d8ef31dbe4fc3438e8d219f7a09dbd5bf52",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "BNBUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:BNB-USDT",
+      "datasetId": "open-interest",
+      "expectedCount": 287,
+      "observedCount": 287,
+      "providerIds": [
+        "binance-vision"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 287,
+      "eventTimeMinimum": "2026-07-11T00:05:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:55:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "8ab006e6b78bad1bfb1f8d567e5ff5c26cb04282c66855cc01c2197724369b16",
+      "lineageCount": 287,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 287,
+      "canonicalReferenceDigest": "524ddb8236216799406db88baf5c55aadd37daf1bf438db9e0b7d3e9709e104a",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "BNBUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:BNB-USDT",
+      "datasetId": "agg-trade",
+      "expectedCount": 1,
+      "observedCount": 1,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "tick"
+      ],
+      "eventCount": 130260,
+      "eventTimeMinimum": "2026-07-11T00:00:00.396Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.974Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "03fa86048a5d8dd439c1fc07e66eeeff503aad266c33122f1cd623f131410d7e",
+      "lineageCount": 1,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 1,
+      "canonicalReferenceDigest": "1d3f314eaf1da186f19e26f9d316b7ac5a1c975363c37f2443cf6890961aee75",
+      "segmentChecksum": "660a4f55d5eb7f40e8151982af08bad57a4586dafe99ad7e5b600565014d135e",
+      "segmentByteLength": "4375950"
+    },
+    {
+      "symbol": "XRPUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:XRP-USDT",
+      "datasetId": "ohlcv",
+      "expectedCount": 288,
+      "observedCount": 288,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 288,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.999Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "94f2d31735d375cf9850c54182a038d7efae65b35304b31e94dc47609491645d",
+      "lineageCount": 288,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 288,
+      "canonicalReferenceDigest": "bcbf22ae9b45055bc986985f54adce49fd8184c7719bd71521152008ba729cfb",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "XRPUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:XRP-USDT",
+      "datasetId": "funding",
+      "expectedCount": 3,
+      "observedCount": 3,
+      "providerIds": [
+        "binance-official-rest-funding-rate"
+      ],
+      "granularities": [
+        "EVENT_8H"
+      ],
+      "eventCount": 3,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T16:00:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "2dc31b14e5499c802499f24b3baf38c97639227ecb4419bfdb053e966b6684bf",
+      "lineageCount": 3,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 3,
+      "canonicalReferenceDigest": "589de6665f9774e7f6aebdbd0e3f706991a6ed2a146b83cc5cbe97c5e9a92863",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "XRPUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:XRP-USDT",
+      "datasetId": "open-interest",
+      "expectedCount": 287,
+      "observedCount": 287,
+      "providerIds": [
+        "binance-vision"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 287,
+      "eventTimeMinimum": "2026-07-11T00:05:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:55:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "b9ac8a29bce97c83c879dac7d52b03d3402744fbc7c223f0aa80fa88a6ce2d20",
+      "lineageCount": 287,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 287,
+      "canonicalReferenceDigest": "26ca0066d68f5512848bb0c17b12bd728ca38d16e24593732327aa3a42b40818",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "XRPUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:XRP-USDT",
+      "datasetId": "agg-trade",
+      "expectedCount": 1,
+      "observedCount": 1,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "tick"
+      ],
+      "eventCount": 104094,
+      "eventTimeMinimum": "2026-07-11T00:00:00.396Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.316Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "d5b341ec3f544d9de3045269b458a1d8d4deb87a4e306bdbde082deb49f94512",
+      "lineageCount": 1,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 1,
+      "canonicalReferenceDigest": "d18de3100b1471ff007b9fd11f1078ed34c955c66ecf737bf439632ec84f4e58",
+      "segmentChecksum": "13acbf19d62383f7c882c6caa9bd71e3a8ed63f233f815949ee8e6124107113b",
+      "segmentByteLength": "3887284"
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:DOGE-USDT",
+      "datasetId": "ohlcv",
+      "expectedCount": 288,
+      "observedCount": 288,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 288,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.999Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "627154163cbffc8dda4fbe91bdc53a91e8bdbe63eca2b49d8f956f6b683f4af3",
+      "lineageCount": 288,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 288,
+      "canonicalReferenceDigest": "b3d037a048020f7bf1e05470a04a89213a482684419020c0b8be551dffd6d119",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:DOGE-USDT",
+      "datasetId": "funding",
+      "expectedCount": 3,
+      "observedCount": 3,
+      "providerIds": [
+        "binance-official-rest-funding-rate"
+      ],
+      "granularities": [
+        "EVENT_8H"
+      ],
+      "eventCount": 3,
+      "eventTimeMinimum": "2026-07-11T00:00:00.000Z",
+      "eventTimeMaximum": "2026-07-11T16:00:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "64483e6b806842250918e847b092aa672c415a7a1545581cd8dffb60b92b965b",
+      "lineageCount": 3,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 3,
+      "canonicalReferenceDigest": "f2ce05b02be2e60a819ec370c35f4af66c2201e065bbd93155d2ade413adb3a0",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:DOGE-USDT",
+      "datasetId": "open-interest",
+      "expectedCount": 287,
+      "observedCount": 287,
+      "providerIds": [
+        "binance-vision"
+      ],
+      "granularities": [
+        "5m"
+      ],
+      "eventCount": 287,
+      "eventTimeMinimum": "2026-07-11T00:05:00.000Z",
+      "eventTimeMaximum": "2026-07-11T23:55:00.000Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "ac629fc344a9f8a66a50fff6ba7173d57d24fbc1919afbca8d9aca764a73cc20",
+      "lineageCount": 287,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 287,
+      "canonicalReferenceDigest": "c5089b1e6b7ad6583e34f6687275dbc9b2254224d913d456e43a1d2235122af5",
+      "segmentChecksum": null,
+      "segmentByteLength": null
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "canonicalInstrumentId": "binance-usdm-perpetual:DOGE-USDT",
+      "datasetId": "agg-trade",
+      "expectedCount": 1,
+      "observedCount": 1,
+      "providerIds": [
+        "binance-public-archive"
+      ],
+      "granularities": [
+        "tick"
+      ],
+      "eventCount": 97362,
+      "eventTimeMinimum": "2026-07-11T00:00:00.396Z",
+      "eventTimeMaximum": "2026-07-11T23:59:59.643Z",
+      "rawObjectCount": 1,
+      "rawObjectReferenceDigest": "c63ae653448e67b23e36d87afb5a6dd25e83dfc6ade4946af630b4b2e749d664",
+      "lineageCount": 1,
+      "coverageStatus": "ELIGIBLE",
+      "publicationStates": [
+        "PENDING"
+      ],
+      "eligibility": "ELIGIBLE",
+      "reasonCodes": [
+        "MVP_SLICE_ALL_REQUIRED_CHECKS_PASSED"
+      ],
+      "conflictCount": 0,
+      "canonicalReferenceCount": 1,
+      "canonicalReferenceDigest": "22fa0b11393f2d752f185b8dc0f4c8970380557d357bc77b6e287e68a4da5e41",
+      "segmentChecksum": "12d2d3d97afb1c08a37c5e7e7fc0d02866dedeeb1ba84a94eef0f3f3dbf0829e",
+      "segmentByteLength": "3629700"
+    }
+  ],
+  "limitations": [
+    "REPOSITORY_PUBLICATION_REMAINS_PENDING",
+    "CONSUMER_PROJECTIONS_NOT_IMPLEMENTED",
+    "LIQUIDATION_NOT_REQUIRED_FOR_SLICE",
+    "ORDERBOOK_NOT_REQUIRED_FOR_SLICE",
+    "FINAL_D4_EVIDENCE_NOT_REQUIRED_FOR_SLICE"
+  ],
+  "repository": {
+    "head": "342603540d63b489ba5b7d9ba19e86892a101824",
+    "branch": "epic/d2-canonical-persistence"
+  },
+  "migrationInventories": {
+    "d2": [
+      "001_control_and_raw.sql",
+      "002_repository_lifecycle.sql",
+      "003_canonical_fact_tables.sql",
+      "004_governance_and_read_models.sql",
+      "005_funding_event_metadata.sql",
+      "006_open_interest_observation_metadata.sql",
+      "007_agg_trade_facts.sql",
+      "008_canonical_stream_segments.sql"
+    ],
+    "d3": [
+      "001_population_control_plane.sql",
+      "002_population_roles.sql",
+      "003_agg_trade_candidates.sql"
+    ]
+  },
+  "deterministicRecomputation": {
+    "command": "npx tsx workers/data-platform/verifyMvpCertificationSlice.ts verify",
+    "basis": "mvp-certification-slice-basis/v1",
+    "requiredTargetProfile": "INTEGRATED_BACKFILL"
+  },
+  "certifiedAt": "2026-07-14T10:40:03.272Z"
+}

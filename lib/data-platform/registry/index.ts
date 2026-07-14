@@ -1,5 +1,7 @@
 export * from "./datasets"
 export * from "./derivedIntelligence"
+export * from "./mvpIdentityBindings"
+export * from "./mvpCertification"
 export * from "./providers"
 export * from "./publicationPolicies"
 export * from "./qualityPolicies"
