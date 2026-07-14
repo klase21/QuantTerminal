@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-13T13:31:41.559Z",
+  "generatedAt": "2026-07-14T06:16:32.879Z",
   "status": "NON_OHLCV_AND_PHASE_V_BLOCKERS_REMAIN",
   "blockers": [
     {
@@ -23,7 +23,7 @@
     {
       "id": "D3P3-B04",
       "disposition": "PARTIALLY_RESOLVED",
-      "evidence": "Production normalizers exist for OHLCV, Funding, Open Interest, and Liquidation.",
+      "evidence": "Production normalizers exist for OHLCV, Funding, Open Interest, and Liquidation. Open Interest now preserves provider-native quantity and explicitly supplied notional value as distinct typed fields at native 5-minute cadence.",
       "remainingWork": "Resolve stream-manifest identity and implement only verified provider formats for remaining required datasets."
     },
     {
@@ -53,8 +53,8 @@
     {
       "id": "D3P3-B09",
       "disposition": "PARTIALLY_RESOLVED",
-      "evidence": "Provider-native index discovery plus confirming HEAD requests established exact 5-minute OHLCV boundaries for all six governed instruments and froze 13813 partitions through 2026-07-11. Other required datasets are not covered by this OHLCV execution snapshot.",
-      "remainingWork": "Complete earliest/latest availability discovery for non-OHLCV required datasets."
+      "evidence": "Provider-native discovery established exact OHLCV boundaries and, independently, a complete contiguous Binance Vision daily metrics inventory for Open Interest: 10560 eligible partitions through 2026-07-11. The OI Canary and six full-history partitions committed 2015 immutable Facts with lineage and Coverage.",
+      "remainingWork": "Complete earliest/latest availability discovery for required datasets not covered by the OHLCV, Funding, or Open Interest execution snapshots."
     },
     {
       "id": "D3P3-B10",

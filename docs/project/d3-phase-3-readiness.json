@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-13T13:31:41.559Z",
+  "generatedAt": "2026-07-14T06:16:32.879Z",
   "manifestId": "bfm_ac1eae24383333dc00ee964ffa4e35e97c5b7829cec6b9dab34a5fcb75c48c24",
   "manifestChecksum": "ac1eae24383333dc00ee964ffa4e35e97c5b7829cec6b9dab34a5fcb75c48c24",
   "manifestExecutable": true,
@@ -64,5 +64,22 @@
     "lineageEdges": 5660,
     "coverageDecisions": 21
   },
-  "gate": "D3_OHLCV_FULL_HISTORICAL_BACKFILL_SAFE_TO_RESUME"
+  "openInterestExecution": {
+    "status": "SAFE_TO_RESUME",
+    "source": "BINANCE_VISION_DAILY_METRICS",
+    "cadence": "5m",
+    "snapshotId": "open-interest-execution:6140af4cedb143579343f770350721f4e10cf0c79e243ac5424756c37b2eeb07",
+    "snapshotChecksum": "6140af4cedb143579343f770350721f4e10cf0c79e243ac5424756c37b2eeb07",
+    "completePartitions": 7,
+    "pendingPartitions": 10553,
+    "activeLeases": 0,
+    "gaps": 0,
+    "failures": 0,
+    "conflicts": 0,
+    "canonicalFacts": 2015,
+    "lineageEdges": 2015,
+    "coverageDecisions": 7,
+    "canary": "PASS_REAL_AND_IDEMPOTENT_RERUN"
+  },
+  "gate": "D3_OPEN_INTEREST_FULL_HISTORICAL_BACKFILL_SAFE_TO_RESUME"
 }

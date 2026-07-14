@@ -177,7 +177,7 @@ interface CandidateBase<K extends string, P> {
 export type PopulationCandidate =
   | CandidateBase<"OHLCV", { readonly symbol: string; readonly resolution: string; readonly open: string; readonly high: string; readonly low: string; readonly close: string; readonly volume: string; readonly closeTime: string }>
   | CandidateBase<"FUNDING", { readonly symbol: string; readonly canonicalInstrumentId: string; readonly marketType: "USD_M_FUTURES"; readonly fundingRate: string; readonly fundingTime: string; readonly fundingIntervalHours: number }>
-  | CandidateBase<"OPEN_INTEREST", { readonly symbol: string; readonly openInterest: string; readonly unit: string; readonly window: string }>
+  | CandidateBase<"OPEN_INTEREST", { readonly symbol: string; readonly canonicalInstrumentId: string; readonly marketType: "USD_M_FUTURES"; readonly openInterest: string; readonly unit: "PROVIDER_NATIVE"; readonly openInterestValue: string | null; readonly valueUnit: "PROVIDER_NATIVE_QUOTE_VALUE" | null; readonly window: "5m" }>
   | CandidateBase<"LIQUIDATION", { readonly symbol: string; readonly side: "BUY" | "SELL"; readonly price: string; readonly quantity: string; readonly eventTime: string; readonly providerRecordId: string }>
   | CandidateBase<"STREAM_MANIFEST", { readonly symbol: string; readonly streamKind: "AGG_TRADE" | "ORDERBOOK"; readonly rawObjectId: string; readonly windowStart: string; readonly windowEnd: string; readonly firstSequence: string | null; readonly lastSequence: string | null; readonly recordCount: number | null }>
 

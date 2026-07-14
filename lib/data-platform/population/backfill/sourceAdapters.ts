@@ -17,6 +17,14 @@ export function createBinanceVisionFundingPartition(input: { readonly symbol: st
   return Object.freeze({ datasetId: "funding", providerId: "binance-vision", providerSymbol: symbol, venue: "BINANCE", market: "USD_M_FUTURES", resolution: "EVENT_8H", windowStart: start, windowEnd: end, sourceUrl: `${BINANCE_VISION}/monthly/fundingRate/${symbol}/${symbol}-fundingRate-${input.month}.zip`, mediaType: "application/zip", compression: "ZIP" })
 }
 
+export function createBinanceVisionOpenInterestPartition(input: { readonly symbol: string; readonly day: string }): HistoricalSourcePartition {
+  const symbol = input.symbol.trim().toUpperCase()
+  if (!/^[A-Z0-9]{5,30}$/.test(symbol) || !/^\d{4}-\d{2}-\d{2}$/.test(input.day)) throw new Error("OPEN_INTEREST_SOURCE_PARTITION_INVALID")
+  const start = `${input.day}T00:00:00.000Z`
+  const end = new Date(Date.parse(start) + 86_400_000).toISOString()
+  return Object.freeze({ datasetId: "open-interest", providerId: "binance-vision", providerSymbol: symbol, venue: "BINANCE", market: "USD_M_FUTURES", resolution: "5m", windowStart: start, windowEnd: end, sourceUrl: `${BINANCE_VISION}/daily/metrics/${symbol}/${symbol}-metrics-${input.day}.zip`, mediaType: "application/zip", compression: "ZIP" })
+}
+
 export function createBinanceOfficialFundingTailPartition(input: { readonly symbol: string; readonly windowStart: string; readonly windowEnd: string }): HistoricalSourcePartition {
   const symbol = input.symbol.trim().toUpperCase()
   const start = Date.parse(input.windowStart)

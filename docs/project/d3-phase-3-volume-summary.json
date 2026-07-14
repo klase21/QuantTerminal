@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-13T13:31:41.559Z",
+  "generatedAt": "2026-07-14T06:16:32.879Z",
   "measurementScope": "PHASE_3_EXECUTION_ONLY",
   "executionSnapshotPartitions": 13813,
   "completedPartitions": 21,
@@ -17,5 +17,22 @@
   "coverageDecisions": 21,
   "retries": 0,
   "conflicts": 0,
-  "note": "The existing local historical-backfill SQLite file was observed at 3150319616 bytes but is excluded from Phase 3 canonical population totals."
+  "openInterestExecution": {
+    "snapshotPartitions": 10560,
+    "completedPartitions": 7,
+    "pendingPartitions": 10553,
+    "expectedObservations": 3041274,
+    "measuredCompressedSourceBytes": 121801503,
+    "rawDownloadedBytes": 84682,
+    "artifacts": 7,
+    "retrievals": 7,
+    "acceptedCandidates": 2015,
+    "rejectedExactDuplicateSourceRows": 1728,
+    "canonicalFacts": 2015,
+    "lineageEdges": 2015,
+    "coverageDecisions": 7,
+    "retries": 0,
+    "conflicts": 0
+  },
+  "note": "The existing local historical-backfill SQLite file was observed at 3150319616 bytes but is excluded from Phase 3 canonical population totals. Top-level counts retain the earlier OHLCV operational summary; Open Interest is reported separately to avoid conflating concurrent dataset progress."
 }

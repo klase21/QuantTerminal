@@ -54,7 +54,16 @@ export interface FundingFact extends FactBase {
   readonly fundingTime: string
   readonly fundingIntervalHours: number
 }
-export interface OpenInterestFact extends FactBase { readonly kind: "OPEN_INTEREST"; readonly openInterest: string; readonly unit: string; readonly window: string }
+export interface OpenInterestFact extends FactBase {
+  readonly kind: "OPEN_INTEREST"
+  readonly canonicalInstrumentId: string
+  readonly marketType: "USD_M_FUTURES"
+  readonly openInterest: string
+  readonly unit: "PROVIDER_NATIVE"
+  readonly openInterestValue: string | null
+  readonly valueUnit: "PROVIDER_NATIVE_QUOTE_VALUE" | null
+  readonly window: "5m"
+}
 export interface LiquidationFact extends FactBase { readonly kind: "LIQUIDATION"; readonly side: "BUY" | "SELL"; readonly price: string; readonly quantity: string; readonly eventTime: string; readonly providerRecordId: string }
 export interface PredictionSnapshotFact extends FactBase { readonly kind: "PREDICTION_SNAPSHOT"; readonly marketId: string; readonly outcomeId: string; readonly probability: string; readonly volume: string | null; readonly liquidity: string | null }
 export interface EtfObservationFact extends FactBase { readonly kind: "ETF_OBSERVATION"; readonly instrumentId: string; readonly flowValue: string; readonly currency: string; readonly windowStart: string; readonly windowEnd: string }
