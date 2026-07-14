@@ -1,0 +1,453 @@
+{
+  "schemaVersion": "mvp-page-projection-readiness/v1",
+  "readinessChecksum": "c8121da91be68fe703c8ab2375a4f07b40c107b794fa36e5cd7275fad2cf6f11",
+  "readinessEnum": [
+    "PROJECTION_READY",
+    "PROJECTION_READY_WITH_LIMITATION",
+    "NOT_YET_PROJECTED",
+    "SOURCE_BLOCKED",
+    "NOT_IN_MVP_SCOPE"
+  ],
+  "basis": {
+    "schemaVersion": "mvp-page-projection-readiness-basis/v1",
+    "projectionCorpusId": "mvp-projection-corpus:3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+    "projectionCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+    "featureCount": 52,
+    "features": [
+      {
+        "featureId": "DASH_DIRECTION",
+        "page": "Dashboard",
+        "feature": "Market Direction",
+        "projectionKind": "DashboardMarketStateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "DASH_DRIVERS",
+        "page": "Dashboard",
+        "feature": "Key Evidence and Reasoning",
+        "projectionKind": "DashboardMarketStateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "DASH_RISK",
+        "page": "Dashboard",
+        "feature": "Opportunity and Risk",
+        "projectionKind": "DashboardMarketStateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "DASH_DERIVATIVES",
+        "page": "Dashboard",
+        "feature": "OI and Funding",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "DASH_INTENSITY",
+        "page": "Dashboard",
+        "feature": "Trading Intensity",
+        "projectionKind": "DashboardMarketStateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "DASH_LIQUIDATION",
+        "page": "Dashboard",
+        "feature": "Liquidation State",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY_WITH_LIMITATION",
+        "limitationCodes": [
+          "OPTIONAL_ENRICHMENT_UNAVAILABLE_OR_BOUNDED"
+        ]
+      },
+      {
+        "featureId": "DASH_COVERAGE",
+        "page": "Dashboard",
+        "feature": "Data Quality and Limitations",
+        "projectionKind": "CoverageDataStatusProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "DASH_EVIDENCE_LINK",
+        "page": "Dashboard",
+        "feature": "Investigation Handoffs",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "DASH_SUSPENSE",
+        "page": "Dashboard",
+        "feature": "Initial Loading",
+        "projectionKind": "CoverageDataStatusProjection",
+        "readiness": "NOT_IN_MVP_SCOPE",
+        "limitationCodes": [
+          "PAGE_CUTOVER_OR_LOCAL_UI_STATE"
+        ]
+      },
+      {
+        "featureId": "RPL_CONTROLS",
+        "page": "Replay",
+        "feature": "Exchange, Symbol, UTC Date and Hour",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RPL_PLAYBACK",
+        "page": "Replay",
+        "feature": "Playback and Time Navigation",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RPL_PRICE",
+        "page": "Replay",
+        "feature": "Price Timeline",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RPL_FUNDING",
+        "page": "Replay",
+        "feature": "Funding Timeline",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RPL_OI",
+        "page": "Replay",
+        "feature": "Open Interest Timeline",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RPL_AGGTRADES",
+        "page": "Replay",
+        "feature": "Aggressive Trade Timeline",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RPL_LIQUIDATION",
+        "page": "Replay",
+        "feature": "Liquidations",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "SOURCE_BLOCKED",
+        "limitationCodes": [
+          "COMPLETE_LIQUIDATION_EVENT_HISTORY_BLOCKED"
+        ]
+      },
+      {
+        "featureId": "RPL_ORDERBOOK",
+        "page": "Replay",
+        "feature": "Order Book and Market Structure",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "PROJECTION_READY_WITH_LIMITATION",
+        "limitationCodes": [
+          "OPTIONAL_ENRICHMENT_UNAVAILABLE_OR_BOUNDED"
+        ]
+      },
+      {
+        "featureId": "RPL_ANNOTATIONS",
+        "page": "Replay",
+        "feature": "News and Event Annotations",
+        "projectionKind": "EventAnnotationProjection",
+        "readiness": "PROJECTION_READY_WITH_LIMITATION",
+        "limitationCodes": [
+          "OPTIONAL_ENRICHMENT_UNAVAILABLE_OR_BOUNDED"
+        ]
+      },
+      {
+        "featureId": "RPL_EVIDENCE",
+        "page": "Replay",
+        "feature": "Evidence Markers and Handoffs",
+        "projectionKind": "ReplayTimelineProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_CONCLUSION",
+        "page": "Research",
+        "feature": "Conclusion and Summary",
+        "projectionKind": "ResearchEvidenceProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_FACTS",
+        "page": "Research",
+        "feature": "Verified Facts and Sources",
+        "projectionKind": "ResearchEvidenceProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_INTERPRETATION",
+        "page": "Research",
+        "feature": "Reasoning",
+        "projectionKind": "ResearchEvidenceProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_COUNTER",
+        "page": "Research",
+        "feature": "Counter Evidence",
+        "projectionKind": "ResearchEvidenceProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_CONFIDENCE",
+        "page": "Research",
+        "feature": "Confidence Components",
+        "projectionKind": "ResearchEvidenceProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_LIMITATIONS",
+        "page": "Research",
+        "feature": "Source Limitations",
+        "projectionKind": "CoverageDataStatusProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_LINEAGE",
+        "page": "Research",
+        "feature": "Lineage",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_VERSION",
+        "page": "Research",
+        "feature": "Recompute and Version Metadata",
+        "projectionKind": "ResearchEvidenceProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "RES_HISTORICAL",
+        "page": "Research",
+        "feature": "Historical Analog, Event Impact and Market Memory",
+        "projectionKind": "ResearchEvidenceProjection",
+        "readiness": "PROJECTION_READY_WITH_LIMITATION",
+        "limitationCodes": [
+          "OPTIONAL_ENRICHMENT_UNAVAILABLE_OR_BOUNDED"
+        ]
+      },
+      {
+        "featureId": "MKT_UNIVERSE",
+        "page": "Markets",
+        "feature": "Supported Instrument List",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "MKT_PRICE",
+        "page": "Markets",
+        "feature": "Price and Change",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "MKT_DERIVATIVES",
+        "page": "Markets",
+        "feature": "OI and Funding",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "MKT_STATE",
+        "page": "Markets",
+        "feature": "Market-State Classification",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "MKT_COVERAGE",
+        "page": "Markets",
+        "feature": "Coverage Status",
+        "projectionKind": "CoverageDataStatusProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "MKT_EVIDENCE",
+        "page": "Markets",
+        "feature": "Latest Evidence",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "MKT_LIVE_STRUCTURE",
+        "page": "Markets",
+        "feature": "Chart, Depth, Trades and Liquidations",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY_WITH_LIMITATION",
+        "limitationCodes": [
+          "OPTIONAL_ENRICHMENT_UNAVAILABLE_OR_BOUNDED"
+        ]
+      },
+      {
+        "featureId": "MKT_ROTATION",
+        "page": "Markets",
+        "feature": "Sector Rotation, Capital Flow, Macro and ETF",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY_WITH_LIMITATION",
+        "limitationCodes": [
+          "OPTIONAL_ENRICHMENT_UNAVAILABLE_OR_BOUNDED"
+        ]
+      },
+      {
+        "featureId": "MKT_NAV",
+        "page": "Markets",
+        "feature": "Scanner and Detail Navigation",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "SCN_RANKING",
+        "page": "Scanner",
+        "feature": "Ranked Candidate Queue",
+        "projectionKind": "ScannerCandidateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "SCN_REASON",
+        "page": "Scanner",
+        "feature": "Observable Reason Codes",
+        "projectionKind": "ScannerCandidateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "SCN_EVIDENCE",
+        "page": "Scanner",
+        "feature": "Evidence and Confidence",
+        "projectionKind": "ScannerCandidateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "SCN_COVERAGE",
+        "page": "Scanner",
+        "feature": "Coverage Filtering",
+        "projectionKind": "CoverageDataStatusProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "SCN_SELECTION",
+        "page": "Scanner",
+        "feature": "Candidate Selection Across Navigation",
+        "projectionKind": "ScannerCandidateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "SCN_HANDOFF",
+        "page": "Scanner",
+        "feature": "Replay, Research, Markets and Trade Handoffs",
+        "projectionKind": "ScannerCandidateProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_SELECTED",
+        "page": "Trade",
+        "feature": "Selected Candidate",
+        "projectionKind": "TradeDecisionContextProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_CONTEXT",
+        "page": "Trade",
+        "feature": "Market Context",
+        "projectionKind": "TradeDecisionContextProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_SUPPORT",
+        "page": "Trade",
+        "feature": "Supporting Facts",
+        "projectionKind": "TradeDecisionContextProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_COUNTER",
+        "page": "Trade",
+        "feature": "Counter Evidence",
+        "projectionKind": "TradeDecisionContextProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_RISK",
+        "page": "Trade",
+        "feature": "Risk Factors and Scenarios",
+        "projectionKind": "TradeDecisionContextProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_INVALIDATION",
+        "page": "Trade",
+        "feature": "Invalidation Conditions",
+        "projectionKind": "TradeDecisionContextProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_EVIDENCE",
+        "page": "Trade",
+        "feature": "Related Evidence",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_STATUS",
+        "page": "Trade",
+        "feature": "Explicit Data Status",
+        "projectionKind": "CoverageDataStatusProjection",
+        "readiness": "PROJECTION_READY",
+        "limitationCodes": []
+      },
+      {
+        "featureId": "TRD_LOCAL",
+        "page": "Trade",
+        "feature": "Tracked Setups",
+        "projectionKind": "TradeDecisionContextProjection",
+        "readiness": "NOT_IN_MVP_SCOPE",
+        "limitationCodes": [
+          "PAGE_CUTOVER_OR_LOCAL_UI_STATE"
+        ]
+      }
+    ]
+  }
+}

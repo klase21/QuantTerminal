@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "mvp-projection-registry/v1",
+  "generatorId": "mvp-consumer-projection-generator",
+  "generatorVersion": "1.0.0",
+  "projectionSchemaVersion": "1.0.0",
+  "lifecycleStates": ["GENERATED", "SUPERSEDED", "WITHHELD", "INVALID"],
+  "consumerExposureStates": ["INTERNAL_ONLY", "READY_FOR_CUTOVER", "CONSUMER_VISIBLE"],
+  "mvp3AllowedExposureStates": ["INTERNAL_ONLY", "READY_FOR_CUTOVER"],
+  "definitions": [
+    {"kind":"DashboardMarketStateProjection","consumer":"DASHBOARD","definitionChecksum":"84b9e659f0272f9ba0919373897b90311c34c1e926c478109c186251685d5703"},
+    {"kind":"InstrumentMarketSummaryProjection","consumer":"MARKETS","definitionChecksum":"d8b3c07911efa0f1ce1fa2eecb6e1cab6e5e5e719f71553cb11b8d6abe6f717a"},
+    {"kind":"ReplayTimelineProjection","consumer":"REPLAY","definitionChecksum":"3dc2996e791cd656b61bafde40c3c956baccf63997c3ca0d80b6ce41d6caed49"},
+    {"kind":"ResearchEvidenceProjection","consumer":"RESEARCH","definitionChecksum":"004840a5f71221373320441bb6c9198c36370e58760c8082345446c869321bdf"},
+    {"kind":"ScannerCandidateProjection","consumer":"SCANNER","definitionChecksum":"4fa93d44f84ba2ee68d400f42dd8f4371b66633cc687e98cfeaef9a3118c4431"},
+    {"kind":"TradeDecisionContextProjection","consumer":"TRADE","definitionChecksum":"737e90e59355dce9730e728496149b2b3cdcd91b4c1c71b169e6406fee50ffe1"},
+    {"kind":"CoverageDataStatusProjection","consumer":"SHARED","definitionChecksum":"30f0c329274d257dff62bae26335a0f2dbfd8340c4d818a7d92ee83e1248f843"},
+    {"kind":"SourceLineageSummaryProjection","consumer":"SHARED","definitionChecksum":"9f562549d1148c8a176b042235e180f230b2b6bded84d6a8e72d2e0ad06b2c46"},
+    {"kind":"EventAnnotationProjection","consumer":"SHARED","definitionChecksum":"af16b6622120d957aed5756abb9ffb7466e9951b4e5fe0af7b6ce5f884409130"}
+  ]
+}

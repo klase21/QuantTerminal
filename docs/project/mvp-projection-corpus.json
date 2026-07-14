@@ -1,0 +1,504 @@
+{
+  "schemaVersion": "mvp-projection-corpus/v1",
+  "projectionCorpusId": "mvp-projection-corpus:3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+  "projectionCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+  "basis": {
+    "schemaVersion": "mvp-projection-corpus-basis/v1",
+    "sourceCorpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+    "sourceCorpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+    "evidenceAssessmentCount": 84,
+    "projectionDefinitions": [
+      {
+        "projectionKind": "DashboardMarketStateProjection",
+        "consumer": "DASHBOARD",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "84b9e659f0272f9ba0919373897b90311c34c1e926c478109c186251685d5703"
+      },
+      {
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "consumer": "MARKETS",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "d8b3c07911efa0f1ce1fa2eecb6e1cab6e5e5e719f71553cb11b8d6abe6f717a"
+      },
+      {
+        "projectionKind": "ReplayTimelineProjection",
+        "consumer": "REPLAY",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "3dc2996e791cd656b61bafde40c3c956baccf63997c3ca0d80b6ce41d6caed49"
+      },
+      {
+        "projectionKind": "ResearchEvidenceProjection",
+        "consumer": "RESEARCH",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "004840a5f71221373320441bb6c9198c36370e58760c8082345446c869321bdf"
+      },
+      {
+        "projectionKind": "ScannerCandidateProjection",
+        "consumer": "SCANNER",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "4fa93d44f84ba2ee68d400f42dd8f4371b66633cc687e98cfeaef9a3118c4431"
+      },
+      {
+        "projectionKind": "TradeDecisionContextProjection",
+        "consumer": "TRADE",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "737e90e59355dce9730e728496149b2b3cdcd91b4c1c71b169e6406fee50ffe1"
+      },
+      {
+        "projectionKind": "CoverageDataStatusProjection",
+        "consumer": "SHARED",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "30f0c329274d257dff62bae26335a0f2dbfd8340c4d818a7d92ee83e1248f843"
+      },
+      {
+        "projectionKind": "SourceLineageSummaryProjection",
+        "consumer": "SHARED",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "9f562549d1148c8a176b042235e180f230b2b6bded84d6a8e72d2e0ad06b2c46"
+      },
+      {
+        "projectionKind": "EventAnnotationProjection",
+        "consumer": "SHARED",
+        "schemaVersion": "1.0.0",
+        "generatorId": "mvp-consumer-projection-generator",
+        "generatorVersion": "1.0.0",
+        "definitionChecksum": "af16b6622120d957aed5756abb9ffb7466e9951b4e5fe0af7b6ce5f884409130"
+      }
+    ],
+    "projectionCounts": {
+      "DashboardMarketStateProjection": 14,
+      "InstrumentMarketSummaryProjection": 84,
+      "ReplayTimelineProjection": 84,
+      "ResearchEvidenceProjection": 84,
+      "ScannerCandidateProjection": 14,
+      "TradeDecisionContextProjection": 84,
+      "CoverageDataStatusProjection": 336,
+      "SourceLineageSummaryProjection": 84,
+      "EventAnnotationProjection": 84
+    },
+    "totalProjectionCount": 868,
+    "certificationSlice": [
+      {
+        "projectionVersionId": "mvpv_56141bc69723d2ac1ecd34d2bdd23e17e10d11e7f8e2e28ef32819fd00b57ab7",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "BNBUSDT:aggTrades",
+        "checksum": "0f28beaf14fc60aac5fe998a0d08b53e0221ef318905ef582aca837f9042d8fc"
+      },
+      {
+        "projectionVersionId": "mvpv_753ccf8f5dcd05b4d869aa30a55e053ee0ba058d18f6f6dda26ba1d4dcd87d91",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "BNBUSDT:funding",
+        "checksum": "2cf93e603de9d0f61992ec2b3d287a7f5b0616f3fddf8d656aa942fbd1f70d25"
+      },
+      {
+        "projectionVersionId": "mvpv_eb2b25413e0f70b00227af0f4c063c613850a05344208853f35bd649eb10e323",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "BNBUSDT:ohlcv",
+        "checksum": "cc1994d97f058ed32254b667c6552f9fd6b9de55295e16ddc255d1e1ca3c15a6"
+      },
+      {
+        "projectionVersionId": "mvpv_20ab364bd6e96424bdee11da2a1799a8a8fbeed2a7a68e1820a60dbd92a01bbb",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "BNBUSDT:openInterest",
+        "checksum": "1420a909e560508b25d8855834124059435a2b24e6142017000ed584602cc796"
+      },
+      {
+        "projectionVersionId": "mvpv_3b1430e042b22aa9b56c7ea9bd28b31693a8a7ff23657d55c9b539f3cdb6f9c3",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "BTCUSDT:aggTrades",
+        "checksum": "cd3c26482a1a61f1215fbec67a10374a3d64124340d09f2ecce306a9f54b4879"
+      },
+      {
+        "projectionVersionId": "mvpv_910a28de8f37276546cffe1053c52772aa525defad3b7bd9e0fae97e81ff9f08",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "BTCUSDT:funding",
+        "checksum": "3a610b79471967b9a045ab2dd0e37d114c21399dc31a10e50383975dd94884f6"
+      },
+      {
+        "projectionVersionId": "mvpv_91f946aa0e17049e4355a0d3ad2d7e00ed24e8aae384936d75c5c1e4dd569062",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "BTCUSDT:ohlcv",
+        "checksum": "f941cb715e1d9e5ff63ffb0ab27e4e7c3f8d58788898924e25bf9598ebaccb57"
+      },
+      {
+        "projectionVersionId": "mvpv_83d8cbc853079ae967df0e70e3c1201600a1eebedfc2c8a64fd1386a42ff68fa",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "BTCUSDT:openInterest",
+        "checksum": "4d60ab5f9eb42102a003ecf40ec9063720166298571d2f318efa1b177960011c"
+      },
+      {
+        "projectionVersionId": "mvpv_95e0499ddd016c705a20bb1f3b50fca3aedd040fd19f0607af8c44ff80d0c78e",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "DOGEUSDT:aggTrades",
+        "checksum": "63455d16801e4c7d2c652ba8e96a58a3fc879b16a795c8cb21076a7b92c36978"
+      },
+      {
+        "projectionVersionId": "mvpv_05d724074d12d35a302391c6ec9207b18f9180b2bd69eecf27fd0c924b73d89c",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "DOGEUSDT:funding",
+        "checksum": "e35378de16f80ad9988f774b4b9a378f2a94094971f62f997c5e44d270a0fdbe"
+      },
+      {
+        "projectionVersionId": "mvpv_414f72487a5a67cd42d730594245c43a8e1f240196c83c3016da5b65e0449b3e",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "DOGEUSDT:ohlcv",
+        "checksum": "ebce1fe3808533df908631c708b61ebc1adafb4ef7cc3e1c90847784f1c21fa2"
+      },
+      {
+        "projectionVersionId": "mvpv_405953b417be8d60ac123bf499f9569aa75b8d87229e50f1969e50a89c584a5a",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "DOGEUSDT:openInterest",
+        "checksum": "25313229862e13162da330c436c5986e90dccd5b6b3dd5f8501e28453c9b0c19"
+      },
+      {
+        "projectionVersionId": "mvpv_18aa11a102bde91ccf5a741a9f963f87ed0a253dee9dc46f6280d74003acd005",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "ETHUSDT:aggTrades",
+        "checksum": "0708c9006875115e62cb113a93e841d2a4ddc1f698cee0d82749f1d476437fa7"
+      },
+      {
+        "projectionVersionId": "mvpv_58097d0966575fb5cb2c0205a9a1a9948de102b13fa2483dd999a6b9f406d73b",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "ETHUSDT:funding",
+        "checksum": "8f0b10e67631c18900998c6ef35cb9f96f61713f664030ca9568be1771761a20"
+      },
+      {
+        "projectionVersionId": "mvpv_d2ffde64c32dfb46c738776e5dc5844a6e2260204670feee827dacc022de1628",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "ETHUSDT:ohlcv",
+        "checksum": "0b64b53a454183f964b5c8ab872abcd02ad75c05d125a40bd724532a7713880b"
+      },
+      {
+        "projectionVersionId": "mvpv_5b7b972e5d04caef501b8fe7543c9948880a1439d96c28e293307f9c5214c91a",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "ETHUSDT:openInterest",
+        "checksum": "319065ff8bda9ecdcb4e521eb151e5e5c77d20780a0889e6aade0de0411e0925"
+      },
+      {
+        "projectionVersionId": "mvpv_c589f1a5ad4fbf87f833137835c1773cf04c773dba60015ff172450244b19979",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "SOLUSDT:aggTrades",
+        "checksum": "f091ac91322cc0f4042b2ab53704cc72fad0db235d7220283b50023f90cafb1c"
+      },
+      {
+        "projectionVersionId": "mvpv_0bdfa2c97630aab530b9cd623bc684ad997223c743b003cb5f7d5f6a94bed86c",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "SOLUSDT:funding",
+        "checksum": "cf28a07e716a120006e9bd0e837577f3878a1735a2df4f1a5793a72726097bfe"
+      },
+      {
+        "projectionVersionId": "mvpv_68e7d5f7238756558d2e7392378593ed4393d4c02adc35ba87d8d3daeb1416d1",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "SOLUSDT:ohlcv",
+        "checksum": "30297a091b3bad5bb1208c50dbbbfed143e75031b201ebac233f5e82c5038456"
+      },
+      {
+        "projectionVersionId": "mvpv_3940a2c8beaaab7ca155dcfdf2a7b55b2034e577f9e5bead4d190d90c0fba57f",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "SOLUSDT:openInterest",
+        "checksum": "2a927a532d40f2076b9db016e40a28bfc0d01389a1d1b9d92d2b7996abcb87ee"
+      },
+      {
+        "projectionVersionId": "mvpv_73b014fd7248daf3d83240b962179dd7a82ee02b54123b6521589025f5105b26",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "XRPUSDT:aggTrades",
+        "checksum": "3a78383318770b13b7e6a74afe444c683ff9544e6690bb024f628f30c5930cba"
+      },
+      {
+        "projectionVersionId": "mvpv_9ea5a2ed8ffef02ee82bf7962698cacd78f5589d226cf319b57d9c6a2f1c6b3e",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "XRPUSDT:funding",
+        "checksum": "57430580aab44557f0aa29676936dd732066d8f5c41efea0bddf047facae7930"
+      },
+      {
+        "projectionVersionId": "mvpv_462d18c282cc3253c131705b4f7353eb7b8e0a3012847fb3ecaf383244b4e312",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "XRPUSDT:ohlcv",
+        "checksum": "216419e82d0cf3b5f58e51101f56cd987d8caf0edcfeca424143b8bbdf2667fc"
+      },
+      {
+        "projectionVersionId": "mvpv_9da563b22f699a51a196aab1aa27e918f35b22bc84eb607a7c1fe45dfc16286d",
+        "projectionKind": "CoverageDataStatusProjection",
+        "subjectId": "XRPUSDT:openInterest",
+        "checksum": "d13cf2cb1b618958bc0d848bde66766623433d50e184e227a3208a23b0814450"
+      },
+      {
+        "projectionVersionId": "mvpv_991d1a7681b511104ea91d247c8b85e7871417ab060ed56f4d5e5d5a732fe322",
+        "projectionKind": "DashboardMarketStateProjection",
+        "subjectId": "MVP_SIX_INSTRUMENTS",
+        "checksum": "f86f2464869dfa0f17f65fd8931136db884dfcbbc0e957d405814ec4136f67cc"
+      },
+      {
+        "projectionVersionId": "mvpv_0bf435fad1132e263accb9bec61130865e3946fbddbb951e061fbbfa5c4c6cdc",
+        "projectionKind": "EventAnnotationProjection",
+        "subjectId": "BNBUSDT",
+        "checksum": "c4f8f930001b4ec3fb15e50fd3144da97cf424f8d2348cabb9cc42833ab3f53f"
+      },
+      {
+        "projectionVersionId": "mvpv_f4decd78e0e4fd7a18cc5630213cb8afde7f29ffcfc9f7e21431722ac487fa07",
+        "projectionKind": "EventAnnotationProjection",
+        "subjectId": "BTCUSDT",
+        "checksum": "65ae34e59a4f442363ef316fd00988fe2bcdbb973844ad9ea82e595fbb688be5"
+      },
+      {
+        "projectionVersionId": "mvpv_15f74272d729b70653da68c0b2a1d7455bcfbe7434257cf63b221a6ab0385549",
+        "projectionKind": "EventAnnotationProjection",
+        "subjectId": "DOGEUSDT",
+        "checksum": "7d67134e5bb257ff9c3007e3576d531028b2455bb85ad4ac58b5ab99b24b3867"
+      },
+      {
+        "projectionVersionId": "mvpv_127f2c380d0b26e7d152962783a7eee428c5dd21fe9a540503d5394ef81db545",
+        "projectionKind": "EventAnnotationProjection",
+        "subjectId": "ETHUSDT",
+        "checksum": "052b34415ff979071b80a55d362591c43967c8f28aadb4407494ce42c5b35700"
+      },
+      {
+        "projectionVersionId": "mvpv_e180a2e0fee53cb7347bd0efa834b118b19cb76919de157aef9c0014962c3ad0",
+        "projectionKind": "EventAnnotationProjection",
+        "subjectId": "SOLUSDT",
+        "checksum": "5740f0ad3d36d8be33f25a7c18624ed73bf6ab6b7346f5733ab359371f4ff0dd"
+      },
+      {
+        "projectionVersionId": "mvpv_50dd4f611507d198a383ff51fbd942ab5c57c1119146aa9c18895f825a2b4487",
+        "projectionKind": "EventAnnotationProjection",
+        "subjectId": "XRPUSDT",
+        "checksum": "cb698b1c3b3cbe36be35eaf820f7c4ffdfd6c6a52a57717c4d4a31688c4a5f21"
+      },
+      {
+        "projectionVersionId": "mvpv_3c27926f359d4d6b3eab762b63cc324ce2c261e11a77278857b25de78b584812",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "subjectId": "BNBUSDT",
+        "checksum": "dcce8495b2f53bc0a611bf4c3107866f4c2a3ae4e1461014a7008fcfa89a5049"
+      },
+      {
+        "projectionVersionId": "mvpv_1e163b874e7e58afd39626d366bca144560eea65de476dd9c4066e26dbbefb8a",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "subjectId": "BTCUSDT",
+        "checksum": "7f28bbbba251d3ec7bf661c59665340ec212cd3efba8a18ab22a938cfa7a66aa"
+      },
+      {
+        "projectionVersionId": "mvpv_02d4b45649b0cf5a1a3da5c60beb4ce767d1e7222a0d6eb6be5c6a3e0795feb8",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "subjectId": "DOGEUSDT",
+        "checksum": "fcf8567af4e55dcfba2c60021ba35672ec91b1cf620eae9509c363570c394316"
+      },
+      {
+        "projectionVersionId": "mvpv_016db6e5662aa4de3ea9b9950d04b685b34542fc995e2a4635ef03887e0a12e3",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "subjectId": "ETHUSDT",
+        "checksum": "02ef0bbf62d0851ccf75678c963ee6aac747988969f0b9060f2b7e174e932c1b"
+      },
+      {
+        "projectionVersionId": "mvpv_78cd81c7ff837e1c34f5d1e6c60b1b59082ac886c6a0bdcc9281067532ace699",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "subjectId": "SOLUSDT",
+        "checksum": "ca50d9291d5c4745d30544be824178b8512043cf287a72f7019959d11a5642a1"
+      },
+      {
+        "projectionVersionId": "mvpv_1ce15f9c22d6af926e146da2bcafd1879d7b712d51db9fabb7521c8f1ee05d4e",
+        "projectionKind": "InstrumentMarketSummaryProjection",
+        "subjectId": "XRPUSDT",
+        "checksum": "17d2dafc2d8fc45e16363b013ec9204d0eff69342d32a87ecea9cf0500b342e1"
+      },
+      {
+        "projectionVersionId": "mvpv_e8f0362d4fc6f773296e4dfc2882618977ea5b6a443d6e6af427001428755665",
+        "projectionKind": "ReplayTimelineProjection",
+        "subjectId": "BNBUSDT",
+        "checksum": "56fdd8e86e00b305393d9e7f96254e070a294a6552cc22a3e6475bd49fed4312"
+      },
+      {
+        "projectionVersionId": "mvpv_8fdc5b6fecddcae97bc8b3d985563a460bebd1ec18410a231d71ec32c9668478",
+        "projectionKind": "ReplayTimelineProjection",
+        "subjectId": "BTCUSDT",
+        "checksum": "c0feb86365023aacb7a5607ea986bfb5e621d7c9f632b9ae95aa6334bb2d93a2"
+      },
+      {
+        "projectionVersionId": "mvpv_b350f3f5c2912dca4a71c1d6c0e3290aba302e40f56b4a639f9a21abcd62030c",
+        "projectionKind": "ReplayTimelineProjection",
+        "subjectId": "DOGEUSDT",
+        "checksum": "2012513383274ced6ae67a938cd925f17a94fe19cca96cf939f454fae4d1b7c9"
+      },
+      {
+        "projectionVersionId": "mvpv_6339c78367664d865fec3c4e188417176457fa7fde878f4df669d780013a3ad7",
+        "projectionKind": "ReplayTimelineProjection",
+        "subjectId": "ETHUSDT",
+        "checksum": "014ef42ac9ba1c1811b4955ae565963c8ef6660de79b604fa45beb922ff36bb8"
+      },
+      {
+        "projectionVersionId": "mvpv_d11ec0c50a411531816122acbf9110dc8ea99d997fc8ec076ea43ec0594b521f",
+        "projectionKind": "ReplayTimelineProjection",
+        "subjectId": "SOLUSDT",
+        "checksum": "5dc6b91b1bdf7bd7fa984c333248a1dfea706fc97f6a0758c0dcf6ad146eaf51"
+      },
+      {
+        "projectionVersionId": "mvpv_e4b2cc78dfcaf5c9eeb8dcb0c6378596dde7cead3711e7a0adea76b8180b9655",
+        "projectionKind": "ReplayTimelineProjection",
+        "subjectId": "XRPUSDT",
+        "checksum": "4158126bfef0ac96c7ad989f74475af941af28727dbdc0ee54ec24abfcb72461"
+      },
+      {
+        "projectionVersionId": "mvpv_7dae657207f4542b41c829ffd41da53f960e21e056f286f65794e9093abc8731",
+        "projectionKind": "ResearchEvidenceProjection",
+        "subjectId": "BNBUSDT",
+        "checksum": "88ddafad336c8c2d46f3b17b252eddde77d564a20ecc4c87849f6d557a0b6cf3"
+      },
+      {
+        "projectionVersionId": "mvpv_9fff1a675d3c0bd9451785baf1abb46648c00e19816372287d992907731511d7",
+        "projectionKind": "ResearchEvidenceProjection",
+        "subjectId": "BTCUSDT",
+        "checksum": "789a58587651a9bb93221d1717f5d9db7b97eb1344c30c919d2e07861d0af23f"
+      },
+      {
+        "projectionVersionId": "mvpv_304744ade82e97099097715c15638f244b898c1e3203c7fcc72744578fc3d5f2",
+        "projectionKind": "ResearchEvidenceProjection",
+        "subjectId": "DOGEUSDT",
+        "checksum": "174ab1439efce368fef9eb3c7d9f5504c6add52171604958c31d286cd12a0431"
+      },
+      {
+        "projectionVersionId": "mvpv_101942c4fc1e941fbe3cdd7ef104e6b74a85e08885a4b700d17cb20a2cd570e5",
+        "projectionKind": "ResearchEvidenceProjection",
+        "subjectId": "ETHUSDT",
+        "checksum": "d9bf7b5ea3600b251263468a3bd481907a51ea2836a6e2ceaeb90d35f412927a"
+      },
+      {
+        "projectionVersionId": "mvpv_b91dfefdb2eacc6a66ec0123d2aad66823c71309e2b4802e391b320c6d067761",
+        "projectionKind": "ResearchEvidenceProjection",
+        "subjectId": "SOLUSDT",
+        "checksum": "6953c8fee8429d14a677fa1dd207f24544a7641c7869125347a63e6a1898cc44"
+      },
+      {
+        "projectionVersionId": "mvpv_c489e564115f6fa6c634a7e4a2335f1a3c06313e11123eeeab6535de6f2cde50",
+        "projectionKind": "ResearchEvidenceProjection",
+        "subjectId": "XRPUSDT",
+        "checksum": "ee014289f7f1217da5f28c43bbcc60f84219af5055db9318808fc4c59149a106"
+      },
+      {
+        "projectionVersionId": "mvpv_bccc37156639449bee7c1b419db839b107aaf40621f8dc536db7d9f5a7ec4b76",
+        "projectionKind": "ScannerCandidateProjection",
+        "subjectId": "MVP_SIX_INSTRUMENTS",
+        "checksum": "cd6747f6fa710d8a64eea8dc6c3b940b14945043ea29d23b5dee0aa3db7033bf"
+      },
+      {
+        "projectionVersionId": "mvpv_e43d9d1d34e4dbb57ae5a65391f52f0f24dfc614ab40358342bf4043da929122",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "subjectId": "BNBUSDT",
+        "checksum": "5fc9c71a4645025daa2f68e37d8486eeecd7d25fa9fb49be5d6891e6c743a272"
+      },
+      {
+        "projectionVersionId": "mvpv_c01a8c7c3a9a7bc31247cf7723924434dca99e0a2f9c6dec078b502fc92072c0",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "subjectId": "BTCUSDT",
+        "checksum": "e414879f0171b23e45b3ad1133fbed839d582dcd810c74af2fc93f6fdb8e56a7"
+      },
+      {
+        "projectionVersionId": "mvpv_aefbb7decdfc8dda74acb63d61c3e2750f5e92d513ec28f303e8a77dc7dfa902",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "subjectId": "DOGEUSDT",
+        "checksum": "8bd1f7d7c6591373131f5022610fe918892c5eb2f2c49cb9efc16b65a1d5169f"
+      },
+      {
+        "projectionVersionId": "mvpv_e2ca477b065d7450bc9076ec0a7f8cf137660fbe8e851240c92a61641766d3c5",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "subjectId": "ETHUSDT",
+        "checksum": "96f8770296974b9c1df063f593442fd35ae37f720156e65947e2499826ed61d8"
+      },
+      {
+        "projectionVersionId": "mvpv_4a402efa6409976c6fc6cb95e1ccb4cb68064132ba897ebc33446ac8e36b6a23",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "subjectId": "SOLUSDT",
+        "checksum": "caeba226cc226482556adeeab743a83d81f9a629e39a84090b7813531ac4135b"
+      },
+      {
+        "projectionVersionId": "mvpv_02d599a48b995aa4d5902e8893e19e6f185b0d73e7e73f04969a55fd2019d220",
+        "projectionKind": "SourceLineageSummaryProjection",
+        "subjectId": "XRPUSDT",
+        "checksum": "9bbd27560b7a7ed49e7f8b653eeced1820a1c47cbecfd97d30870c6f75602cd0"
+      },
+      {
+        "projectionVersionId": "mvpv_33c4b6a731accd82cede910cf47a93664a1c2d8e70f9deaf0d7e5670b7a4fac9",
+        "projectionKind": "TradeDecisionContextProjection",
+        "subjectId": "BNBUSDT",
+        "checksum": "8bbbe3b0ebfe0e5f0b4663ed75275ee75e6025b55329648b07ff729e08d72e3d"
+      },
+      {
+        "projectionVersionId": "mvpv_a52c26340a1f23dbbb3fbefb2b1f84fb1615ffda704813f90bda43d881c1bd4c",
+        "projectionKind": "TradeDecisionContextProjection",
+        "subjectId": "BTCUSDT",
+        "checksum": "cf7056b17af53c2a4f3b40c52a7d87f4c2853a93b60ec25b1b38985f78efe7e0"
+      },
+      {
+        "projectionVersionId": "mvpv_cd18621f09bf2954fcc3f06b3f09f7191093ca43f1f06a1d3397d0a5b8dc7dc8",
+        "projectionKind": "TradeDecisionContextProjection",
+        "subjectId": "DOGEUSDT",
+        "checksum": "b24a5e3af030baf9b46ef8cd5cc1d65db9c4b6413223c592fcd64eddf98f4dff"
+      },
+      {
+        "projectionVersionId": "mvpv_02c022d4f3f2a733a4c29b39ef4b718ff7ee044117059508af71bfbd9401f99f",
+        "projectionKind": "TradeDecisionContextProjection",
+        "subjectId": "ETHUSDT",
+        "checksum": "2dc2cd0e26d234ef1709fd76801696ae371092893f4d2457a563f22d219349ae"
+      },
+      {
+        "projectionVersionId": "mvpv_10cded700c040af841d4f30c9b74ca299ae07cdfa436d069e50833f8ea7187ae",
+        "projectionKind": "TradeDecisionContextProjection",
+        "subjectId": "SOLUSDT",
+        "checksum": "046bd59f4a9d4ac261b3567b82a8299d8fee2fd80e16226f7888f5d6f1722501"
+      },
+      {
+        "projectionVersionId": "mvpv_d56714ae4aea2f6cf9d6e9987d56960e1da9409056476113fe40cf0c01612080",
+        "projectionKind": "TradeDecisionContextProjection",
+        "subjectId": "XRPUSDT",
+        "checksum": "bd09ea605ced3c8028b8fc3b3698e47eba1b6bce0d2422bd74734d04acc6bc21"
+      }
+    ],
+    "dependencyDigest": "987b50c0c1481709459a81cd44b95ec5723faf59d1a2555c5d81156229c6e073"
+  },
+  "recomputation": {
+    "command": "generate",
+    "allDuplicate": true
+  },
+  "publicationBoundary": {
+    "d2SourcePublication": "PENDING",
+    "d4Evidence": "INTERNALLY_PERSISTED",
+    "projectionLifecycle": "GENERATED",
+    "consumerExposure": "READY_FOR_CUTOVER",
+    "pageApiConsumer": "UNCHANGED"
+  },
+  "migrations": [
+    "D2-001:SKIPPED",
+    "D2-002:SKIPPED",
+    "D2-003:SKIPPED",
+    "D2-004:SKIPPED",
+    "D2-005:SKIPPED",
+    "D2-006:SKIPPED",
+    "D2-007:SKIPPED",
+    "D2-008:SKIPPED",
+    "D4-001:SKIPPED",
+    "D4-002:SKIPPED",
+    "D4-003:SKIPPED",
+    "D4-004:SKIPPED",
+    "D4-005:SKIPPED",
+    "D4-006:SKIPPED",
+    "D4-007:SKIPPED",
+    "D4-008:SKIPPED",
+    "D4-009:SKIPPED",
+    "D4-010:SKIPPED",
+    "D4-011:SKIPPED"
+  ]
+}

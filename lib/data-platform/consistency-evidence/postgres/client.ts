@@ -2,7 +2,7 @@ import postgres from "postgres"
 import { inspectD4RuntimeTarget, type D4Environment, verifyEnvironment } from "./safety"
 
 export type D4RuntimeLifecycle = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "SHUTTING_DOWN" | "SHUTDOWN"
-export type D4RoleIntent = "MIGRATION_OWNER" | "CONSISTENCY_WORKER" | "EVIDENCE_ASSEMBLER" | "READ_ONLY"
+export type D4RoleIntent = "MIGRATION_OWNER" | "CONSISTENCY_WORKER" | "EVIDENCE_ASSEMBLER" | "PROJECTION_BUILDER" | "READ_ONLY"
 export interface D4PostgresConfig {
   readonly connectionString: string
   readonly roleIntent: D4RoleIntent
@@ -45,7 +45,7 @@ export class ConsistencyPostgresRuntime {
   async connect(): Promise<D4DatabaseVerification> {
     if (this.lifecycleState !== "DISCONNECTED") throw new Error("D4_RUNTIME_CONNECT_STATE_INVALID")
     this.lifecycleState = "CONNECTING"
-    const role = this.config.roleIntent === "MIGRATION_OWNER" ? undefined : this.config.roleIntent === "CONSISTENCY_WORKER" ? "qt_d4_consistency_worker" : this.config.roleIntent === "EVIDENCE_ASSEMBLER" ? "qt_d4_evidence_assembler" : "qt_d4_read_only"
+    const role = this.config.roleIntent === "MIGRATION_OWNER" ? undefined : this.config.roleIntent === "CONSISTENCY_WORKER" ? "qt_d4_consistency_worker" : this.config.roleIntent === "EVIDENCE_ASSEMBLER" ? "qt_d4_evidence_assembler" : this.config.roleIntent === "PROJECTION_BUILDER" ? "qt_d4_projection_builder" : "qt_d4_read_only"
     const sql = postgres(this.config.connectionString, {
       max: this.config.maxConnections, connect_timeout: this.config.connectTimeoutSeconds, idle_timeout: this.config.idleTimeoutSeconds,
       prepare: false, connection: {

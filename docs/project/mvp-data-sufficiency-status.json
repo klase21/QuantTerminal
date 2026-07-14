@@ -1,20 +1,17 @@
 {
   "schemaVersion": "mvp-data-sufficiency-status/v1",
   "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
-  "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
-  "populationStatusEnum": ["DATA_SUFFICIENT", "DATA_SUFFICIENT_WITH_LIMITATION", "DATA_INSUFFICIENT", "SOURCE_BLOCKED"],
-  "featureStatusEnum": ["DATA_SUFFICIENT", "DATA_SUFFICIENT_WITH_LIMITATION", "DATA_INSUFFICIENT", "SOURCE_BLOCKED", "NOT_YET_PROJECTED"],
-  "features": [
-    {"page":"Dashboard","feature":"Market Direction","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding"],"limitation":"Governed D4 Evidence is internally available; Consumer Projection is not implemented."},
-    {"page":"Dashboard","feature":"Derivatives State","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["open-interest","funding"],"limitation":"Governed Evidence is active; Liquidation remains optional enrichment and projection is pending."},
-    {"page":"Dashboard","feature":"Trading Intensity","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["agg-trade"],"limitation":"Projection must query bounded Canonical Stream Segments."},
-    {"page":"Markets","feature":"Instrument Summaries","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding"],"limitation":"Current Consumer Projection is not implemented."},
-    {"page":"Scanner","feature":"Comparable Ranking Inputs","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding","agg-trade"],"limitation":"Ranking governance and durable candidate projection remain pending."},
-    {"page":"Trade","feature":"Market Context","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding","agg-trade"],"limitation":"Evidence is internally ready; Trade Decision Context Projection remains pending."},
-    {"page":"Shared","feature":"Coverage Display","populationStatus":"DATA_SUFFICIENT","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding","agg-trade"],"limitation":"Persisted Coverage is eligible; shared read model is not implemented."},
-    {"page":"Replay","feature":"Full Historical Replay","populationStatus":"DATA_INSUFFICIENT","featureStatus":"DATA_INSUFFICIENT","requiredDatasets":["ohlcv","open-interest","funding","agg-trade","order-book"],"limitation":"Not certified by the Recent Market Corpus; Order Book history remains separate."},
-    {"page":"Research","feature":"Final Evidence Conclusions","populationStatus":"DATA_SUFFICIENT_WITH_LIMITATION","featureStatus":"NOT_YET_PROJECTED","requiredDatasets":["ohlcv","open-interest","funding","agg-trade"],"limitation":"Bounded retrospective D4 Evidence is active; projection, broader event corpus, and Phase V calibration remain pending."}
+  "projectionCorpusId": "mvp-projection-corpus:3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+  "projectionCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+  "featureStatusEnum": ["PROJECTION_READY", "PROJECTION_READY_WITH_LIMITATION", "NOT_YET_PROJECTED", "SOURCE_BLOCKED", "NOT_IN_MVP_SCOPE"],
+  "summary": {"featureCount":52,"projectionReady":43,"projectionReadyWithLimitation":6,"sourceBlocked":1,"notInMvpScope":2,"notYetProjected":0},
+  "pages": [
+    {"page":"Dashboard","status":"PROJECTION_READY_WITH_LIMITATION","limitation":"Liquidation is optional and complete historical events remain blocked."},
+    {"page":"Markets","status":"PROJECTION_READY_WITH_LIMITATION","limitation":"Realtime structure remains a protected live path until MVP-4 composes it with governed summaries."},
+    {"page":"Scanner","status":"PROJECTION_READY","limitation":"Ranking is investigation priority, not expected profit."},
+    {"page":"Trade","status":"PROJECTION_READY","limitation":"Context only; no action, order, sizing, or execution instruction."},
+    {"page":"Replay","status":"PROJECTION_READY_WITH_LIMITATION","limitation":"Bounded Evidence windows are ready; Liquidation, Order Book, and news enrichment remain limited."},
+    {"page":"Research","status":"PROJECTION_READY_WITH_LIMITATION","limitation":"Bounded Evidence corpus is ready; automatic historical polling remains disabled by design."}
   ],
-  "evidenceBoundary": {"status":"INTERNALLY_AVAILABLE","evidenceCorpusChecksum":"52043bcaf96ae62ff45c2eff6f814832fd3c12becf6869ea2308f36b656eb00c","assessmentCount":84,"instrumentCount":6,"consumerProjectionStatus":"NOT_CREATED"},
-  "publicationBoundary": {"repositoryState":"PENDING","corpusEligibility":"ELIGIBLE","consumerProjectionStatus":"NOT_CREATED"}
+  "publicationBoundary": {"d2SourcePublication":"PENDING","d4Evidence":"INTERNALLY_PERSISTED","projectionLifecycle":"GENERATED","consumerExposure":"READY_FOR_CUTOVER","pageApiConsumer":"UNCHANGED"}
 }
