@@ -7,4 +7,5 @@ export const D4_MIGRATION_ORDER = Object.freeze([
   "006_dependency_recompute.sql",
   "007_phase2v_certification_hardening.sql",
   "008_core_evidence_assembly.sql",
+  "009_mvp_evidence_activation.sql",
 ] as const)

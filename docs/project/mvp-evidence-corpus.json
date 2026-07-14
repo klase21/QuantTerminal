@@ -1,0 +1,2048 @@
+{
+  "schemaVersion": "mvp-evidence-corpus/v1",
+  "evidenceCorpusId": "mvp-evidence-corpus:52043bcaf96ae62ff45c2eff6f814832fd3c12becf6869ea2308f36b656eb00c",
+  "evidenceCorpusChecksum": "52043bcaf96ae62ff45c2eff6f814832fd3c12becf6869ea2308f36b656eb00c",
+  "basis": {
+    "schemaVersion": "mvp-evidence-corpus-basis/v1",
+    "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+    "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+    "ruleSetId": "MVP-MARKET-EVIDENCE",
+    "ruleSetVersion": "1.0.0",
+    "ruleRegistryChecksum": "0e4e3f06028e57d44eb3e2369e4fc964cf3b4d9453dbfd6d3556e4c78011d414",
+    "measurementVersion": "mvp-market-measurements/1.0.0",
+    "evaluatedWindowCount": 84,
+    "instruments": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT",
+      "XRPUSDT",
+      "DOGEUSDT"
+    ],
+    "stateCounts": {
+      "DELEVERAGING": 15,
+      "DERIVATIVES_OVERHEATING": 1,
+      "FUNDING_PRESSURE": 9,
+      "MIXED": 1,
+      "NEUTRAL": 49,
+      "POSITIONING_EXPANSION": 9
+    },
+    "certificationSlice": [
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_70211bc855e93f4c6fa775c6d637a2100828d58245d4c8ee149edb9f9d067fb3",
+          "assessmentIdentity": "70211bc855e93f4c6fa775c6d637a2100828d58245d4c8ee149edb9f9d067fb3",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "BTCUSDT",
+          "eventTimeStart": "2026-07-11T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T12:45:59.000Z",
+          "marketState": "DELEVERAGING",
+          "measurements": {
+            "instrument": "BTCUSDT",
+            "eventTimeStart": "2026-07-11T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T12:45:59.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": -0.54031296,
+            "realizedRangePct": 1.29207307,
+            "oiChangePct": -2.39732344,
+            "oiBaselineMedianAbsChangePct": 0.98381246,
+            "fundingLatestRate": 0.00004156,
+            "fundingPreviousRate": 0.00009508,
+            "fundingBaselineAbsPercentile": 0.00007247,
+            "fundingNormalizationRatio": 0.57347868,
+            "aggressiveBuyQuantity": "25273.968",
+            "aggressiveSellQuantity": "28400.927",
+            "aggressiveImbalanceRatio": -0.05825738,
+            "tradeCount": 494149,
+            "tradeCountIntensity": 0.33149445,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "d589a2e895e7b8a3b32f9c8287c6afb533288925b2399044e691cb1fea649496",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "8f541df0fb04c0e7bb1439fa1a09944785fc4f2eca621e07fa3ef381f4e3f181",
+            "maximumInputEventTime": "2026-07-11T23:59:59.846Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "TRIGGERED",
+              "supportingCodes": [
+                "OI_MATERIALLY_CONTRACTED",
+                "PRICE_FELL"
+              ],
+              "counterEvidenceCodes": [
+                "NO_PRICE_OI_DIVERGENCE"
+              ],
+              "nonTriggerCodes": [],
+              "limitationCodes": [],
+              "measurementDigest": "8136b10391fb239bb154f190456ff5a15b94dd43c79a610f3f5d20d169c53777"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "FUNDING_BELOW_PRESSURE_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "8136b10391fb239bb154f190456ff5a15b94dd43c79a610f3f5d20d169c53777"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "8136b10391fb239bb154f190456ff5a15b94dd43c79a610f3f5d20d169c53777"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "8136b10391fb239bb154f190456ff5a15b94dd43c79a610f3f5d20d169c53777"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "TRIGGERED",
+              "supportingCodes": [
+                "FUNDING_NORMALIZED",
+                "OI_MATERIALLY_CONTRACTED"
+              ],
+              "counterEvidenceCodes": [
+                "NO_STRONG_FLOW_OPPOSITION"
+              ],
+              "nonTriggerCodes": [],
+              "limitationCodes": [],
+              "measurementDigest": "8136b10391fb239bb154f190456ff5a15b94dd43c79a610f3f5d20d169c53777"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "DELEVERAGING",
+            "supportingCodes": [
+              "FUNDING_NORMALIZED",
+              "OI_MATERIALLY_CONTRACTED",
+              "PRICE_FELL"
+            ],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_WITHIN_BASELINE",
+              "NO_PRICE_OI_DIVERGENCE",
+              "NO_STRONG_FLOW_OPPOSITION",
+              "OI_EXPANSION_NOT_CONFIRMED"
+            ],
+            "nonTriggerCodes": [
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "FUNDING_BELOW_PRESSURE_THRESHOLD",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0.4,
+              "counterEvidencePenalty": 0.6,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.63,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "d589a2e895e7b8a3b32f9c8287c6afb533288925b2399044e691cb1fea649496",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "8f541df0fb04c0e7bb1439fa1a09944785fc4f2eca621e07fa3ef381f4e3f181"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "c6af599cf8bf5b3d7c9030f09c4c00b9f30957e92e73e0a15a1d91364d576786",
+          "createdAt": "2026-07-14T12:45:59.000Z",
+          "assessmentChecksum": "57ecc7d5b02cc6dbdeebacf76aec20a6ee22922eb8719b1eb37bccdd236598fc"
+        },
+        "packetId": "epkt_ba3fdfbdd77e34fea10b70a29d9f67c52ed6409725d1e0258fec3f711a82bd81",
+        "packetVersionId": "epvr_c0dd8f873c410ce5af9199957f574b0b7f55f3865c493ed2c7553b544ba706a5",
+        "packetChecksum": "5c67ec5733ceb46e5cafda95f6ea64265c83c6364726d1fea145d91cbe428d92"
+      },
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_f708e58aef7b989996be5120bea6e2c76f70f2108e1413f7754de173a31b4e66",
+          "assessmentIdentity": "f708e58aef7b989996be5120bea6e2c76f70f2108e1413f7754de173a31b4e66",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "ETHUSDT",
+          "eventTimeStart": "2026-07-11T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T13:04:20.000Z",
+          "marketState": "NEUTRAL",
+          "measurements": {
+            "instrument": "ETHUSDT",
+            "eventTimeStart": "2026-07-11T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T13:04:20.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": -0.51947907,
+            "realizedRangePct": 2.47880047,
+            "oiChangePct": 1.46963077,
+            "oiBaselineMedianAbsChangePct": 1.25390672,
+            "fundingLatestRate": 0.00006296,
+            "fundingPreviousRate": 0.00004632,
+            "fundingBaselineAbsPercentile": 0.0000533,
+            "fundingNormalizationRatio": 1.18123827,
+            "aggressiveBuyQuantity": "1151938.383",
+            "aggressiveSellQuantity": "1209731.143",
+            "aggressiveImbalanceRatio": -0.02447115,
+            "tradeCount": 583399,
+            "tradeCountIntensity": 0.54625375,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "2fb3523db1122229d8d61247ef823b6474fad42cfe48c0b6bfd434ce8fd007e4",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "6ef1a4cee546464ea4082fc54fd57847f0755730405e181fb118382bb699366a",
+            "maximumInputEventTime": "2026-07-11T23:59:59.774Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CHANGE_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "7c904c600a1374edfed9f8f9f94a3fbc2ef6e742d2cf377c59c231c5e1d613d1"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "FUNDING_BELOW_PRESSURE_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "7c904c600a1374edfed9f8f9f94a3fbc2ef6e742d2cf377c59c231c5e1d613d1"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "7c904c600a1374edfed9f8f9f94a3fbc2ef6e742d2cf377c59c231c5e1d613d1"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "7c904c600a1374edfed9f8f9f94a3fbc2ef6e742d2cf377c59c231c5e1d613d1"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CONTRACTION_NOT_MATERIAL"
+              ],
+              "nonTriggerCodes": [
+                "DELEVERAGING_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "7c904c600a1374edfed9f8f9f94a3fbc2ef6e742d2cf377c59c231c5e1d613d1"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "NEUTRAL",
+            "supportingCodes": [],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_WITHIN_BASELINE",
+              "OI_CHANGE_WITHIN_BASELINE",
+              "OI_CONTRACTION_NOT_MATERIAL",
+              "OI_EXPANSION_NOT_CONFIRMED"
+            ],
+            "nonTriggerCodes": [
+              "DELEVERAGING_CONDITION_NOT_MET",
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "FUNDING_BELOW_PRESSURE_THRESHOLD",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET",
+              "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0,
+              "counterEvidencePenalty": 1,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.416667,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "2fb3523db1122229d8d61247ef823b6474fad42cfe48c0b6bfd434ce8fd007e4",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "6ef1a4cee546464ea4082fc54fd57847f0755730405e181fb118382bb699366a"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "45ec20da70bfe528278c4a1efaa05531813300535de805620e8335fd01bbf9c9",
+          "createdAt": "2026-07-14T13:04:20.000Z",
+          "assessmentChecksum": "b7e6d88a8bc76aa831f39edfe157b5e94cdfcc1ef600b3264c6bf7753e4b7df4"
+        },
+        "packetId": "epkt_e05625f0a38a1ef22b12cb671e6c764e923dbaa87570f122a04fc2380ef34f6f",
+        "packetVersionId": "epvr_f981e5b6fc2db736ceb6e8fabbc64f7564d2a1b847d2a6da26f93ca20266dfaf",
+        "packetChecksum": "4c55b9d5321eb7362ed2d0f8f85ea625eefb8aa06bf8295ab67e999889d6dafc"
+      },
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_674c2776dbc026cce254ae6a99058503901257a05bafaa103cefaed9befed8f7",
+          "assessmentIdentity": "674c2776dbc026cce254ae6a99058503901257a05bafaa103cefaed9befed8f7",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "SOLUSDT",
+          "eventTimeStart": "2026-07-11T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T13:22:49.000Z",
+          "marketState": "NEUTRAL",
+          "measurements": {
+            "instrument": "SOLUSDT",
+            "eventTimeStart": "2026-07-11T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T13:22:49.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": -1.70359933,
+            "realizedRangePct": 2.75393877,
+            "oiChangePct": -0.37448954,
+            "oiBaselineMedianAbsChangePct": 1.70383729,
+            "fundingLatestRate": 0.00007892,
+            "fundingPreviousRate": 0.0001,
+            "fundingBaselineAbsPercentile": 0.00007704,
+            "fundingNormalizationRatio": 1.02440291,
+            "aggressiveBuyQuantity": "4537561.68",
+            "aggressiveSellQuantity": "5210777.23",
+            "aggressiveImbalanceRatio": -0.06905951,
+            "tradeCount": 152963,
+            "tradeCountIntensity": 0.63855243,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "e0007121cf70127dd2cf51a244b6f7bad9fbaae1f47bcab3fadf60e46f53408c",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "805c61bae0b3528fa50a49777413e20edf161d7588162a952cc9ac617dd13f58",
+            "maximumInputEventTime": "2026-07-11T23:59:57.741Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CHANGE_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "d5e206e1cca451a630b99314514c4f7b621498590f0dd88e5b3be215ecdff512"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "FUNDING_BELOW_PRESSURE_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "d5e206e1cca451a630b99314514c4f7b621498590f0dd88e5b3be215ecdff512"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "d5e206e1cca451a630b99314514c4f7b621498590f0dd88e5b3be215ecdff512"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "d5e206e1cca451a630b99314514c4f7b621498590f0dd88e5b3be215ecdff512"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CONTRACTION_NOT_MATERIAL"
+              ],
+              "nonTriggerCodes": [
+                "DELEVERAGING_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "d5e206e1cca451a630b99314514c4f7b621498590f0dd88e5b3be215ecdff512"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "NEUTRAL",
+            "supportingCodes": [],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_WITHIN_BASELINE",
+              "OI_CHANGE_WITHIN_BASELINE",
+              "OI_CONTRACTION_NOT_MATERIAL",
+              "OI_EXPANSION_NOT_CONFIRMED"
+            ],
+            "nonTriggerCodes": [
+              "DELEVERAGING_CONDITION_NOT_MET",
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "FUNDING_BELOW_PRESSURE_THRESHOLD",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET",
+              "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0,
+              "counterEvidencePenalty": 1,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.416667,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "e0007121cf70127dd2cf51a244b6f7bad9fbaae1f47bcab3fadf60e46f53408c",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "805c61bae0b3528fa50a49777413e20edf161d7588162a952cc9ac617dd13f58"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "7f8e2fd22f635435df2f66c411293ce9726030c39e52dd9a932d7e51208d0e6d",
+          "createdAt": "2026-07-14T13:22:49.000Z",
+          "assessmentChecksum": "11903954c6c0d8d21d28d8192341bc52cd2094ff3027aaaac3f7bdfea388d845"
+        },
+        "packetId": "epkt_769d58ae33e1a3ab5477f81730186e5561d6f38797a4346d3f88d4ae61df789c",
+        "packetVersionId": "epvr_52a042fdbbf4b58a18e327940035709c1035b4c16b84d65a91b4ebd6c47fb161",
+        "packetChecksum": "28bbc7c8fb8f30269c4f0571c85ba9ace64006847f920e0740e42e0d1efd8d28"
+      },
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_4bf4625c68b61d9c81c52eb97274a17a7f92b8689dd444eed6896e188435adcf",
+          "assessmentIdentity": "4bf4625c68b61d9c81c52eb97274a17a7f92b8689dd444eed6896e188435adcf",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "BNBUSDT",
+          "eventTimeStart": "2026-07-11T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T13:40:22.000Z",
+          "marketState": "NEUTRAL",
+          "measurements": {
+            "instrument": "BNBUSDT",
+            "eventTimeStart": "2026-07-11T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T13:40:22.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": -0.14242787,
+            "realizedRangePct": 1.743873,
+            "oiChangePct": -0.42677175,
+            "oiBaselineMedianAbsChangePct": 1.0021624,
+            "fundingLatestRate": 0.00007755,
+            "fundingPreviousRate": 0.00011027,
+            "fundingBaselineAbsPercentile": 0.0000544,
+            "fundingNormalizationRatio": 1.42555147,
+            "aggressiveBuyQuantity": "117945.46",
+            "aggressiveSellQuantity": "128519.75",
+            "aggressiveImbalanceRatio": -0.04290378,
+            "tradeCount": 130260,
+            "tradeCountIntensity": 0.5668136,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "61b710704342f8fa9cd8a09387a83e132522ad04b79c2f914af306c4d4cc140a",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "660a4f55d5eb7f40e8151982af08bad57a4586dafe99ad7e5b600565014d135e",
+            "maximumInputEventTime": "2026-07-11T23:59:59.974Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CHANGE_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "baacb3bfcdd53c77db4a78dacbf3f457a25b87ebc57e31d421d92913a66a997b"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "FUNDING_BELOW_PRESSURE_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "baacb3bfcdd53c77db4a78dacbf3f457a25b87ebc57e31d421d92913a66a997b"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "baacb3bfcdd53c77db4a78dacbf3f457a25b87ebc57e31d421d92913a66a997b"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "baacb3bfcdd53c77db4a78dacbf3f457a25b87ebc57e31d421d92913a66a997b"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CONTRACTION_NOT_MATERIAL"
+              ],
+              "nonTriggerCodes": [
+                "DELEVERAGING_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "baacb3bfcdd53c77db4a78dacbf3f457a25b87ebc57e31d421d92913a66a997b"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "NEUTRAL",
+            "supportingCodes": [],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_WITHIN_BASELINE",
+              "OI_CHANGE_WITHIN_BASELINE",
+              "OI_CONTRACTION_NOT_MATERIAL",
+              "OI_EXPANSION_NOT_CONFIRMED"
+            ],
+            "nonTriggerCodes": [
+              "DELEVERAGING_CONDITION_NOT_MET",
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "FUNDING_BELOW_PRESSURE_THRESHOLD",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET",
+              "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0,
+              "counterEvidencePenalty": 1,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.416667,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "61b710704342f8fa9cd8a09387a83e132522ad04b79c2f914af306c4d4cc140a",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "660a4f55d5eb7f40e8151982af08bad57a4586dafe99ad7e5b600565014d135e"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "43a1aba658a2fe952d4b953a8c04d2f944f04adbf2b7d6ca13c1abd8ac98e7d3",
+          "createdAt": "2026-07-14T13:40:22.000Z",
+          "assessmentChecksum": "482194a314c0f49aa6dfe7cd17869674349163bc178b2e3692969747cb09dd66"
+        },
+        "packetId": "epkt_3fd5549852b2ff8ad523d85988560b14f87217f34b39f49ebb7e13d279346fd0",
+        "packetVersionId": "epvr_b84b9563464e1222db33b02fed55391d996630af07fa1711774a4b50f8c1d0cd",
+        "packetChecksum": "4db2f34d94f5bfd2d18186de08581d3d115233767a88c9a89b93ab1604c3b733"
+      },
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_235c6f8688c1ed8fab1f4e215e1fb8f5c6696a5c957120b59923fae3cc12139d",
+          "assessmentIdentity": "235c6f8688c1ed8fab1f4e215e1fb8f5c6696a5c957120b59923fae3cc12139d",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "XRPUSDT",
+          "eventTimeStart": "2026-07-11T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T13:58:35.000Z",
+          "marketState": "NEUTRAL",
+          "measurements": {
+            "instrument": "XRPUSDT",
+            "eventTimeStart": "2026-07-11T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T13:58:35.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": -0.69746377,
+            "realizedRangePct": 2.06521739,
+            "oiChangePct": -0.58001972,
+            "oiBaselineMedianAbsChangePct": 1.29005966,
+            "fundingLatestRate": 0.00006928,
+            "fundingPreviousRate": 0.00005961,
+            "fundingBaselineAbsPercentile": 0.00007574,
+            "fundingNormalizationRatio": 0.91470821,
+            "aggressiveBuyQuantity": "108554363.8",
+            "aggressiveSellQuantity": "115045796.9",
+            "aggressiveImbalanceRatio": -0.02903143,
+            "tradeCount": 104094,
+            "tradeCountIntensity": 0.6062957,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "07372a83e80b89166c44f6ca6e9703eea6cfae175df3f1396143c0eac4bad5e8",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "13acbf19d62383f7c882c6caa9bd71e3a8ed63f233f815949ee8e6124107113b",
+            "maximumInputEventTime": "2026-07-11T23:59:59.316Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CHANGE_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "1be085b6d6e4a6df781bdeaa42c6b2b8fa5176f13e7e0415cf0a109457b0245e"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "FUNDING_BELOW_PRESSURE_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "1be085b6d6e4a6df781bdeaa42c6b2b8fa5176f13e7e0415cf0a109457b0245e"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "1be085b6d6e4a6df781bdeaa42c6b2b8fa5176f13e7e0415cf0a109457b0245e"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "1be085b6d6e4a6df781bdeaa42c6b2b8fa5176f13e7e0415cf0a109457b0245e"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CONTRACTION_NOT_MATERIAL"
+              ],
+              "nonTriggerCodes": [
+                "DELEVERAGING_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "1be085b6d6e4a6df781bdeaa42c6b2b8fa5176f13e7e0415cf0a109457b0245e"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "NEUTRAL",
+            "supportingCodes": [],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_WITHIN_BASELINE",
+              "OI_CHANGE_WITHIN_BASELINE",
+              "OI_CONTRACTION_NOT_MATERIAL",
+              "OI_EXPANSION_NOT_CONFIRMED"
+            ],
+            "nonTriggerCodes": [
+              "DELEVERAGING_CONDITION_NOT_MET",
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "FUNDING_BELOW_PRESSURE_THRESHOLD",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET",
+              "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0,
+              "counterEvidencePenalty": 1,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.416667,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "07372a83e80b89166c44f6ca6e9703eea6cfae175df3f1396143c0eac4bad5e8",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "13acbf19d62383f7c882c6caa9bd71e3a8ed63f233f815949ee8e6124107113b"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "b85bb350143d06e3aee6b106a1d717ed617dfc98e885fdbaf48110809ffc9887",
+          "createdAt": "2026-07-14T13:58:35.000Z",
+          "assessmentChecksum": "a65a1580e38af354b4cc596e7058ae91c75a6fa1daaeb5217b497410f646704c"
+        },
+        "packetId": "epkt_10f43d1595fdde4be6738d18426ad744f9b65afa20250f48b96f68c3287229e1",
+        "packetVersionId": "epvr_da0b6e38805f2a911cd805b012294436783f879068e924b3e2867686b0516bb3",
+        "packetChecksum": "ecee02e3dfe4dd3b1c0663d434e63fc33cfe202fc3c7cca994547ff2c578e8e7"
+      },
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_45ab124222c22933e97eca5a1cfabccf3dfda0efbeef5db7ed594c601dd54043",
+          "assessmentIdentity": "45ab124222c22933e97eca5a1cfabccf3dfda0efbeef5db7ed594c601dd54043",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "DOGEUSDT",
+          "eventTimeStart": "2026-07-11T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T14:17:34.000Z",
+          "marketState": "FUNDING_PRESSURE",
+          "measurements": {
+            "instrument": "DOGEUSDT",
+            "eventTimeStart": "2026-07-11T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-12T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T14:17:34.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": -1.24190065,
+            "realizedRangePct": 3.32073434,
+            "oiChangePct": 2.18170536,
+            "oiBaselineMedianAbsChangePct": 2.47942422,
+            "fundingLatestRate": 0.0001,
+            "fundingPreviousRate": 0.00009551,
+            "fundingBaselineAbsPercentile": 0.0000795,
+            "fundingNormalizationRatio": 1.25786164,
+            "aggressiveBuyQuantity": "1215610476",
+            "aggressiveSellQuantity": "1455918694",
+            "aggressiveImbalanceRatio": -0.08995156,
+            "tradeCount": 97362,
+            "tradeCountIntensity": 0.71496393,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "a6c918c71b3fb423a91d8a2131e99c19181707ee8daac460248a41e9cb00116c",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "12d2d3d97afb1c08a37c5e7e7fc0d02866dedeeb1ba84a94eef0f3f3dbf0829e",
+            "maximumInputEventTime": "2026-07-11T23:59:59.643Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CHANGE_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "0ae2509f59cf5bb1d04cea8a2477b47e9a349d048057f6045831c1de2698c17a"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "TRIGGERED",
+              "supportingCodes": [
+                "FUNDING_MATERIALLY_POSITIVE"
+              ],
+              "counterEvidenceCodes": [
+                "FUNDING_NOT_NORMALIZING"
+              ],
+              "nonTriggerCodes": [],
+              "limitationCodes": [],
+              "measurementDigest": "0ae2509f59cf5bb1d04cea8a2477b47e9a349d048057f6045831c1de2698c17a"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "0ae2509f59cf5bb1d04cea8a2477b47e9a349d048057f6045831c1de2698c17a"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "0ae2509f59cf5bb1d04cea8a2477b47e9a349d048057f6045831c1de2698c17a"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CONTRACTION_NOT_MATERIAL"
+              ],
+              "nonTriggerCodes": [
+                "DELEVERAGING_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "0ae2509f59cf5bb1d04cea8a2477b47e9a349d048057f6045831c1de2698c17a"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "FUNDING_PRESSURE",
+            "supportingCodes": [
+              "FUNDING_MATERIALLY_POSITIVE"
+            ],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_NOT_NORMALIZING",
+              "OI_CHANGE_WITHIN_BASELINE",
+              "OI_CONTRACTION_NOT_MATERIAL",
+              "OI_EXPANSION_NOT_CONFIRMED"
+            ],
+            "nonTriggerCodes": [
+              "DELEVERAGING_CONDITION_NOT_MET",
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET",
+              "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0.2,
+              "counterEvidencePenalty": 1,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.433333,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "a6c918c71b3fb423a91d8a2131e99c19181707ee8daac460248a41e9cb00116c",
+            "sourceReferenceCount": 17391,
+            "lineageReferenceCount": 17391,
+            "segmentChecksum": "12d2d3d97afb1c08a37c5e7e7fc0d02866dedeeb1ba84a94eef0f3f3dbf0829e"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "c529407cd92885ac42ad4c0ba39f4cd5ddc60007a7787fccccd7b548298dd93a",
+          "createdAt": "2026-07-14T14:17:34.000Z",
+          "assessmentChecksum": "dd327bbc060438e7555ef4a49e127bc34c9257682957763cdd63ff3647136e96"
+        },
+        "packetId": "epkt_015c72f47639a424ddf78ef0b09ac885fb20499eb6a68f119e50f112553971f6",
+        "packetVersionId": "epvr_a2069f2ec947faeb6b7e6b8cdbc8bf6024a8d7fae1fe7009889993f291d7d5e6",
+        "packetChecksum": "97980184c05995884fb2b1d3582d3c4834d34004e4b2ed700e785c4bdad20776"
+      }
+    ],
+    "examples": [
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_95e9090e478070527d9daca7000770cee37d9e3c6ccf1d69b2032b7cba600488",
+          "assessmentIdentity": "95e9090e478070527d9daca7000770cee37d9e3c6ccf1d69b2032b7cba600488",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "BTCUSDT",
+          "eventTimeStart": "2026-06-28T00:00:00.000Z",
+          "eventTimeEnd": "2026-06-29T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T14:20:35.000Z",
+          "marketState": "NEUTRAL",
+          "measurements": {
+            "instrument": "BTCUSDT",
+            "eventTimeStart": "2026-06-28T00:00:00.000Z",
+            "eventTimeEnd": "2026-06-29T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T14:20:35.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": -0.75032833,
+            "realizedRangePct": 2.75881494,
+            "oiChangePct": -0.00224851,
+            "oiBaselineMedianAbsChangePct": 0.99407842,
+            "fundingLatestRate": 0.0000443,
+            "fundingPreviousRate": 0.00003742,
+            "fundingBaselineAbsPercentile": 0.00005663,
+            "fundingNormalizationRatio": 0.78227088,
+            "aggressiveBuyQuantity": "49730.114",
+            "aggressiveSellQuantity": "53868.583",
+            "aggressiveImbalanceRatio": -0.03994711,
+            "tradeCount": 1029026,
+            "tradeCountIntensity": 1,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "9131ae43781e0e1ba001e116a96b60888f39c7d298039b8ad98cd4c39508481e",
+            "sourceReferenceCount": 17378,
+            "lineageReferenceCount": 17378,
+            "segmentChecksum": "be6e96ea4b1bbd49b93d87e20d2d2df16bbf6ca7f3363f5ce7ef88ca21d9a787",
+            "maximumInputEventTime": "2026-06-28T23:59:59.955Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CHANGE_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce906684939145b933c4b17b2d9af558a188bf8bcb8ec94ed32317c59f4fa76b"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "FUNDING_BELOW_PRESSURE_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce906684939145b933c4b17b2d9af558a188bf8bcb8ec94ed32317c59f4fa76b"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce906684939145b933c4b17b2d9af558a188bf8bcb8ec94ed32317c59f4fa76b"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce906684939145b933c4b17b2d9af558a188bf8bcb8ec94ed32317c59f4fa76b"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CONTRACTION_NOT_MATERIAL"
+              ],
+              "nonTriggerCodes": [
+                "DELEVERAGING_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce906684939145b933c4b17b2d9af558a188bf8bcb8ec94ed32317c59f4fa76b"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "NEUTRAL",
+            "supportingCodes": [],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_WITHIN_BASELINE",
+              "OI_CHANGE_WITHIN_BASELINE",
+              "OI_CONTRACTION_NOT_MATERIAL",
+              "OI_EXPANSION_NOT_CONFIRMED"
+            ],
+            "nonTriggerCodes": [
+              "DELEVERAGING_CONDITION_NOT_MET",
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "FUNDING_BELOW_PRESSURE_THRESHOLD",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET",
+              "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0,
+              "counterEvidencePenalty": 1,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.416667,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "9131ae43781e0e1ba001e116a96b60888f39c7d298039b8ad98cd4c39508481e",
+            "sourceReferenceCount": 17378,
+            "lineageReferenceCount": 17378,
+            "segmentChecksum": "be6e96ea4b1bbd49b93d87e20d2d2df16bbf6ca7f3363f5ce7ef88ca21d9a787"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "47b032663583583d0f5d1e845c9baef484f09582ec08579dd6680631e4056969",
+          "createdAt": "2026-07-14T14:20:35.000Z",
+          "assessmentChecksum": "f193fd822623253da355edc130801318bb8f26d49714e27e6913cacbda35851e"
+        },
+        "packetId": "epkt_f60874792930403601816567eb5834573d5dfaea97b01c6b4c4a813808ee92b4",
+        "packetVersionId": "epvr_0fef9b0a8caca64dd20b999eda029429a3e0cee53d2c4a34711a2c48765b3cb7",
+        "packetChecksum": "8a6bbeece2cbaff0ef47b045f59dae7d901855a6ef2d2c1583f7e37322be4f08"
+      },
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_488412dd09d39084f2fcc20680377acd429fad1ef96329893a516175d0c697d2",
+          "assessmentIdentity": "488412dd09d39084f2fcc20680377acd429fad1ef96329893a516175d0c697d2",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "ETHUSDT",
+          "eventTimeStart": "2026-07-02T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-03T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T14:25:33.000Z",
+          "marketState": "POSITIONING_EXPANSION",
+          "measurements": {
+            "instrument": "ETHUSDT",
+            "eventTimeStart": "2026-07-02T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-03T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T14:25:33.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": 5.65800842,
+            "realizedRangePct": 8.00934818,
+            "oiChangePct": 3.07892862,
+            "oiBaselineMedianAbsChangePct": 1.24453464,
+            "fundingLatestRate": 0.00007321,
+            "fundingPreviousRate": 0.00002077,
+            "fundingBaselineAbsPercentile": 0.0000533,
+            "fundingNormalizationRatio": 1.37354597,
+            "aggressiveBuyQuantity": "3137230.63",
+            "aggressiveSellQuantity": "2880214.634",
+            "aggressiveImbalanceRatio": 0.04271181,
+            "tradeCount": 1489903,
+            "tradeCountIntensity": 1.07956241,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "2d6531f8178bce295d9f3c1bb772f17591e7f7231a9fdb5fea4bbb2698cd368b",
+            "sourceReferenceCount": 17382,
+            "lineageReferenceCount": 17382,
+            "segmentChecksum": "f763b1e65c8dff5cd9eb851238ae398043736c0c099d82c51c83edd2511aa657",
+            "maximumInputEventTime": "2026-07-02T23:59:59.666Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "TRIGGERED",
+              "supportingCodes": [
+                "OI_MATERIALLY_EXPANDED",
+                "PRICE_ROSE"
+              ],
+              "counterEvidenceCodes": [
+                "NO_PRICE_OI_DIVERGENCE"
+              ],
+              "nonTriggerCodes": [],
+              "limitationCodes": [],
+              "measurementDigest": "ce610c39d73e190ed858669ae0e757b5b45ddbc61bb2d80f9a52081eea8d76f7"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "FUNDING_BELOW_PRESSURE_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce610c39d73e190ed858669ae0e757b5b45ddbc61bb2d80f9a52081eea8d76f7"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce610c39d73e190ed858669ae0e757b5b45ddbc61bb2d80f9a52081eea8d76f7"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_PRESSURE_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce610c39d73e190ed858669ae0e757b5b45ddbc61bb2d80f9a52081eea8d76f7"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CONTRACTION_NOT_MATERIAL"
+              ],
+              "nonTriggerCodes": [
+                "DELEVERAGING_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "ce610c39d73e190ed858669ae0e757b5b45ddbc61bb2d80f9a52081eea8d76f7"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "POSITIONING_EXPANSION",
+            "supportingCodes": [
+              "OI_MATERIALLY_EXPANDED",
+              "PRICE_ROSE"
+            ],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_PRESSURE_NOT_CONFIRMED",
+              "FUNDING_WITHIN_BASELINE",
+              "NO_PRICE_OI_DIVERGENCE",
+              "OI_CONTRACTION_NOT_MATERIAL"
+            ],
+            "nonTriggerCodes": [
+              "DELEVERAGING_CONDITION_NOT_MET",
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "FUNDING_BELOW_PRESSURE_THRESHOLD",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0.2,
+              "counterEvidencePenalty": 0.8,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.52,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "2d6531f8178bce295d9f3c1bb772f17591e7f7231a9fdb5fea4bbb2698cd368b",
+            "sourceReferenceCount": 17382,
+            "lineageReferenceCount": 17382,
+            "segmentChecksum": "f763b1e65c8dff5cd9eb851238ae398043736c0c099d82c51c83edd2511aa657"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "6ae91df761c936fe8dd6502c81ffb6103eccb53cef6279d0becccbb44ccca736",
+          "createdAt": "2026-07-14T14:25:33.000Z",
+          "assessmentChecksum": "3a8b75564afe32c09d483228dbd0a2c355d12ff1fe2026a81cb5e13da39b5053"
+        },
+        "packetId": "epkt_845973160af74ad3c5bbe4491167243a77c9246f832e2b3cda8ba72c8f572c04",
+        "packetVersionId": "epvr_204b2cb046130155fb39071937d281c7b4a7b30b11fc37235a392b2faa1035f0",
+        "packetChecksum": "2a56bd4f24fd8af4eec4f2485ca275936fc215a607111fc7b9453a7f12872a30"
+      },
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_580836471d6aa0c14ad9c1c4d96084ae9ad4b84d16c0a7b8936cb7a65e72cff6",
+          "assessmentIdentity": "580836471d6aa0c14ad9c1c4d96084ae9ad4b84d16c0a7b8936cb7a65e72cff6",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "SOLUSDT",
+          "eventTimeStart": "2026-07-03T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-04T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T14:27:57.000Z",
+          "marketState": "DELEVERAGING",
+          "measurements": {
+            "instrument": "SOLUSDT",
+            "eventTimeStart": "2026-07-03T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-04T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T14:27:57.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": 2.00793257,
+            "realizedRangePct": 3.65642043,
+            "oiChangePct": -2.49997201,
+            "oiBaselineMedianAbsChangePct": 1.41608578,
+            "fundingLatestRate": -0.000032,
+            "fundingPreviousRate": 0.00006544,
+            "fundingBaselineAbsPercentile": 0.0001,
+            "fundingNormalizationRatio": 0.32,
+            "aggressiveBuyQuantity": "9375561.85",
+            "aggressiveSellQuantity": "8625865.6",
+            "aggressiveImbalanceRatio": 0.04164649,
+            "tradeCount": 234417,
+            "tradeCountIntensity": 0.75189564,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "a3a434c72c2e699557a99d6f22e6bd6c48948549bea75b872d69e9e982e3750b",
+            "sourceReferenceCount": 17383,
+            "lineageReferenceCount": 17383,
+            "segmentChecksum": "db415aac2cd43e3c3acad9f00a76203e49729a71be057d5094c19a63c2f6a06d",
+            "maximumInputEventTime": "2026-07-03T23:59:59.993Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "TRIGGERED",
+              "supportingCodes": [
+                "OI_MATERIALLY_CONTRACTED",
+                "PRICE_ROSE"
+              ],
+              "counterEvidenceCodes": [
+                "PRICE_OI_DIRECTION_DIVERGED"
+              ],
+              "nonTriggerCodes": [],
+              "limitationCodes": [],
+              "measurementDigest": "52e8d0525fb62cffcee13f3170dc427e6981c4a73d524744a48279d9435d1738"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "FUNDING_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "FUNDING_BELOW_PRESSURE_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "52e8d0525fb62cffcee13f3170dc427e6981c4a73d524744a48279d9435d1738"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "52e8d0525fb62cffcee13f3170dc427e6981c4a73d524744a48279d9435d1738"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "52e8d0525fb62cffcee13f3170dc427e6981c4a73d524744a48279d9435d1738"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "TRIGGERED",
+              "supportingCodes": [
+                "FUNDING_NORMALIZED",
+                "OI_MATERIALLY_CONTRACTED"
+              ],
+              "counterEvidenceCodes": [
+                "NO_STRONG_FLOW_OPPOSITION"
+              ],
+              "nonTriggerCodes": [],
+              "limitationCodes": [],
+              "measurementDigest": "52e8d0525fb62cffcee13f3170dc427e6981c4a73d524744a48279d9435d1738"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "DELEVERAGING",
+            "supportingCodes": [
+              "FUNDING_NORMALIZED",
+              "OI_MATERIALLY_CONTRACTED",
+              "PRICE_ROSE"
+            ],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_WITHIN_BASELINE",
+              "NO_STRONG_FLOW_OPPOSITION",
+              "OI_EXPANSION_NOT_CONFIRMED",
+              "PRICE_OI_DIRECTION_DIVERGED"
+            ],
+            "nonTriggerCodes": [
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "FUNDING_BELOW_PRESSURE_THRESHOLD",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0.4,
+              "counterEvidencePenalty": 0.8,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.54,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "a3a434c72c2e699557a99d6f22e6bd6c48948549bea75b872d69e9e982e3750b",
+            "sourceReferenceCount": 17383,
+            "lineageReferenceCount": 17383,
+            "segmentChecksum": "db415aac2cd43e3c3acad9f00a76203e49729a71be057d5094c19a63c2f6a06d"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "c78684755c0138a664b02d5ce42e28101d59e3ddc57983681e52448678cd1ded",
+          "createdAt": "2026-07-14T14:27:57.000Z",
+          "assessmentChecksum": "e7418a736342a9cba2fdbc50a18fbed975741c9cd033666743ee15e5a299009f"
+        },
+        "packetId": "epkt_724ac2f44c5b0e072d857f4b9581fc45de6df7a2c22ee2cd9f8e84a1c6889716",
+        "packetVersionId": "epvr_87ce002e0ec53aa8562e0959c8fe44e39b97e89d66525b9210a231a6afc5f86d",
+        "packetChecksum": "0cbe5fe6cda31524b2578194b8625dec52f432d7197751ea9cb5c8a939a09b8f"
+      },
+      {
+        "assessment": {
+          "assessmentId": "mvp_assessment_aea968fc777c047c3b11b24f798ba16f97c751ff2fa728ad08ed3ad5878ecaac",
+          "assessmentIdentity": "aea968fc777c047c3b11b24f798ba16f97c751ff2fa728ad08ed3ad5878ecaac",
+          "corpusId": "mvp-recent-market-corpus:7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "corpusChecksum": "7a65145af0f84522866cb9a6cc04d52d0b2f3aa243718f2f8720eed37cb2f2ce",
+          "instrument": "BNBUSDT",
+          "eventTimeStart": "2026-07-02T00:00:00.000Z",
+          "eventTimeEnd": "2026-07-03T00:00:00.000Z",
+          "knowledgeTimeCutoff": "2026-07-14T14:28:52.000Z",
+          "marketState": "FUNDING_PRESSURE",
+          "measurements": {
+            "instrument": "BNBUSDT",
+            "eventTimeStart": "2026-07-02T00:00:00.000Z",
+            "eventTimeEnd": "2026-07-03T00:00:00.000Z",
+            "knowledgeTimeCutoff": "2026-07-14T14:28:52.000Z",
+            "calculationVersion": "mvp-market-measurements/1.0.0",
+            "priceReturnPct": 1.51958025,
+            "realizedRangePct": 3.85795465,
+            "oiChangePct": 1.21578879,
+            "oiBaselineMedianAbsChangePct": 1.11596437,
+            "fundingLatestRate": 0.00010499,
+            "fundingPreviousRate": 0,
+            "fundingBaselineAbsPercentile": 0.00004028,
+            "fundingNormalizationRatio": 2.60650447,
+            "aggressiveBuyQuantity": "294168.35",
+            "aggressiveSellQuantity": "272497.48",
+            "aggressiveImbalanceRatio": 0.03824277,
+            "tradeCount": 280685,
+            "tradeCountIntensity": 1,
+            "coverage": {
+              "ohlcv": 1,
+              "openInterest": 1,
+              "funding": 1,
+              "aggTrades": 1
+            },
+            "sourceReferenceDigest": "6ac9c10ab74b9f85654a8d5ba2d61a220d0de6708a257eca123ebd7d79f52da1",
+            "sourceReferenceCount": 17382,
+            "lineageReferenceCount": 17382,
+            "segmentChecksum": "76807a73b0b992ca6623c14770887c1c414e908c391aca5918860b92cb01fdc7",
+            "maximumInputEventTime": "2026-07-02T23:59:59.398Z",
+            "completeness": "COMPLETE",
+            "limitationCodes": []
+          },
+          "ruleEvaluations": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CHANGE_WITHIN_BASELINE"
+              ],
+              "nonTriggerCodes": [
+                "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "455f4c25dcad62554817cd12590ea6539184a7bd8f87f2b2460b8b879c067979"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0",
+              "state": "TRIGGERED",
+              "supportingCodes": [
+                "FUNDING_MATERIALLY_POSITIVE"
+              ],
+              "counterEvidenceCodes": [
+                "FUNDING_NOT_NORMALIZING"
+              ],
+              "nonTriggerCodes": [],
+              "limitationCodes": [],
+              "measurementDigest": "455f4c25dcad62554817cd12590ea6539184a7bd8f87f2b2460b8b879c067979"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "AGGRESSIVE_FLOW_BALANCED"
+              ],
+              "nonTriggerCodes": [
+                "FLOW_IMBALANCE_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "455f4c25dcad62554817cd12590ea6539184a7bd8f87f2b2460b8b879c067979"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_EXPANSION_NOT_CONFIRMED"
+              ],
+              "nonTriggerCodes": [
+                "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "455f4c25dcad62554817cd12590ea6539184a7bd8f87f2b2460b8b879c067979"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0",
+              "state": "NOT_TRIGGERED",
+              "supportingCodes": [],
+              "counterEvidenceCodes": [
+                "OI_CONTRACTION_NOT_MATERIAL"
+              ],
+              "nonTriggerCodes": [
+                "DELEVERAGING_CONDITION_NOT_MET"
+              ],
+              "limitationCodes": [],
+              "measurementDigest": "455f4c25dcad62554817cd12590ea6539184a7bd8f87f2b2460b8b879c067979"
+            }
+          ],
+          "structuredInterpretation": {
+            "conclusionCode": "FUNDING_PRESSURE",
+            "supportingCodes": [
+              "FUNDING_MATERIALLY_POSITIVE"
+            ],
+            "counterEvidenceCodes": [
+              "AGGRESSIVE_FLOW_BALANCED",
+              "FUNDING_NOT_NORMALIZING",
+              "OI_CHANGE_WITHIN_BASELINE",
+              "OI_CONTRACTION_NOT_MATERIAL",
+              "OI_EXPANSION_NOT_CONFIRMED"
+            ],
+            "nonTriggerCodes": [
+              "DELEVERAGING_CONDITION_NOT_MET",
+              "FLOW_IMBALANCE_CONDITION_NOT_MET",
+              "MULTIFACTOR_OVERHEATING_THRESHOLD_NOT_MET",
+              "OI_CHANGE_BELOW_MATERIAL_THRESHOLD"
+            ]
+          },
+          "confidence": {
+            "components": {
+              "dataCoverage": 1,
+              "sourceQuality": 1,
+              "temporalAlignment": 1,
+              "ruleAgreement": 0.2,
+              "counterEvidencePenalty": 1,
+              "freshness": 1,
+              "reproducibility": 1
+            },
+            "strength": 0.433333,
+            "classification": "LOW",
+            "semantic": "EVIDENCE_STRENGTH_NOT_PROBABILITY"
+          },
+          "coverage": {
+            "ohlcv": 1,
+            "openInterest": 1,
+            "funding": 1,
+            "aggTrades": 1
+          },
+          "sourceLineage": {
+            "sourceReferenceDigest": "6ac9c10ab74b9f85654a8d5ba2d61a220d0de6708a257eca123ebd7d79f52da1",
+            "sourceReferenceCount": 17382,
+            "lineageReferenceCount": 17382,
+            "segmentChecksum": "76807a73b0b992ca6623c14770887c1c414e908c391aca5918860b92cb01fdc7"
+          },
+          "limitations": [
+            "LIQUIDATION_ENRICHMENT_NOT_REQUIRED",
+            "ORDERBOOK_ENRICHMENT_NOT_REQUIRED"
+          ],
+          "ruleVersions": [
+            {
+              "ruleId": "DERIVATIVES_POSITIONING_EXPANSION",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "FUNDING_PRESSURE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "AGGRESSIVE_FLOW_IMBALANCE",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DERIVATIVES_OVERHEATING",
+              "ruleVersion": "1.0.0"
+            },
+            {
+              "ruleId": "DELEVERAGING_OR_NORMALIZATION",
+              "ruleVersion": "1.0.0"
+            }
+          ],
+          "measurementVersions": [
+            "mvp-market-measurements/1.0.0"
+          ],
+          "recomputeIdentity": "7b848fa31e8abe5de269b7a90a9f7513348767892eb05ae0dfebd220458bce27",
+          "createdAt": "2026-07-14T14:28:52.000Z",
+          "assessmentChecksum": "3f467ffe5af3dcccfca0136acf9b11d8b9ef8a486fc54a157a8d502c433bdfdc"
+        },
+        "packetId": "epkt_2b3404c1e2ca70a30745e7823027cf5ccd053233e280d8e484ab99df8006c605",
+        "packetVersionId": "epvr_4ad82c6c4a8ab49b8d5dcec5192d4d4605a7c7853138c6b12a03e82e3a829213",
+        "packetChecksum": "a056ac93845cbb014a5cfe6ea1b2cc5eafb997541880eb1a60b9c63881018707"
+      }
+    ]
+  },
+  "recomputation": {
+    "command": "evaluate",
+    "allResultsDuplicateOrReused": false,
+    "allPacketsReused": false,
+    "allAssessmentsDuplicate": false
+  },
+  "publicationBoundary": {
+    "consumerProjectionStatus": "NOT_CREATED",
+    "consumerPublicationStatus": "NOT_PUBLISHED",
+    "d2PublicationState": "UNCHANGED_PENDING"
+  },
+  "migrations": [
+    "D2-001:SKIPPED",
+    "D2-002:SKIPPED",
+    "D2-003:SKIPPED",
+    "D2-004:SKIPPED",
+    "D2-005:SKIPPED",
+    "D2-006:SKIPPED",
+    "D2-007:SKIPPED",
+    "D2-008:SKIPPED",
+    "D4-001:SKIPPED",
+    "D4-002:SKIPPED",
+    "D4-003:SKIPPED",
+    "D4-004:SKIPPED",
+    "D4-005:SKIPPED",
+    "D4-006:SKIPPED",
+    "D4-007:SKIPPED",
+    "D4-008:SKIPPED",
+    "D4-009:SKIPPED"
+  ]
+}

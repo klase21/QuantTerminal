@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "mvp-evidence-rule-registry/v1",
+  "ruleSetId": "MVP-MARKET-EVIDENCE",
+  "ruleSetVersion": "1.0.0",
+  "ruleRegistryChecksum": "0e4e3f06028e57d44eb3e2369e4fc964cf3b4d9453dbfd6d3556e4c78011d414",
+  "knowledgeMode": "RETROSPECTIVE",
+  "eventTimeBoundary": "START_INCLUSIVE_END_EXCLUSIVE",
+  "rules": [
+    {"ruleId":"DERIVATIVES_POSITIONING_EXPANSION","ruleVersion":"1.0.0","requiredDatasets":["ohlcv","open-interest"],"optionalDatasets":[],"observationWindow":"P1D","baselineWindow":"P30D","minimumCoverage":0.95,"thresholds":{"minimumOiChangePct":1,"baselineMultiplier":1.5}},
+    {"ruleId":"FUNDING_PRESSURE","ruleVersion":"1.0.0","requiredDatasets":["funding"],"optionalDatasets":["ohlcv"],"observationWindow":"P1D","baselineWindow":"P30D","minimumCoverage":0.95,"thresholds":{"minimumAbsoluteFundingRate":0.0001,"baselinePercentile":0.8}},
+    {"ruleId":"AGGRESSIVE_FLOW_IMBALANCE","ruleVersion":"1.0.0","requiredDatasets":["agg-trade"],"optionalDatasets":["ohlcv"],"observationWindow":"P1D","baselineWindow":"P14D","minimumCoverage":1,"thresholds":{"minimumAbsoluteImbalanceRatio":0.1,"minimumTradeCountIntensity":0.75}},
+    {"ruleId":"DERIVATIVES_OVERHEATING","ruleVersion":"1.0.0","requiredDatasets":["ohlcv","open-interest","funding"],"optionalDatasets":["agg-trade"],"observationWindow":"P1D","baselineWindow":"P30D","minimumCoverage":0.95,"thresholds":{"minimumAbsolutePriceReturnPct":1,"minimumOiChangePct":1,"minimumAbsoluteFlowConfirmation":0.1}},
+    {"ruleId":"DELEVERAGING_OR_NORMALIZATION","ruleVersion":"1.0.0","requiredDatasets":["ohlcv","open-interest","funding"],"optionalDatasets":["agg-trade"],"observationWindow":"P1D","baselineWindow":"P30D","minimumCoverage":0.95,"thresholds":{"minimumOiContractionPct":1,"maximumNormalizedFundingRatio":0.75,"maximumBalancedFlowRatio":0.05,"maximumStabilizedPriceReturnPct":1}}
+  ],
+  "optionalEnrichment": ["liquidation", "order-book"],
+  "consumerProjectionStatus": "NOT_CREATED"
+}

@@ -63,6 +63,34 @@ export interface AggTradesSegmentEvent {
   readonly source_row_ordinal: number
 }
 
+export interface AggTradesFlowSummary {
+  readonly eventCount: number
+  readonly aggressiveBuyQuantity: string
+  readonly aggressiveSellQuantity: string
+  readonly eventTimeMinimum: string
+  readonly eventTimeMaximum: string
+  readonly checksumVerified: true
+}
+
+class DecimalAccumulator {
+  private value = BigInt(0)
+  private scale = 0
+  private power10(exponent: number): bigint { let result = BigInt(1); for (let index = 0; index < exponent; index += 1) result *= BigInt(10); return result }
+  add(input: string): void {
+    const normalized = normalizeAggTradesSegmentDecimal(input)
+    const [whole, fraction = ""] = normalized.split(".")
+    const scale = fraction.length
+    if (scale > this.scale) { this.value *= this.power10(scale - this.scale); this.scale = scale }
+    this.value += BigInt(`${whole}${fraction}`) * this.power10(this.scale - scale)
+  }
+  toString(): string {
+    const digits = this.value.toString().padStart(this.scale + 1, "0")
+    if (!this.scale) return digits
+    const result = `${digits.slice(0, -this.scale)}.${digits.slice(-this.scale)}`
+    return normalizeAggTradesSegmentDecimal(result)
+  }
+}
+
 const SCHEMA = Object.freeze([
   { name: "agg_trades_segment", num_children: 11 },
   { name: "aggregate_trade_id", type: "BYTE_ARRAY", converted_type: "UTF8", repetition_type: "REQUIRED" },
@@ -211,6 +239,32 @@ function safeSegmentPath(root: string, key: string): string {
 
 export function createAggTradesSegmentReadPort(options: { readonly objectRoot: string }) {
   return Object.freeze({
+    async summarizeFlow(input: { readonly objectKey: string; readonly expectedChecksum: string; readonly expectedEventCount: number; readonly batchSize?: number }): Promise<AggTradesFlowSummary> {
+      const batchSize = input.batchSize ?? AGG_TRADES_SEGMENT_ROW_GROUP_SIZE
+      if (!Number.isInteger(batchSize) || batchSize < 1_000 || batchSize > AGG_TRADES_SEGMENT_ROW_GROUP_SIZE) throw new Error("SEGMENT_SUMMARY_BATCH_SIZE_INVALID")
+      if (!Number.isSafeInteger(input.expectedEventCount) || input.expectedEventCount < 1) throw new Error("SEGMENT_SUMMARY_EVENT_COUNT_INVALID")
+      const filename = safeSegmentPath(options.objectRoot, input.objectKey)
+      if (await fileChecksum(filename) !== input.expectedChecksum) throw new Error("SEGMENT_CHECKSUM_MISMATCH")
+      const info = await stat(filename)
+      const handle = await open(filename, "r")
+      const { parquetReadObjects } = await import("hyparquet")
+      const file = { byteLength: info.size, async slice(start: number, end: number): Promise<ArrayBuffer> { const buffer = Buffer.allocUnsafe(end - start); await handle.read(buffer, 0, buffer.length, start); return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) } }
+      const buy = new DecimalAccumulator(), sell = new DecimalAccumulator()
+      let eventCount = 0, eventTimeMinimum: string | null = null, eventTimeMaximum: string | null = null
+      try {
+        for (let cursor = 0; cursor < input.expectedEventCount; cursor += batchSize) {
+          const rows = await parquetReadObjects({ file, rowStart: cursor, rowEnd: Math.min(input.expectedEventCount, cursor + batchSize), columns: ["quantity", "event_time_utc", "buyer_is_maker"] }) as unknown as Pick<AggTradesSegmentEvent, "quantity" | "event_time_utc" | "buyer_is_maker">[]
+          for (const row of rows) {
+            if (row.buyer_is_maker) sell.add(row.quantity); else buy.add(row.quantity)
+            eventTimeMinimum = eventTimeMinimum === null || row.event_time_utc < eventTimeMinimum ? row.event_time_utc : eventTimeMinimum
+            eventTimeMaximum = eventTimeMaximum === null || row.event_time_utc > eventTimeMaximum ? row.event_time_utc : eventTimeMaximum
+            eventCount += 1
+          }
+        }
+      } finally { await handle.close() }
+      if (eventCount !== input.expectedEventCount || !eventTimeMinimum || !eventTimeMaximum) throw new Error("SEGMENT_SUMMARY_COUNT_MISMATCH")
+      return Object.freeze({ eventCount, aggressiveBuyQuantity: buy.toString(), aggressiveSellQuantity: sell.toString(), eventTimeMinimum, eventTimeMaximum, checksumVerified: true as const })
+    },
     async readPage(input: { readonly objectKey: string; readonly expectedChecksum: string; readonly offset?: number; readonly limit: number; readonly eventTimeStart?: string; readonly eventTimeEnd?: string; readonly aggregateTradeIdStart?: string; readonly aggregateTradeIdEnd?: string }): Promise<{ readonly events: readonly AggTradesSegmentEvent[]; readonly nextOffset: number | null; readonly checksumVerified: true }> {
       if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 1_000) throw new Error("SEGMENT_READ_LIMIT_INVALID")
       const filename = safeSegmentPath(options.objectRoot, input.objectKey)
