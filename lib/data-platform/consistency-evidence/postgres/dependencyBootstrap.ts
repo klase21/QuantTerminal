@@ -7,16 +7,21 @@ export const D2_CERTIFIED_BASELINE = "1cb1c8d:d2-canonical-persistence-v2.1"
 export const D4_BOOTSTRAP_RUNNER_VERSION = "1.0.0"
 export const D2_DEPENDENCY_MIGRATION_ROOT = path.join(process.cwd(), "lib", "data-platform", "persistence", "postgres", "migrations")
 export const D2_DEPENDENCY_INVENTORY = Object.freeze([
-  { sequence: "001", filename: "001_control_and_raw.sql", checksum: "564f40851b4a36462daababd88ec725908f767897bf697873e846a7d52ed1f9f" },
-  { sequence: "002", filename: "002_repository_lifecycle.sql", checksum: "ef40fddfe0a566bfadf1ac18c1b8fc217c5677ae887bc08cab9d1a1bc10d6cd5" },
-  { sequence: "003", filename: "003_canonical_fact_tables.sql", checksum: "fb6f0c11e349fadab3fa5ae07ee8f0ecd0a860175992962a727e264f7ba34188" },
-  { sequence: "004", filename: "004_governance_and_read_models.sql", checksum: "3466a2ad2728ea905a39d3e539477d2b3e3c215560c6e2598d21f51f63a310ee" },
+  { sequence: "001", filename: "001_control_and_raw.sql", checksum: "564f40851b4a36462daababd88ec725908f767897bf697873e846a7d52ed1f9f", certifiedBaseline: D2_CERTIFIED_BASELINE },
+  { sequence: "002", filename: "002_repository_lifecycle.sql", checksum: "ef40fddfe0a566bfadf1ac18c1b8fc217c5677ae887bc08cab9d1a1bc10d6cd5", certifiedBaseline: D2_CERTIFIED_BASELINE },
+  { sequence: "003", filename: "003_canonical_fact_tables.sql", checksum: "fb6f0c11e349fadab3fa5ae07ee8f0ecd0a860175992962a727e264f7ba34188", certifiedBaseline: D2_CERTIFIED_BASELINE },
+  { sequence: "004", filename: "004_governance_and_read_models.sql", checksum: "3466a2ad2728ea905a39d3e539477d2b3e3c215560c6e2598d21f51f63a310ee", certifiedBaseline: D2_CERTIFIED_BASELINE },
+  { sequence: "005", filename: "005_funding_event_metadata.sql", checksum: "9919d859b5912df8472a510d9a42262e4b3553130f226973588eea5772c836df", certifiedBaseline: "df94661:d2-funding-event-metadata" },
+  { sequence: "006", filename: "006_open_interest_observation_metadata.sql", checksum: "fd68d20cd5c18bef1f1e2191d703979a958bdf6da46a11d0a8c0dd74b2738b48", certifiedBaseline: "344d9e0:d2-open-interest-observation-metadata" },
+  { sequence: "007", filename: "007_agg_trade_facts.sql", checksum: "3cfe3df30f032c61f6f8d8897bb3625b9a4ba59716a6a630fa850a735229cb86", certifiedBaseline: "4a6b1cd:d2-aggtrades-segment-storage" },
+  { sequence: "008", filename: "008_canonical_stream_segments.sql", checksum: "ef932bb8bd17924e80554728b6707f9c196cf35202e3f39c7ee15a75d84923ba", certifiedBaseline: "4a6b1cd:d2-aggtrades-segment-storage" },
 ] as const)
 
 export interface D2DependencyArtifact {
   readonly sequence: string
   readonly filename: string
   readonly checksum: string
+  readonly certifiedBaseline: string
   readonly sql: string
 }
 export type DependencyBootstrapResult = { readonly status: "APPLIED" | "SKIPPED" | "FAILED"; readonly sequence: string; readonly filename: string; readonly checksum: string; readonly reason?: string }
@@ -49,7 +54,7 @@ export async function discoverCertifiedD2Dependencies(root = D2_DEPENDENCY_MIGRA
     const sql = await readFile(path.join(root, expected.filename), "utf8")
     const checksum = createHash("sha256").update(sql).digest("hex")
     if (checksum !== expected.checksum) throw new Error("D2_CERTIFIED_CHECKSUM_DRIFT:" + expected.filename)
-    artifacts.push(Object.freeze({ sequence: expected.sequence, filename: expected.filename, checksum, sql }))
+    artifacts.push(Object.freeze({ sequence: expected.sequence, filename: expected.filename, checksum, certifiedBaseline: expected.certifiedBaseline, sql }))
   }
   return Object.freeze(artifacts)
 }
@@ -67,7 +72,7 @@ async function verifyCompatibleHistory(runtime: ConsistencyPostgresRuntime, arti
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]
     const expected = artifacts[index]
-    if (!expected || row.sequence !== expected.sequence || row.source_filename !== expected.filename || row.source_checksum !== expected.checksum || row.certified_baseline !== D2_CERTIFIED_BASELINE || row.status !== "APPLIED") throw new Error("D2_BOOTSTRAP_HISTORY_MISMATCH")
+    if (!expected || row.sequence !== expected.sequence || row.source_filename !== expected.filename || row.source_checksum !== expected.checksum || row.certified_baseline !== expected.certifiedBaseline || row.status !== "APPLIED") throw new Error("D2_BOOTSTRAP_HISTORY_MISMATCH")
   }
   if (!rows.length) {
     const objects = await runtime.sql.unsafe<{ readonly commits: string | null; readonly versions: string | null }[]>("SELECT to_regclass('control.canonical_commits')::text commits,to_regclass('repository.record_versions')::text versions")
@@ -87,13 +92,13 @@ export class D2DependencyBootstrapRunner {
       try {
         const existing = await this.runtime.sql.unsafe<{ readonly source_checksum: string; readonly certified_baseline: string }[]>("SELECT source_checksum,certified_baseline FROM d4_control.dependency_bootstrap_ledger WHERE dependency_owner='D2' AND sequence=$1", [artifact.sequence])
         if (existing[0]) {
-          if (existing[0].source_checksum !== artifact.checksum || existing[0].certified_baseline !== D2_CERTIFIED_BASELINE) throw new Error("D2_DEPENDENCY_LEDGER_MISMATCH")
+          if (existing[0].source_checksum !== artifact.checksum || existing[0].certified_baseline !== artifact.certifiedBaseline) throw new Error("D2_DEPENDENCY_LEDGER_MISMATCH")
           results.push({ status: "SKIPPED", sequence: artifact.sequence, filename: artifact.filename, checksum: artifact.checksum })
           continue
         }
         await this.runtime.transaction(async (sql) => {
           await sql.unsafe(artifact.sql)
-          await sql.unsafe("INSERT INTO d4_control.dependency_bootstrap_ledger(dependency_owner,certified_baseline,source_filename,sequence,source_checksum,applied_at,target_database,bootstrap_runner_version,status) VALUES('D2',$1,$2,$3,$4,now(),'quantterminal_d4_isolated',$5,'APPLIED')", [D2_CERTIFIED_BASELINE, artifact.filename, artifact.sequence, artifact.checksum, D4_BOOTSTRAP_RUNNER_VERSION])
+          await sql.unsafe("INSERT INTO d4_control.dependency_bootstrap_ledger(dependency_owner,certified_baseline,source_filename,sequence,source_checksum,applied_at,target_database,bootstrap_runner_version,status) VALUES('D2',$1,$2,$3,$4,now(),'quantterminal_d4_isolated',$5,'APPLIED')", [artifact.certifiedBaseline, artifact.filename, artifact.sequence, artifact.checksum, D4_BOOTSTRAP_RUNNER_VERSION])
         })
         results.push({ status: "APPLIED", sequence: artifact.sequence, filename: artifact.filename, checksum: artifact.checksum })
       } catch (cause) {

@@ -46,26 +46,41 @@ async function main() {
   check("malformed filename rejected", validateD4MigrationNames(["bad.sql"]).some((item) => item.startsWith("MALFORMED_MIGRATION")))
   check("duplicate migration rejected", validateD4MigrationNames(["001_one.sql", "001_two.sql"]).includes("DUPLICATE_MIGRATION_NUMBER:001"))
   check("certified D2 baseline pinned", D2_CERTIFIED_BASELINE === "1cb1c8d:d2-canonical-persistence-v2.1")
-  check("dependency inventory exact", dependencies.length === 4 && dependencies.map((item) => item.filename).join("|") === D2_DEPENDENCY_INVENTORY.map((item) => item.filename).join("|"))
+  check("dependency inventory exact", dependencies.length === 8 && dependencies.map((item) => item.filename).join("|") === D2_DEPENDENCY_INVENTORY.map((item) => item.filename).join("|"))
   check("dependency checksums pinned", dependencies.every((item, index) => item.checksum === D2_DEPENDENCY_INVENTORY[index]?.checksum))
-  check("dependency order deterministic", dependencies.map((item) => item.sequence).join(",") === "001,002,003,004")
+  check("dependency baselines pinned", dependencies.every((item, index) => item.certifiedBaseline === D2_DEPENDENCY_INVENTORY[index]?.certifiedBaseline))
+  check("dependency order deterministic", dependencies.map((item) => item.sequence).join(",") === "001,002,003,004,005,006,007,008")
+  check("reordered dependency rejected", validateDependencyInventory([...D2_DEPENDENCY_INVENTORY].reverse().map((item) => item.filename)).includes("DEPENDENCY_ORDER_NOT_DETERMINISTIC"))
   check("malformed dependency rejected", validateDependencyInventory(["bad.sql"]).some((item) => item.startsWith("MALFORMED_DEPENDENCY_MIGRATION")))
   check("duplicate dependency rejected", validateDependencyInventory(["001_one.sql", "001_two.sql"]).includes("DUPLICATE_DEPENDENCY_SEQUENCE:001"))
   check("D3 migration discovery absent", dependencies.every((item) => !item.sql.includes("population.")))
   const dependencyRoot = await mkdtemp(path.join(tmpdir(), "qt-d4-dependency-unit-"))
   try {
     await cp("lib/data-platform/persistence/postgres/migrations", dependencyRoot, { recursive: true })
-    await rm(path.join(dependencyRoot, D2_DEPENDENCY_INVENTORY[3].filename))
+    await rm(path.join(dependencyRoot, D2_DEPENDENCY_INVENTORY[7].filename))
     let missingRejected = false
     try { await discoverCertifiedD2Dependencies(dependencyRoot) } catch (error) { missingRejected = error instanceof Error && error.message === "D2_DEPENDENCY_INVENTORY_MISMATCH" }
     check("missing dependency rejected", missingRejected)
     await cp("lib/data-platform/persistence/postgres/migrations", dependencyRoot, { recursive: true, force: true })
-    await writeFile(path.join(dependencyRoot, "005_unexpected.sql"), "SELECT 1;\n", "utf8")
+    await writeFile(path.join(dependencyRoot, "009_unexpected.sql"), "SELECT 1;\n", "utf8")
     let unexpectedRejected = false
     try { await discoverCertifiedD2Dependencies(dependencyRoot) } catch (error) { unexpectedRejected = error instanceof Error && error.message === "D2_DEPENDENCY_INVENTORY_MISMATCH" }
     check("unexpected dependency rejected", unexpectedRejected)
-    await rm(path.join(dependencyRoot, "005_unexpected.sql"))
-    const driftPath = path.join(dependencyRoot, D2_DEPENDENCY_INVENTORY[0].filename)
+    await rm(path.join(dependencyRoot, "009_unexpected.sql"))
+    const substituted = D2_DEPENDENCY_INVENTORY[7]
+    await rm(path.join(dependencyRoot, substituted.filename))
+    await writeFile(path.join(dependencyRoot, "008_substituted_identity.sql"), "SELECT 1;\n", "utf8")
+    let substitutedRejected = false
+    try { await discoverCertifiedD2Dependencies(dependencyRoot) } catch (error) { substitutedRejected = error instanceof Error && error.message === "D2_DEPENDENCY_INVENTORY_MISMATCH" }
+    check("substituted dependency identity rejected", substitutedRejected)
+    await rm(path.join(dependencyRoot, "008_substituted_identity.sql"))
+    await cp("lib/data-platform/persistence/postgres/migrations", dependencyRoot, { recursive: true, force: true })
+    for (const item of D2_DEPENDENCY_INVENTORY.slice(4)) await rm(path.join(dependencyRoot, item.filename))
+    let oldInventoryRejected = false
+    try { await discoverCertifiedD2Dependencies(dependencyRoot) } catch (error) { oldInventoryRejected = error instanceof Error && error.message === "D2_DEPENDENCY_INVENTORY_MISMATCH" }
+    check("old 001-004-only inventory rejected", oldInventoryRejected)
+    await cp("lib/data-platform/persistence/postgres/migrations", dependencyRoot, { recursive: true, force: true })
+    const driftPath = path.join(dependencyRoot, D2_DEPENDENCY_INVENTORY[7].filename)
     await writeFile(driftPath, (await readFile(driftPath, "utf8")) + "\n", "utf8")
     let driftRejected = false
     try { await discoverCertifiedD2Dependencies(dependencyRoot) } catch (error) { driftRejected = error instanceof Error && error.message.startsWith("D2_CERTIFIED_CHECKSUM_DRIFT") }
