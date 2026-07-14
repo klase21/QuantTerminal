@@ -13,6 +13,7 @@ export interface ProductionNormalizationInput extends CandidateNormalizationInpu
 function required(value: string, field: string): string { if (!value.trim()) throw new Error(`NORMALIZER_${field}_MISSING`); return value.trim() }
 function timestamp(value: string, field: string): string { try { return normalizeIsoTimestamp(value) } catch { throw new Error(`NORMALIZER_${field}_INVALID`) } }
 function decimal(value: string, field: string): string { if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)) throw new Error(`NORMALIZER_${field}_INVALID`); return value }
+function positiveInteger(value: number, field: string): number { if (!Number.isInteger(value) || value <= 0) throw new Error(`NORMALIZER_${field}_INVALID`); return value }
 
 function governance(input: ProductionNormalizationInput): GovernanceBindings {
   return Object.freeze({ datasetRegistrySnapshotId: required(input.datasetRegistrySnapshotId, "DATASET_REGISTRY_SNAPSHOT"), providerRegistrySnapshotId: required(input.providerRegistrySnapshotId, "PROVIDER_REGISTRY_SNAPSHOT"), providerCertificationSnapshotId: required(input.providerCertificationSnapshotId, "PROVIDER_CERTIFICATION_SNAPSHOT"), policyVersionId: required(input.policyVersionId, "POLICY_VERSION"), schemaVersion: required(input.schemaVersion, "SCHEMA_VERSION"), normalizationVersion: required(input.normalizationVersion, "NORMALIZATION_VERSION") })
@@ -46,8 +47,9 @@ function normalizeOhlcv(input: ProductionNormalizationInput & { readonly candida
 }
 
 function normalizeFunding(input: ProductionNormalizationInput & { readonly candidate: Extract<PopulationCandidate, { readonly kind: "FUNDING" }> }): CanonicalCommitCommand {
-  const p = input.candidate.payload; const fundingTime = timestamp(p.fundingTime, "FUNDING_TIME"); const truth = { kind: "FUNDING", providerId: input.candidate.providerId, venue: "BINANCE", symbol: required(p.symbol, "SYMBOL").toUpperCase(), fundingRate: decimal(p.fundingRate, "FUNDING_RATE"), fundingTime }
-  const fact = completeFact({ kind: "FUNDING", providerId: input.candidate.providerId, venue: "BINANCE", symbolOrSubject: truth.symbol, observedAt: timestamp(input.candidate.sourceObservedAt, "OBSERVED_AT"), effectiveAt: input.candidate.effectiveAt ? timestamp(input.candidate.effectiveAt, "EFFECTIVE_AT") : fundingTime, governance: governance(input), fundingRate: truth.fundingRate, fundingTime }, truth)
+  const p = input.candidate.payload; const fundingTime = timestamp(p.fundingTime, "FUNDING_TIME"); const truth = { kind: "FUNDING", providerId: input.candidate.providerId, venue: "BINANCE", symbol: required(p.symbol, "SYMBOL").toUpperCase(), canonicalInstrumentId: required(p.canonicalInstrumentId, "CANONICAL_INSTRUMENT"), marketType: p.marketType, fundingRate: decimal(p.fundingRate, "FUNDING_RATE"), fundingTime, fundingIntervalHours: positiveInteger(p.fundingIntervalHours, "FUNDING_INTERVAL_HOURS") }
+  if (truth.marketType !== "USD_M_FUTURES") throw new Error("NORMALIZER_MARKET_TYPE_INVALID")
+  const fact = completeFact({ kind: "FUNDING", providerId: input.candidate.providerId, venue: "BINANCE", symbolOrSubject: truth.symbol, observedAt: timestamp(input.candidate.sourceObservedAt, "OBSERVED_AT"), effectiveAt: input.candidate.effectiveAt ? timestamp(input.candidate.effectiveAt, "EFFECTIVE_AT") : fundingTime, governance: governance(input), canonicalInstrumentId: truth.canonicalInstrumentId, marketType: truth.marketType, fundingRate: truth.fundingRate, fundingTime, fundingIntervalHours: truth.fundingIntervalHours }, truth)
   return command(input, fact)
 }
 

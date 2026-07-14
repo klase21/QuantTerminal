@@ -1,4 +1,4 @@
-import type { CanonicalFactTable } from "@/lib/data-platform/persistence"
+import type { CanonicalFactTable, CompressionType } from "@/lib/data-platform/persistence"
 
 export type HistoricalDatasetClassification = "SOURCE_HISTORICAL" | "DERIVED_INTERNAL" | "CONTROL_PLANE"
 export type HistoricalPopulationStatus = "REQUIRED" | "OPTIONAL" | "EXCLUDED_FROM_SOURCE_BACKFILL" | "BLOCKED_REQUIRED_PROVIDER" | "BLOCKED_REQUIRED_TARGET"
@@ -97,7 +97,7 @@ export interface HistoricalSourcePartition {
   readonly windowEnd: string
   readonly sourceUrl: string
   readonly mediaType: string
-  readonly compression: "ZIP"
+  readonly compression: CompressionType
 }
 
 export type SourceAvailability =

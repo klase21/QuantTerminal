@@ -13,9 +13,9 @@ check("bounded client config", validatePostgresConfig({ connectionString: "postg
 check("unbounded connection count rejected", validatePostgresConfig({ connectionString: "postgres://redacted@d2-isolated.example/d2_test", roleIntent: "CANONICAL_WRITER", maxConnections: 20, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "d2-test" }).includes("MAX_CONNECTIONS_OUT_OF_BOUNDS"))
 
 const migrations = await discoverApprovedMigrations()
-check("approved migration discovery", migrations.length === 4)
+check("approved migration discovery", migrations.length === 5)
 check("migration checksums deterministic", migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.checksum)))
-check("migration order deterministic", migrations.map((migration) => migration.migrationId).join(",") === "001,002,003,004")
+check("migration order deterministic", migrations.map((migration) => migration.migrationId).join(",") === "001,002,003,004,005")
 check("malformed migration rejected", validateMigrationFilenames(["bad.sql"]).some((error) => error.startsWith("MALFORMED_MIGRATION")))
 check("duplicate migration number rejected", validateMigrationFilenames(["001_one.sql", "001_two.sql"]).includes("DUPLICATE_MIGRATION_NUMBER:001"))
 

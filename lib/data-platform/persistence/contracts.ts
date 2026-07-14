@@ -46,7 +46,14 @@ interface FactBase {
 }
 
 export interface OhlcvFact extends FactBase { readonly kind: "OHLCV"; readonly resolution: string; readonly open: string; readonly high: string; readonly low: string; readonly close: string; readonly volume: string; readonly closeTime: string }
-export interface FundingFact extends FactBase { readonly kind: "FUNDING"; readonly fundingRate: string; readonly fundingTime: string }
+export interface FundingFact extends FactBase {
+  readonly kind: "FUNDING"
+  readonly canonicalInstrumentId: string
+  readonly marketType: "USD_M_FUTURES"
+  readonly fundingRate: string
+  readonly fundingTime: string
+  readonly fundingIntervalHours: number
+}
 export interface OpenInterestFact extends FactBase { readonly kind: "OPEN_INTEREST"; readonly openInterest: string; readonly unit: string; readonly window: string }
 export interface LiquidationFact extends FactBase { readonly kind: "LIQUIDATION"; readonly side: "BUY" | "SELL"; readonly price: string; readonly quantity: string; readonly eventTime: string; readonly providerRecordId: string }
 export interface PredictionSnapshotFact extends FactBase { readonly kind: "PREDICTION_SNAPSHOT"; readonly marketId: string; readonly outcomeId: string; readonly probability: string; readonly volume: string | null; readonly liquidity: string | null }
