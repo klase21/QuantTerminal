@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "mvp-page-feature-inventory/v1",
+  "auditMethod": "STATIC_ACTIVE_ROUTE_AND_ADAPTER_INSPECTION",
+  "classificationEnum": ["FUNCTIONAL_REAL_DATA", "FUNCTIONAL_LEGACY_DATA", "STATIC_OR_MOCK", "PARTIAL", "EMPTY", "BROKEN", "REDUNDANT", "NOT_IN_MVP_SCOPE"],
+  "pages": [
+    {
+      "page": "Dashboard",
+      "route": "/dashboard",
+      "overall": "PARTIAL",
+      "features": [
+        {"featureId":"DASH_DIRECTION","section":"Market Direction","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Realtime sockets plus Dashboard APIs through DashboardV2 adapter","gap":"Heuristic/live result lacks governed Evidence identity."},
+        {"featureId":"DASH_DRIVERS","section":"Key Evidence and Reasoning","classification":"PARTIAL","currentPath":"Futures, macro, ETF, sector, narrative, prediction and market-driver APIs","gap":"Mixed provenance and no common Coverage gate."},
+        {"featureId":"DASH_RISK","section":"Opportunity and Risk","classification":"PARTIAL","currentPath":"Dashboard presentation adapter","gap":"Interpretation is not a versioned Evidence projection."},
+        {"featureId":"DASH_DERIVATIVES","section":"OI and Funding","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Futures intelligence API","gap":"Current API reads are not canonical recent-corpus projections."},
+        {"featureId":"DASH_INTENSITY","section":"Trading Intensity","classification":"PARTIAL","currentPath":"Realtime trades and market movers","gap":"No canonical AggTrades comparison window or versioned baseline."},
+        {"featureId":"DASH_LIQUIDATION","section":"Liquidation State","classification":"PARTIAL","currentPath":"Realtime liquidation socket where messages exist","gap":"No complete historical events; Coinalyze bars remain legacy experimental lower-bound data."},
+        {"featureId":"DASH_COVERAGE","section":"Data Quality and Limitations","classification":"PARTIAL","currentPath":"Per-source adapter availability states","gap":"No governed cross-dataset CoverageDataStatusProjection."},
+        {"featureId":"DASH_EVIDENCE_LINK","section":"Investigation Handoffs","classification":"PARTIAL","currentPath":"Stable context links to Markets/Replay/Research","gap":"No durable Evidence Packet identity to carry across pages."},
+        {"featureId":"DASH_SUSPENSE","section":"Initial Loading","classification":"EMPTY","currentPath":"Page Suspense fallback","gap":"Fallback is visually blank."}
+      ]
+    },
+    {
+      "page": "Replay",
+      "route": "/replay",
+      "overall": "PARTIAL",
+      "features": [
+        {"featureId":"RPL_CONTROLS","section":"Exchange, Symbol, UTC Date and Hour","classification":"FUNCTIONAL_REAL_DATA","currentPath":"ReplayV1 controller","gap":"Instrument universe and event-window validity are not governed by MVP Coverage."},
+        {"featureId":"RPL_PLAYBACK","section":"Playback and Time Navigation","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Replay V2 shell and timeline","gap":"Cross-dataset canonical alignment remains incomplete."},
+        {"featureId":"RPL_PRICE","section":"Price Timeline","classification":"FUNCTIONAL_REAL_DATA","currentPath":"CryptoHFTData or Binance kline fallback","gap":"Fallback provenance is visible but not a canonical Projection."},
+        {"featureId":"RPL_FUNDING","section":"Funding Timeline","classification":"FUNCTIONAL_REAL_DATA","currentPath":"CryptoHFTData or Binance positioning fallback","gap":"No canonical corpus reader cutover."},
+        {"featureId":"RPL_OI","section":"Open Interest Timeline","classification":"FUNCTIONAL_REAL_DATA","currentPath":"CryptoHFTData or Binance positioning fallback","gap":"No canonical corpus reader cutover."},
+        {"featureId":"RPL_AGGTRADES","section":"Aggressive Trade Timeline","classification":"PARTIAL","currentPath":"On-demand CryptoHFTData trades","gap":"Canonical Parquet Segment read port is not connected to Replay."},
+        {"featureId":"RPL_LIQUIDATION","section":"Liquidations","classification":"PARTIAL","currentPath":"Provider-dependent replay payload","gap":"Complete event history blocked; aggregated bars not yet D3-compatible."},
+        {"featureId":"RPL_ORDERBOOK","section":"Order Book and Market Structure","classification":"PARTIAL","currentPath":"On-demand cache-only orderbook route","gap":"Known historical update files have no snapshot; full reconstruction unavailable."},
+        {"featureId":"RPL_ANNOTATIONS","section":"News and Event Annotations","classification":"PARTIAL","currentPath":"Repository/manual historical context","gap":"Verified catalog has only two seeded events and no projection binding."},
+        {"featureId":"RPL_EVIDENCE","section":"Evidence Markers and Handoffs","classification":"PARTIAL","currentPath":"Presentation adapter and Research links","gap":"No versioned ReplayTimelineProjection or Evidence Packet markers."}
+      ]
+    },
+    {
+      "page": "Research",
+      "route": "/research",
+      "overall": "PARTIAL",
+      "features": [
+        {"featureId":"RES_CONCLUSION","section":"Conclusion and Summary","classification":"PARTIAL","currentPath":"Research adapter over manually loaded sources","gap":"No governed ResearchEvidenceProjection conclusion."},
+        {"featureId":"RES_FACTS","section":"Verified Facts and Sources","classification":"PARTIAL","currentPath":"Narrative, news, prediction, historical and repository sources","gap":"Mixed source paths and incomplete canonical lineage."},
+        {"featureId":"RES_INTERPRETATION","section":"Reasoning","classification":"PARTIAL","currentPath":"Research presentation adapter","gap":"Facts and interpretations are not yet enforced by Evidence contracts."},
+        {"featureId":"RES_COUNTER","section":"Counter Evidence","classification":"PARTIAL","currentPath":"Presentation adapter when inputs exist","gap":"No required versioned counter-evidence component."},
+        {"featureId":"RES_CONFIDENCE","section":"Confidence Components","classification":"EMPTY","currentPath":"No governed Confidence runtime","gap":"Must remain unavailable until mandatory components exist."},
+        {"featureId":"RES_LIMITATIONS","section":"Source Limitations","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Manual-load and adapter availability states","gap":"Not consolidated into a governed status projection."},
+        {"featureId":"RES_LINEAGE","section":"Lineage","classification":"PARTIAL","currentPath":"Repository coverage summaries and source links","gap":"No end-to-end SourceLineageSummaryProjection."},
+        {"featureId":"RES_VERSION","section":"Recompute and Version Metadata","classification":"EMPTY","currentPath":"D4 foundations only","gap":"No active Evidence/projection version shown."},
+        {"featureId":"RES_HISTORICAL","section":"Historical Analog, Event Impact and Market Memory","classification":"PARTIAL","currentPath":"Manual cache-first loads","gap":"Event Impact proposed; catalog narrow; no automatic polling by design."}
+      ]
+    },
+    {
+      "page": "Markets",
+      "route": "/markets",
+      "overall": "FUNCTIONAL_REAL_DATA",
+      "features": [
+        {"featureId":"MKT_UNIVERSE","section":"Supported Instrument List","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Binance movers and realtime feeds","gap":"Not restricted by a governed six-instrument Coverage projection."},
+        {"featureId":"MKT_PRICE","section":"Price and Change","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Binance ticker and market movers","gap":"No canonical Event/Knowledge Time projection."},
+        {"featureId":"MKT_DERIVATIVES","section":"OI and Funding","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Futures intelligence API","gap":"No canonical recent-corpus projection."},
+        {"featureId":"MKT_STATE","section":"Market-State Classification","classification":"PARTIAL","currentPath":"Markets presentation adapter","gap":"No versioned D4 result or Evidence profile."},
+        {"featureId":"MKT_COVERAGE","section":"Coverage Status","classification":"PARTIAL","currentPath":"Per-source lifecycle and repository audit","gap":"No unified governed status per instrument/dataset/window."},
+        {"featureId":"MKT_EVIDENCE","section":"Latest Evidence","classification":"PARTIAL","currentPath":"Summary cards and handoffs","gap":"No durable latest Evidence reference."},
+        {"featureId":"MKT_LIVE_STRUCTURE","section":"Chart, Depth, Trades and Liquidations","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Protected realtime sockets and chart","gap":"Historical continuity and liquidation completeness are limited."},
+        {"featureId":"MKT_ROTATION","section":"Sector Rotation, Capital Flow, Macro and ETF","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Bounded external APIs","gap":"Provenance and stale policy are not governed by MVP projections."},
+        {"featureId":"MKT_NAV","section":"Scanner and Detail Navigation","classification":"FUNCTIONAL_REAL_DATA","currentPath":"V2 handoffs","gap":"Durable candidate/evidence identity is not carried."}
+      ]
+    },
+    {
+      "page": "Scanner",
+      "route": "/scanner",
+      "overall": "FUNCTIONAL_LEGACY_DATA",
+      "features": [
+        {"featureId":"SCN_RANKING","section":"Ranked Candidate Queue","classification":"FUNCTIONAL_LEGACY_DATA","currentPath":"Retained market movers plus opportunities API","gap":"Scores are derived without durable Evidence or comparable Coverage."},
+        {"featureId":"SCN_REASON","section":"Observable Reason Codes","classification":"PARTIAL","currentPath":"Opportunity API and adapter descriptions","gap":"Reasons are not versioned Consistency Results."},
+        {"featureId":"SCN_EVIDENCE","section":"Evidence and Confidence","classification":"PARTIAL","currentPath":"Candidate detail cards","gap":"No Evidence Packet identity; Confidence availability is not governed."},
+        {"featureId":"SCN_COVERAGE","section":"Coverage Filtering","classification":"EMPTY","currentPath":"No supported search/filter/sort contract","gap":"Cannot exclude incomparable or insufficiently covered candidates."},
+        {"featureId":"SCN_SELECTION","section":"Candidate Selection Across Navigation","classification":"PARTIAL","currentPath":"Client retained payload and query handoffs","gap":"No durable candidate identity across reloads/pages."},
+        {"featureId":"SCN_HANDOFF","section":"Replay, Research, Markets and Trade Handoffs","classification":"FUNCTIONAL_REAL_DATA","currentPath":"V2 investigation paths","gap":"Context is not backed by a governed projection version."}
+      ]
+    },
+    {
+      "page": "Trade",
+      "route": "/trade",
+      "overall": "FUNCTIONAL_LEGACY_DATA",
+      "features": [
+        {"featureId":"TRD_SELECTED","section":"Selected Candidate","classification":"FUNCTIONAL_LEGACY_DATA","currentPath":"Retained market mover or query context","gap":"No durable ScannerCandidateProjection identity."},
+        {"featureId":"TRD_CONTEXT","section":"Market Context","classification":"FUNCTIONAL_REAL_DATA","currentPath":"Ticker, trades, orderbook, liquidations and futures feeds","gap":"Mixed timestamps and no canonical context projection."},
+        {"featureId":"TRD_SUPPORT","section":"Supporting Facts","classification":"PARTIAL","currentPath":"Trade presentation adapter","gap":"No governed Evidence references."},
+        {"featureId":"TRD_COUNTER","section":"Counter Evidence","classification":"EMPTY","currentPath":"Adapter marks unavailable","gap":"Required Evidence component not implemented."},
+        {"featureId":"TRD_RISK","section":"Risk Factors and Scenarios","classification":"PARTIAL","currentPath":"Presentation adapter and current market feeds","gap":"Not versioned or lineage-backed."},
+        {"featureId":"TRD_INVALIDATION","section":"Invalidation Conditions","classification":"EMPTY","currentPath":"No governed contract","gap":"Must derive from real facts and explicit rule versions."},
+        {"featureId":"TRD_EVIDENCE","section":"Related Evidence","classification":"PARTIAL","currentPath":"Investigation handoffs","gap":"No Evidence Packet reference or source lineage."},
+        {"featureId":"TRD_STATUS","section":"Explicit Data Status","classification":"PARTIAL","currentPath":"Per-source availability states","gap":"No unified CoverageDataStatusProjection."},
+        {"featureId":"TRD_LOCAL","section":"Tracked Setups","classification":"FUNCTIONAL_LEGACY_DATA","currentPath":"Browser localStorage","gap":"Local planning state is not durable repository persistence; order execution is outside MVP."}
+      ]
+    }
+  ],
+  "excludedActiveRouteMocks": [
+    {"path":"core/replay/mockReplayData.ts","classification":"NOT_IN_MVP_SCOPE","reason":"No active six-page controller calls the mock replay route."}
+  ],
+  "redundantImplementation": "Unreachable V1 JSX remains after unconditional V2 returns in several controllers; it is REDUNDANT and not an MVP data source."
+}

@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "mvp-recent-market-corpus/v1",
+  "corpusId": "mvp-recent-market-corpus-2026-07-12",
+  "status": "DEFINED_NOT_POPULATED",
+  "frozenCutoffUtc": "2026-07-12T00:00:00.000Z",
+  "rollingPolicy": {
+    "referenceRule": "LATEST_GOVERNED_COMPLETE_UTC_DAY",
+    "lowDensityLookbackDays": 90,
+    "highDensityLookbackDays": 14,
+    "definitionVersion": "mvp-recent-window/v1"
+  },
+  "certificationSlice": {
+    "windowStartUtc": "2026-07-11T00:00:00.000Z",
+    "windowEndExclusiveUtc": "2026-07-12T00:00:00.000Z",
+    "requiredScope": ["6_OHLCV_DAILY_PARTITIONS", "6_OPEN_INTEREST_DAILY_PARTITIONS", "6_AGGTRADES_DAILY_SEGMENTS", "6_FUNDING_TAIL_SOURCE_BINDINGS"],
+    "purpose": "Reconcile registry, canonical, lineage, Coverage, and publication state before the broader bounded corpus."
+  },
+  "instruments": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+  "statusEnum": ["AVAILABLE", "BACKFILL_PENDING", "SOURCE_UNAVAILABLE", "SOURCE_BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "GAP", "STALE", "EXPERIMENTAL", "LOWER_BOUND"],
+  "datasets": [
+    {
+      "dataset": "OHLCV",
+      "windowStartUtc": "2026-04-13T00:00:00.000Z",
+      "windowEndExclusiveUtc": "2026-07-12T00:00:00.000Z",
+      "resolution": "5m",
+      "instrumentCount": 6,
+      "expectedPartitions": 540,
+      "expectedObservations": 155514,
+      "estimatedSourceBytes": 7025400,
+      "estimateBasis": "540 partitions multiplied by the measured certified Canary archive size",
+      "currentStatus": "BACKFILL_PENDING",
+      "refreshPolicy": "INGEST_EACH_COMPLETE_5M_INTERVAL; RECONCILE_DAILY",
+      "staleAfter": "PT15M"
+    },
+    {
+      "dataset": "OPEN_INTEREST",
+      "windowStartUtc": "2026-04-13T00:00:00.000Z",
+      "windowEndExclusiveUtc": "2026-07-12T00:00:00.000Z",
+      "resolution": "5m",
+      "instrumentCount": 6,
+      "expectedPartitions": 540,
+      "expectedObservations": 155520,
+      "measuredSourceBytes": 6123516,
+      "currentStatus": "BACKFILL_PENDING",
+      "refreshPolicy": "INGEST_EACH_COMPLETE_5M_INTERVAL; RECONCILE_DAILY",
+      "staleAfter": "PT15M"
+    },
+    {
+      "dataset": "FUNDING",
+      "windowStartUtc": "2026-04-13T00:00:00.000Z",
+      "windowEndExclusiveUtc": "2026-07-12T00:00:00.000Z",
+      "resolution": "PROVIDER_EVENT_APPROX_8H",
+      "instrumentCount": 6,
+      "acquisitionWindowStartUtc": "2026-04-01T00:00:00.000Z",
+      "acquisitionWindowEndExclusiveUtc": "2026-07-12T00:00:00.000Z",
+      "expectedSourcePartitions": 24,
+      "expectedEvents": 1620,
+      "estimateBasis": "90 days multiplied by three governed provider events per day and six instruments",
+      "currentStatus": "BACKFILL_PENDING",
+      "refreshPolicy": "INGEST_AFTER_EACH_FINAL_PROVIDER_EVENT",
+      "staleAfter": "PT9H"
+    },
+    {
+      "dataset": "AGGREGATED_TRADES",
+      "windowStartUtc": "2026-06-28T00:00:00.000Z",
+      "windowEndExclusiveUtc": "2026-07-12T00:00:00.000Z",
+      "resolution": "PROVIDER_EVENT_IN_DAILY_SEGMENT",
+      "instrumentCount": 6,
+      "expectedPartitions": 84,
+      "estimatedEvents": 43648785,
+      "measuredCompressedSourceBytes": 610395727,
+      "estimatedCanonicalSegmentBytes": 1674934427,
+      "estimateBasis": "Exact frozen partition bytes plus the measured XRP Segment Canary source-to-Parquet ratio",
+      "currentStatus": "BACKFILL_PENDING",
+      "capacityGate": "PENDING",
+      "refreshPolicy": "INGEST_COMPLETE_DAILY_ARCHIVE; LIVE_INTENSITY_USES_PROTECTED_REALTIME_FEED",
+      "staleAfter": "PT36H"
+    },
+    {
+      "dataset": "AGGREGATED_LIQUIDATION_BARS",
+      "windowStartUtc": "2026-07-01T00:00:00.000Z",
+      "windowEndExclusiveUtc": "2026-07-02T00:00:00.000Z",
+      "resolution": "5m_LONG_SHORT_BARS",
+      "instrumentCount": 1,
+      "instruments": ["BTCUSDT"],
+      "currentStatus": "EXPERIMENTAL",
+      "additionalStatus": "LOWER_BOUND",
+      "refreshPolicy": "NO_GOVERNED_REFRESH_UNTIL_D3_MIGRATION_AND_CANARY",
+      "staleAfter": null,
+      "limitation": "Legacy Coinalyze Internal Web aggregated bars are not complete individual liquidation events and are not yet on the D2/D3 path."
+    },
+    {
+      "dataset": "ORDER_BOOK_DEPTH",
+      "windowStartUtc": null,
+      "windowEndExclusiveUtc": null,
+      "resolution": "PROVIDER_NATIVE_UPDATES_WITH_SNAPSHOT_REQUIRED_FOR_FULL_BOOK",
+      "instrumentCount": 6,
+      "currentStatus": "SOURCE_BLOCKED",
+      "refreshPolicy": "CURRENT_STATE_USES_PROTECTED_REALTIME_FEED; HISTORICAL_WINDOWS_ARE_EVENT_CORPUS_ONLY",
+      "staleAfter": "PT30S",
+      "limitation": "Known CryptoHFTData files contain update flow without a reconstructable snapshot. Full historical depth is not claimed."
+    }
+  ],
+  "projectionRefresh": {
+    "policyStatus": "PROPOSED_MVP_POLICY_REQUIRES_GOVERNANCE_APPROVAL",
+    "currentMarketState": "ON_CANONICAL_INPUT_CHANGE_OR_EVERY_PT5M",
+    "scannerCandidates": "ON_MARKET_STATE_CHANGE_OR_EVERY_PT5M",
+    "replayAndResearch": "IMMUTABLE_EVENT_WINDOW_BUILD_THEN_CACHE",
+    "staleProjectionAfter": "PT10M"
+  },
+  "plannedPopulationCommands": {
+    "preflight": [
+      "npx tsx workers/data-platform/runD3OhlcvBackfill.ts reconcile",
+      "npx tsx workers/data-platform/runD3FundingBackfill.ts reconcile",
+      "npx tsx workers/data-platform/runD3OpenInterestBackfill.ts reconcile",
+      "npx tsx workers/data-platform/runD3AggTradesSegmentBackfill.ts reconcile"
+    ],
+    "ohlcv": "npx tsx workers/data-platform/runD3OhlcvBackfill.ts run --from 2026-04-13T00:00:00.000Z --to 2026-07-12T00:00:00.000Z --max-partitions 4",
+    "funding": "npx tsx workers/data-platform/runD3FundingBackfill.ts run --from 2026-04-01T00:00:00.000Z --to 2026-07-12T00:00:00.000Z --max-partitions 1",
+    "openInterest": "npx tsx workers/data-platform/runD3OpenInterestBackfill.ts run --from 2026-04-13T00:00:00.000Z --to 2026-07-12T00:00:00.000Z --max-partitions 1",
+    "aggTrades": "npx tsx workers/data-platform/runD3AggTradesSegmentBackfill.ts run --from 2026-06-28T00:00:00.000Z --to 2026-07-12T00:00:00.000Z --max-partitions 1 --postgres-free-bytes <MEASURED_POSTGRES_FREE_BYTES>",
+    "executionStatus": "DOCUMENTED_FOR_LATER_USE_NOT_EXECUTED"
+  },
+  "partialCoverageRule": "A required input that is not AVAILABLE produces a classified limitation. Scanner comparison excludes instruments lacking a common complete core window; values are never zero-filled.",
+  "storageSummary": {
+    "measuredCompressedBytes": 616519243,
+    "estimatedAdditionalBytes": 1681959827,
+    "unknownBytes": ["FUNDING_SOURCE_AND_POSTGRESQL_METADATA", "OHLCV_OI_FUNDING_POSTGRESQL_RELATION_GROWTH", "ORDER_BOOK_EVENT_CORPUS"],
+    "capacityGate": "REQUIRED_BEFORE_POPULATION"
+  }
+}
