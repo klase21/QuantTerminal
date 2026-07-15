@@ -1,7 +1,7 @@
 # MVP Online Serving Architecture
 
 Certification date: 2026-07-16
-Status: MVP-7C Preview modes certified; Production cutover awaits user approval.
+Status: MVP-7D Production serving active and post-cutover certified.
 
 ## Decision
 
@@ -147,3 +147,13 @@ The first request observed immediately after the isolated deployment reached REA
 Measured Neon size is 19,783,680 bytes total, with 11,993,088 bytes of serving/control relations and 1,114,112 bytes of indexes.
 
 Rollback is an append-only serving exposure decision to the prior certified corpus or an explicitly configured certified snapshot. It does not delete versions, change D2 publication, or invoke local truth.
+
+## MVP-7D Production cutover
+
+On 2026-07-15, Vercel rebuilt certified Preview deployment `dpl_9KTDZtLyDA9Cz24ZNHMtEHS9w5Bs` for Production through the existing-deployment redeploy boundary. The resulting Production deployment is `dpl_9aBTrz4w29fg7EL94vuvwhAdARRX`, built from runtime source `9017dcf4e50e8caeddbd146070c800480e3a06d1`. No dirty local source was packaged.
+
+The public application domain is `https://quantterminalai.vercel.app`. Vercel also assigned the project and branch aliases through its normal Production mechanism; those platform aliases remain subject to Vercel authentication policy. Requests enter through Seoul (`icn1`), while Functions and Neon execute in Singapore (`sin1` / AWS Singapore), preserving `APPROVED_EDGE_FUNCTION_REGION_SEPARATION`.
+
+Production health certifies `SERVING_POSTGRES`, the pooled read-only serving role, corpus `mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949`, checksum `129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949`, 870 Projections, 84 Evidence summaries, 84 Replay snapshots, two demo profiles, three release-inventory records, and one active exposure. Request-time canonical databases, Segment manifests, Parquet, Raw Artifacts, and publisher credentials remain absent.
+
+The prior READY Production deployment `dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR` remains the platform rollback target. Rollback was not required. A Production rollback changes the active Vercel deployment only; it does not mutate Neon or canonical truth.

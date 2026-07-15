@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "mvp-production-cutover-certification/v1",
+  "certifiedAt": "2026-07-15T22:47:22.711Z",
+  "status": "MVP_7D_PRODUCTION_CUTOVER_CERTIFIED_PRODUCTION_SERVING_ACTIVE",
+  "humanApproval": {
+    "requiredPhraseReceived": true,
+    "phrase": "APPROVE MVP-7D PRODUCTION CUTOVER",
+    "approvalGateRecordedAtDeploymentStart": "2026-07-15T22:33:16.068Z"
+  },
+  "source": {
+    "certifiedPreviewDeploymentId": "dpl_9KTDZtLyDA9Cz24ZNHMtEHS9w5Bs",
+    "runtimeGitSha": "9017dcf4e50e8caeddbd146070c800480e3a06d1",
+    "repositoryHead": "89306dfd322cdf7e4aea1ac4e5ac39d518404e2d",
+    "headDifference": "CERTIFICATION_DOCUMENTATION_ONLY",
+    "localWorkingTreePackaged": false
+  },
+  "previousProduction": {
+    "deploymentId": "dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR",
+    "deploymentUrl": "https://quantterminal-g8j7eme9j-klase21s-projects.vercel.app",
+    "gitSha": "e25d227e493a5fa9b7f367ac44b1640493ae5171",
+    "state": "READY",
+    "healthEndpointBaseline": 404,
+    "rollbackEligible": true
+  },
+  "production": {
+    "deploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "deploymentUrl": "https://quantterminal-iwpe37rxr-klase21s-projects.vercel.app",
+    "state": "READY",
+    "target": "production",
+    "createdAt": "2026-07-15T22:33:16.068Z",
+    "buildingAt": "2026-07-15T22:33:17.215Z",
+    "readyAt": "2026-07-15T22:35:55.244Z",
+    "buildOutcome": "PASS",
+    "functionRegion": "sin1",
+    "requestEdge": "icn1",
+    "neonRegion": "AWS Singapore",
+    "topologyDecision": "APPROVED_EDGE_FUNCTION_REGION_SEPARATION",
+    "domains": [
+      "https://quantterminalai.vercel.app",
+      "https://quantterminal-klase21s-projects.vercel.app",
+      "https://quantterminal-git-epic-d2-canonical-pe-a80ff1-klase21s-projects.vercel.app"
+    ],
+    "publicApplicationDomain": "https://quantterminalai.vercel.app",
+    "platformAliasesRequireVercelAuthentication": true
+  },
+  "environment": {
+    "scope": "Production",
+    "presentNames": [
+      "MVP_SERVING_MODE",
+      "MVP_SERVING_POSTGRES_URL",
+      "MVP_SERVING_EXPECTED_CORPUS_ID",
+      "MVP_SERVING_EXPECTED_CHECKSUM",
+      "MVP_SERVING_FALLBACK_POLICY"
+    ],
+    "forbiddenNamesPresent": [],
+    "valuesReadOrRecorded": false
+  },
+  "health": {
+    "httpStatus": 200,
+    "cacheControl": "no-store",
+    "status": "HEALTHY",
+    "servingMode": "SERVING_POSTGRES",
+    "databaseConnectivity": "CONNECTED",
+    "readerRoleState": "READ_ONLY_VERIFIED",
+    "activeExposure": "CONSUMER_VISIBLE",
+    "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "governedThrough": "2026-07-15T00:00:00.000Z",
+    "projectionCount": 870,
+    "evidenceSummaryCount": 84,
+    "replaySnapshotCount": 84,
+    "demoProfileCount": 2,
+    "releaseInventoryCount": 3,
+    "activeExposureCount": 1,
+    "primaryProfilePresent": true,
+    "backupProfilePresent": true,
+    "fallbackChecksumState": "VERIFIED",
+    "secretOrInfrastructureFieldsPresent": false
+  },
+  "routes": {
+    "root": { "rawHttpStatus": 307, "browserFinalPath": "/dashboard", "status": "PASS" },
+    "dashboard": { "httpStatus": 200, "seconds": 0.464512 },
+    "markets": { "httpStatus": 200, "seconds": 0.765774 },
+    "scanner": { "httpStatus": 200, "seconds": 0.4333 },
+    "trade": { "httpStatus": 200, "seconds": 0.484095 },
+    "research": { "httpStatus": 200, "seconds": 0.49078, "contextNormalized": true },
+    "replay": { "httpStatus": 200, "seconds": 0.305831, "contextNormalized": true },
+    "navigationRailPixels": 190,
+    "horizontalOverflowRoutes": 0,
+    "applicationConsoleErrors": 0
+  },
+  "projectionViews": {
+    "dashboard": 45,
+    "markets": 38,
+    "scanner": 31,
+    "trade": 8,
+    "research": 9,
+    "replay": 10,
+    "headersVerified": true,
+    "macroProjectionPresentWhereGoverned": true,
+    "bitcoinEtfProjectionPresentWhereGoverned": true,
+    "supersededMacroPresent": false
+  },
+  "replay": {
+    "primary": { "instrument": "BTCUSDT", "price": 288, "openInterest": 288, "funding": 3, "flow": 48, "modelChecksumVerified": true },
+    "backup": { "instrument": "SOLUSDT", "price": 288, "openInterest": 288, "funding": 3, "flow": 48, "modelChecksumVerified": true },
+    "unsupported": { "httpStatus": 404, "classification": "SERVING_PROJECTION_MISSING", "fallbackUsed": false, "cacheControl": "no-store" }
+  },
+  "cacheAndMode": {
+    "health": "no-store",
+    "errors": "no-store",
+    "projectionApi": "private, max-age=60",
+    "replayApi": "private, max-age=300",
+    "dataMode": "SERVING_POSTGRES",
+    "certifiedSnapshotActive": false,
+    "publicCacheMixingObserved": false
+  },
+  "latency": {
+    "firstObservedProductionInvocation": { "milliseconds": 1605.3445, "guaranteedPlatformColdStart": false },
+    "health": { "samples": 10, "p50Milliseconds": 264.044, "p95Milliseconds": 333.005, "maxMilliseconds": 333.005 },
+    "projection": { "samples": 10, "p50Milliseconds": 441.289, "p95Milliseconds": 534.59, "maxMilliseconds": 534.59 },
+    "replay": { "samples": 10, "p50Milliseconds": 425.964, "p95Milliseconds": 466.671, "maxMilliseconds": 466.671 }
+  },
+  "logs": {
+    "recordsScanned": 500,
+    "errorRecords": 0,
+    "secretMatch": false,
+    "physicalPathMatch": false,
+    "connectionExhaustion": false,
+    "unexpectedFallback": false
+  },
+  "observationWindow": {
+    "start": "2026-07-15T22:35:55.244Z",
+    "end": "2026-07-15T22:47:22.711Z",
+    "durationSeconds": 687.467,
+    "boundedPeriodicSamples": 5,
+    "healthStable": true,
+    "routeStable": true,
+    "checksumDrift": false,
+    "fallbackActivation": false
+  },
+  "rollback": {
+    "status": "NOT_REQUIRED",
+    "targetDeploymentId": "dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR",
+    "command": "vercel rollback dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR --yes --scope klase21s-projects"
+  },
+  "protectedSystems": {
+    "neonCorpusModified": false,
+    "fundingCommandExecuted": false,
+    "populationRunnerExecuted": false,
+    "backfillExecuted": false,
+    "parquetReadAtRequestTime": false,
+    "canonicalTruthReadFromProduction": false,
+    "filesStaged": false,
+    "filesCommitted": false,
+    "filesPushed": false
+  },
+  "secretValuesIncluded": false
+}
