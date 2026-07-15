@@ -58,6 +58,10 @@ try {
     check("bounded read port retains string IDs and decimals", page.events.every((row) => typeof row.aggregate_trade_id === "string" && typeof row.price === "string" && typeof row.quantity === "string"))
     const next = await createAggTradesSegmentReadPort({ objectRoot }).readPage({ objectKey: first.segmentObjectKey, expectedChecksum: first.segmentChecksum, offset: page.nextOffset ?? undefined, limit: 3 })
     check("bounded read cursor does not skip unread events", page.nextOffset === 3 && next.events[0]?.source_row_ordinal === 3)
+    const buckets = await createAggTradesSegmentReadPort({ objectRoot }).summarizeFlowBuckets({ objectKey: first.segmentObjectKey, expectedChecksum: first.segmentChecksum, expectedEventCount: first.eventCount, windowStart: identity.partitionStart, windowEnd: identity.partitionEnd, bucketMinutes: 30 })
+    check("Replay flow summary has 48 deterministic daily buckets", buckets.checksumVerified && buckets.buckets.length === 48)
+    check("Replay flow buckets preserve exact Segment event count", buckets.buckets.reduce((sum, bucket) => sum + bucket.eventCount, 0) === first.eventCount)
+    check("Replay flow buckets keep missing flow distinct from zero imbalance", buckets.buckets.every((bucket) => bucket.eventCount > 0 || bucket.imbalanceRatio === null))
     console.log(JSON.stringify({ evidence: "REAL_XRPUSDT_2020_01_06_SEGMENT", sourceBytes: source.byteLength, segmentBytes: first.byteLength, eventCount: first.eventCount, segmentChecksum: first.segmentChecksum }))
   }
 } finally { await rm(objectRoot, { recursive: true, force: true }) }

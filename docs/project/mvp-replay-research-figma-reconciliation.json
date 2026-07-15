@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "mvp-replay-research-figma-reconciliation/v1",
+  "inspectedAt": "2026-07-15T07:00:00.000Z",
+  "figmaAuthority": [
+    {"fileKey":"f4KfiCv9c2TnrpwO0gKKvW","nodeId":"2:2","name":"Replay V2 / Desktop"},
+    {"fileKey":"ZvTOzSSHrO6bskGdON7cU7","nodeId":"1:2","name":"Research V2 / Desktop"}
+  ],
+  "statusEnum": ["ADOPTED","ADAPTED_FOR_REAL_DATA","ADAPTED_FOR_ACCESSIBILITY","ADAPTED_FOR_RESPONSIVENESS","ADAPTED_FOR_PERFORMANCE","REJECTED_DATA_TRUTH_CONFLICT","REJECTED_PROTECTED_RUNTIME_CONFLICT","DEFERRED_WITH_REASON"],
+  "decisions": [
+    {"area":"Replay navigation and compact context header","status":"ADOPTED"},
+    {"area":"Replay orange event-focus treatment and synchronized timeline hierarchy","status":"ADOPTED"},
+    {"area":"Replay timeline lanes","status":"ADAPTED_FOR_REAL_DATA","reason":"Rendered actual OHLCV and OI samples, native Funding markers, and bounded AggTrades buckets from the existing Projection dependencies."},
+    {"area":"Replay mobile timeline","status":"ADAPTED_FOR_RESPONSIVENESS","reason":"No authoritative mobile frame was present; a lane selector preserves hierarchy without compressing four lanes."},
+    {"area":"Replay marker and chart text alternatives","status":"ADAPTED_FOR_ACCESSIBILITY"},
+    {"area":"Replay raw Segment inspection in the primary lane","status":"REJECTED_DATA_TRUTH_CONFLICT","reason":"Segment identity is lineage, not the event itself; it remains in technical disclosure."},
+    {"area":"Research green Evidence focus and conclusion-first hierarchy","status":"ADOPTED"},
+    {"area":"Research facts and interpretation side-by-side treatment","status":"ADOPTED"},
+    {"area":"Research supporting and counter evidence parity","status":"ADOPTED"},
+    {"area":"Research technical evidence disclosure","status":"ADOPTED"},
+    {"area":"Research mobile stacking","status":"ADAPTED_FOR_RESPONSIVENESS","reason":"No authoritative mobile frame was present; semantic order is retained in one column."},
+    {"area":"Intraday macro and ETF lanes","status":"REJECTED_DATA_TRUTH_CONFLICT","reason":"Certified FRED, Alpha Vantage, and Farside context is daily and supplemental; no intraday line is inferred from daily observations."},
+    {"area":"Historical Order Book reconstruction","status":"REJECTED_PROTECTED_RUNTIME_CONFLICT","reason":"Request-time reconstruction remains prohibited by ADR-002."}
+  ]
+}

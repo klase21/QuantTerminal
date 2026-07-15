@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "mvp-replay-qa/v1",
+  "statusEnum": ["PASS","PASS_WITH_LIMITATION","SOURCE_BLOCKED"],
+  "demoEvent": "MVP_DEMO_BTCUSDT_2026_07_10",
+  "viewports": [
+    {"width":1440,"height":900,"status":"PASS","horizontalOverflow":false},
+    {"width":1280,"height":800,"status":"PASS","horizontalOverflow":false},
+    {"width":1024,"height":768,"status":"PASS","horizontalOverflow":false},
+    {"width":768,"height":1024,"status":"PASS","horizontalOverflow":false},
+    {"width":390,"height":844,"status":"PASS","horizontalOverflow":false},
+    {"width":360,"height":800,"status":"PASS","horizontalOverflow":false}
+  ],
+  "sampleIntegrity": {"price":288,"openInterest":288,"fundingEvents":3,"aggTradesBuckets":48,"rawAggTradesBrowserEvents":0,"fundingInterpolated":false,"missingAsZero":false},
+  "interaction": {"sharedUtcCursor":true,"keyboardStep":true,"playPause":true,"timestampUrlPersistence":true,"directReload":true,"mobileLaneSelector":true},
+  "payload": {"primaryBytes":119776,"boundedToOneUtcDay":true,"modelChecksum":"e5284bac1ad4f7e8d5ce566ade179828fe27c9de91e8614700355126ed461115","exactRerunMatched":true},
+  "limitations": ["SOURCE_BLOCKED_LIQUIDATION_EVENTS","HISTORICAL_ORDER_BOOK_UNAVAILABLE","NEWS_ANNOTATIONS_UNAVAILABLE","DAILY_EXTERNAL_CONTEXT_NOT_INTRADAY"]
+}

@@ -11,5 +11,5 @@
   "visualDefect": [],
   "responsiveDefect": [],
   "accessibilityDefect": [],
-  "verification": {"sixRoutesRendered":true,"responsiveCellsPassed":36,"scannerCandidateReachedTrade":true,"directReloadPreservedContext":true,"classifiedErrors":true,"asOfVisible":true,"limitationsVisible":true,"lineageVisible":true,"horizontalOverflow":0,"criticalDefects":0}
+  "verification": {"sixRoutesRendered":true,"querylessDirectEntryPassed":true,"routeAwareNormalizationPassed":true,"responsiveCellsPassed":18,"scannerCandidateReachedTrade":true,"directReloadPreservedContext":true,"browserBackForwardPassed":true,"classifiedErrors":true,"asOfVisible":true,"limitationsVisible":true,"lineageVisible":true,"replaySynchronizedSequence":true,"researchEvidenceHierarchy":true,"horizontalOverflow":0,"criticalDefects":0,"visualApproval":"AWAITING_USER"}
 }

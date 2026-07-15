@@ -72,6 +72,15 @@ export interface AggTradesFlowSummary {
   readonly checksumVerified: true
 }
 
+export interface AggTradesFlowBucket {
+  readonly bucketStart: string
+  readonly bucketEnd: string
+  readonly aggressiveBuyQuantity: string
+  readonly aggressiveSellQuantity: string
+  readonly eventCount: number
+  readonly imbalanceRatio: number | null
+}
+
 class DecimalAccumulator {
   private value = BigInt(0)
   private scale = 0
@@ -264,6 +273,40 @@ export function createAggTradesSegmentReadPort(options: { readonly objectRoot: s
       } finally { await handle.close() }
       if (eventCount !== input.expectedEventCount || !eventTimeMinimum || !eventTimeMaximum) throw new Error("SEGMENT_SUMMARY_COUNT_MISMATCH")
       return Object.freeze({ eventCount, aggressiveBuyQuantity: buy.toString(), aggressiveSellQuantity: sell.toString(), eventTimeMinimum, eventTimeMaximum, checksumVerified: true as const })
+    },
+    async summarizeFlowBuckets(input: { readonly objectKey: string; readonly expectedChecksum: string; readonly expectedEventCount: number; readonly windowStart: string; readonly windowEnd: string; readonly bucketMinutes?: number; readonly batchSize?: number }): Promise<{ readonly buckets: readonly AggTradesFlowBucket[]; readonly eventCount: number; readonly checksumVerified: true }> {
+      const batchSize = input.batchSize ?? AGG_TRADES_SEGMENT_ROW_GROUP_SIZE
+      const bucketMinutes = input.bucketMinutes ?? 30
+      if (!Number.isInteger(batchSize) || batchSize < 1_000 || batchSize > AGG_TRADES_SEGMENT_ROW_GROUP_SIZE) throw new Error("SEGMENT_BUCKET_BATCH_SIZE_INVALID")
+      if (!Number.isInteger(input.expectedEventCount) || input.expectedEventCount < 1) throw new Error("SEGMENT_BUCKET_EVENT_COUNT_INVALID")
+      if (!Number.isInteger(bucketMinutes) || bucketMinutes < 5 || bucketMinutes > 60 || 1_440 % bucketMinutes !== 0) throw new Error("SEGMENT_BUCKET_INTERVAL_INVALID")
+      const windowStart = Date.parse(input.windowStart), windowEnd = Date.parse(input.windowEnd), bucketMs = bucketMinutes * 60_000
+      if (!Number.isFinite(windowStart) || !Number.isFinite(windowEnd) || windowEnd <= windowStart || windowEnd - windowStart > 86_400_000 || (windowEnd - windowStart) % bucketMs !== 0) throw new Error("SEGMENT_BUCKET_WINDOW_INVALID")
+      const filename = safeSegmentPath(options.objectRoot, input.objectKey)
+      if (await fileChecksum(filename) !== input.expectedChecksum) throw new Error("SEGMENT_CHECKSUM_MISMATCH")
+      const info = await stat(filename), handle = await open(filename, "r")
+      const { parquetReadObjects } = await import("hyparquet")
+      const file = { byteLength: info.size, async slice(start: number, end: number): Promise<ArrayBuffer> { const buffer = Buffer.allocUnsafe(end - start); await handle.read(buffer, 0, buffer.length, start); return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) } }
+      const values = Array.from({ length: (windowEnd - windowStart) / bucketMs }, () => ({ buy: new DecimalAccumulator(), sell: new DecimalAccumulator(), count: 0 }))
+      let eventCount = 0
+      try {
+        for (let cursor = 0; cursor < input.expectedEventCount; cursor += batchSize) {
+          const rows = await parquetReadObjects({ file, rowStart: cursor, rowEnd: Math.min(input.expectedEventCount, cursor + batchSize), columns: ["quantity", "event_time_utc", "buyer_is_maker"] }) as unknown as Pick<AggTradesSegmentEvent, "quantity" | "event_time_utc" | "buyer_is_maker">[]
+          for (const row of rows) {
+            const timestamp = Date.parse(row.event_time_utc), ordinal = Math.floor((timestamp - windowStart) / bucketMs)
+            if (!Number.isFinite(timestamp) || ordinal < 0 || ordinal >= values.length) throw new Error("SEGMENT_BUCKET_EVENT_OUTSIDE_WINDOW")
+            const bucket = values[ordinal]!
+            if (row.buyer_is_maker) bucket.sell.add(row.quantity); else bucket.buy.add(row.quantity)
+            bucket.count += 1; eventCount += 1
+          }
+        }
+      } finally { await handle.close() }
+      if (eventCount !== input.expectedEventCount) throw new Error("SEGMENT_BUCKET_COUNT_MISMATCH")
+      const buckets = values.map((bucket, ordinal) => {
+        const buy = bucket.buy.toString(), sell = bucket.sell.toString(), total = Number(buy) + Number(sell)
+        return Object.freeze({ bucketStart: new Date(windowStart + ordinal * bucketMs).toISOString(), bucketEnd: new Date(windowStart + (ordinal + 1) * bucketMs).toISOString(), aggressiveBuyQuantity: buy, aggressiveSellQuantity: sell, eventCount: bucket.count, imbalanceRatio: total ? Number(((Number(buy) - Number(sell)) / total).toFixed(8)) : null })
+      })
+      return Object.freeze({ buckets: Object.freeze(buckets), eventCount, checksumVerified: true as const })
     },
     async readPage(input: { readonly objectKey: string; readonly expectedChecksum: string; readonly offset?: number; readonly limit: number; readonly eventTimeStart?: string; readonly eventTimeEnd?: string; readonly aggregateTradeIdStart?: string; readonly aggregateTradeIdEnd?: string }): Promise<{ readonly events: readonly AggTradesSegmentEvent[]; readonly nextOffset: number | null; readonly checksumVerified: true }> {
       if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 1_000) throw new Error("SEGMENT_READ_LIMIT_INVALID")

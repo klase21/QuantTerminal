@@ -1,13 +1,15 @@
 {
-  "schemaVersion": "mvp-productization-iteration-gate/v1",
-  "recommendationEnum": ["NO_ADDITIONAL_PRODUCTIZATION_ITERATION_REQUIRED", "ONE_FOCUSED_REPLAY_RESEARCH_ITERATION_REQUIRED", "BROADER_PRODUCT_EXPERIENCE_ITERATION_REQUIRED"],
-  "recommendation": "ONE_FOCUSED_REPLAY_RESEARCH_ITERATION_REQUIRED",
+  "schemaVersion": "mvp-productization-iteration-gate/v3",
+  "recommendationEnum": ["AWAITING_USER_VISUAL_APPROVAL", "USER_APPROVED_FOR_DEMO_PACKAGING", "BROADER_PRODUCT_EXPERIENCE_ITERATION_REQUIRED"],
+  "recommendation": "AWAITING_USER_VISUAL_APPROVAL",
   "basis": [
-    "Dashboard, Markets, Scanner, Trade, and Research are coherent across desktop and mobile.",
-    "External context is useful and nonblocking, but ETF flow remains source-access blocked.",
-    "Research default presentation no longer resembles a database inspector.",
-    "Replay remains truthful and responsive but still falls short of the Figma event-sequence experience and retains technical Segment metadata in its primary aggregate lane."
+    "Replay visibly presents an ordered, synchronized source-derived event sequence instead of a daily Segment summary.",
+    "Research leads with conclusion, verified facts, interpretation, supporting evidence, and equally prominent counter evidence.",
+    "The primary BTCUSDT event and backup SOLUSDT event are immutable, reproducible, and understandable without developer repair.",
+    "All six routes now use destination-aware context normalization and pass queryless direct entry without fatal context errors.",
+    "The six desktop implementations were reconciled against freshly inspected authoritative Figma sources and pass bounded desktop, tablet, and mobile browser checks.",
+    "Only the user can approve visual conformance; implementation and automated QA cannot promote this gate to Demo Packaging."
   ],
-  "nextScope": ["Replay timeline hierarchy", "Replay primary metadata reduction", "Research final progressive-disclosure QA"],
-  "excluded": ["Evidence rule changes", "Projection payload changes", "Order Book WebSocket changes", "Funding maintenance"]
+  "nextScope": ["User visual review at the exact local URLs", "Resolve any user-reported Figma deltas", "Authorize commit only after visual approval"],
+  "excluded": ["Evidence rule changes", "existing crypto Projection payload changes", "Order Book WebSocket changes", "Funding maintenance"]
 }

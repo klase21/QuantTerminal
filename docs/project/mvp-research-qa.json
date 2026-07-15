@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "mvp-research-qa/v1",
+  "statusEnum": ["PASS","PASS_WITH_LIMITATION","SOURCE_BLOCKED"],
+  "viewports": [
+    {"width":1440,"height":900,"status":"PASS","horizontalOverflow":false},
+    {"width":1280,"height":800,"status":"PASS","horizontalOverflow":false},
+    {"width":1024,"height":768,"status":"PASS","horizontalOverflow":false},
+    {"width":768,"height":1024,"status":"PASS","horizontalOverflow":false},
+    {"width":390,"height":844,"status":"PASS","horizontalOverflow":false},
+    {"width":360,"height":800,"status":"PASS","horizontalOverflow":false}
+  ],
+  "hierarchy": {"conclusionFirst":true,"factsDistinct":true,"interpretationDistinct":true,"counterEvidenceProminent":true,"limitationsVisible":true,"technicalEvidenceCollapsed":true,"rawReasonCodesInPrimaryUi":false},
+  "externalContext": {"role":"SUPPLEMENTAL","fredDgs10Preserved":true,"alphaVantageSpyPreserved":true,"farside":"PUBLICLY_AVAILABLE_BROWSER_BACKED_SCHEDULED_RETRIEVAL","rewritesCryptoConclusion":false},
+  "crossPage": {"replayLinkPresent":true,"instrumentPreserved":true,"eventWindowPreserved":true,"evidenceIdPreserved":true,"timestampPreserved":true}
+}

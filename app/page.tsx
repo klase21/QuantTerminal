@@ -1,18 +1,5 @@
-// ======================================================
-// app/page.tsx
-// ======================================================
-
-import { Suspense } from "react"
-
-import DashboardLayout from "@/components/DashboardLayout"
-import { TerminalAppShell } from "@/components/layout/PrimaryNavigation"
+import { redirect } from "next/navigation"
 
 export default function Home() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-black text-white" />}>
-      <TerminalAppShell>
-        <DashboardLayout />
-      </TerminalAppShell>
-    </Suspense>
-  )
+  redirect("/dashboard")
 }

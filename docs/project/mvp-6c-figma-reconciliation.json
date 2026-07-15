@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "1.0.0",
+  "status": "IMPLEMENTED_AWAITING_USER_VISUAL_APPROVAL",
+  "inspectedAt": "2026-07-15T08:00:00.000Z",
+  "authority": "FIGMA",
+  "responsiveAuthority": "DESKTOP_FIGMA_WITH_MECHANICAL_RESPONSIVE_ADAPTATION",
+  "sources": [
+    { "page": "Dashboard", "fileKey": "jFOfLzZ0Hgqzd0w1ZLnxv3", "nodeId": "0:1", "kind": "FIGMA_MAKE" },
+    { "page": "Markets", "fileKey": "ASFD05NgMGYhyvC8ZFjvgb", "nodeId": "1:2", "kind": "FIGMA_DESIGN" },
+    { "page": "Scanner", "fileKey": "3roqtZ5Mt8QRgpvICV7Anf", "nodeId": "1:2", "kind": "FIGMA_DESIGN" },
+    { "page": "Trade", "fileKey": "eKQoLz9L6wNaxtUq2x2EbT", "nodeId": "6:2", "kind": "FIGMA_DESIGN" },
+    { "page": "Research", "fileKey": "ZvTOzSSHrO6bskGdON7cU7", "nodeId": "1:2", "kind": "FIGMA_DESIGN" },
+    { "page": "Replay", "fileKey": "f4KfiCv9c2TnrpwO0gKKvW", "nodeId": "2:2", "kind": "FIGMA_DESIGN" }
+  ],
+  "pages": [
+    { "page": "Dashboard", "sections": [
+      { "section": "Context toolbar and five-second summary", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "Primary drivers and risks", "status": "ADOPTED" },
+      { "section": "Investigation candidates and instrument overview", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "Macro and ETF context", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "Figma Make static sample values", "status": "REJECTED_DATA_TRUTH_CONFLICT" }
+    ]},
+    { "page": "Markets", "sections": [
+      { "section": "Markets Context Toolbar", "status": "ADOPTED" },
+      { "section": "L1 Global Market Summary", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "L2 Sector Rotation and Instrument Comparison", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "L3 Capital Flow", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "L4 Derivatives Intelligence", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "L5 Macro and ETF", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "L6-L7 Prediction Markets and Breadth", "status": "REJECTED_DATA_TRUTH_CONFLICT" },
+      { "section": "L8 Investigation and Audit Handoffs", "status": "ADOPTED" }
+    ]},
+    { "page": "Scanner", "sections": [
+      { "section": "Scanner Toolbar", "status": "ADOPTED" },
+      { "section": "Priority Queue and Queue Summary", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "Canonical Opportunity Card and Metadata Rail", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "Supporting Evidence Grid and Risk Factors", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "Suggested Investigation Path and Handoffs", "status": "ADOPTED" },
+      { "section": "Investigation Timeline", "status": "ADAPTED_FOR_REAL_DATA", "reason": "The workflow timeline shows governed investigation stages without fabricating an intraday market sequence; Replay owns source-derived timeline samples." },
+      { "section": "Cross Navigation and Scanner Policy", "status": "ADOPTED" }
+    ]},
+    { "page": "Trade", "sections": [
+      { "section": "01 Decision Summary", "status": "ADOPTED" },
+      { "section": "02 Evidence Workspace", "status": "ADOPTED" },
+      { "section": "03 Supporting Reasoning", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "04 Scenario Analysis", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "05 Risk Assessment", "status": "ADOPTED" },
+      { "section": "06 Execution Plan", "status": "ADAPTED_FOR_REAL_DATA", "reason": "The Figma planning checklist is retained as user-controlled preparation and review state; order entry, sizing, and fabricated price levels remain excluded." },
+      { "section": "07 Investigation Handoffs and Workflow Footer", "status": "ADOPTED" }
+    ]},
+    { "page": "Research", "sections": [
+      { "section": "Research Context Toolbar and Summary", "status": "ADOPTED" },
+      { "section": "Core Question, Evidence Quality, Overview and Readiness", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "Primary Sources, Reasoning and Mandatory Counter Evidence", "status": "ADOPTED" },
+      { "section": "Relationship Graph and Related Research", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "Repository Audit, Cross Navigation and Technical Disclosure", "status": "ADOPTED" }
+    ]},
+    { "page": "Replay", "sections": [
+      { "section": "Replay Context Toolbar and 01 Summary", "status": "ADOPTED" },
+      { "section": "02 Primary Evidence Timeline", "status": "ADAPTED_FOR_REAL_DATA" },
+      { "section": "03 Reasoning Timeline and Cursor Detail", "status": "ADAPTED_FOR_ACCESSIBILITY" },
+      { "section": "04 Historical Context", "status": "REJECTED_DATA_TRUTH_CONFLICT" },
+      { "section": "05 Market Structure", "status": "REJECTED_PROTECTED_RUNTIME_CONFLICT" },
+      { "section": "06-07 Research and Repository Handoffs", "status": "ADOPTED" }
+    ]}
+  ],
+  "sharedConflicts": [
+    { "area": "Navigation palette and spacing", "status": "FIGMA_CROSS_FILE_CONFLICT", "decision": "Use the shared 190px fixed navigation and the established QuantTerminal token palette; preserve each page's section hierarchy." },
+    { "area": "Mobile hierarchy", "status": "ADAPTED_FOR_RESPONSIVENESS", "decision": "No authoritative mobile frames exist; desktop order is mechanically stacked without hiding Evidence or limitations." }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0.0",
+  "testedAt": "2026-07-15T08:15:00.000Z",
+  "baseUrl": "http://localhost:3003",
+  "directEntry": {
+    "/": "PASS_REDIRECT_DASHBOARD",
+    "/dashboard": "PASS",
+    "/markets": "PASS",
+    "/scanner": "PASS",
+    "/trade": "PASS_DEFAULT_BTCUSDT",
+    "/research": "PASS_DEFAULT_DEMO_EVENT",
+    "/replay": "PASS_DEFAULT_DEMO_EVENT"
+  },
+  "normalization": {
+    "researchProjectionPassedToReplay": "PASS_INCOMPATIBLE_ID_REMOVED",
+    "replayProjectionPassedToResearch": "PASS_INCOMPATIBLE_ID_REMOVED",
+    "replayProjectionPassedToTrade": "PASS_INCOMPATIBLE_ID_REMOVED",
+    "staleCandidatePassedToTradeRead": "PASS_RESOLVED_BY_GOVERNED_INSTRUMENT",
+    "validInstrumentPreserved": "PASS_ETHUSDT",
+    "outOfWindowCursorNormalized": "PASS",
+    "marketsSupplementalEtfProjection": "PASS_PERSISTED_PROJECTION"
+  },
+  "navigation": {
+    "sidebarAllSixDestinationsFromAllSixPages": "PASS",
+    "scannerToTradeCandidate": "PASS",
+    "scannerToResearchEvidence": "PASS",
+    "dashboardToTrade": "PASS",
+    "marketsToScanner": "PASS",
+    "marketsToTrade": "PASS",
+    "replayToResearch": "PASS",
+    "replayToTrade": "PASS",
+    "tradeToReplay": "PASS",
+    "tradeToResearch": "PASS",
+    "researchToReplay": "PASS",
+    "browserBack": "PASS",
+    "browserForward": "PASS",
+    "refreshAndDirectBookmark": "PASS"
+  },
+  "responsive": [
+    { "viewport": "1440x900", "routesPassed": 6, "horizontalOverflow": 0, "fatalErrors": 0 },
+    { "viewport": "1024x768", "routesPassed": 6, "horizontalOverflow": 0, "fatalErrors": 0 },
+    { "viewport": "390x844", "routesPassed": 6, "horizontalOverflow": 0, "fatalErrors": 0 }
+  ],
+  "result": "PASS_AWAITING_USER_VISUAL_APPROVAL"
+}

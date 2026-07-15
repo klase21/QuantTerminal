@@ -1,0 +1,39 @@
+{
+  "profileId": "mvp-demo-event-profile/1.0.0",
+  "profileVersion": "1.0.0",
+  "primary": {
+    "instrument": "BTCUSDT",
+    "eventTimeStart": "2026-07-10T00:00:00.000Z",
+    "eventTimeEnd": "2026-07-11T00:00:00.000Z",
+    "replayProjectionVersionId": "mvpv_75febb52e54434d3f46960ead55908a2d488c3d7f3461fd92f9137766fe0f638",
+    "researchProjectionVersionId": "mvpv_167c4546305755397807b0cdc6dcc8ff1f35308c46266d756be6b36ecc0c0cb9",
+    "evidencePacketId": "epkt_99e30aa4f23923f1e25b76e12aabb6adc876ce9c4a75c2eb860a0e05a0fe775f",
+    "evidencePacketVersionId": "epvr_12a7dcbaf8748e608efe9fe8af67e4b892f1483cbf92d63ab457ea5a3e58a613",
+    "marketState": "POSITIONING_EXPANSION",
+    "confidenceClassification": "LOW",
+    "reasonForSelection": "Price, open interest, and buy-biased flow moved together while Funding remained below pressure threshold, preserving meaningful counter evidence.",
+    "knownLimitations": ["LIQUIDATION_HISTORY_UNAVAILABLE", "ORDERBOOK_HISTORY_UNAVAILABLE", "NEWS_UNAVAILABLE"],
+    "replayUrl": "/replay?instrument=BTCUSDT&start=2026-07-10T00%3A00%3A00.000Z&end=2026-07-11T00%3A00%3A00.000Z&projection=mvpv_75febb52e54434d3f46960ead55908a2d488c3d7f3461fd92f9137766fe0f638&timestamp=2026-07-10T00%3A00%3A00.000Z",
+    "researchUrl": "/research?instrument=BTCUSDT&start=2026-07-10T00%3A00%3A00.000Z&end=2026-07-11T00%3A00%3A00.000Z&projection=mvpv_167c4546305755397807b0cdc6dcc8ff1f35308c46266d756be6b36ecc0c0cb9"
+  },
+  "backup": {
+    "instrument": "SOLUSDT",
+    "eventTimeStart": "2026-07-10T00:00:00.000Z",
+    "eventTimeEnd": "2026-07-11T00:00:00.000Z",
+    "replayProjectionVersionId": "mvpv_8b99507e748a22b39d32af3c8b82b77ffbe203e223ca1bcbb45f0d87519c485c",
+    "researchProjectionVersionId": "mvpv_f94ef32669e135f0f09d3692616acdb3122e772305cc59530666b7e83bf72c47",
+    "evidencePacketId": "epkt_28a0f24bc3fb0115e492b522e6b3b237f1c658f5752aa1230acd79a443a650b0",
+    "evidencePacketVersionId": "epvr_353ea43abcda4e8e87567539f76892dafb5065c351d4052eff0f476a2834b559",
+    "marketState": "DELEVERAGING",
+    "confidenceClassification": "LOW",
+    "reasonForSelection": "Open interest contracted materially while price stabilized, with positive Funding and balanced flow providing a clear deleveraging case with opposition.",
+    "knownLimitations": ["LIQUIDATION_HISTORY_UNAVAILABLE", "ORDERBOOK_HISTORY_UNAVAILABLE", "NEWS_UNAVAILABLE"],
+    "replayUrl": "/replay?instrument=SOLUSDT&start=2026-07-10T00%3A00%3A00.000Z&end=2026-07-11T00%3A00%3A00.000Z&projection=mvpv_8b99507e748a22b39d32af3c8b82b77ffbe203e223ca1bcbb45f0d87519c485c&timestamp=2026-07-10T00%3A00%3A00.000Z",
+    "researchUrl": "/research?instrument=SOLUSDT&start=2026-07-10T00%3A00%3A00.000Z&end=2026-07-11T00%3A00%3A00.000Z&projection=mvpv_f94ef32669e135f0f09d3692616acdb3122e772305cc59530666b7e83bf72c47"
+  },
+  "dependencies": {
+    "cryptoProjectionCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+    "repositoryHead": "bc1b2e3"
+  },
+  "profileChecksum": "b33c1ce451d523ab45170734955fb8de68025ee729617b9989c7900a1e2a9168"
+}
