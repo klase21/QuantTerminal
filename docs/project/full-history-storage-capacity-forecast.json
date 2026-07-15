@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "full-history-storage-capacity-forecast/v1",
+  "generatedAt": "2026-07-15T12:21:19.228Z",
+  "measurementMode": "READ_ONLY_LOCAL_AUDIT",
+  "cutoffDate": "2026-07-11",
+  "instruments": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "DOGEUSDT"
+  ],
+  "units": {
+    "GB": 1000000000,
+    "GiB": 1073741824,
+    "note": "Disk vendors use decimal GB/TB; Windows commonly displays binary GiB/TiB."
+  },
+  "current": {
+    "durableArtifactRootBytes": 2064939616,
+    "d2D3PostgresBytes": 6271056919,
+    "d4PostgresBytes": 87792663,
+    "governedPhysicalBytes": 8423789198,
+    "legacyAndCacheBytes": 5358719676,
+    "totalRelevantLocalBytes": 13782508874,
+    "dDriveFreeBytes": 918940684288,
+    "dDriveUsedBytes": 1081440329728
+  },
+  "measuredCounts": {
+    "candidates": 435859,
+    "canonicalFacts": 435859,
+    "lineageEdges": 435859,
+    "coverageDecisions": 1519,
+    "consistencyResults": 423,
+    "evidencePackets": 87,
+    "consumerProjections": 871,
+    "aggTradeSegments": 86,
+    "aggTradeEvents": 45816917
+  },
+  "fullHistory": {
+    "ohlcv": {
+      "projectedRows": 3978144,
+      "projectedRawBytes": 179707130,
+      "projectedCanonicalRelationBytes": 4962963294
+    },
+    "funding": {
+      "projectedEvents": 41541,
+      "projectedRawBytes": 404011,
+      "projectedCanonicalRelationBytes": 58097646
+    },
+    "openInterest": {
+      "projectedRows": 3041274,
+      "projectedRawBytes": 121801503,
+      "projectedCanonicalRelationBytes": 4600275127
+    },
+    "aggTrades": {
+      "projectedSourceZipBytes": 136714059201,
+      "projectedEventsExpected": 9744688442,
+      "projectedEventsConservative": 10249907317,
+      "projectedParquetBytes": {
+        "low": 266839659292,
+        "expected": 313929010931,
+        "high": 379618478651
+      }
+    },
+    "postgresD2D3Bytes": {
+      "low": 75000000000,
+      "expected": 90910058554,
+      "high": 115000000000
+    },
+    "postgresD4Bytes": {
+      "low": 10105667117,
+      "expected": 14436667310,
+      "high": 20211334234
+    }
+  },
+  "policiesGB": {
+    "leanDerivedFinal": {
+      "low": 359,
+      "expected": 428,
+      "high": 525
+    },
+    "auditPreservingFinal": {
+      "low": 499,
+      "expected": 568,
+      "high": 665
+    },
+    "backfillPeakOccupied": {
+      "low": 545,
+      "expected": 660,
+      "high": 862
+    },
+    "oneYearIncrementalGrowth": {
+      "low": 60,
+      "expected": 85,
+      "high": 125
+    },
+    "operationalOccupiedAfterOneYear": {
+      "low": 605,
+      "expected": 745,
+      "high": 987
+    },
+    "operationalCapacityWith25PercentFree": {
+      "low": 807,
+      "expected": 993,
+      "high": 1316
+    },
+    "localBackupCapacity": {
+      "low": 1306,
+      "expected": 1561,
+      "high": 1981
+    }
+  },
+  "recommendation": {
+    "minimumWorkable": "1 TB only for Lean or Audit-Preserving final storage; not accepted as Operationally Safe",
+    "minimumOperationallySafePurchase": "2 TB",
+    "recommended": "2 TB",
+    "longTermExpansion": "4 TB"
+  },
+  "confidence": {
+    "sourceZipInventory": "HIGH",
+    "parquetForecast": "MEDIUM_HIGH",
+    "postgresForecast": "MEDIUM",
+    "d4Forecast": "MEDIUM_LOW",
+    "operationalPeak": "MEDIUM"
+  }
+}
