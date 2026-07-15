@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "mvp-serving-release-inventory/v1",
+  "generatedAt": "2026-07-15T08:56:50.000Z",
+  "servingCorpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "items": [
+    {
+      "projectionVersionId": "mvpv_1a28580aebc99079a4aab906f7f23e09b35ed50c316f3b3bf430625ef91cb68b",
+      "projectionKind": "BitcoinEtfFlowProjection",
+      "subjectId": "BTC_SPOT_ETF_US",
+      "checksum": "028007160d1b9939843d0fb4c8057a0215dbb22b6d95daeac39f3171b95123b9",
+      "checksumValid": true,
+      "lifecycle": "GENERATED",
+      "exposure": "READY_FOR_CUTOVER",
+      "supersedesProjectionVersionId": null,
+      "eligibility": "ELIGIBLE",
+      "disposition": "INCLUDED",
+      "reason": "RELEASE_ELIGIBLE"
+    },
+    {
+      "projectionVersionId": "mvpv_5356d705485068ef6125963d82d9180f81976ddeec4b09aa0dd658b170aef08b",
+      "projectionKind": "MacroContextProjection",
+      "subjectId": "GLOBAL_MACRO_CONTEXT",
+      "checksum": "a8f16e6fcb91cf6121ab3bb10068853dfe2e194d3773efa6f20af31bfd4a177b",
+      "checksumValid": true,
+      "lifecycle": "GENERATED",
+      "exposure": "READY_FOR_CUTOVER",
+      "supersedesProjectionVersionId": "mvpv_68616843f840fa2593cc437d48fc51818ea14803f6b1bdb7c29d91cf5f344112",
+      "eligibility": "ELIGIBLE",
+      "disposition": "INCLUDED",
+      "reason": "RELEASE_ELIGIBLE"
+    },
+    {
+      "projectionVersionId": "mvpv_68616843f840fa2593cc437d48fc51818ea14803f6b1bdb7c29d91cf5f344112",
+      "projectionKind": "MacroContextProjection",
+      "subjectId": "GLOBAL_MACRO_CONTEXT",
+      "checksum": "69ccfde63be3e14fc53da1cbaf961f6f2c5d7bb2a405b6366b305f30b7eb0777",
+      "checksumValid": false,
+      "lifecycle": "GENERATED",
+      "exposure": "READY_FOR_CUTOVER",
+      "supersedesProjectionVersionId": null,
+      "eligibility": "INELIGIBLE",
+      "disposition": "EXCLUDED",
+      "reason": "EXCLUDED_SUPERSEDED_IMMUTABLE_CONFLICT"
+    }
+  ],
+  "counts": { "stored": 3, "included": 2, "excluded": 1 }
+}

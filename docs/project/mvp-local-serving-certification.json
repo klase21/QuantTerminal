@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "mvp-local-serving-certification/v1",
+  "certifiedAt": "2026-07-15T13:33:18.000Z",
+  "status": "PASS",
+  "database": { "name": "quantterminal_mvp_serving_isolated", "postgresMajorVersion": 16, "databaseBytes": 20175895, "indexBytes": 1114112 },
+  "corpus": {
+    "id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "checksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "sourceCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+    "exposure": "CONSUMER_VISIBLE",
+    "governedThrough": "2026-07-15T00:00:00.000Z"
+  },
+  "records": { "projections": 870, "evidenceSummaries": 84, "replaySnapshots": 84, "demoProfiles": 2, "releaseInventory": 3, "exposures": 1, "publicationEvents": 2 },
+  "replay": { "pricePerSnapshot": 288, "openInterestPerSnapshot": 288, "nativeFundingPerSnapshot": 3, "flowBucketsPerSnapshot": 48, "allSnapshotsVerified": true },
+  "duplicatePublication": { "result": "DUPLICATE", "authoritativeDuplicatesCreated": 0, "corpusIdentityUnchanged": true, "fallbackChecksumUnchanged": true },
+  "roles": {
+    "publisher": { "migration": "PASS", "publication": "PASS", "truthPlaneRead": "DENIED" },
+    "reader": { "select": "PASS", "insert": "DENIED", "update": "DENIED", "delete": "DENIED", "ddl": "DENIED", "roleCreation": "DENIED_BY_ROLE_ATTRIBUTES", "truthPlaneRead": "DENIED" }
+  },
+  "migrations": { "application": "PASS", "reapplication": "SKIPPED", "checksumMismatch": "FAILED_CLOSED" },
+  "servingModeApi": { "d4UrlPresent": false, "d3ObjectRootPresent": false, "projectionViewsPassed": 6, "replaySequence": "PASS", "health": "HEALTHY", "rootRedirect": 307, "directRoutes": "PASS", "databaseUnavailable": "SERVING_CORPUS_UNAVAILABLE_HTTP_503" },
+  "fallback": { "bytes": 1075396, "checksum": "9296a664d244482f37a4eef079335b219fc7e67e8311c25118ee44ab18e32ab3", "defaultRoutes": "PASS", "primaryReplay": "PASS", "nonDefaultMissing": "SERVING_PROJECTION_MISSING" },
+  "secrets": { "printed": false, "persisted": false, "documented": false },
+  "cloud": { "neonAccessed": false, "vercelModified": false, "resourcesProvisioned": false }
+}

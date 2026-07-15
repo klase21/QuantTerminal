@@ -7,6 +7,8 @@ import {
   type MvpConsumerView,
 } from "@/lib/data-platform/consumer-projections";
 import { withMvpConsumerProjectionFacade } from "@/lib/data-platform/consumer-projections/server";
+import { servingHeaders } from "@/lib/data-platform/mvp-serving/server";
+import { resolveMvpServingMode } from "@/lib/data-platform/mvp-serving/mode";
 import { normalizeMvpRouteContext } from "@/lib/mvp-route-context";
 
 export const dynamic = "force-dynamic";
@@ -65,24 +67,25 @@ export async function GET(request: Request) {
         "INVALID_QUERY",
         "The requested range must be a positive UTC window no longer than 24 hours.",
       );
-    const result = await withMvpConsumerProjectionFacade((facade) =>
-      facade.read({
+    const { result, context } = await withMvpConsumerProjectionFacade(async (facade, context) => ({
+      result: await facade.read({
         view,
         instrument,
         start,
         end,
         candidateId: normalized.get("candidate") ?? undefined,
         projectionVersionId: normalized.get("projection") ?? undefined,
-      }),
-    );
+      }), context,
+    }));
     return NextResponse.json(result, {
       headers: {
         "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
-        "X-Projection-Exposure": "CONSUMER_VISIBLE",
+        ...servingHeaders(context),
       },
     });
   } catch (error) {
     if (error instanceof MvpConsumerFacadeError) {
+      const reasonCode = error.reasonCode === "PROJECTION_MISSING" && resolveMvpServingMode() !== "local_truth" ? "SERVING_PROJECTION_MISSING" : error.reasonCode;
       const status =
         error.reasonCode === "INVALID_QUERY"
           ? 400
@@ -92,7 +95,7 @@ export async function GET(request: Request) {
               ? 404
               : 403;
       return NextResponse.json(
-        { status: error.reasonCode, reason: error.message },
+        { status: reasonCode, reason: error.message },
         { status, headers: { "Cache-Control": "no-store" } },
       );
     }
@@ -100,9 +103,15 @@ export async function GET(request: Request) {
       "MVP_PROJECTION_READ_ERROR",
       error instanceof Error ? error.message : "UNKNOWN",
     );
+    const reasonCode = classifyServingFailure(error);
     return NextResponse.json(
-      { status: "READ_ERROR", reason: "The governed Projection read failed." },
+      { status: reasonCode, reason: "The governed serving Projection read failed." },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
+}
+
+function classifyServingFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return ["SERVING_CORPUS_UNAVAILABLE", "SERVING_CORPUS_CHECKSUM_MISMATCH", "CERTIFIED_SNAPSHOT_CHECKSUM_MISMATCH", "SERVING_EVIDENCE_SUMMARY_MISSING"].find((code) => message.includes(code)) ?? "READ_ERROR";
 }

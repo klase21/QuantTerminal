@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "mvp-online-serving-capacity/v2",
+  "measuredAt": "2026-07-15T13:33:18.000Z",
+  "measurementMode": "LOCAL_ISOLATED_POSTGRES_PUBLICATION",
+  "database": {
+    "engine": "PostgreSQL",
+    "majorVersion": 16,
+    "databaseName": "quantterminal_mvp_serving_isolated",
+    "databaseBytes": 20175895,
+    "servingHeapBytes": 1343488,
+    "servingTableBytesIncludingToast": 10895360,
+    "servingIndexBytes": 1114112,
+    "servingTotalRelationBytes": 12009472
+  },
+  "logicalPayloads": {
+    "projectionJsonbBytes": 1006428,
+    "replayJsonbBytes": 4977238,
+    "evidenceJsonbBytes": 194290,
+    "serializedReplayApiBytes": 10030198
+  },
+  "recordCounts": {
+    "projections": 870,
+    "evidenceSummaries": 84,
+    "replaySnapshots": 84,
+    "demoProfiles": 2,
+    "releaseInventory": 3,
+    "activeExposure": 1,
+    "publicationEventsAfterDuplicateCertification": 2
+  },
+  "relationBytes": [
+    { "table": "migration_ledger", "tableBytes": 16384, "indexBytes": 32768, "totalBytes": 49152 },
+    { "table": "serving_corpus", "tableBytes": 16384, "indexBytes": 32768, "totalBytes": 49152 },
+    { "table": "serving_demo_profile", "tableBytes": 16384, "indexBytes": 32768, "totalBytes": 49152 },
+    { "table": "serving_evidence_summary", "tableBytes": 352256, "indexBytes": 98304, "totalBytes": 450560 },
+    { "table": "serving_exposure", "tableBytes": 16384, "indexBytes": 32768, "totalBytes": 49152 },
+    { "table": "serving_projection", "tableBytes": 5070848, "indexBytes": 729088, "totalBytes": 5799936 },
+    { "table": "serving_publication_event", "tableBytes": 16384, "indexBytes": 32768, "totalBytes": 49152 },
+    { "table": "serving_release_inventory", "tableBytes": 16384, "indexBytes": 49152, "totalBytes": 65536 },
+    { "table": "serving_replay_sequence", "tableBytes": 5373952, "indexBytes": 73728, "totalBytes": 5447680 }
+  ],
+  "certifiedFallback": {
+    "bytes": 1075396,
+    "checksum": "9296a664d244482f37a4eef079335b219fc7e67e8311c25118ee44ab18e32ab3",
+    "projectionCount": 59,
+    "evidenceSummaryCount": 2,
+    "replaySnapshotCount": 2,
+    "demoProfileCount": 2
+  },
+  "growth": {
+    "expectedMonthlyBytes": 120000000,
+    "planningHighMonthlyBytes": 150000000,
+    "expectedAnnualBytes": 1440000000,
+    "planningHighAnnualBytes": 1800000000
+  },
+  "managedPostgres": {
+    "minimumPracticalAllocationBytes": 1000000000,
+    "recommendedInitialAllocationBytes": 5000000000,
+    "providerMinimumAccepted": true
+  },
+  "coldStorageExcluded": {
+    "rawArtifacts": true,
+    "parquet": true,
+    "sourceZip": true,
+    "canonicalDatabases": true,
+    "transformationTemporaryFiles": true
+  }
+}
