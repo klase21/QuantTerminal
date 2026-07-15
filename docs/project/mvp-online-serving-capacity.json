@@ -1,22 +1,19 @@
 {
-  "schemaVersion": "mvp-online-serving-capacity/v2",
-  "measuredAt": "2026-07-15T13:33:18.000Z",
-  "measurementMode": "LOCAL_ISOLATED_POSTGRES_PUBLICATION",
-  "database": {
+  "schemaVersion": "mvp-online-serving-capacity/v3",
+  "measuredAt": "2026-07-15T14:19:00.979Z",
+  "measurementMode": "NEON_POSTGRES_PUBLICATION",
+  "neon": {
     "engine": "PostgreSQL",
     "majorVersion": 16,
-    "databaseName": "quantterminal_mvp_serving_isolated",
+    "region": "AWS Singapore",
+    "databaseBytes": 19783680,
+    "servingIndexBytes": 1114112,
+    "servingTotalRelationBytes": 11993088
+  },
+  "localComparison": {
     "databaseBytes": 20175895,
-    "servingHeapBytes": 1343488,
-    "servingTableBytesIncludingToast": 10895360,
     "servingIndexBytes": 1114112,
     "servingTotalRelationBytes": 12009472
-  },
-  "logicalPayloads": {
-    "projectionJsonbBytes": 1006428,
-    "replayJsonbBytes": 4977238,
-    "evidenceJsonbBytes": 194290,
-    "serializedReplayApiBytes": 10030198
   },
   "recordCounts": {
     "projections": 870,
@@ -33,11 +30,20 @@
     { "table": "serving_demo_profile", "tableBytes": 16384, "indexBytes": 32768, "totalBytes": 49152 },
     { "table": "serving_evidence_summary", "tableBytes": 352256, "indexBytes": 98304, "totalBytes": 450560 },
     { "table": "serving_exposure", "tableBytes": 16384, "indexBytes": 32768, "totalBytes": 49152 },
-    { "table": "serving_projection", "tableBytes": 5070848, "indexBytes": 729088, "totalBytes": 5799936 },
+    { "table": "serving_projection", "tableBytes": 5062656, "indexBytes": 729088, "totalBytes": 5791744 },
     { "table": "serving_publication_event", "tableBytes": 16384, "indexBytes": 32768, "totalBytes": 49152 },
     { "table": "serving_release_inventory", "tableBytes": 16384, "indexBytes": 49152, "totalBytes": 65536 },
-    { "table": "serving_replay_sequence", "tableBytes": 5373952, "indexBytes": 73728, "totalBytes": 5447680 }
+    { "table": "serving_replay_sequence", "tableBytes": 5365760, "indexBytes": 73728, "totalBytes": 5439488 }
   ],
+  "replay": {
+    "serializedApiBytes": 10030198,
+    "snapshots": 84,
+    "pricePerSnapshot": 288,
+    "openInterestPerSnapshot": 288,
+    "nativeFundingPerSnapshot": 3,
+    "flowBucketsPerSnapshot": 48,
+    "distinctModelChecksums": 84
+  },
   "certifiedFallback": {
     "bytes": 1075396,
     "checksum": "9296a664d244482f37a4eef079335b219fc7e67e8311c25118ee44ab18e32ab3",
@@ -55,7 +61,7 @@
   "managedPostgres": {
     "minimumPracticalAllocationBytes": 1000000000,
     "recommendedInitialAllocationBytes": 5000000000,
-    "providerMinimumAccepted": true
+    "currentUtilizationOfRecommendedAllocationPct": 0.396
   },
   "coldStorageExcluded": {
     "rawArtifacts": true,

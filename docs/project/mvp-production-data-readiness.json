@@ -1,91 +1,68 @@
 {
-  "schemaVersion": "mvp-production-data-readiness/v2",
-  "assessedAt": "2026-07-15T13:33:18.000Z",
-  "overallStatus": "LOCAL_SERVING_FOUNDATION_CERTIFIED_AWAITING_NEON_PUBLICATION",
-  "deploymentActionTaken": false,
-  "productionInfrastructureModified": false,
-  "localCertification": {
-    "database": "quantterminal_mvp_serving_isolated",
+  "schemaVersion": "mvp-production-data-readiness/v3",
+  "assessedAt": "2026-07-15T14:19:00.979Z",
+  "overallStatus": "NEON_SERVING_CORPUS_PUBLISHED_AWAITING_VERCEL_CUTOVER",
+  "neonPublication": {
+    "provider": "Neon PostgreSQL",
+    "region": "AWS Singapore",
     "postgresMajorVersion": 16,
+    "status": "CERTIFIED",
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
-    "sourceCorpusId": "mvp-projection-corpus:3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
     "sourceCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
     "health": "HEALTHY",
-    "duplicateRerun": "DUPLICATE"
+    "duplicateRerun": "DUPLICATE",
+    "databaseBytes": 19783680
   },
   "runtimePaths": [
-    {
-      "path": "/api/mvp/projections",
-      "servingModeStatus": "CERTIFIED",
-      "requestDependencies": ["MVP_SERVING_MODE", "MVP_SERVING_ISOLATED_POSTGRES_URL", "EXPECTED_CORPUS_ID", "EXPECTED_CHECKSUM"],
-      "truthPlaneDependency": false,
-      "localFilesystemDependency": false
-    },
-    {
-      "path": "/api/mvp/replay-sequence",
-      "servingModeStatus": "CERTIFIED",
-      "requestDependencies": ["MVP_SERVING_MODE", "MVP_SERVING_ISOLATED_POSTGRES_URL", "MATERIALIZED_REPLAY_SNAPSHOT"],
-      "truthPlaneDependency": false,
-      "localFilesystemDependency": false,
-      "sampleContract": "288_PRICE_288_OI_3_NATIVE_FUNDING_48_FLOW"
-    },
-    {
-      "path": "/api/health/mvp-serving",
-      "servingModeStatus": "CERTIFIED",
-      "secretsReturned": false
-    }
+    { "path": "/api/mvp/projections", "managedReadPort": "IMPLEMENTED", "truthPlaneDependencyInServingMode": false, "localFilesystemDependency": false },
+    { "path": "/api/mvp/replay-sequence", "managedReadPort": "IMPLEMENTED", "truthPlaneDependencyInServingMode": false, "localFilesystemDependency": false, "requestTimeParquet": false },
+    { "path": "/api/health/mvp-serving", "managedReadiness": "IMPLEMENTED", "secretsReturned": false }
   ],
-  "servingModes": {
-    "serving_postgres": "LOCAL_CERTIFIED",
-    "certified_snapshot": "LOCAL_CERTIFIED_BOUNDED",
-    "local_truth": "EXPLICIT_LOCAL_DEVELOPMENT_ONLY",
-    "productionMissingMode": "FAIL_CLOSED"
+  "consumerContractCertification": {
+    "dashboard": "PASS",
+    "markets": "PASS",
+    "scanner": "PASS",
+    "trade": "PASS",
+    "research": "PASS",
+    "replay": "PASS",
+    "primaryProfile": "PASS",
+    "backupProfile": "PASS"
   },
-  "certificationWithoutTruthPlane": {
-    "d4UrlBlank": true,
-    "d2AndD3UrlsBlank": true,
-    "d3ObjectRootBlank": true,
-    "projectionApi": "PASS",
-    "replayApi": "PASS",
-    "allSixDirectRoutes": "PASS",
-    "rootRedirect": "PASS"
+  "roles": {
+    "publisher": "CERTIFIED",
+    "reader": "CERTIFIED_SELECT_ONLY",
+    "readerInsert": "DENIED",
+    "readerUpdate": "DENIED",
+    "readerDelete": "DENIED",
+    "readerDdl": "DENIED",
+    "readerCreateRole": "DENIED_BY_ATTRIBUTES"
   },
   "fallback": {
     "status": "CERTIFIED",
     "label": "CERTIFIED_SNAPSHOT",
-    "defaultRouteProjectionReads": "PASS",
-    "primaryReplay": "PASS",
-    "backupReplay": "PRESENT_AND_CHECKSUM_VERIFIED",
-    "nonDefaultMissingRequest": "SERVING_PROJECTION_MISSING",
+    "checksum": "9296a664d244482f37a4eef079335b219fc7e67e8311c25118ee44ab18e32ab3",
+    "bytes": 1075396,
     "mayBeLabeledLive": false
   },
-  "futureNeon": {
-    "provider": "Neon PostgreSQL",
-    "region": "AWS Singapore",
-    "majorVersion": 16,
-    "publicationStatus": "NOT_STARTED_MVP_7B",
-    "directPublisherVariable": "MVP_SERVING_PUBLISHER_POSTGRES_URL",
-    "pooledReaderVariable": "MVP_SERVING_POSTGRES_URL"
-  },
-  "futureVercel": {
-    "cutoverStatus": "NOT_STARTED_MVP_7C",
-    "allowedRuntimeDependencies": ["MVP_SERVING_MODE", "MVP_SERVING_POSTGRES_URL", "MVP_SERVING_EXPECTED_CORPUS_ID", "MVP_SERVING_EXPECTED_CHECKSUM", "MVP_SERVING_FALLBACK_POLICY"],
-    "forbiddenRuntimeDependencies": ["D4_ISOLATED_POSTGRES_URL", "D2_CANONICAL_POSTGRES_URL", "D3_BACKFILL_OBJECT_ROOT", "MVP_SERVING_PUBLISHER_POSTGRES_URL"]
+  "vercel": {
+    "cutoverStatus": "NOT_STARTED",
+    "pooledReaderVariableConfigured": false,
+    "requiredRuntimeVariables": ["MVP_SERVING_MODE", "MVP_SERVING_POSTGRES_URL", "MVP_SERVING_EXPECTED_CORPUS_ID", "MVP_SERVING_EXPECTED_CHECKSUM", "MVP_SERVING_FALLBACK_POLICY"],
+    "forbiddenRuntimeVariables": ["MVP_SERVING_PUBLISHER_POSTGRES_URL", "D4_ISOLATED_POSTGRES_URL", "D2_CANONICAL_POSTGRES_URL", "D3_BACKFILL_OBJECT_ROOT"]
   },
   "remainingBlockers": [
-    "MVP_7B_NEON_ROLE_AND_MIGRATION_PUBLICATION_NOT_PERFORMED",
-    "MVP_7B_NEON_CORPUS_IMPORT_AND_CHECKSUM_CERTIFICATION_NOT_PERFORMED",
-    "MVP_7C_VERCEL_POOLED_READER_CONFIGURATION_NOT_PERFORMED",
-    "MVP_7C_PRODUCTION_HEALTH_AND_FALLBACK_DRILL_NOT_PERFORMED"
+    "ROTATE_READER_SECRET_FOR_MVP_7C",
+    "CONFIGURE_NEON_POOLED_READER_URL",
+    "CONFIGURE_VERCEL_EXPLICIT_SERVING_MODE_AND_EXPECTED_CHECKSUMS",
+    "RUN_PRODUCTION_HEALTH_AND_FALLBACK_DRILL"
   ],
   "protectedState": {
     "fundingCommandsExecuted": false,
     "populationRunnersExecuted": false,
     "fullHistoryBackfillExecuted": false,
     "farsideCanaryExecuted": false,
-    "neonAccessed": false,
-    "cloudResourcesProvisioned": false,
+    "vercelModified": false,
     "filesStaged": false,
     "filesCommitted": false,
     "filesPushed": false

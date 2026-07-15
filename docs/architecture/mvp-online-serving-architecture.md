@@ -130,8 +130,12 @@ The bundle is accepted only when its canonical bundle checksum, contained Projec
 
 The initial managed allocation remains 5 GB or the provider minimum. Planning growth is 0.12 GB/month expected and 0.15 GB/month high (1.44/1.80 GB annually). This is independent of the 428-993 GB full-history storage forecasts.
 
-## MVP-7B and MVP-7C
+## Managed publication and MVP-7C
 
-MVP-7B should apply the same checksummed migrations to Neon PostgreSQL 16 using the direct publisher role, publish the identical corpus, verify counts/checksums/roles, and record the managed relation sizes. MVP-7C should configure Vercel with only the pooled reader URL, explicit mode, expected corpus ID/checksum, and approved fallback policy. Vercel must never receive publisher, D2/D3/D4, object-root, or population credentials.
+MVP-7B published the identical certified corpus to Neon PostgreSQL 16. The direct configured credential is accepted only by the managed bootstrap boundary. It creates or rotates independent `mvp_serving_publisher` and `mvp_serving_reader` credentials in memory, applies migrations as the publisher, publishes atomically, and certifies reads and mutation denial as the reader. Connection values and generated passwords are never included in output or deterministic identity.
+
+Runtime selection now prefers `MVP_SERVING_POSTGRES_URL` when explicitly configured and otherwise retains the local isolated reader for development. MVP-7C must rotate the reader password, construct the Neon pooled reader URL, configure Vercel with explicit mode and expected checksums, and verify production health/fallback. Vercel must never receive publisher, D2/D3/D4, object-root, or population credentials.
+
+Measured Neon size is 19,783,680 bytes total, with 11,993,088 bytes of serving/control relations and 1,114,112 bytes of indexes.
 
 Rollback is an append-only serving exposure decision to the prior certified corpus or an explicitly configured certified snapshot. It does not delete versions, change D2 publication, or invoke local truth.

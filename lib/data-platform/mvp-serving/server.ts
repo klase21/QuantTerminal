@@ -2,7 +2,7 @@ import "server-only"
 
 import { MvpConsumerProjectionFacade } from "@/lib/data-platform/consumer-projections"
 import type { ReplaySequenceModel } from "@/lib/replay-sequence"
-import { createMvpServingClientFromEnvironment } from "./client"
+import { createMvpServingReaderClientFromEnvironment } from "./client"
 import { permitsCertifiedSnapshotFallback, resolveMvpServingMode } from "./mode"
 import { PostgresMvpServingReadPort, createServingProjectionSource } from "./store"
 import { createCertifiedSnapshotProjectionSource, readCertifiedReplaySnapshot, readCertifiedSnapshotBundle } from "./snapshot"
@@ -16,7 +16,7 @@ export interface MvpServingRequestContext {
 }
 
 export async function withServingPostgresFacade<T>(work: (facade: MvpConsumerProjectionFacade, context: MvpServingRequestContext, port: PostgresMvpServingReadPort) => Promise<T>): Promise<T> {
-  const client = createMvpServingClientFromEnvironment("READER")
+  const client = createMvpServingReaderClientFromEnvironment()
   try {
     await client.verify()
     const port = new PostgresMvpServingReadPort(client), corpus = await port.activeCorpus()

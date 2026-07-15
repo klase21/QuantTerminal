@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
-import { createServingCorpus, discoverMvpServingMigrations, inspectMvpServingIsolatedTarget, resolveMvpServingMode, verifyReplaySnapshot } from "@/lib/data-platform/mvp-serving"
+import { createServingCorpus, discoverMvpServingMigrations, inspectMvpServingIsolatedTarget, inspectMvpServingManagedTarget, requireMvpServingManagedAdminTarget, resolveMvpServingMode, verifyReplaySnapshot } from "@/lib/data-platform/mvp-serving"
 import { verifyCertifiedSnapshotBundle, type CertifiedSnapshotBundle } from "@/lib/data-platform/mvp-serving/snapshotContract"
 
 async function main() {
@@ -12,6 +12,14 @@ async function main() {
   const syntheticUrl = (database: string) => `postgresql://${"mvp_serving_reader"}:${"synthetic"}@localhost:55432/${database}`
   check("isolated target accepts exact local database", inspectMvpServingIsolatedTarget(syntheticUrl("quantterminal_mvp_serving_isolated"), {}).safe)
   check("truth-plane target rejected", !inspectMvpServingIsolatedTarget(syntheticUrl("quantterminal_d4_isolated"), {}).safe)
+  const managedPublisher = `postgresql://${"mvp_serving_publisher"}:${"synthetic"}@managed.example.invalid/serving?sslmode=require`, managedReader = `postgresql://${"mvp_serving_reader"}:${"synthetic"}@managed.example.invalid/serving?sslmode=require`
+  check("managed publisher target accepted", inspectMvpServingManagedTarget(managedPublisher, "mvp_serving_publisher", {}).safe)
+  check("managed reader target accepted", inspectMvpServingManagedTarget(managedReader, "mvp_serving_reader", {}).safe)
+  check("managed role mismatch rejected", !inspectMvpServingManagedTarget(managedPublisher, "mvp_serving_reader", {}).safe)
+  check("managed truth alias rejected", !inspectMvpServingManagedTarget(managedReader, "mvp_serving_reader", { D4_ISOLATED_POSTGRES_URL: managedReader }).safe)
+  let adminAliasRejected = false
+  try { requireMvpServingManagedAdminTarget(managedPublisher, { MVP_SERVING_PUBLISHER_POSTGRES_URL: managedPublisher, D4_ISOLATED_POSTGRES_URL: managedPublisher }) } catch { adminAliasRejected = true }
+  check("managed admin truth alias rejected", adminAliasRejected)
   check("explicit serving mode", resolveMvpServingMode({ MVP_SERVING_MODE: "serving_postgres" }) === "serving_postgres")
   let productionMissing = false
   try { resolveMvpServingMode({ NODE_ENV: "production" }) } catch (error) { productionMissing = error instanceof Error && error.message === "MVP_SERVING_MODE_REQUIRED" }

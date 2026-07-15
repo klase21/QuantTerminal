@@ -2,6 +2,8 @@
   "schemaVersion": "mvp-serving-release-inventory/v1",
   "generatedAt": "2026-07-15T08:56:50.000Z",
   "servingCorpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "publicationTargets": ["LOCAL_ISOLATED_POSTGRES", "NEON_POSTGRESQL_16"],
+  "neonPublicationStatus": "CERTIFIED",
   "items": [
     {
       "projectionVersionId": "mvpv_1a28580aebc99079a4aab906f7f23e09b35ed50c316f3b3bf430625ef91cb68b",

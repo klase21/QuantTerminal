@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "mvp-neon-certification/v1",
+  "certifiedAt": "2026-07-15T14:19:00.979Z",
+  "status": "PASS",
+  "provider": "Neon PostgreSQL",
+  "region": "AWS Singapore",
+  "postgresMajorVersion": 16,
+  "corpus": {
+    "id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "checksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "sourceCorpusId": "mvp-projection-corpus:3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+    "sourceCorpusChecksum": "3f33e07c45a8814ac531ee707e8744654d3ae8dfcc84e44fcbc1e792a92824ab",
+    "exposure": "CONSUMER_VISIBLE",
+    "governedThrough": "2026-07-15T00:00:00.000Z"
+  },
+  "publication": { "first": "CREATED", "exactRerun": "DUPLICATE", "authoritativeDuplicatesCreated": 0 },
+  "migrations": { "installed": 2, "reapplication": "SKIPPED", "checksumEnforced": true },
+  "records": { "projections": 870, "cryptoProjections": 868, "eligibleSupplementalProjections": 2, "evidenceSummaries": 84, "replaySnapshots": 84, "demoProfiles": 2, "releaseInventory": 3, "activeExposure": 1, "publicationEvents": 2 },
+  "replay": { "pricePerSnapshot": 288, "openInterestPerSnapshot": 288, "nativeFundingPerSnapshot": 3, "flowBucketsPerSnapshot": 48, "distinctModelChecksums": 84, "allVerified": true },
+  "releaseInventory": { "included": 2, "excluded": 1, "excludedReason": "EXCLUDED_SUPERSEDED_IMMUTABLE_CONFLICT" },
+  "roles": { "publisherVerified": true, "readerSelect": "PASS", "readerInsert": "DENIED", "readerUpdate": "DENIED", "readerDelete": "DENIED", "readerDdl": "DENIED", "readerCreateDatabase": false, "readerCreateRole": false, "readerSuperuser": false },
+  "consumerViews": { "dashboard": "PASS", "markets": "PASS", "scanner": "PASS", "trade": "PASS", "research": "PASS", "replay": "PASS" },
+  "health": { "status": "HEALTHY", "checksumVerified": true, "primaryProfile": true, "backupProfile": true },
+  "capacity": { "databaseBytes": 19783680, "servingRelationBytes": 11993088, "indexBytes": 1114112 },
+  "fallback": { "bytes": 1075396, "checksum": "9296a664d244482f37a4eef079335b219fc7e67e8311c25118ee44ab18e32ab3", "verified": true, "label": "CERTIFIED_SNAPSHOT" },
+  "secrets": { "publisherUrlPrinted": false, "publisherUrlPersisted": false, "generatedPasswordsPrinted": false, "generatedPasswordsPersisted": false },
+  "vercel": { "configured": false, "pooledReaderUrlConfigured": false }
+}
