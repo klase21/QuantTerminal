@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "mvp-card-polish-qa/v1",
+  "statusEnum": ["PASS", "PASS_WITH_LIMITATION"],
+  "checks": [
+    {"check":"financialFormatting","status":"PASS","evidence":"Probability, return, OI, Funding, flow, counts, Coverage, confidence, missing, non-finite, and negative-zero cases pass focused tests."},
+    {"check":"floatingPointArtifacts","status":"PASS","evidence":"No 8-plus-decimal artifact appeared in 42 browser route/viewport checks."},
+    {"check":"reasonSemantics","status":"PASS","evidence":"Primary cards use the versioned human dictionary; unknown codes fail closed for QA."},
+    {"check":"DashboardHierarchy","status":"PASS","evidence":"State, drivers, risks, investigation universe, and concise external context are visually ordered."},
+    {"check":"MarketsCards","status":"PASS","evidence":"Six comparable cards use consistent price, OI, Funding, flow, Evidence, and action ordering."},
+    {"check":"ScannerTrade","status":"PASS","evidence":"Investigation semantics remain non-signal; Trade removes duplicate risk content and maps invalidation conditions."},
+    {"check":"ResearchHierarchy","status":"PASS","evidence":"Primary view contains six readable facts and separates interpretation, support, opposition, strength, and Coverage."},
+    {"check":"Replay","status":"PASS_WITH_LIMITATION","evidence":"Bounded lanes and native Funding markers remain correct; Segment metadata and timeline product depth need a focused follow-up."},
+    {"check":"responsive","status":"PASS","evidence":"Desktop, compact desktop, tablet landscape, tablet portrait, mobile, and small-mobile checks showed no horizontal overflow or read errors."}
+  ],
+  "result": "PASS_WITH_LIMITATION"
+}

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "mvp-external-context-readiness/v1",
+  "readinessEnum": ["CERTIFIED_BOUNDED_CANARY", "CERTIFIED_BOUNDED_CANARY_WITH_LICENSE_LIMITATION", "SOURCE_ACCESS_BLOCKED", "ROLE_PENDING"],
+  "projectionAvailabilityEnum": ["GENERATED_SUPPLEMENTAL", "NOT_GENERATED_SOURCE_BLOCKED"],
+  "persistenceEnum": ["PERSISTED", "NOT_PERSISTED"],
+  "sources": [
+    {
+      "provider": "FRED",
+      "source": "FRED_OFFICIAL_API",
+      "purpose": "OFFICIAL_MACRO_BASELINE",
+      "readiness": "CERTIFIED_BOUNDED_CANARY",
+      "certifiedRoles": ["US_LONG_TERM_TREASURY_YIELD:DGS10"],
+      "pendingRoles": ["DGS2", "T10Y2Y", "DTWEXBGS", "FEDFUNDS", "WALCL"],
+      "observationCount": 62,
+      "persistence": "PERSISTED",
+      "exactRerun": "RERUN_DUPLICATE",
+      "secretPersisted": false
+    },
+    {
+      "provider": "ALPHA_VANTAGE",
+      "source": "ALPHA_VANTAGE_OFFICIAL_API",
+      "purpose": "DAILY_MARKET_CONTEXT",
+      "readiness": "CERTIFIED_BOUNDED_CANARY_WITH_LICENSE_LIMITATION",
+      "certifiedRoles": ["BROAD_US_EQUITY_MARKET_CONTEXT:SPY"],
+      "pendingRoles": ["QQQ", "GLD", "WTI", "EUR_USD"],
+      "observationCount": 90,
+      "licensing": "PUBLIC_DEMO_LICENSE_REVIEW_REQUIRED",
+      "persistence": "PERSISTED",
+      "exactRerun": "RERUN_DUPLICATE",
+      "secretPersisted": false
+    },
+    {
+      "provider": "FARSIDE",
+      "source": "FARSIDE_PUBLIC_WEB",
+      "purpose": "OBSERVED_BITCOIN_ETF_FLOW",
+      "readiness": "SOURCE_ACCESS_BLOCKED",
+      "runtimeAttempts": 2,
+      "httpStatus": 403,
+      "persistence": "NOT_PERSISTED",
+      "projectionAvailability": "NOT_GENERATED_SOURCE_BLOCKED",
+      "certified": false
+    }
+  ],
+  "supplementalProjection": {
+    "kind": "MacroContextProjection",
+    "projectionVersionId": "mvpv_5356d705485068ef6125963d82d9180f81976ddeec4b09aa0dd658b170aef08b",
+    "checksum": "a8f16e6fcb91cf6121ab3bb10068853dfe2e194d3773efa6f20af31bfd4a177b",
+    "supersedesProjectionVersionId": "mvpv_68616843f840fa2593cc437d48fc51818ea14803f6b1bdb7c29d91cf5f344112",
+    "correctionReason": "POSTGRES_TIMESTAMP_PRECISION_NORMALIZATION",
+    "recompute": "DUPLICATE",
+    "cryptoEvidenceMutated": false
+  }
+}

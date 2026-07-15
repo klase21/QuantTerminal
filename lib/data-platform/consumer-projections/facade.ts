@@ -61,7 +61,7 @@ export class MvpConsumerProjectionFacade {
   }
 
   private async readView(input: { readonly view: MvpConsumerView; readonly instrument?: MvpConsumerInstrument; readonly start?: string; readonly end?: string; readonly candidateId?: string; readonly projectionVersionId?: string }): Promise<readonly MvpProjectionVersion[]> {
-    if (input.view === "dashboard") return this.required([await this.source.latest("DashboardMarketStateProjection", "MVP_SIX_INSTRUMENTS"), ...await this.latestForAll("InstrumentMarketSummaryProjection"), ...await this.latestForAll("SourceLineageSummaryProjection"), ...await this.latestForAll("EventAnnotationProjection"), ...await this.latestCoverage()])
+    if (input.view === "dashboard") return this.required([await this.source.latest("DashboardMarketStateProjection", "MVP_SIX_INSTRUMENTS"), await this.source.latest("MacroContextProjection", "GLOBAL_MACRO_CONTEXT"), await this.source.latest("BitcoinEtfFlowProjection", "BTC_SPOT_ETF_US"), ...await this.latestForAll("InstrumentMarketSummaryProjection"), ...await this.latestForAll("SourceLineageSummaryProjection"), ...await this.latestForAll("EventAnnotationProjection"), ...await this.latestCoverage()])
     if (input.view === "markets") return this.required([...await this.latestForAll("InstrumentMarketSummaryProjection"), ...await this.latestForAll("SourceLineageSummaryProjection"), ...await this.latestCoverage()])
     if (input.view === "scanner") return this.required([await this.source.latest("ScannerCandidateProjection", "MVP_SIX_INSTRUMENTS"), ...await this.latestForAll("ResearchEvidenceProjection"), ...await this.latestCoverage()])
     const instrument = input.instrument
@@ -80,7 +80,7 @@ export class MvpConsumerProjectionFacade {
     const kind = input.view === "replay" ? "ReplayTimelineProjection" as const : "ResearchEvidenceProjection" as const
     const primary = input.start && input.end ? (await this.source.list({ kind, subjectId: instrument, start: input.start, end: input.end, exposure: "READY_FOR_CUTOVER", limit: 2 }))[0] ?? null : await this.source.latest(kind, instrument)
     const annotations = input.view === "replay" || input.view === "research" ? (input.start && input.end ? await this.source.list({ kind: "EventAnnotationProjection", subjectId: instrument, start: input.start, end: input.end, exposure: "READY_FOR_CUTOVER", limit: 2 }) : this.required([await this.source.latest("EventAnnotationProjection", instrument)])) : []
-    return this.required([primary, await this.source.latest("SourceLineageSummaryProjection", instrument), ...annotations, ...await this.latestCoverage(instrument)])
+    return this.required([primary, await this.source.latest("MacroContextProjection", "GLOBAL_MACRO_CONTEXT"), await this.source.latest("BitcoinEtfFlowProjection", "BTC_SPOT_ETF_US"), await this.source.latest("SourceLineageSummaryProjection", instrument), ...annotations, ...await this.latestCoverage(instrument)])
   }
 
   private async latestForAll(kind: MvpProjectionKind) { return Promise.all(MVP_CONSUMER_INSTRUMENTS.map((instrument) => this.source.latest(kind, instrument))) }

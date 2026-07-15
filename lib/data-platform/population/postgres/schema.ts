@@ -1,4 +1,4 @@
-export const D3_POPULATION_MIGRATION_ORDER = ["001_population_control_plane.sql", "002_population_roles.sql", "003_agg_trade_candidates.sql"] as const
+export const D3_POPULATION_MIGRATION_ORDER = ["001_population_control_plane.sql", "002_population_roles.sql", "003_agg_trade_candidates.sql", "004_external_context_candidates.sql"] as const
 export const D3_POPULATION_TABLES = [
   "control.population_jobs", "control.population_job_events", "control.population_runs", "control.population_run_events",
   "control.population_units", "control.population_unit_events", "control.population_leases", "control.population_checkpoints",

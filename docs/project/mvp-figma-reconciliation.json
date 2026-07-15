@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "mvp-figma-reconciliation/v1",
+  "decisionEnum": ["ADOPTED", "ADAPTED_FOR_REAL_DATA", "ADAPTED_FOR_ACCESSIBILITY", "ADAPTED_FOR_RESPONSIVENESS", "ADAPTED_FOR_PERFORMANCE", "REJECTED_DATA_TRUTH_CONFLICT", "REJECTED_PROTECTED_RUNTIME_CONFLICT", "DEFERRED_WITH_REASON"],
+  "authority": {
+    "inspected": true,
+    "frames": {
+      "Dashboard": "connected Make design",
+      "Markets": "frame 1:2",
+      "Scanner": "frame 1:2",
+      "Trade": "frame 6:2",
+      "Replay": "frame 2:2",
+      "Research": "frame 1:2"
+    },
+    "mobileFramesAvailable": false
+  },
+  "decisions": [
+    {"area":"primaryNavigation","decision":"ADOPTED","detail":"Six-item text navigation rail on desktop; Intel omitted from primary navigation."},
+    {"area":"mobileNavigation","decision":"ADAPTED_FOR_RESPONSIVENESS","detail":"Horizontal bounded navigation is retained because no authoritative mobile Figma frame was present."},
+    {"area":"cardHierarchy","decision":"ADOPTED","detail":"State, primary value, reason, evidence strength, Coverage, actions, then technical disclosure."},
+    {"area":"Dashboard","decision":"ADAPTED_FOR_REAL_DATA","detail":"Figma hierarchy is populated from governed crypto and supplemental Macro Projections; unavailable ETF flow remains classified."},
+    {"area":"Markets","decision":"ADAPTED_FOR_REAL_DATA","detail":"Cards retain governed reference values and separately labeled live overlays."},
+    {"area":"Scanner","decision":"ADAPTED_FOR_REAL_DATA","detail":"Ranking remains investigation priority and does not adopt signal-like profit semantics."},
+    {"area":"Trade","decision":"ADAPTED_FOR_ACCESSIBILITY","detail":"Plain-language invalidation and combined counter-risk content replace repeated technical codes."},
+    {"area":"Research","decision":"ADOPTED","detail":"Facts, interpretation, support, opposition, strength, Coverage, and progressive technical disclosure follow the Figma hierarchy."},
+    {"area":"Replay","decision":"DEFERRED_WITH_REASON","detail":"Bounded formatting and controls adopted; full timeline product redesign belongs to focused MVP-6B."},
+    {"area":"historicalOrderBook","decision":"REJECTED_PROTECTED_RUNTIME_CONFLICT","detail":"No request-time reconstruction or protected WebSocket change was introduced."},
+    {"area":"externalValues","decision":"REJECTED_DATA_TRUTH_CONFLICT","detail":"No Farside ETF value is displayed without a persisted Raw Artifact and governed observation."},
+    {"area":"technicalMetadata","decision":"ADOPTED","detail":"Checksums, versions, raw IDs, and source digests moved into progressive disclosure where supported."}
+  ]
+}

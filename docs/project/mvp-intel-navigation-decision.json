@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "mvp-intel-navigation-decision/v1",
+  "decisionEnum": ["RETAIN_IN_PRIMARY_NAVIGATION", "MOVE_TO_EXPERIMENTAL_NAVIGATION", "HIDE_FROM_MVP_NAVIGATION"],
+  "decision": "HIDE_FROM_MVP_NAVIGATION",
+  "routeDisposition": "RETAIN_ROUTE",
+  "rationale": [
+    "The inspected Figma navigation contains the six governed MVP pages and no Intel destination.",
+    "Historical analogy is experimental context and can be mistaken for a forecast when placed beside governed Evidence.",
+    "The implementation remains available outside primary MVP navigation and was not deleted."
+  ]
+}

@@ -77,6 +77,32 @@ function normalizeLiquidation(input: ProductionNormalizationInput & { readonly c
   return command(input, fact)
 }
 
+function normalizeMacroObservation(input: ProductionNormalizationInput & { readonly candidate: Extract<PopulationCandidate, { readonly kind: "MACRO_ECONOMIC_OBSERVATION" }> }): CanonicalCommitCommand {
+  const p = input.candidate.payload
+  const observedAt = timestamp(input.candidate.sourceObservedAt, "OBSERVED_AT")
+  const truth = { kind: "MACRO_OBSERVATION", observationClass: "OFFICIAL_MACRO", providerId: input.candidate.providerId, seriesId: required(p.seriesId, "SERIES_ID"), subject: required(p.subject, "SUBJECT"), value: decimal(p.value, "VALUE"), unit: required(p.unit, "UNIT"), period: required(p.period, "PERIOD"), frequency: required(p.frequency, "FREQUENCY"), seasonalAdjustment: required(p.seasonalAdjustment, "SEASONAL_ADJUSTMENT"), realtimeStart: required(p.realtimeStart, "REALTIME_START"), realtimeEnd: required(p.realtimeEnd, "REALTIME_END"), releaseIdentity: required(p.releaseIdentity, "RELEASE_IDENTITY"), providerTier: required(p.providerTier, "PROVIDER_TIER") }
+  const fact = completeFact({ kind: "MACRO_OBSERVATION", observationClass: "OFFICIAL_MACRO", providerId: input.candidate.providerId, venue: null, symbolOrSubject: truth.subject, observedAt, effectiveAt: input.candidate.effectiveAt ? timestamp(input.candidate.effectiveAt, "EFFECTIVE_AT") : observedAt, governance: governance(input), seriesId: truth.seriesId, value: truth.value, unit: truth.unit, period: truth.period }, truth)
+  return command(input, fact)
+}
+
+function normalizeDailyMarketContext(input: ProductionNormalizationInput & { readonly candidate: Extract<PopulationCandidate, { readonly kind: "DAILY_MARKET_CONTEXT_OBSERVATION" }> }): CanonicalCommitCommand {
+  const p = input.candidate.payload
+  const observedAt = timestamp(input.candidate.sourceObservedAt, "OBSERVED_AT")
+  const truth = { kind: "MACRO_OBSERVATION", observationClass: "DAILY_MARKET_CONTEXT", providerId: input.candidate.providerId, seriesId: required(p.seriesId, "SERIES_ID"), subject: required(p.subject, "SUBJECT"), value: decimal(p.value, "VALUE"), open: p.open === null ? null : decimal(p.open, "OPEN"), high: p.high === null ? null : decimal(p.high, "HIGH"), low: p.low === null ? null : decimal(p.low, "LOW"), close: p.close === null ? null : decimal(p.close, "CLOSE"), volume: p.volume === null ? null : decimal(p.volume, "VOLUME"), timeZone: required(p.timeZone, "TIME_ZONE"), unit: required(p.unit, "UNIT"), period: required(p.period, "PERIOD"), frequency: p.frequency, licensingState: p.licensingState, providerTier: required(p.providerTier, "PROVIDER_TIER") }
+  if (truth.frequency !== "DAILY" || truth.licensingState === "UNSUPPORTED") throw new Error("NORMALIZER_DAILY_MARKET_CONTEXT_METADATA_INVALID")
+  const fact = completeFact({ kind: "MACRO_OBSERVATION", observationClass: "DAILY_MARKET_CONTEXT", providerId: input.candidate.providerId, venue: null, symbolOrSubject: truth.subject, observedAt, effectiveAt: input.candidate.effectiveAt ? timestamp(input.candidate.effectiveAt, "EFFECTIVE_AT") : observedAt, governance: governance(input), seriesId: truth.seriesId, value: truth.value, unit: truth.unit, period: truth.period }, truth)
+  return command(input, fact)
+}
+
+function normalizeEtfFlow(input: ProductionNormalizationInput & { readonly candidate: Extract<PopulationCandidate, { readonly kind: "ETF_FLOW_OBSERVATION" }> }): CanonicalCommitCommand {
+  const p = input.candidate.payload
+  const observedAt = timestamp(input.candidate.sourceObservedAt, "OBSERVED_AT")
+  const truth = { kind: "ETF_OBSERVATION", providerId: input.candidate.providerId, instrumentId: required(p.instrumentId, "INSTRUMENT_ID"), fundId: required(p.fundId, "FUND_ID"), flowValue: decimal(p.flowValue, "FLOW_VALUE"), currency: p.currency, windowStart: timestamp(p.windowStart, "WINDOW_START"), windowEnd: timestamp(p.windowEnd, "WINDOW_END"), sourceValueState: p.sourceValueState, sourceReportedDate: required(p.sourceReportedDate, "SOURCE_REPORTED_DATE"), providerTier: required(p.providerTier, "PROVIDER_TIER") }
+  if (truth.currency !== "USD" || (Number(truth.flowValue) === 0 ? truth.sourceValueState !== "ZERO" : Number(truth.flowValue) > 0 ? truth.sourceValueState !== "POSITIVE" : truth.sourceValueState !== "NEGATIVE")) throw new Error("NORMALIZER_ETF_FLOW_METADATA_INVALID")
+  const fact = completeFact({ kind: "ETF_OBSERVATION", providerId: input.candidate.providerId, venue: null, symbolOrSubject: truth.instrumentId, observedAt, effectiveAt: input.candidate.effectiveAt ? timestamp(input.candidate.effectiveAt, "EFFECTIVE_AT") : truth.windowEnd, governance: governance(input), instrumentId: truth.fundId, flowValue: truth.flowValue, currency: truth.currency, windowStart: truth.windowStart, windowEnd: truth.windowEnd }, truth)
+  return command(input, fact)
+}
+
 export class ProductionNormalizerRegistry {
   normalize(input: ProductionNormalizationInput): CanonicalCommitCommand {
     if (input.normalizationVersion !== PRODUCTION_NORMALIZER_VERSION) throw new Error("NORMALIZER_VERSION_UNAVAILABLE")
@@ -85,7 +111,10 @@ export class ProductionNormalizerRegistry {
     if (input.candidate.kind === "OPEN_INTEREST" && input.candidate.datasetId === "open-interest") return normalizeOpenInterest({ ...input, candidate: input.candidate })
     if (input.candidate.kind === "AGG_TRADE" && input.candidate.datasetId === "agg-trade") return normalizeAggTrade({ ...input, candidate: input.candidate })
     if (input.candidate.kind === "LIQUIDATION" && input.candidate.datasetId === "liquidation") return normalizeLiquidation({ ...input, candidate: input.candidate })
+    if (input.candidate.kind === "MACRO_ECONOMIC_OBSERVATION" && input.candidate.datasetId === "macro") return normalizeMacroObservation({ ...input, candidate: input.candidate })
+    if (input.candidate.kind === "DAILY_MARKET_CONTEXT_OBSERVATION" && input.candidate.datasetId === "daily-market-context") return normalizeDailyMarketContext({ ...input, candidate: input.candidate })
+    if (input.candidate.kind === "ETF_FLOW_OBSERVATION" && input.candidate.datasetId === "etf-flow") return normalizeEtfFlow({ ...input, candidate: input.candidate })
     throw new Error("PRODUCTION_NORMALIZER_NOT_REGISTERED")
   }
-  bindings() { return Object.freeze(["ohlcv:OHLCV", "funding:FUNDING", "open-interest:OPEN_INTEREST", "liquidation:LIQUIDATION"].map((value) => { const [datasetId, candidateKind] = value.split(":"); return Object.freeze({ datasetId, candidateKind, normalizerId: `normalize.${datasetId}`, version: PRODUCTION_NORMALIZER_VERSION, status: "AVAILABLE" as const }) })) }
+  bindings() { return Object.freeze(["ohlcv:OHLCV", "funding:FUNDING", "open-interest:OPEN_INTEREST", "liquidation:LIQUIDATION", "macro:MACRO_ECONOMIC_OBSERVATION", "daily-market-context:DAILY_MARKET_CONTEXT_OBSERVATION", "etf-flow:ETF_FLOW_OBSERVATION"].map((value) => { const [datasetId, candidateKind] = value.split(":"); return Object.freeze({ datasetId, candidateKind, normalizerId: `normalize.${datasetId}`, version: PRODUCTION_NORMALIZER_VERSION, status: "AVAILABLE" as const }) })) }
 }

@@ -7,6 +7,7 @@ import type {
   ProvenanceViewModel,
   RepositoryHandoffViewModel,
 } from "@/lib/design-system"
+import { formatProbability } from "@/lib/presentation/financialFormatting"
 import type {
   DashboardDirection,
   DashboardHandoffViewModel,
@@ -316,7 +317,7 @@ function predictionEvidence(data: DashboardPredictionInput | null): EvidenceView
   return data.marketEvents.slice(0, 3).map((event, index) => ({
     id: `prediction:${index}:${event.title}`,
     title: event.title,
-    summary: `Observed probability: ${event.probability}% on ${event.venue}.`,
+    summary: `Observed probability: ${formatProbability(event.probability / 100)} on ${event.venue}.`,
     evidenceType: "prediction market",
     lifecycle: "READY",
     availability: { state: "AVAILABLE" },

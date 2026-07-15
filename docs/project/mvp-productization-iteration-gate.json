@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "mvp-productization-iteration-gate/v1",
+  "recommendationEnum": ["NO_ADDITIONAL_PRODUCTIZATION_ITERATION_REQUIRED", "ONE_FOCUSED_REPLAY_RESEARCH_ITERATION_REQUIRED", "BROADER_PRODUCT_EXPERIENCE_ITERATION_REQUIRED"],
+  "recommendation": "ONE_FOCUSED_REPLAY_RESEARCH_ITERATION_REQUIRED",
+  "basis": [
+    "Dashboard, Markets, Scanner, Trade, and Research are coherent across desktop and mobile.",
+    "External context is useful and nonblocking, but ETF flow remains source-access blocked.",
+    "Research default presentation no longer resembles a database inspector.",
+    "Replay remains truthful and responsive but still falls short of the Figma event-sequence experience and retains technical Segment metadata in its primary aggregate lane."
+  ],
+  "nextScope": ["Replay timeline hierarchy", "Replay primary metadata reduction", "Research final progressive-disclosure QA"],
+  "excluded": ["Evidence rule changes", "Projection payload changes", "Order Book WebSocket changes", "Funding maintenance"]
+}

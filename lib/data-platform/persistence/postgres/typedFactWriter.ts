@@ -27,7 +27,7 @@ export function validateTypedCanonicalFact(fact: CanonicalFact): readonly string
   } else if (fact.kind === "RESERVE_OBSERVATION") {
     if (!fact.venue || !fact.asset || !decimal(fact.balance) || Number(fact.balance) < 0) errors.push("INVALID_RESERVE_FACT")
   } else if (fact.kind === "MACRO_OBSERVATION") {
-    if (!fact.seriesId || !fact.period || !decimal(fact.value)) errors.push("INVALID_MACRO_FACT")
+    if (!fact.seriesId || !fact.period || !["OFFICIAL_MACRO", "DAILY_MARKET_CONTEXT"].includes(fact.observationClass) || !decimal(fact.value)) errors.push("INVALID_MACRO_FACT")
   } else {
     const segmentV2 = canonicalStreamSegmentV2Metadata(fact)
     if (!fact.venue || !fact.rawObjectId || !timestamp(fact.windowStart) || !timestamp(fact.windowEnd) || Date.parse(fact.windowEnd) <= Date.parse(fact.windowStart) || (fact.recordCount !== null && (!Number.isInteger(fact.recordCount) || fact.recordCount < 0))) errors.push("INVALID_STREAM_MANIFEST_FACT")

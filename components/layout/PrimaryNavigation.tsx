@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
-import { BarChart3, Database, Gauge, History, Radar, Search, Settings, SlidersHorizontal, ClipboardCheck } from "lucide-react"
+import { BarChart3, Gauge, History, Radar, Search, SlidersHorizontal, ClipboardCheck } from "lucide-react"
 import { Suspense, type ReactNode } from "react"
 
 import { createInvestigationContext, readInvestigationContext } from "@/lib/investigation/context"
@@ -12,10 +12,8 @@ const NAV_ITEMS = [
   { label: "Markets", href: "/markets", icon: BarChart3, active: true },
   { label: "Scanner", href: "/scanner", icon: Radar, active: true },
   { label: "Trade", href: "/trade", icon: ClipboardCheck, active: true },
-  { label: "Intelligence", shortLabel: "Intel", href: "/historical-intelligence", icon: Database, active: true },
   { label: "Research", href: "/research", icon: Search, active: true },
   { label: "Replay", href: "/replay", icon: History, active: true },
-  { label: "Settings", icon: Settings, active: false },
 ]
 
 function navClass(active: boolean, selected: boolean) {
@@ -75,18 +73,19 @@ function TerminalAppShellContent({ children }: { children: ReactNode }) {
 
   return (
     <div data-qt-foundation="terminal-shell" className="min-h-screen bg-black text-white">
-      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[76px] border-r border-zinc-900 bg-zinc-950/95 px-2 py-3 xl:block">
-        <div className="mb-4 flex h-11 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-400/10">
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[190px] border-r border-zinc-900 bg-zinc-950/95 px-3 py-4 xl:block">
+        <div className="mb-6 flex h-11 items-center gap-3 border-b border-zinc-800 px-2">
           <SlidersHorizontal className="h-4 w-4 text-cyan-100" />
+          <span className="text-xs font-bold uppercase tracking-wide text-zinc-100">QuantTerminal</span>
         </div>
         <nav className="grid gap-2">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon
             const selected = Boolean(item.active && item.href && (pathname === item.href || pathname === "/" && item.href === "/dashboard"))
             const content = (
-              <div className={`group flex h-12 w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border transition ${navClass(item.active, selected)}`}>
+              <div className={`group flex h-11 w-full items-center gap-3 overflow-hidden rounded-md border px-3 transition ${navClass(item.active, selected)}`}>
                 <Icon className="h-4 w-4" />
-                <span className="w-full text-center text-[10px] font-black uppercase">{"shortLabel" in item ? item.shortLabel : item.label.split(" ")[0]}</span>
+                <span className="text-xs font-bold">{item.label}</span>
               </div>
             )
 
@@ -103,7 +102,7 @@ function TerminalAppShellContent({ children }: { children: ReactNode }) {
         </nav>
       </aside>
 
-      <div className="xl:pl-[76px]">
+      <div className="xl:pl-[190px]">
         <div className="sticky top-0 z-30 border-b border-zinc-900 bg-black/95 px-3 py-2 xl:hidden">
           <nav className="flex gap-2 overflow-x-auto">
             {NAV_ITEMS.map((item) => {

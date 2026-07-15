@@ -81,7 +81,7 @@ export interface LiquidationFact extends FactBase { readonly kind: "LIQUIDATION"
 export interface PredictionSnapshotFact extends FactBase { readonly kind: "PREDICTION_SNAPSHOT"; readonly marketId: string; readonly outcomeId: string; readonly probability: string; readonly volume: string | null; readonly liquidity: string | null }
 export interface EtfObservationFact extends FactBase { readonly kind: "ETF_OBSERVATION"; readonly instrumentId: string; readonly flowValue: string; readonly currency: string; readonly windowStart: string; readonly windowEnd: string }
 export interface ReserveObservationFact extends FactBase { readonly kind: "RESERVE_OBSERVATION"; readonly asset: string; readonly balance: string; readonly unit: string }
-export interface MacroObservationFact extends FactBase { readonly kind: "MACRO_OBSERVATION"; readonly seriesId: string; readonly value: string; readonly unit: string; readonly period: string }
+export interface MacroObservationFact extends FactBase { readonly kind: "MACRO_OBSERVATION"; readonly observationClass: "OFFICIAL_MACRO" | "DAILY_MARKET_CONTEXT"; readonly seriesId: string; readonly value: string; readonly unit: string; readonly period: string }
 export interface StreamManifestFact extends FactBase {
   readonly kind: "STREAM_MANIFEST"
   readonly streamKind: "AGG_TRADE" | "ORDERBOOK"

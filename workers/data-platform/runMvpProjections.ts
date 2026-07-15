@@ -122,8 +122,9 @@ async function execute(command: "generate" | "recompute") {
 async function inspect(command: "status" | "inspect" | "verify") {
   const reader = runtime("READ_ONLY", `mvp-projection-${command}`); await reader.connect()
   try {
-    const rows = await reader.sql.unsafe<Array<{ total: number; kinds: number; conflicts: number; visible: number; ready: number }>>("SELECT (SELECT count(*)::int FROM projection.mvp_projection_versions) total,(SELECT count(DISTINCT projection_kind)::int FROM projection.mvp_projection_versions) kinds,(SELECT count(*)::int FROM projection.mvp_projection_conflicts) conflicts,(SELECT count(*)::int FROM projection.mvp_projection_versions WHERE consumer_exposure_state='CONSUMER_VISIBLE') visible,(SELECT count(*)::int FROM projection.mvp_projection_versions WHERE consumer_exposure_state='READY_FOR_CUTOVER') ready")
-    const counts = await reader.sql.unsafe<Array<{ projection_kind: MvpProjectionKind; count: number }>>("SELECT projection_kind,count(*)::int count FROM projection.mvp_projection_versions GROUP BY projection_kind ORDER BY projection_kind")
+    const governedKinds = MVP_PROJECTION_DEFINITIONS.map((definition) => definition.projectionKind)
+    const rows = await reader.sql.unsafe<Array<{ total: number; kinds: number; conflicts: number; visible: number; ready: number }>>("SELECT (SELECT count(*)::int FROM projection.mvp_projection_versions WHERE projection_kind=ANY($1)) total,(SELECT count(DISTINCT projection_kind)::int FROM projection.mvp_projection_versions WHERE projection_kind=ANY($1)) kinds,(SELECT count(*)::int FROM projection.mvp_projection_conflicts) conflicts,(SELECT count(*)::int FROM projection.mvp_projection_versions WHERE projection_kind=ANY($1) AND consumer_exposure_state='CONSUMER_VISIBLE') visible,(SELECT count(*)::int FROM projection.mvp_projection_versions WHERE projection_kind=ANY($1) AND consumer_exposure_state='READY_FOR_CUTOVER') ready", [governedKinds])
+    const counts = await reader.sql.unsafe<Array<{ projection_kind: MvpProjectionKind; count: number }>>("SELECT projection_kind,count(*)::int count FROM projection.mvp_projection_versions WHERE projection_kind=ANY($1) GROUP BY projection_kind ORDER BY projection_kind", [governedKinds])
     const result = { command, ...rows[0], counts: Object.fromEntries(counts.map((row) => [row.projection_kind, row.count])), d2SourcePublication: "UNCHANGED_PENDING", pageApiConsumer: "UNCHANGED" }
     if (command === "inspect") {
       const port = new MvpProjectionReadPort(reader), latest = await port.latest("InstrumentMarketSummaryProjection", "BTCUSDT")
@@ -132,7 +133,7 @@ async function inspect(command: "status" | "inspect" | "verify") {
     if (command === "verify") {
       if (result.total !== 868 || result.kinds !== 9 || result.conflicts !== 0 || result.visible !== 0 || result.ready !== 868) throw new Error(`MVP_PROJECTION_VERIFY_FAILED:${JSON.stringify(result)}`)
       const port = new MvpProjectionReadPort(reader)
-      const [firstPage, secondPage] = await Promise.all([port.list({ limit: 100, offset: 0, exposure: "READY_FOR_CUTOVER" }), port.list({ limit: 100, offset: 100, exposure: "READY_FOR_CUTOVER" })])
+      const [firstPage, secondPage] = await Promise.all([port.list({ kind: "CoverageDataStatusProjection", limit: 100, offset: 0, exposure: "READY_FOR_CUTOVER" }), port.list({ kind: "CoverageDataStatusProjection", limit: 100, offset: 100, exposure: "READY_FOR_CUTOVER" })])
       if (firstPage.length !== 100 || secondPage.length !== 100 || firstPage.some((value) => secondPage.some((other) => other.projectionVersionId === value.projectionVersionId))) throw new Error("MVP_PROJECTION_READ_PORT_PAGINATION_INVALID")
     }
     console.log(JSON.stringify(result, null, 2))

@@ -14,6 +14,8 @@ export type MvpProjectionKind =
   | "CoverageDataStatusProjection"
   | "SourceLineageSummaryProjection"
   | "EventAnnotationProjection"
+  | "MacroContextProjection"
+  | "BitcoinEtfFlowProjection"
 export type MvpProjectionLifecycle = "GENERATED" | "SUPERSEDED" | "WITHHELD" | "INVALID"
 export type MvpConsumerExposure = "INTERNAL_ONLY" | "READY_FOR_CUTOVER" | "CONSUMER_VISIBLE"
 export type MvpProjectionCompleteness = "COMPLETE" | "COMPLETE_WITH_LIMITATION" | "WITHHELD"
@@ -69,6 +71,14 @@ export const MVP_PROJECTION_DEFINITIONS: readonly MvpProjectionDefinition[] = Ob
   return Object.freeze({ ...base, definitionChecksum: canonicalChecksum(base) })
 }))
 
+export const MVP_SUPPLEMENTAL_PROJECTION_DEFINITIONS: readonly MvpProjectionDefinition[] = Object.freeze(([
+  ["MacroContextProjection", "DASHBOARD"],
+  ["BitcoinEtfFlowProjection", "DASHBOARD"],
+] as const).map(([projectionKind, consumer]) => {
+  const base = { projectionKind, consumer, schemaVersion: "1.0.0" as const, generatorId: MVP_PROJECTION_GENERATOR_ID as typeof MVP_PROJECTION_GENERATOR_ID, generatorVersion: MVP_PROJECTION_GENERATOR_VERSION as typeof MVP_PROJECTION_GENERATOR_VERSION }
+  return Object.freeze({ ...base, definitionChecksum: canonicalChecksum(base) })
+}))
+
 export interface MvpProjectionEvidenceInput {
   readonly assessment: MvpMarketAssessment
   readonly packetId: string
@@ -100,7 +110,7 @@ export function createMvpProjection(input: {
 }): MvpProjectionVersion {
   if (Date.parse(input.eventTimeEnd) <= Date.parse(input.eventTimeStart)) throw new Error("MVP_PROJECTION_INVALID_EVENT_WINDOW")
   if (Date.parse(input.knowledgeTimeCutoff) < Date.parse(input.eventTimeEnd)) throw new Error("MVP_PROJECTION_FUTURE_KNOWLEDGE_BOUNDARY_INVALID")
-  const definition = MVP_PROJECTION_DEFINITIONS.find((value) => value.projectionKind === input.kind)
+  const definition = [...MVP_PROJECTION_DEFINITIONS, ...MVP_SUPPLEMENTAL_PROJECTION_DEFINITIONS].find((value) => value.projectionKind === input.kind)
   if (!definition) throw new Error("MVP_PROJECTION_KIND_UNKNOWN")
   const dependencies = normalizedDependencies(input.dependencies)
   if (!dependencies.length) throw new Error("MVP_PROJECTION_DEPENDENCIES_REQUIRED")

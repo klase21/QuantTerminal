@@ -42,7 +42,7 @@ export class MvpProjectionReadPort {
     return Object.freeze(await Promise.all(rows.map((row) => this.map(row))))
   }
   async latest(kind: MvpProjectionKind, subjectId: string): Promise<MvpProjectionVersion | null> {
-    const rows = await this.runtime.sql.unsafe<Record<string, unknown>[]>("SELECT * FROM projection.mvp_projection_versions WHERE projection_kind=$1 AND subject_id=$2 AND lifecycle_state='GENERATED' AND consumer_exposure_state='READY_FOR_CUTOVER' ORDER BY event_time_end DESC,created_at DESC,projection_version_id DESC LIMIT 1", [kind, subjectId])
+    const rows = await this.runtime.sql.unsafe<Record<string, unknown>[]>("SELECT v.* FROM projection.mvp_projection_versions v WHERE v.projection_kind=$1 AND v.subject_id=$2 AND v.lifecycle_state='GENERATED' AND v.consumer_exposure_state='READY_FOR_CUTOVER' AND NOT EXISTS (SELECT 1 FROM projection.mvp_projection_versions successor WHERE successor.supersedes_projection_version_id=v.projection_version_id AND successor.lifecycle_state='GENERATED') ORDER BY v.event_time_end DESC,v.created_at DESC,v.projection_version_id DESC LIMIT 1", [kind, subjectId])
     return rows[0] ? this.map(rows[0]) : null
   }
   async dependencies(projectionVersionId: string): Promise<readonly Record<string, unknown>[]> {

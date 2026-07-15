@@ -14,7 +14,7 @@ export const PERSISTENCE_IDENTITY_RULES = Object.freeze({
   PREDICTION_SNAPSHOT: { datasetId: "prediction-market", providerIdentityMode: "INCLUDED", orderedFields: ["providerId", "marketId", "outcomeId", "observedAt"] },
   ETF_OBSERVATION: { datasetId: "etf-flow", providerIdentityMode: "INCLUDED", orderedFields: ["providerId", "instrumentId", "windowStart", "windowEnd"] },
   RESERVE_OBSERVATION: { datasetId: "reserve", providerIdentityMode: "INCLUDED", orderedFields: ["providerId", "venue", "asset", "observedAt"] },
-  MACRO_OBSERVATION: { datasetId: "macro", providerIdentityMode: "INCLUDED", orderedFields: ["providerId", "seriesId", "period"] },
+  MACRO_OBSERVATION: { datasetId: "macro", providerIdentityMode: "INCLUDED", orderedFields: ["providerId", "observationClass", "seriesId", "period"] },
   STREAM_MANIFEST: { datasetId: "stream-manifest", providerIdentityMode: "INCLUDED", orderedFields: ["providerId", "streamKind", "venue", "symbol", "windowStart", "windowEnd"] },
 } as const satisfies Record<CanonicalFact["kind"], PersistenceIdentityRule>)
 
@@ -22,6 +22,8 @@ export function deriveCanonicalRecordIdentity(fact: CanonicalFact): CanonicalRec
   const segmentV2 = fact.kind === "STREAM_MANIFEST" ? canonicalStreamSegmentV2Metadata(fact) : null
   const rule: PersistenceIdentityRule = segmentV2
     ? { ...PERSISTENCE_IDENTITY_RULES.STREAM_MANIFEST, datasetId: segmentV2.sourceDatasetId }
+    : fact.kind === "MACRO_OBSERVATION" && fact.observationClass === "DAILY_MARKET_CONTEXT"
+      ? { ...PERSISTENCE_IDENTITY_RULES.MACRO_OBSERVATION, datasetId: "daily-market-context" }
     : PERSISTENCE_IDENTITY_RULES[fact.kind]
   const fields: readonly string[] = fact.kind === "OHLCV" ? [fact.venue ?? "", normalizeIdentifier(fact.symbolOrSubject), fact.resolution, normalizeIsoTimestamp(fact.observedAt)]
     : fact.kind === "FUNDING" ? [fact.venue ?? "", normalizeIdentifier(fact.symbolOrSubject), normalizeIsoTimestamp(fact.fundingTime)]
@@ -31,7 +33,7 @@ export function deriveCanonicalRecordIdentity(fact: CanonicalFact): CanonicalRec
     : fact.kind === "PREDICTION_SNAPSHOT" ? [fact.providerId, fact.marketId, fact.outcomeId, normalizeIsoTimestamp(fact.observedAt)]
     : fact.kind === "ETF_OBSERVATION" ? [fact.providerId, fact.instrumentId, normalizeIsoTimestamp(fact.windowStart), normalizeIsoTimestamp(fact.windowEnd)]
     : fact.kind === "RESERVE_OBSERVATION" ? [fact.providerId, fact.venue ?? "", fact.asset, normalizeIsoTimestamp(fact.observedAt)]
-    : fact.kind === "MACRO_OBSERVATION" ? [fact.providerId, fact.seriesId, fact.period]
+    : fact.kind === "MACRO_OBSERVATION" ? [fact.providerId, fact.observationClass, fact.seriesId, fact.period]
     : [fact.providerId, fact.streamKind, fact.venue ?? "", normalizeIdentifier(fact.symbolOrSubject), normalizeIsoTimestamp(fact.windowStart), normalizeIsoTimestamp(fact.windowEnd)]
   const businessIdentity = canonicalChecksum([rule.datasetId, rule.providerIdentityMode, ...fields])
   return Object.freeze({ datasetId: rule.datasetId, businessIdentity, canonicalRecordId: `rec_${canonicalChecksum([rule.datasetId, businessIdentity])}` })
