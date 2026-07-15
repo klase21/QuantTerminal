@@ -1,7 +1,7 @@
 # MVP Online Serving Architecture
 
-Certification date: 2026-07-15
-Status: local serving foundation certified; Neon publication deferred to MVP-7B.
+Certification date: 2026-07-16
+Status: MVP-7C Preview modes certified; Production cutover awaits user approval.
 
 ## Decision
 
@@ -134,7 +134,15 @@ The initial managed allocation remains 5 GB or the provider minimum. Planning gr
 
 MVP-7B published the identical certified corpus to Neon PostgreSQL 16. The direct configured credential is accepted only by the managed bootstrap boundary. It creates or rotates independent `mvp_serving_publisher` and `mvp_serving_reader` credentials in memory, applies migrations as the publisher, publishes atomically, and certifies reads and mutation denial as the reader. Connection values and generated passwords are never included in output or deterministic identity.
 
-Runtime selection now prefers `MVP_SERVING_POSTGRES_URL` when explicitly configured and otherwise retains the local isolated reader for development. MVP-7C must rotate the reader password, construct the Neon pooled reader URL, configure Vercel with explicit mode and expected checksums, and verify production health/fallback. Vercel must never receive publisher, D2/D3/D4, object-root, or population credentials.
+Runtime selection prefers `MVP_SERVING_POSTGRES_URL` when explicitly configured and otherwise retains the local isolated reader for development. The MVP-7C Git-backed Vercel Preview verifies the pooled reader through successful corpus/checksum/count/Replay reads in `SERVING_POSTGRES` mode. Vercel receives no publisher, D2/D3/D4, object-root, or population credentials.
+
+The deployed topology is intentionally split: requests enter through the Seoul edge (`icn1`), while Node functions execute in Singapore (`sin1`) alongside Neon PostgreSQL in Singapore. This is classified `APPROVED_EDGE_FUNCTION_REGION_SEPARATION`; no function-region change is required by MVP-7C.
+
+The isolated `CERTIFIED_SNAPSHOT` drill used a temporary Git branch pointer at the same committed source SHA and a branch-only `MVP_SERVING_MODE` override. Deployment `dpl_22JtotjbMQsEgrQWMXyGXJ4EKUEf` served the immutable 59-Projection bundle, both Evidence summaries, both Replay snapshots, and both demo profiles with checksum `9296a664d244482f37a4eef079335b219fc7e67e8311c25118ee44ab18e32ab3`. All six default routes returned HTTP 200; primary and backup Replay each returned 288 price, 288 OI, three discrete Funding, and 48 flow samples; unsupported Replay failed closed. The override and temporary local/remote branches were removed after certification without changing the primary Preview or Production.
+
+Replay correctly exposes 10 eligible Projections: the governed Replay view set plus both eligible supplemental contexts, Macro and Bitcoin ETF Flow. The prior expectation of 9 omitted the ETF Projection and is superseded; no serving row or checksum changed.
+
+The first request observed immediately after the isolated deployment reached READY took 3297.6 ms and is recorded as `FIRST_OBSERVED_INVOCATION`. It includes Vercel CLI/project lookup overhead and is not asserted to be a guaranteed platform cold start. The absence of a provably isolated infrastructure cold-start measurement remains a measurement limitation, not a functional Production blocker.
 
 Measured Neon size is 19,783,680 bytes total, with 11,993,088 bytes of serving/control relations and 1,114,112 bytes of indexes.
 

@@ -1,7 +1,7 @@
 {
-  "schemaVersion": "mvp-production-data-readiness/v3",
-  "assessedAt": "2026-07-15T14:19:00.979Z",
-  "overallStatus": "NEON_SERVING_CORPUS_PUBLISHED_AWAITING_VERCEL_CUTOVER",
+  "schemaVersion": "mvp-production-data-readiness/v5",
+  "assessedAt": "2026-07-15T21:58:01.401Z",
+  "overallStatus": "MVP_7C_PREVIEW_CUTOVER_CERTIFIED_AWAITING_PRODUCTION_APPROVAL",
   "neonPublication": {
     "provider": "Neon PostgreSQL",
     "region": "AWS Singapore",
@@ -20,12 +20,12 @@
     { "path": "/api/health/mvp-serving", "managedReadiness": "IMPLEMENTED", "secretsReturned": false }
   ],
   "consumerContractCertification": {
-    "dashboard": "PASS",
-    "markets": "PASS",
-    "scanner": "PASS",
-    "trade": "PASS",
-    "research": "PASS",
-    "replay": "PASS",
+    "dashboard": { "status": "PASS", "projectionCount": 45 },
+    "markets": { "status": "PASS", "projectionCount": 38 },
+    "scanner": { "status": "PASS", "projectionCount": 31 },
+    "trade": { "status": "PASS", "projectionCount": 8 },
+    "research": { "status": "PASS", "projectionCount": 9 },
+    "replay": { "status": "PASS", "projectionCount": 10, "priorExpectedCount": 9, "reconciliation": "BOTH_ELIGIBLE_SUPPLEMENTAL_CONTEXT_PROJECTIONS_ARE_GOVERNED_FOR_REPLAY" },
     "primaryProfile": "PASS",
     "backupProfile": "PASS"
   },
@@ -43,26 +43,53 @@
     "label": "CERTIFIED_SNAPSHOT",
     "checksum": "9296a664d244482f37a4eef079335b219fc7e67e8311c25118ee44ab18e32ab3",
     "bytes": 1075396,
-    "mayBeLabeledLive": false
+    "mayBeLabeledLive": false,
+    "isolatedPreview": {
+      "deploymentId": "dpl_22JtotjbMQsEgrQWMXyGXJ4EKUEf",
+      "previewUrl": "https://quantterminal-lpq042aoo-klase21s-projects.vercel.app",
+      "sourceSha": "9017dcf4e50e8caeddbd146070c800480e3a06d1",
+      "status": "CERTIFIED_AND_CLEANED_UP",
+      "projectionCount": 59,
+      "evidenceSummaryCount": 2,
+      "replaySnapshotCount": 2,
+      "demoProfileCount": 2,
+      "defaultRoutesHttp200": 6,
+      "primaryReplay": "PASS_288_288_3_48",
+      "backupReplay": "PASS_288_288_3_48",
+      "unsupportedReplay": "FAIL_CLOSED_SERVING_PROJECTION_MISSING"
+    }
   },
   "vercel": {
-    "cutoverStatus": "NOT_STARTED",
-    "pooledReaderVariableConfigured": false,
+    "cutoverStatus": "PREVIEW_SERVING_POSTGRES_CERTIFIED",
+    "project": "klase21s-projects/quantterminal",
+    "deploymentId": "dpl_9KTDZtLyDA9Cz24ZNHMtEHS9w5Bs",
+    "sourceSha": "9017dcf4e50e8caeddbd146070c800480e3a06d1",
+    "pooledReaderVariableConfigured": true,
+    "functionRegionObserved": "sin1",
+    "requestEdgeObserved": "icn1",
+    "neonRegion": "AWS Singapore",
+    "regionDecision": "APPROVED_EDGE_FUNCTION_REGION_SEPARATION",
+    "productionScopeModified": false,
     "requiredRuntimeVariables": ["MVP_SERVING_MODE", "MVP_SERVING_POSTGRES_URL", "MVP_SERVING_EXPECTED_CORPUS_ID", "MVP_SERVING_EXPECTED_CHECKSUM", "MVP_SERVING_FALLBACK_POLICY"],
     "forbiddenRuntimeVariables": ["MVP_SERVING_PUBLISHER_POSTGRES_URL", "D4_ISOLATED_POSTGRES_URL", "D2_CANONICAL_POSTGRES_URL", "D3_BACKFILL_OBJECT_ROOT"]
   },
-  "remainingBlockers": [
-    "ROTATE_READER_SECRET_FOR_MVP_7C",
-    "CONFIGURE_NEON_POOLED_READER_URL",
-    "CONFIGURE_VERCEL_EXPLICIT_SERVING_MODE_AND_EXPECTED_CHECKSUMS",
-    "RUN_PRODUCTION_HEALTH_AND_FALLBACK_DRILL"
+  "measurementLimitations": [
+    "FIRST_OBSERVED_INVOCATION_IS_NOT_A_GUARANTEED_PLATFORM_COLD_START"
+  ],
+  "remainingProductionBlockers": [
+    "USER_PRODUCTION_APPROVAL_REQUIRED",
+    "PRODUCTION_ENVIRONMENT_CONFIGURATION_NOT_APPLIED",
+    "PRODUCTION_POST_DEPLOYMENT_HEALTH_GATE_REQUIRED"
   ],
   "protectedState": {
     "fundingCommandsExecuted": false,
     "populationRunnersExecuted": false,
     "fullHistoryBackfillExecuted": false,
     "farsideCanaryExecuted": false,
-    "vercelModified": false,
+    "primaryVercelPreviewModified": false,
+    "temporarySnapshotOverrideRemoved": true,
+    "temporaryRemoteBranchDeleted": true,
+    "temporaryLocalBranchDeleted": true,
     "filesStaged": false,
     "filesCommitted": false,
     "filesPushed": false
