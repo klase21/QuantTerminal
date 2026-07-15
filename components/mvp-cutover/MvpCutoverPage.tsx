@@ -688,28 +688,28 @@ function Dashboard({
           <ShieldCheck className="h-4 w-4 text-[var(--qt-color-success)]" />
         }
       >
-        <div className="divide-y divide-[var(--qt-color-border)]">
+        <div className="grid gap-px overflow-hidden border border-[var(--qt-color-border)] bg-[var(--qt-color-border)] xl:grid-cols-2 2xl:grid-cols-3">
           {states.map((item, index) => {
             const row = asRecord(item),
               instrument = value(row, "instrument", String(index)),
               evidence = value(row, "evidencePacketId", "");
             return (
               <article
-                className="grid min-w-0 gap-3 py-3 first:pt-0 last:pb-0 md:grid-cols-[8rem_minmax(0,1fr)_auto] md:items-center"
+                className="grid min-w-0 gap-3 bg-[#070d07] p-4"
                 key={`${instrument}-${index}`}
               >
-                <strong className="text-sm text-[var(--qt-color-text-primary)]">
-                  {instrument}
-                </strong>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <strong className="text-sm text-[var(--qt-color-text-primary)]">
+                    {instrument}
+                  </strong>
                   <Badge tone={stateTone(row.state)}>
                     {label(value(row, "state"))}
                   </Badge>
-                  <span className="text-[var(--qt-type-caption-size)] text-[var(--qt-color-text-secondary)]">
-                    {formatConfidencePrimary(row.confidence)}
-                  </span>
                 </div>
-                <div className="flex flex-wrap gap-1">
+                <p className="text-[var(--qt-type-caption-size)] text-[var(--qt-color-text-secondary)]">
+                  {formatConfidencePrimary(row.confidence)}. Open the governed event sequence or Evidence trail for the full context.
+                </p>
+                <div className="flex flex-wrap gap-1 border-t border-[var(--qt-color-border)] pt-3">
                   <PageLink href={href("markets", { instrument })}>
                     Markets
                   </PageLink>
@@ -737,23 +737,29 @@ function Dashboard({
       >
         <div className="grid gap-3 md:grid-cols-2">
           {macroProjection ? (
-            <article className="border-l-2 border-[var(--qt-color-evidence)] pl-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong className="text-sm">Macro and risk context</strong>
+            <article className={`${surface} overflow-hidden`}>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--qt-color-border)] px-4 py-3">
+                <strong className="text-lg font-semibold leading-tight">Macro and risk context</strong>
                 <Badge tone="warning">
                   {label(value(macro, "classification", "MIXED"))}
                 </Badge>
               </div>
-              <p className="mt-2 text-[var(--qt-type-body-size)] text-[var(--qt-color-text-secondary)]">
-                US 10-year yield {formatSignedReturn(numeric(rates.value))}; SPY
-                five-day move{" "}
-                {formatSignedReturn(numeric(equity.fiveTradingDayReturnPct))}.
-                Daily supplemental observations do not recompute the crypto
-                conclusion.
-              </p>
-              <p className="mt-2 text-[var(--qt-type-caption-size)] text-[var(--qt-color-text-muted)]">
-                Observed through {formatTimestamp(macroProjection.eventTimeEnd)}{" "}
-                · FRED official macro and Alpha Vantage daily market context
+              <dl className="divide-y divide-[var(--qt-color-border)] px-4">
+                {[
+                  ["US 10-year yield", `${formatPlainNumber(numeric(rates.value), 2)}%`],
+                  ["SPY 5-day move", formatSignedReturn(numeric(equity.fiveTradingDayReturnPct))],
+                  ["Context role", "SUPPLEMENTAL ONLY"],
+                  ["Observed through", formatUtcDate(macroProjection.eventTimeEnd)],
+                  ["Sources", "FRED DGS10 · ALPHA VANTAGE SPY"],
+                ].map(([name, item]) => (
+                  <div className="grid grid-cols-[minmax(9rem,0.7fr)_minmax(0,1.3fr)] items-baseline gap-4 py-2.5" key={name}>
+                    <dt className={sectionTitle}>{name}</dt>
+                    <dd className="text-right text-sm font-semibold text-[var(--qt-color-text-primary)]">{item}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="border-t border-[var(--qt-color-border)] px-4 py-3 text-[var(--qt-type-caption-size)] text-[var(--qt-color-text-muted)]">
+                Daily context does not recompute the governed crypto conclusion.
               </p>
             </article>
           ) : (
@@ -842,8 +848,34 @@ function Markets({
         </div>
       </Section>
       <Section title="L2 / Sector Rotation and Instrument Comparison">
-        <div className="divide-y divide-[#213021] border border-[#213021] bg-[#070d07]">
-          {summaries.map((projection) => {
+        <div className="overflow-x-auto border border-[#213021] bg-[#070d07]">
+          <div className="w-max min-w-[1450px] xl:min-w-full">
+            <div
+              className="grid grid-cols-[9rem_11rem_9rem_9.5rem_8rem_8rem_11rem_9rem_max-content] justify-start border-b border-[#213021] bg-[#0b130b]"
+              role="row"
+            >
+              {[
+                "Instrument",
+                "Governed state",
+                "Source date",
+                "Projection reference",
+                "OI change",
+                "Funding",
+                "Aggressive flow",
+                "Evidence strength",
+                "Actions",
+              ].map((heading) => (
+                <div
+                  className="border-r border-[#213021] px-3 py-2 last:border-r-0"
+                  key={heading}
+                  role="columnheader"
+                >
+                  <span className={sectionTitle}>{heading}</span>
+                </div>
+              ))}
+            </div>
+            <div className="divide-y divide-[#213021]">
+              {summaries.map((projection) => {
             const payload = asRecord(projection.payload),
               instrument = value(projection, "subjectId"),
               evidence = value(payload, "evidencePacketId", ""),
@@ -855,64 +887,40 @@ function Markets({
             return (
               <article
                 key={value(projection, "projectionVersionId")}
-                className="grid min-w-0 lg:grid-cols-[11rem_minmax(0,1fr)_15rem] lg:items-stretch"
+                className="grid min-w-0 grid-cols-[9rem_11rem_9rem_9.5rem_8rem_8rem_11rem_9rem_max-content] items-stretch justify-start"
               >
-                <header className="flex items-start justify-between gap-3 border-b border-[#213021] p-4 lg:border-b-0 lg:border-r">
-                  <div>
-                    <h2 className="text-base font-bold text-[var(--qt-color-text-primary)]">
-                      {instrument}
-                    </h2>
-                    <p className="mt-1 text-[var(--qt-type-caption-size)] text-[var(--qt-color-text-muted)]">
-                      As of {formatUtcDate(projection.eventTimeEnd)}
-                    </p>
-                  </div>
+                <header className="flex min-w-0 items-center border-r border-[#213021] p-3">
+                  <h2 className="whitespace-nowrap text-base font-bold text-[var(--qt-color-text-primary)]">
+                    {instrument}
+                  </h2>
+                </header>
+                <div className="flex min-w-0 items-center border-r border-[#213021] p-3">
                   <Badge tone={stateTone(payload.marketState)}>
                     {label(value(payload, "marketState"))}
                   </Badge>
-                </header>
-                <div className="grid flex-1 gap-4 p-4 xl:grid-cols-[9rem_minmax(20rem,1fr)_auto] xl:items-center">
-                  <div>
-                    <p className="text-2xl font-semibold text-[var(--qt-color-text-primary)]">
-                      {formatPrice(numeric(price.close))}
-                    </p>
-                    <p className="mt-1 text-[var(--qt-type-caption-size)] text-[var(--qt-color-text-secondary)]">
-                      Projection reference{" "}
-                      <span className="font-semibold">
-                        {formatSignedReturn(
-                          numeric(price.boundedPriceChangePct),
-                        )}
-                      </span>
-                    </p>
-                  </div>
-                  <dl className="grid grid-cols-3 gap-2">
-                    <div>
-                      <dt className={sectionTitle}>OI change</dt>
-                      <dd className="mt-1 text-sm font-semibold">
-                        {formatSignedOpenInterestChange(numeric(oi.changePct))}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className={sectionTitle}>Funding</dt>
-                      <dd className="mt-1 text-sm font-semibold">
-                        {formatFundingRate(
-                          numeric(funding.latestProviderEventRate),
-                        )}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className={sectionTitle}>Flow</dt>
-                      <dd className="mt-1 text-sm font-semibold">
-                        {formatDirectionalFlow(numeric(flow.imbalanceRatio))}
-                      </dd>
-                    </div>
-                  </dl>
-                  <div className="flex flex-wrap gap-2 sm:justify-end">
-                    <Badge tone={stateTone(confidence.classification)}>
-                      {formatConfidencePrimary(confidence.classification)}
-                    </Badge>
-                  </div>
                 </div>
-                <footer className="flex flex-wrap content-center gap-1 border-t border-[#213021] px-2 py-1 lg:border-l lg:border-t-0">
+                <div className="flex min-w-0 items-center border-r border-[#213021] p-3">
+                  <p className="whitespace-nowrap font-[var(--qt-font-mono)] text-[10px] font-semibold text-[var(--qt-color-text-secondary)]">
+                    {formatUtcDate(projection.eventTimeEnd)}
+                  </p>
+                </div>
+                <div className="flex min-w-0 flex-col justify-center border-r border-[#213021] p-3">
+                  <p className="whitespace-nowrap text-base font-semibold">{formatPrice(numeric(price.close))}</p>
+                  <p className="mt-1 whitespace-nowrap text-[10px] text-[var(--qt-color-text-secondary)]">{formatSignedReturn(numeric(price.boundedPriceChangePct))}</p>
+                </div>
+                <div className="flex min-w-0 items-center border-r border-[#213021] p-3">
+                  <p className="whitespace-nowrap text-sm font-semibold">{formatSignedOpenInterestChange(numeric(oi.changePct))}</p>
+                </div>
+                <div className="flex min-w-0 items-center border-r border-[#213021] p-3">
+                  <p className="whitespace-nowrap text-sm font-semibold">{formatFundingRate(numeric(funding.latestProviderEventRate))}</p>
+                </div>
+                <div className="flex min-w-0 items-center border-r border-[#213021] p-3">
+                  <p className="whitespace-nowrap text-sm font-semibold">{formatDirectionalFlow(numeric(flow.imbalanceRatio))}</p>
+                </div>
+                <div className="flex min-w-0 items-center border-r border-[#213021] p-3">
+                  <Badge tone={stateTone(confidence.classification)}>{label(value(confidence, "classification", "NOT_AVAILABLE"))}</Badge>
+                </div>
+                <footer className="flex w-max max-w-max min-w-0 flex-nowrap content-center items-center justify-start gap-1 p-2">
                   <PageLink href={href("research", { instrument, evidence })}>
                     Evidence
                   </PageLink>
@@ -929,12 +937,14 @@ function Markets({
                     Scanner
                   </PageLink>
                   <PageLink href={href("trade", { instrument })}>
-                    Trade context
+                    Trade
                   </PageLink>
                 </footer>
               </article>
             );
-          })}
+              })}
+            </div>
+          </div>
         </div>
       </Section>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -982,6 +992,19 @@ function Scanner({
 }) {
   const candidates = asList(payload.candidates);
   const lead = asRecord(candidates[0]);
+  const leadReasons = codes(lead.ruleReasonCodes);
+  const evidenceCategories = [
+    ["Market structure", "AVAILABLE", label(value(lead, "assessmentState", "NOT_EVALUABLE"))],
+    ["Funding", leadReasons.some((item) => item.includes("FUNDING")) ? "AVAILABLE" : "NOT_APPLICABLE", "Provider-native Funding evidence"],
+    ["Open interest", leadReasons.some((item) => item.includes("OI_")) ? "AVAILABLE" : "PARTIAL", "Governed positioning context"],
+    ["Liquidations", "UNAVAILABLE", "Optional enrichment is not present"],
+    ["ETF", "NOT_APPLICABLE", "Supplemental daily context is outside ranking"],
+    ["Macro", "NOT_APPLICABLE", "Supplemental daily context is outside ranking"],
+    ["Prediction", "UNAVAILABLE", "No governed Scanner dependency"],
+    ["On-chain", "UNAVAILABLE", "No governed source in this projection"],
+    ["Exchange", "AVAILABLE", "Binance archive and Segment lineage"],
+    ["Research", "AVAILABLE", "Evidence Packet is ready for investigation"],
+  ] as const;
   return (
     <div className="grid gap-4">
       <ContextToolbar
@@ -1099,55 +1122,79 @@ function Scanner({
           )}
         </ol>
       </Section>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.55fr)]">
         <Section title="02 / Canonical Opportunity Card">
-          <div className="flex flex-wrap items-center gap-3">
-            <strong className="text-xl">
-              {value(lead, "instrument", "UNAVAILABLE")}
-            </strong>
-            <Badge tone={stateTone(lead.assessmentState)}>
-              {label(value(lead, "assessmentState", "NOT_EVALUABLE"))}
-            </Badge>
+          <div className="flex flex-wrap items-start justify-between gap-4 border-l-2 border-[var(--qt-color-evidence)] pl-4">
+            <div>
+              <p className={`${sectionTitle} text-[var(--qt-color-evidence)]`}>Investigation priority {value(lead, "rank", "-")}</p>
+              <strong className="mt-2 block text-2xl">{value(lead, "instrument", "UNAVAILABLE")}</strong>
+              <p className="mt-2 max-w-3xl text-sm text-[var(--qt-color-text-secondary)]">
+                {leadReasons.map((code) => humanReasonFor(code).label).join(" ") || "No alert-like condition fired; the instrument remains available for governed comparison."}
+              </p>
+            </div>
+            <Badge tone={stateTone(lead.assessmentState)}>{label(value(lead, "assessmentState", "NOT_EVALUABLE"))}</Badge>
           </div>
-          <div className="mt-4">
-            <ReasonList
-              values={lead.ruleReasonCodes}
-              empty="No governed trigger reason was supplied."
-            />
+          <dl className="mt-5 grid gap-px overflow-hidden border border-[#213021] bg-[#213021] sm:grid-cols-4">
+            {[
+              ["Evidence strength", formatConfidencePrimary(lead.evidenceStrength)],
+              ["Freshness", label(value(lead, "freshness"))],
+              ["Risk level", formatCounterEvidenceStrength(numeric(lead.counterEvidenceStrength))],
+              ["Coverage", lead.coverageComparable === true ? "Comparable" : "Not comparable"],
+              ["Supporting", `${leadReasons.length} governed reasons`],
+              ["Counter", formatCounterEvidenceStrength(numeric(lead.counterEvidenceStrength))],
+              ["Repository", value(lead, "evidencePacketId", "") ? "Evidence linked" : "Unavailable"],
+              ["Eligibility", lead.eligibleForRanking === true ? "Rankable" : "Excluded"],
+            ].map(([name, item]) => <div className="bg-[#070d07] p-3" key={name}><dt className={sectionTitle}>{name}</dt><dd className="mt-1 text-sm font-semibold">{item}</dd></div>)}
+          </dl>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--qt-color-success)] bg-[#071007] p-3">
+            <div><p className={`${sectionTitle} text-[var(--qt-color-success)]`}>Suggested next step</p><p className="mt-1 text-sm">Review the Evidence Packet, then validate sequence and counter evidence in Replay.</p></div>
+            <PageLink href={href("research", { instrument: value(lead, "instrument", ""), evidence: value(lead, "evidencePacketId", "") })}>Start investigation</PageLink>
           </div>
         </Section>
-        <Section title="Metadata Rail">
-          <dl className="grid gap-3 text-sm">
-            <div><dt className={sectionTitle}>Evidence strength</dt><dd className="mt-1 font-semibold">{formatConfidencePrimary(lead.evidenceStrength)}</dd></div>
-            <div><dt className={sectionTitle}>Counter evidence</dt><dd className="mt-1 font-semibold">{formatCounterEvidenceStrength(numeric(lead.counterEvidenceStrength))}</dd></div>
-            <div><dt className={sectionTitle}>Coverage</dt><dd className="mt-1 font-semibold">{lead.coverageComparable === true ? "Comparable" : "Not comparable"}</dd></div>
-            <div><dt className={sectionTitle}>Freshness</dt><dd className="mt-1 font-semibold">{label(value(lead, "freshness"))}</dd></div>
+        <Section title="Opportunity Metadata Rail" className="border-l-2 border-[var(--qt-color-warning)]">
+          <dl className="grid gap-px overflow-hidden border border-[#213021] bg-[#213021] text-sm">
+            {[
+              ["Identity", value(lead, "candidateId", "UNAVAILABLE") ? "Governed candidate" : "Unavailable"],
+              ["Symbol / timeframe", `${value(lead, "instrument", "UNAVAILABLE")} / UTC day`],
+              ["Direction", label(value(lead, "assessmentState", "NOT_EVALUABLE"))],
+              ["Source reason", leadReasons.length ? `${leadReasons.length} mapped reasons` : "No trigger reason"],
+              ["Investigation", lead.eligibleForRanking === true ? "Ready" : "Excluded"],
+              ["Repository", value(lead, "evidencePacketId", "") ? "Packet linked" : "Unavailable"],
+            ].map(([name, item]) => <div className="bg-[#070d07] p-3" key={name}><dt className={sectionTitle}>{name}</dt><dd className="mt-1 break-words font-semibold">{item}</dd></div>)}
           </dl>
         </Section>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4">
         <Section title="03 / Supporting Evidence Grid">
-          <ReasonList values={lead.ruleReasonCodes} />
+          <div className="grid gap-px overflow-hidden border border-[#213021] bg-[#213021] sm:grid-cols-2 xl:grid-cols-5">
+            {evidenceCategories.map(([name, state, detail]) => (
+              <article className="min-h-32 bg-[#070d07] p-3" key={name}>
+                <p className={`${sectionTitle} text-[var(--qt-color-evidence)]`}>{name}</p>
+                <div className="mt-3"><Badge tone={stateTone(state)}>{label(state)}</Badge></div>
+                <p className="mt-3 text-xs text-[var(--qt-color-text-secondary)]">{detail}</p>
+              </article>
+            ))}
+          </div>
         </Section>
-        <Section title="04 / Risk Factors / Coverage and Missing Data">
-          <DataStateNotice
-            state={lead.coverageComparable === false ? "GAP" : "AVAILABLE"}
-            source="ScannerCandidateProjection"
-            affectsConclusion={lead.coverageComparable === false}
-            detail="Counter evidence and Coverage comparability remain visible alongside the investigation rank."
-          />
+        <div className="grid gap-4 xl:grid-cols-2">
+        <Section title="04 / Counter Evidence / Risk Factors" className="border-l-2 border-[var(--qt-color-counter-evidence)]">
+          <p className="text-lg font-semibold">Review required</p>
+          <p className="mt-2 text-sm text-[var(--qt-color-text-secondary)]">Counter evidence strength is {formatCounterEvidenceStrength(numeric(lead.counterEvidenceStrength))}. Ranking does not remove alternative explanations.</p>
+          <ReasonList values={lead.ruleReasonCodes} empty="No supporting trigger reason was supplied; this itself limits the investigation." />
         </Section>
+        <Section title="04 / Coverage and Missing Data" className="border-l-2 border-[var(--qt-color-warning)]">
+          <DataStateNotice state={lead.coverageComparable === false ? "GAP" : "AVAILABLE"} source="ScannerCandidateProjection" affectsConclusion={lead.coverageComparable === false} detail="Core market datasets are comparable. Optional liquidation, on-chain, prediction, and news categories remain explicitly unavailable." />
+        </Section>
+        </div>
         <Section title="05 / Suggested Investigation Path">
-          <p className="text-sm text-[var(--qt-color-text-secondary)]">
-            Inspect structured Evidence first, then open the non-execution Trade
-            context for the same candidate.
-          </p>
-        </Section>
-        <Section title="06 / Validation and Audit">
-          <p className="text-sm text-[var(--qt-color-text-secondary)]">
-            Candidate identity, freshness, Coverage, and reason semantics remain
-            available in the governed Projection and technical disclosure.
-          </p>
+          <ol className="grid gap-px overflow-hidden border border-[#213021] bg-[#213021] md:grid-cols-4">
+            {[
+              ["01", "Evidence", "Verify the governed Facts and reason mapping."],
+              ["02", "Replay", "Check temporal order and discrete Funding events."],
+              ["03", "Research", "Compare support, opposition, and limitations."],
+              ["04", "Decision context", "Carry the same candidate into the non-execution workspace."],
+            ].map(([step, title, detail]) => <li className="bg-[#070d07] p-4" key={step}><p className={`${sectionTitle} text-[var(--qt-color-evidence)]`}>{step} / {title}</p><p className="mt-3 text-xs text-[var(--qt-color-text-secondary)]">{detail}</p></li>)}
+          </ol>
         </Section>
       </div>
       <Section title="06-08 / Related Replay, Related Research, and Repository Handoff">
@@ -1326,6 +1373,180 @@ function Trade({
           Review related Replay
         </PageLink>
       </WorkflowFooter>
+    </div>
+  );
+}
+
+function TradeV2Workspace({
+  payload,
+  href,
+}: {
+  payload: RecordValue;
+  href: (view: MvpView, extra?: Record<string, string>) => string;
+}) {
+  const instrument = value(payload, "selectedInstrument");
+  const window = asList(payload.relatedReplayWindow).map(String);
+  const confidence = asRecord(payload.confidence);
+  const coverage = asRecord(payload.coverage);
+  const evidence = codes(payload.evidencePacketIds)[0] ?? "";
+  const supporting = codes(payload.supportingFacts);
+  const counter = codes(payload.counterEvidence);
+  const risks = codes(payload.riskFactors);
+  const limitations = codes(payload.sourceLimitations);
+  const invalidations = asList(payload.invalidationConditions);
+  const coverageComplete = Object.values(coverage).every(
+    (item) => (numeric(item) ?? 0) >= 0.95,
+  );
+  const replayHref = href("replay", {
+    instrument,
+    start: window[0] ?? "",
+    end: window[1] ?? "",
+    timestamp: window[0] ?? "",
+  });
+  const researchHref = href("research", { instrument, evidence });
+  return (
+    <div className="grid gap-4" data-trade-decision-workspace>
+      <Section title="01 / Decision Summary">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(22rem,0.6fr)]">
+          <article className="border-l-2 border-[var(--qt-color-evidence)] bg-[#070d07] p-5">
+            <p className={`${sectionTitle} text-[var(--qt-color-evidence)]`}>Decision under evaluation</p>
+            <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-3xl font-semibold">{instrument} / {label(value(payload, "marketState"))}</h2>
+                <p className="mt-3 max-w-4xl text-sm text-[var(--qt-color-text-secondary)]">Governed Facts and counter evidence are organized for review. QuantTerminal does not issue an action, entry, target, size, or execution instruction.</p>
+              </div>
+              <Badge tone="warning">{label(value(payload, "actionState", "CONTEXT_ONLY_NO_ACTION"))}</Badge>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Badge tone={stateTone(confidence.classification)}>{formatConfidencePrimary(confidence.classification)}</Badge>
+              <Badge tone={coverageComplete ? "success" : "warning"}>{coverageComplete ? "Coverage complete" : "Coverage limited"}</Badge>
+            </div>
+            <p className="mt-4 border-t border-[#213021] pt-3 text-xs text-[var(--qt-color-warning)]">Outstanding unknowns remain user-owned: risk tolerance, execution venue, position sizing, and approval authority.</p>
+          </article>
+          <aside className="border border-[#213021] bg-[#070d07] p-4">
+            <p className={sectionTitle}>Decision Readiness</p>
+            <dl className="mt-3 divide-y divide-[#213021]">
+              {[
+                ["Candidate", value(payload, "sourceCandidateIdentity", "") ? "Available" : "Required"],
+                ["Evidence", supporting.length ? "Ready" : "Required"],
+                ["Replay validation", window.length === 2 ? "Available" : "Required"],
+                ["User risk inputs", "Required"],
+              ].map(([name, state]) => (
+                <div className="flex items-center justify-between gap-4 py-3" key={name}>
+                  <dt className="text-xs text-[var(--qt-color-text-secondary)]">{name}</dt>
+                  <dd><Badge tone={state === "Ready" || state === "Available" ? "success" : "warning"}>{state}</Badge></dd>
+                </div>
+              ))}
+            </dl>
+          </aside>
+        </div>
+      </Section>
+
+      <Section title="02 / Evidence Workspace" icon={<CheckCircle2 className="h-4 w-4 text-[var(--qt-color-success)]" />}>
+        <div className="grid gap-4 xl:grid-cols-3">
+          <article className="min-h-56 border border-[#213021] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-success)]`}>Supporting Evidence</p>
+            <h3 className="mt-3 text-lg font-semibold">{supporting.length ? `${supporting.length} governed observations` : "Unavailable"}</h3>
+            <div className="mt-4"><ReasonList values={supporting} /></div>
+          </article>
+          <article className="min-h-56 border border-[#213021] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-counter-evidence)]`}>Counter Evidence</p>
+            <h3 className="mt-3 text-lg font-semibold">{counter.length ? `${counter.length} weakening observations` : "Unavailable"}</h3>
+            <div className="mt-4"><ReasonList values={counter} /></div>
+          </article>
+          <article className="min-h-56 border border-[#213021] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-warning)]`}>Missing Information</p>
+            <h3 className="mt-3 text-lg font-semibold">Decision inputs remain open</h3>
+            <div className="mt-4"><ReasonList values={limitations} empty="No source limitation was supplied." /></div>
+            <p className="mt-4 text-xs text-[var(--qt-color-warning)]">Shared market context does not supply user risk tolerance or execution authority.</p>
+          </article>
+        </div>
+      </Section>
+
+      <Section title="03 / Supporting Reasoning">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.75fr)]">
+          <article className="border border-[#213021] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-evidence)]`}>Reasoning Card</p>
+            <h3 className="mt-3 text-lg font-semibold">{label(value(payload, "marketState"))} is the governed context.</h3>
+            <p className="mt-3 text-sm text-[var(--qt-color-text-secondary)]">The interpretation organizes the supporting Facts and opposing observations without changing either source truth or the user-owned decision.</p>
+            <p className="mt-4 text-xs text-[var(--qt-color-text-muted)]">Evidence references: {supporting.length} supporting / {counter.length} counter</p>
+          </article>
+          <aside className="border border-[#213021] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-warning)]`}>Reasoning Boundary</p>
+            <h3 className="mt-3 text-lg font-semibold">Facts outrank interpretation.</h3>
+            <p className="mt-3 text-sm text-[var(--qt-color-text-secondary)]">Rule-based meaning cannot replace missing Facts, erase counter evidence, or become a recommendation. Confidence describes evidence strength, not future-price probability.</p>
+          </aside>
+        </div>
+      </Section>
+
+      <Section title="04 / Scenario Analysis">
+        <div className="grid gap-4 xl:grid-cols-3">
+          {[
+            ["Base case", "Current context remains under review", "Supporting and counter observations remain materially mixed."],
+            ["Upside case", "Not evaluated", "No governed target or directional probability is available."],
+            ["Downside case", "Not evaluated", "No governed target or directional probability is available."],
+          ].map(([title, summary, detail], index) => (
+            <article className="min-h-48 border border-[#213021] bg-[#070d07] p-4" key={title}>
+              <p className={`${sectionTitle} text-[var(--qt-color-evidence)]`}>{title}</p>
+              <h3 className="mt-3 text-lg font-semibold">{summary}</h3>
+              <p className="mt-3 text-sm text-[var(--qt-color-text-secondary)]">{detail}</p>
+              <div className="mt-4 border-t border-[#213021] pt-3">
+                {invalidations[index] ? <InvalidationList values={[invalidations[index]]} /> : <DataStateNotice state="NOT_APPLICABLE" affectsConclusion={false} detail="No additional observable condition was supplied." />}
+              </div>
+            </article>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="05 / Risk Assessment">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <article className="border-l-2 border-[var(--qt-color-counter-evidence)] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-counter-evidence)]`}>Risk Card</p>
+            <h3 className="mt-3 text-lg font-semibold">{risks.length ? `${risks.length} governed risk observations` : "Known risks unavailable"}</h3>
+            <div className="mt-4"><ReasonList values={risks} /></div>
+            <p className="mt-4 text-xs text-[var(--qt-color-warning)]">Confidence is evidence strength and is not a calibrated probability.</p>
+          </article>
+          <div className="border border-[#213021] bg-[#070d07] p-4">
+            <p className={sectionTitle}>Risk Ledger</p>
+            <dl className="mt-3 divide-y divide-[#213021]">
+              {[
+                ["Known risks", risks.length ? `${risks.length} observed` : "Unavailable"],
+                ["Unknown risks", "Open"],
+                ["Data gaps", limitations.length ? `${limitations.length} classified` : "None reported"],
+                ["Macro risks", "Supplemental / not evaluated"],
+                ["Liquidity risks", limitations.some((item) => item.includes("ORDERBOOK") || item.includes("LIQUIDATION")) ? "Limited enrichment" : "Unavailable"],
+                ["Execution risks", "User supplied"],
+              ].map(([name, state]) => <div className="flex items-center justify-between gap-4 py-3" key={name}><dt className="text-xs text-[var(--qt-color-text-secondary)]">{name}</dt><dd className="text-xs font-semibold uppercase text-[var(--qt-color-warning)]">{state}</dd></div>)}
+            </dl>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="06 / Execution Plan" aside={<span className="font-[var(--qt-font-mono)] text-[9px] font-bold text-[var(--qt-color-warning)]">PLANNING ONLY / NO ORDER ENTRY</span>}>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {[
+            ["Preparation + confirmation", "Candidate identity verified", "Supporting evidence reviewed", "Counter evidence reviewed", "Confirmation conditions documented", "Invalidation conditions documented"],
+            ["Monitoring + review", "Risk limits documented by user", "Monitoring conditions documented", "Data-gap warnings acknowledged", "Post-decision review scheduled", "Repository references attached"],
+          ].map(([heading, ...items]) => (
+            <div className="border border-[#213021] bg-[#070d07] p-3" key={heading}>
+              <p className={sectionTitle}>{heading}</p>
+              <ul className="mt-2 divide-y divide-[#213021]">
+                {items.map((item) => <li className="flex min-h-10 items-center justify-between gap-3 py-2 text-xs" key={item}><span><span className="mr-2 text-[var(--qt-color-warning)]">[ ]</span>{item}</span><span className="font-[var(--qt-font-mono)] text-[9px] text-[#6e826e]">OPEN</span></li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 border-l-2 border-[var(--qt-color-warning)] pl-3 text-xs text-[var(--qt-color-text-secondary)]">Human decision authority remains outside QuantTerminal. This workspace does not place, route, size, or recommend an order.</p>
+      </Section>
+
+      <Section title="07 / Investigation Handoffs">
+        <div className="grid gap-px overflow-hidden border border-[#213021] bg-[#213021] md:grid-cols-3">
+          <article className="bg-[#070d07] p-4"><p className={`${sectionTitle} text-[var(--qt-color-repository)]`}>Repository Audit</p><h3 className="mt-2 text-base font-semibold">Verify lineage and Coverage</h3><p className="mt-2 text-xs text-[var(--qt-color-text-secondary)]">Candidate, Facts, Evidence, and limitations remain linked through governed identities.</p></article>
+          <article className="bg-[#070d07] p-4"><p className={`${sectionTitle} text-[var(--qt-color-success)]`}>Supporting Evidence</p><h3 className="mt-2 text-base font-semibold">Review the Evidence Packet</h3><div className="mt-3"><PageLink href={researchHref}>Open Research</PageLink></div></article>
+          <article className="bg-[#070d07] p-4"><p className={`${sectionTitle} text-[var(--qt-color-warning)]`}>Replay Handoff</p><h3 className="mt-2 text-base font-semibold">Validate the event sequence</h3><div className="mt-3"><PageLink href={replayHref}>Open Replay</PageLink></div></article>
+        </div>
+      </Section>
+      <WorkflowFooter><PageLink href={researchHref}>Research</PageLink><PageLink href={replayHref}>Replay</PageLink><PageLink href={href("markets", { instrument })}>Markets</PageLink><PageLink href={href("scanner", { instrument })}>Scanner</PageLink></WorkflowFooter>
     </div>
   );
 }
@@ -1698,6 +1919,174 @@ function Research({
   );
 }
 
+function ResearchV2Workspace({
+  payload,
+  projections,
+  href,
+  instrument,
+}: {
+  payload: RecordValue;
+  projections: unknown[];
+  href: (view: MvpView, extra?: Record<string, string>) => string;
+  instrument: string;
+}) {
+  const macroProjection = projections.map(asRecord).find((item) => item.projectionKind === "MacroContextProjection");
+  const etfProjection = projections.map(asRecord).find((item) => item.projectionKind === "BitcoinEtfFlowProjection");
+  const macro = asRecord(macroProjection?.payload);
+  const ratesContext = asRecord(macro.ratesContext);
+  const equityRiskContext = asRecord(macro.equityRiskContext);
+  const etf = asRecord(etfProjection?.payload);
+  const facts = asRecord(payload.verifiedFacts);
+  const confidence = asRecord(payload.confidence);
+  const directCoverage = asRecord(payload.coverage);
+  const coverage = Object.keys(directCoverage).length ? directCoverage : asRecord(facts.coverage);
+  const start = value(payload, "eventTimeStart", "");
+  const end = value(payload, "eventTimeEnd", "");
+  const conclusion = label(value(payload, "conclusion"));
+  const supporting = codes(payload.supportingEvidence);
+  const counter = codes(payload.counterEvidence);
+  const minimumCoverage = Math.min(
+    ...Object.values(coverage).map(numeric).filter((item): item is number => item !== null),
+  );
+  const coverageState = !Number.isFinite(minimumCoverage) ? "UNAVAILABLE" : minimumCoverage >= 0.95 ? "AVAILABLE" : minimumCoverage > 0 ? "PARTIAL" : "GAP";
+  const categories = [
+    ["On-chain", "UNAVAILABLE", "No governed source in this Evidence Packet"],
+    ["Exchange Data", "AVAILABLE", "OHLCV, Open Interest, Funding, and AggTrades"],
+    ["Macro", macroProjection ? "AVAILABLE" : "UNAVAILABLE", macroProjection ? "Certified daily supplemental context" : "No supplemental Projection"],
+    ["ETF", etfProjection ? "AVAILABLE" : "UNAVAILABLE", etfProjection ? `Daily source date ${value(etf, "observationDate")}` : "No persisted ETF Projection"],
+    ["Prediction Markets", "UNAVAILABLE", "Not a dependency of this Evidence Packet"],
+    ["Government", "UNAVAILABLE", "No governed source attached"],
+    ["Company Disclosure", "UNAVAILABLE", "No governed source attached"],
+    ["Research Papers", "UNAVAILABLE", "No governed source attached"],
+    ["News", "UNAVAILABLE", "No verified news annotation source"],
+  ] as const;
+  const availableCategories = categories.filter(([, state]) => state === "AVAILABLE").length;
+  const replayHref = href("replay", { instrument, start, end, timestamp: start, evidence: value(payload, "packetId", "") });
+  return (
+    <div className="grid gap-4" data-research-evidence-workspace>
+      <Section title="01 / Research Summary">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(24rem,0.55fr)]">
+          <article className="border-l-2 border-[var(--qt-color-success)] bg-[#070d07] p-5">
+            <p className={`${sectionTitle} text-[var(--qt-color-success)]`}>Core Research Question</p>
+            <h2 className="mt-3 text-3xl font-semibold">What evidence supports {conclusion.toLowerCase()} for {instrument}?</h2>
+            <p className="mt-3 max-w-4xl text-sm text-[var(--qt-color-text-secondary)]">Price, positioning, provider-native Funding, and bounded aggressive flow were evaluated together. Supporting and opposing observations remain separate.</p>
+            <div className="mt-5 grid gap-px overflow-hidden border border-[#213021] bg-[#213021] sm:grid-cols-3">
+              {[
+                ["Current evidence", conclusion],
+                ["Reliability", formatConfidencePrimary(confidence.classification)],
+                ["Next step", "Review counter evidence"],
+              ].map(([name, item]) => <div className="bg-[#0c140c] p-3" key={name}><p className={sectionTitle}>{name}</p><p className="mt-2 text-sm font-semibold">{item}</p></div>)}
+            </div>
+          </article>
+          <aside className="border border-[#213021] bg-[#070d07] p-4">
+            <p className={sectionTitle}>Evidence Quality Summary</p>
+            <dl className="mt-3 divide-y divide-[#213021]">
+              {[
+                ["Confidence", formatConfidencePrimary(confidence.classification)],
+                ["Freshness", "Frozen governed window"],
+                ["Provenance", "Verified lineage"],
+                ["Coverage", formatCoverageSemantic(coverageState)],
+                ["Counter evidence", counter.length ? `${counter.length} observations` : "None supplied"],
+              ].map(([name, item]) => <div className="flex items-center justify-between gap-4 py-3" key={name}><dt className="text-xs text-[var(--qt-color-text-secondary)]">{name}</dt><dd className="text-xs font-semibold">{item}</dd></div>)}
+            </dl>
+          </aside>
+        </div>
+      </Section>
+
+      <Section title="02 / Evidence Overview">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.55fr)]">
+          <div>
+            <p className={`${sectionTitle} text-[var(--qt-color-evidence)]`}>Evidence Category Matrix</p>
+            <div className="mt-3 grid gap-px overflow-hidden border border-[#213021] bg-[#213021] sm:grid-cols-2 xl:grid-cols-3">
+              {categories.map(([name, state, detail]) => (
+                <article className="min-h-28 bg-[#070d07] p-3" key={name}>
+                  <p className={sectionTitle}>{name}</p>
+                  <div className="mt-3"><Badge tone={stateTone(state)}>{label(state)}</Badge></div>
+                  <p className="mt-3 text-xs text-[var(--qt-color-text-secondary)]">{detail}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+          <aside className="border-l-2 border-[var(--qt-color-warning)] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-warning)]`}>Evidence Readiness</p>
+            <h3 className="mt-3 text-2xl font-semibold">{availableCategories} of {categories.length} categories available</h3>
+            <dl className="mt-4 divide-y divide-[#213021]">
+              {[
+                ["Canonical", coverageState === "AVAILABLE" ? "Available" : coverageState],
+                ["Partial", "None"],
+                ["Experimental", "None required"],
+                ["Missing", `${categories.length - availableCategories} categories`],
+              ].map(([name, state]) => <div className="flex items-center justify-between py-3" key={name}><dt className="text-xs text-[var(--qt-color-text-secondary)]">{name}</dt><dd className="text-xs font-semibold uppercase">{state}</dd></div>)}
+            </dl>
+            <div className="mt-4 border border-[var(--qt-color-success)] p-3"><p className={`${sectionTitle} text-[var(--qt-color-success)]`}>Next Safe Action</p><p className="mt-2 text-sm">Review the bounded Replay sequence and mandatory counter evidence.</p></div>
+          </aside>
+        </div>
+      </Section>
+
+      <Section title="03 / Primary Sources">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1050px] border-collapse text-left text-xs">
+            <thead><tr className="border-b border-[#213021] text-[var(--qt-color-text-muted)]">{["Source", "Category", "Observed", "Confidence", "Freshness", "Availability", "Repository / audit"].map((item) => <th className="px-3 py-3 font-semibold uppercase" key={item}>{item}</th>)}</tr></thead>
+            <tbody className="divide-y divide-[#213021]">
+              {[
+                ["Binance official archives", "Exchange Data", formatUtcDate(end), formatConfidencePrimary(confidence.classification), "Frozen corpus", "AVAILABLE", "Fact and Segment lineage"],
+                ["FRED DGS10", "Macro", formatUtcDate(ratesContext.observationDate), "Supplemental", "Daily", macroProjection ? "AVAILABLE" : "UNAVAILABLE", "Macro Projection"],
+                ["Alpha Vantage SPY", "Macro", formatUtcDate(equityRiskContext.observationDate), "Supplemental", "Daily", macroProjection ? "AVAILABLE" : "UNAVAILABLE", "Macro Projection"],
+                ["Farside Bitcoin ETF Flow", "ETF", value(etf, "observationDate"), "Supplemental", "Daily", etfProjection ? "AVAILABLE" : "UNAVAILABLE", "ETF Projection"],
+              ].map((row) => <tr key={row[0]}>{row.map((item, index) => <td className={`px-3 py-3 ${index === 5 ? "font-semibold text-[var(--qt-color-success)]" : "text-[var(--qt-color-text-secondary)]"}`} key={`${row[0]}-${index}`}>{item}</td>)}</tr>)}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="04-05 / Reasoning and Counter Evidence">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <article className="border-l-2 border-[var(--qt-color-reasoning)] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-reasoning)]`}>Evidence-Bound Reasoning</p>
+            <h3 className="mt-3 text-xl font-semibold">{conclusion}</h3>
+            <p className="mt-3 text-sm text-[var(--qt-color-text-secondary)]">This is a governed interpretation of verified Facts, not a provider observation and not a forecast.</p>
+            <div className="mt-4"><ReasonList values={supporting} /></div>
+            <dl className="mt-4 grid gap-2 border-t border-[#213021] pt-3 sm:grid-cols-2"><div><dt className={sectionTitle}>Supporting Evidence</dt><dd className="mt-1 text-sm">{supporting.length} observations</dd></div><div><dt className={sectionTitle}>Assumptions</dt><dd className="mt-1 text-sm">No missing value becomes zero</dd></div><div><dt className={sectionTitle}>Confidence</dt><dd className="mt-1 text-sm">{formatConfidencePrimary(confidence.classification)}</dd></div><div><dt className={sectionTitle}>Freshness</dt><dd className="mt-1 text-sm">Frozen event window</dd></div></dl>
+          </article>
+          <article className="border-l-2 border-[var(--qt-color-counter-evidence)] bg-[#070d07] p-4">
+            <p className={`${sectionTitle} text-[var(--qt-color-counter-evidence)]`}>Mandatory Counter Evidence</p>
+            <h3 className="mt-3 text-xl font-semibold">Alternative explanations remain active</h3>
+            <p className="mt-3 text-sm text-[var(--qt-color-text-secondary)]">Opposing observations retain comparable prominence and reduce evidence strength.</p>
+            <div className="mt-4"><ReasonList values={counter} /></div>
+            <dl className="mt-4 grid gap-2 border-t border-[#213021] pt-3 sm:grid-cols-2"><div><dt className={sectionTitle}>Alternative interpretations</dt><dd className="mt-1 text-sm">{counter.length ? "Present" : "Unavailable"}</dd></div><div><dt className={sectionTitle}>Conflicting datasets</dt><dd className="mt-1 text-sm">None unresolved</dd></div><div><dt className={sectionTitle}>Missing information</dt><dd className="mt-1 text-sm">Optional enrichment unavailable</dd></div><div><dt className={sectionTitle}>Data quality concerns</dt><dd className="mt-1 text-sm">Classified limitations preserved</dd></div></dl>
+          </article>
+        </div>
+      </Section>
+
+      <Section title="Research Relationship Graph">
+        <div className="overflow-x-auto py-2" role="img" aria-label="Evidence relationship: verified facts support the research question, governed reasoning interprets the facts, counter evidence opposes the reasoning, and Replay and Repository retain the audit trail.">
+          <div className="grid min-w-[980px] grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+            <div className="border border-[var(--qt-color-success)] bg-[#070d07] p-4"><p className={`${sectionTitle} text-[var(--qt-color-success)]`}>Verified Facts</p><p className="mt-2 text-sm">Price / OI / Funding / Flow</p></div>
+            <span className="text-xl text-[var(--qt-color-evidence)]" aria-hidden="true">-&gt;</span>
+            <div className="border border-[var(--qt-color-evidence)] bg-[#070d07] p-4"><p className={`${sectionTitle} text-[var(--qt-color-evidence)]`}>Research Question</p><p className="mt-2 text-sm">What supports {conclusion.toLowerCase()}?</p></div>
+            <span className="text-xl text-[var(--qt-color-counter-evidence)]" aria-hidden="true">&lt;-&gt;</span>
+            <div className="grid gap-2"><div className="border border-[var(--qt-color-reasoning)] bg-[#070d07] p-3"><p className={sectionTitle}>Reasoning</p></div><div className="border border-[var(--qt-color-counter-evidence)] bg-[#070d07] p-3"><p className={sectionTitle}>Counter Evidence</p></div></div>
+          </div>
+          <div className="mx-auto mt-3 grid min-w-[760px] max-w-4xl grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3 text-center"><div className="border border-[#213021] p-3">Replay</div><span aria-hidden="true">&lt;-&gt;</span><div className="border border-[#213021] p-3">Research Trail</div><span aria-hidden="true">&lt;-&gt;</span><div className="border border-[#213021] p-3">Repository</div></div>
+        </div>
+      </Section>
+
+      <Section title="06-07 / Related Research and Repository">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <article className="border border-[#213021] bg-[#070d07] p-4"><p className={`${sectionTitle} text-[var(--qt-color-success)]`}>Related Research</p><h3 className="mt-3 text-lg font-semibold">Continue the investigation</h3><dl className="mt-4 divide-y divide-[#213021]">{[["Historical Analogs", "LOAD REQUIRED"], ["Market Memory", "LOAD REQUIRED"], ["Event Impact", "UNAVAILABLE"], ["Saved Research Trails", "NOT APPLICABLE"]].map(([name, state]) => <div className="flex items-center justify-between py-3" key={name}><dt className="text-xs">{name}</dt><dd><Badge tone={stateTone(state)}>{state}</Badge></dd></div>)}</dl><div className="mt-4"><PageLink href={replayHref}>Open related Replay</PageLink></div></article>
+          <article className="border border-[#213021] bg-[#070d07] p-4"><p className={`${sectionTitle} text-[var(--qt-color-repository)]`}>Repository Audit</p><h3 className="mt-3 text-lg font-semibold">Verify every claim</h3><dl className="mt-4 divide-y divide-[#213021]">{[["Projection status", "AVAILABLE"], ["Fact records", "AVAILABLE"], ["Source watermark", "AVAILABLE"], ["Repository link", "READY"]].map(([name, state]) => <div className="flex items-center justify-between py-3" key={name}><dt className="text-xs">{name}</dt><dd><Badge tone={stateTone(state)}>{state}</Badge></dd></div>)}</dl></article>
+        </div>
+      </Section>
+
+      <details className={`${surface} group`}>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-[var(--qt-type-caption-size)] font-bold uppercase text-[var(--qt-color-text-secondary)]"><span className="flex items-center gap-2"><FileSearch className="h-4 w-4" />Technical Evidence</span><span className="group-open:hidden">Show lineage, versions, and checksums</span><span className="hidden group-open:inline">Hide details</span></summary>
+        <div className="grid gap-4 border-t border-[var(--qt-color-border)] p-4 xl:grid-cols-2"><MetricRows data={{ verifiedFacts: payload.verifiedFacts, structuredInterpretation: payload.interpretation, sourceLineage: payload.sourceLineage }} /><MetricRows data={{ packetId: payload.packetId, packetVersionId: payload.packetVersionId, supersessionStatus: payload.supersessionStatus, recomputeIdentity: payload.recomputeIdentity, ruleVersions: payload.ruleVersions }} /></div>
+      </details>
+      <WorkflowFooter><PageLink href={replayHref}>Replay</PageLink><PageLink href={href("markets", { instrument })}>Markets</PageLink><PageLink href={href("scanner", { instrument })}>Scanner</PageLink><PageLink href={href("trade", { instrument })}>Trade</PageLink></WorkflowFooter>
+    </div>
+  );
+}
+
 function SharedStatus({
   projections,
   asOf,
@@ -1885,7 +2274,7 @@ export default function MvpCutoverPage({ view }: { view: MvpView }) {
     ) : view === "scanner" ? (
       <Scanner payload={payload} href={href} />
     ) : view === "trade" ? (
-      <Trade payload={payload} href={href} />
+      <TradeV2Workspace payload={payload} href={href} />
     ) : view === "replay" ? (
       <Replay
         payload={payload}
@@ -1894,7 +2283,7 @@ export default function MvpCutoverPage({ view }: { view: MvpView }) {
         instrument={instrument}
       />
     ) : (
-      <Research
+      <ResearchV2Workspace
         payload={payload}
         projections={projections}
         href={href}
@@ -1912,9 +2301,9 @@ export default function MvpCutoverPage({ view }: { view: MvpView }) {
   return (
     <main
       data-qt-foundation="mvp-cutover"
-      className="min-h-screen overflow-x-hidden bg-[var(--qt-color-background)] px-3 py-4 font-[var(--qt-font-sans)] text-[var(--qt-color-text-primary)] sm:px-4"
+      className="min-h-screen overflow-x-hidden bg-[var(--qt-color-background)] px-3 py-4 font-[var(--qt-font-sans)] text-[var(--qt-color-text-primary)] sm:px-4 xl:px-5"
     >
-      <div className="mx-auto grid max-w-[1210px] gap-4">
+      <div className="mr-auto grid w-full max-w-[1660px] gap-4" data-governed-workspace>
         <header
           className={`${surface} grid min-h-[72px] gap-3 px-4 py-3 lg:grid-cols-[330px_minmax(0,1fr)_auto] lg:items-center`}
         >

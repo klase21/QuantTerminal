@@ -38,7 +38,7 @@ const checks: Array<readonly [string, boolean]> = [
   ],
   [
     "external context is non-blocking",
-    page.includes("Daily supplemental observations") &&
+    page.includes("Daily context does not recompute the governed crypto conclusion.") &&
       page.includes("Core crypto Evidence remains functional"),
   ],
   [

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "mvp-6d-wide-desktop-qa/v1",
+  "status": "PASS_AWAITING_USER_VISUAL_APPROVAL",
+  "browser": "Chrome",
+  "routes": ["dashboard", "markets", "scanner", "trade", "research", "replay"],
+  "viewports": ["1920x1680", "1920x1080", "1600x1200", "1440x900", "1280x800", "1024x768", "768x1024", "390x844", "360x800"],
+  "routeViewportCells": 54,
+  "fatalStateCount": 0,
+  "pageOverflowCount": 0,
+  "desktopGeometry": {
+    "navigationWidthPx": 190,
+    "workspaceLeftPx": 210,
+    "postNavigationGutterPx": 20,
+    "workspaceWidthAt1920Px": 1660,
+    "workspaceRightAt1920Px": 1870,
+    "rightResidualPx": 50,
+    "centeredCanvasDetected": false
+  },
+  "wideDesktopChecks": {
+    "MarketsHorizontalLedger": "PASS",
+    "MarketsDateWrapping": "PASS_SINGLE_LINE",
+    "MarketsActionGrouping": "PASS_HORIZONTAL",
+    "ScannerOpportunityDepth": "PASS",
+    "TradeWorkspaceSections": "PASS_7_OF_7",
+    "ResearchRequiredRegions": "PASS",
+    "ReplayExpandedTimeline": "PASS"
+  },
+  "responsiveNote": "Mobile frames were not supplied by Figma. Narrow layouts mechanically stack the desktop hierarchy and retain explicit Evidence and limitation states."
+}

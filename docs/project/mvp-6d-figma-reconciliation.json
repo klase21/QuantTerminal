@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "mvp-6d-figma-reconciliation/v1",
+  "status": "IMPLEMENTED_AWAITING_USER_VISUAL_APPROVAL",
+  "inspectedAt": "2026-07-15T00:00:00.000Z",
+  "referenceViewport": "1440x900",
+  "primaryUserViewport": "1920x1680",
+  "classificationEnum": [
+    "ADOPTED",
+    "ADAPTED_FOR_REAL_DATA",
+    "ADAPTED_FOR_ACCESSIBILITY",
+    "ADAPTED_FOR_RESPONSIVENESS",
+    "ADAPTED_FOR_PERFORMANCE",
+    "REJECTED_DATA_TRUTH_CONFLICT",
+    "REJECTED_PROTECTED_RUNTIME_CONFLICT",
+    "FIGMA_CROSS_FILE_CONFLICT",
+    "DEFERRED_WITH_REASON"
+  ],
+  "shared": [
+    {"section":"190px navigation rail","classification":"ADOPTED","implementation":"Fixed desktop rail with a 20px post-rail gutter and viewport-stable readiness state."},
+    {"section":"Dashboard Make narrow navigation","classification":"FIGMA_CROSS_FILE_CONFLICT","implementation":"The dominant 190px navigation used by the five Design files remains authoritative."},
+    {"section":"Mobile hierarchy","classification":"ADAPTED_FOR_RESPONSIVENESS","implementation":"No authoritative mobile frames exist; desktop order is mechanically stacked without removing Evidence or limitations."}
+  ],
+  "pages": {
+    "Dashboard": [
+      {"section":"Context toolbar","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Governed reference and live overlay","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Market Direction","classification":"ADOPTED"},
+      {"section":"Six-instrument overview","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Primary drivers and counter evidence","classification":"ADOPTED"},
+      {"section":"Macro and ETF context","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Featured Investigation","classification":"ADOPTED"},
+      {"section":"Coverage disclosure","classification":"ADAPTED_FOR_PERFORMANCE"}
+    ],
+    "Markets": [
+      {"section":"Markets Context Toolbar","classification":"ADOPTED"},
+      {"section":"L1 Global Market Summary","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"L2 Sector Rotation and instrument comparison","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"L3 Capital Flow","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"L4 Derivatives Intelligence","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"L5 Macro and ETF","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"L6 Prediction Markets","classification":"REJECTED_DATA_TRUTH_CONFLICT"},
+      {"section":"L7 Breadth","classification":"REJECTED_DATA_TRUTH_CONFLICT"},
+      {"section":"Investigation handoffs","classification":"ADOPTED"}
+    ],
+    "Scanner": [
+      {"section":"Scanner Toolbar","classification":"ADOPTED"},
+      {"section":"Priority Queue and Queue Summary","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Canonical Opportunity Card","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Opportunity Metadata Rail","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Supporting Evidence Grid","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Counter Evidence and Risk Factors","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Coverage and Missing Data","classification":"ADOPTED"},
+      {"section":"Suggested Investigation Path","classification":"ADOPTED"},
+      {"section":"Related Replay, Research, and Repository","classification":"ADOPTED"},
+      {"section":"Investigation Timeline","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Cross Navigation and Scanner Policy","classification":"ADOPTED"}
+    ],
+    "Trade": [
+      {"section":"01 Decision Summary and Decision Readiness","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"02 three-card Evidence Workspace","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"03 Supporting Reasoning and Reasoning Boundary","classification":"ADOPTED"},
+      {"section":"04 three-card Scenario Analysis","classification":"REJECTED_DATA_TRUTH_CONFLICT","implementation":"Card structure is preserved; unsupported targets remain explicitly not evaluated."},
+      {"section":"05 Risk Card and Risk Ledger","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"06 Execution Plan","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"07 Investigation Handoffs","classification":"ADOPTED"},
+      {"section":"Workflow Footer","classification":"ADOPTED"}
+    ],
+    "Research": [
+      {"section":"Research Context Toolbar","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"01 Research Summary","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"02 Evidence Category Matrix","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Evidence Readiness","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"03 Primary Sources table","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"04 Evidence-Bound Reasoning","classification":"ADOPTED"},
+      {"section":"05 Mandatory Counter Evidence","classification":"ADOPTED"},
+      {"section":"Research Relationship Graph","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"06 Related Research","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"07 Repository Audit","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Technical Evidence disclosure","classification":"ADAPTED_FOR_ACCESSIBILITY"}
+    ],
+    "Replay": [
+      {"section":"Replay Summary","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Primary Evidence Timeline","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Reasoning Timeline","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Cursor Detail and Evidence panel","classification":"ADAPTED_FOR_REAL_DATA"},
+      {"section":"Historical Context","classification":"REJECTED_DATA_TRUTH_CONFLICT"},
+      {"section":"Market Structure","classification":"REJECTED_PROTECTED_RUNTIME_CONFLICT"},
+      {"section":"Investigation handoffs","classification":"ADOPTED"},
+      {"section":"Technical timeline disclosure","classification":"ADAPTED_FOR_PERFORMANCE"}
+    ]
+  }
+}
