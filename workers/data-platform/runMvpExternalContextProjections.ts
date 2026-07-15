@@ -1,4 +1,3 @@
-import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import {
   ConsistencyPostgresRuntime,
   MvpProjectionStore,
@@ -13,6 +12,11 @@ import {
 import { createIntegratedBackfillClientsFromEnvironment } from "@/lib/data-platform/population/backfill"
 
 type Command = "generate" | "recompute" | "status"
+
+function argument(name: string): string | undefined {
+  const prefix = `--${name}=`
+  return process.argv.find((value) => value.startsWith(prefix))?.slice(prefix.length)
+}
 
 function environment(): D4Environment {
   return {
@@ -53,6 +57,20 @@ interface ExternalFactRow {
   readonly recorded_at: Date
 }
 
+interface EtfFactRow {
+  readonly fact_id: string
+  readonly canonical_record_id: string
+  readonly record_version: number
+  readonly provider_id: string
+  readonly instrument_id: string
+  readonly flow_value: string
+  readonly currency: string
+  readonly window_start: Date
+  readonly window_end: Date
+  readonly checksum: string
+  readonly recorded_at: Date
+}
+
 function factDependency(row: ExternalFactRow): MvpProjectionDependency {
   return Object.freeze({
     dependencyType: "CANONICAL_FACT",
@@ -60,6 +78,14 @@ function factDependency(row: ExternalFactRow): MvpProjectionDependency {
     dependencyVersion: String(row.record_version),
     dependencyChecksum: row.checksum,
   })
+}
+
+function etfFactDependency(row: EtfFactRow): MvpProjectionDependency {
+  return Object.freeze({ dependencyType: "CANONICAL_FACT", dependencyId: row.canonical_record_id, dependencyVersion: String(row.record_version), dependencyChecksum: row.checksum })
+}
+
+function sumIntegerStrings(rows: readonly EtfFactRow[]): string {
+  return rows.reduce((total, row) => total + BigInt(row.flow_value), BigInt(0)).toString()
 }
 
 async function buildMacroProjection() {
@@ -152,6 +178,73 @@ async function buildMacroProjection() {
   }
 }
 
+async function buildBitcoinEtfFlowProjection() {
+  const clients = await createIntegratedBackfillClientsFromEnvironment({
+    repositoryRoot: process.cwd(),
+    d2: { roleIntent: "READ_ONLY", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp6a-etf-projection-d2" },
+    d3: { roleIntent: "READ_ONLY", maxConnections: 1, applicationName: "mvp6a-etf-projection-d3" },
+  })
+  try {
+    const totals = await clients.d2.sql.unsafe<EtfFactRow[]>(
+      "SELECT fact_id,canonical_record_id,record_version,provider_id,instrument_id,flow_value::text,currency,window_start,window_end,checksum,recorded_at FROM canonical.etf_observations WHERE provider_id='farside-investors' AND instrument_id='TOTAL' ORDER BY window_start DESC LIMIT 20",
+    )
+    if (totals.length < 5) throw new Error("MVP_ETF_PROJECTION_INSUFFICIENT_HISTORY")
+    const latestTotal = totals[0]!
+    const latestFunds = await clients.d2.sql.unsafe<EtfFactRow[]>(
+      "SELECT fact_id,canonical_record_id,record_version,provider_id,instrument_id,flow_value::text,currency,window_start,window_end,checksum,recorded_at FROM canonical.etf_observations WHERE provider_id='farside-investors' AND window_start=$1 AND instrument_id<>'TOTAL' ORDER BY instrument_id",
+      [latestTotal.window_start],
+    )
+    const coverage = await clients.d3.sql.unsafe<Array<{ decision_id: string }>>(
+      "SELECT decision_id FROM coverage.watermark_eligibility_decisions WHERE dataset_id='etf-flow' AND provider_id='farside-investors' AND eligibility_result='ELIGIBLE' ORDER BY created_at DESC,decision_id DESC LIMIT 1",
+    )
+    if (!coverage[0]) throw new Error("MVP_ETF_PROJECTION_COVERAGE_MISSING")
+    const latestPositive = [...latestFunds].filter((row) => BigInt(row.flow_value) > BigInt(0)).sort((left, right) => Number(BigInt(right.flow_value) - BigInt(left.flow_value)))[0] ?? null
+    const latestNegative = [...latestFunds].filter((row) => BigInt(row.flow_value) < BigInt(0)).sort((left, right) => Number(BigInt(left.flow_value) - BigInt(right.flow_value)))[0] ?? null
+    const fiveDayTotal = sumIntegerStrings(totals.slice(0, 5))
+    const twentyDayTotal = totals.length >= 20 ? sumIntegerStrings(totals.slice(0, 20)) : null
+    const relationship = BigInt(fiveDayTotal) > BigInt(0) ? "SUPPORTIVE" : BigInt(fiveDayTotal) < BigInt(0) ? "OPPOSING" : "NEUTRAL"
+    const dependencies = [
+      ...totals.map(etfFactDependency),
+      ...latestFunds.map(etfFactDependency),
+      { dependencyType: "COVERAGE_DECISION" as const, dependencyId: coverage[0].decision_id, dependencyVersion: null, dependencyChecksum: null },
+    ]
+    const ordered = [...totals].sort((left, right) => left.window_start.getTime() - right.window_start.getTime())
+    const knowledgeTimeCutoff = [...totals, ...latestFunds].map((row) => row.recorded_at.toISOString()).sort().at(-1)!.replace(/\.\d{3}Z$/, ".000Z")
+    return createMvpProjection({
+      kind: "BitcoinEtfFlowProjection",
+      subjectId: "BTC_SPOT_ETF_US",
+      eventTimeStart: ordered[0]!.window_start.toISOString(),
+      eventTimeEnd: latestTotal.window_end.toISOString(),
+      knowledgeTimeCutoff,
+      dependencies,
+      completeness: totals.length >= 20 ? "COMPLETE" : "COMPLETE_WITH_LIMITATION",
+      limitations: ["DAILY_NOT_REALTIME", "OBSERVED_FLOW_IS_NOT_ESTIMATED_DEMAND", "MISSING_FUND_VALUE_IS_NOT_ZERO"],
+      payload: {
+        classification: relationship,
+        cryptoAssessmentRelationship: `${relationship}_SUPPLEMENTAL_CONTEXT`,
+        frequency: "DAILY",
+        unit: "USD",
+        sourceUnit: "USD_MILLIONS",
+        observationDate: latestTotal.window_start.toISOString().slice(0, 10),
+        latestDailyTotalUsd: latestTotal.flow_value,
+        fiveTradingDayTotalUsd: fiveDayTotal,
+        twentyTradingDayTotalUsd: twentyDayTotal,
+        leadingPositiveContributor: latestPositive ? { fundId: latestPositive.instrument_id, flowUsd: latestPositive.flow_value } : null,
+        leadingNegativeContributor: latestNegative ? { fundId: latestNegative.instrument_id, flowUsd: latestNegative.flow_value } : null,
+        coverage: "COMPLETE_BOUNDED_SOURCE_TABLE",
+        sourceAvailability: "PUBLICLY_AVAILABLE",
+        representation: "HTML_EMBEDDED_TABLE",
+        acquisition: "BROWSER_BACKED_SCHEDULED_RETRIEVAL",
+        sourceReferences: [...totals, ...latestFunds].map((row) => ({ provider: row.provider_id, fundId: row.instrument_id, factId: row.fact_id, checksum: row.checksum })),
+        sourcePublicationState: "PENDING",
+        methodologyVersion: "mvp-bitcoin-etf-flow/1.0.0",
+      },
+    })
+  } finally {
+    await clients.shutdown()
+  }
+}
+
 async function execute(command: "generate" | "recompute") {
   const owner = runtime("MIGRATION_OWNER", "mvp6a-external-projection-definition")
   const builder = runtime("PROJECTION_BUILDER", "mvp6a-external-projection-builder")
@@ -159,30 +252,18 @@ async function execute(command: "generate" | "recompute") {
   await builder.connect()
   try {
     await seedMvpProjectionDefinitions(owner, MVP_SUPPLEMENTAL_PROJECTION_DEFINITIONS)
-    const baseProjection = await buildMacroProjection()
-    const predecessors = await owner.sql.unsafe<Array<{ projection_version_id: string; projection_checksum: string }>>(
-      "SELECT projection_version_id,projection_checksum FROM projection.mvp_projection_versions WHERE projection_id=$1 AND supersedes_projection_version_id IS NULL ORDER BY created_at,projection_version_id LIMIT 1",
-      [baseProjection.projectionId],
-    )
-    const predecessor = predecessors[0]
-    const projection = predecessor && predecessor.projection_checksum !== baseProjection.projectionChecksum
-      ? createMvpProjection({
-          kind: baseProjection.projectionKind,
-          subjectId: baseProjection.subjectId,
-          eventTimeStart: baseProjection.eventTimeStart,
-          eventTimeEnd: baseProjection.eventTimeEnd,
-          knowledgeTimeCutoff: baseProjection.knowledgeTimeCutoff,
-          payload: baseProjection.structuredPayload,
-          dependencies: [...baseProjection.dependencies, { dependencyType: "PROJECTION", dependencyId: baseProjection.projectionId, dependencyVersion: predecessor.projection_version_id, dependencyChecksum: predecessor.projection_checksum }],
-          completeness: baseProjection.completeness,
-          limitations: baseProjection.limitations,
-          supersedesProjectionVersionId: predecessor.projection_version_id,
-        })
-      : baseProjection
-    const result = await new MvpProjectionStore(builder).write(projection)
-    if (result.status === "CONFLICT") throw new Error("MVP_EXTERNAL_CONTEXT_PROJECTION_CONFLICT")
-    if (command === "recompute" && result.status !== "DUPLICATE") throw new Error("MVP_EXTERNAL_CONTEXT_RECOMPUTE_NOT_IDEMPOTENT")
-    process.stdout.write(`${JSON.stringify({ command, status: result.status, projectionId: projection.projectionId, projectionVersionId: projection.projectionVersionId, checksum: projection.projectionChecksum, supersedesProjectionVersionId: projection.supersedesProjectionVersionId, existingCryptoProjectionsMutated: false, bitcoinEtfFlowProjection: "SOURCE_ACCESS_BLOCKED_NO_PROJECTION_CREATED" }, null, 2)}\n`)
+    const kind = argument("kind")
+    if (kind !== "macro" && kind !== "etf") throw new Error("MVP_EXTERNAL_CONTEXT_PROJECTION_KIND_REQUIRED:--kind=macro|etf")
+    const projections = kind === "macro" ? [await buildMacroProjection()] : [await buildBitcoinEtfFlowProjection()]
+    const outputs = []
+    const store = new MvpProjectionStore(builder)
+    for (const projection of projections) {
+      const result = await store.write(projection)
+      if (result.status === "CONFLICT") throw new Error("MVP_EXTERNAL_CONTEXT_PROJECTION_CONFLICT")
+      if (command === "recompute" && result.status !== "DUPLICATE") throw new Error("MVP_EXTERNAL_CONTEXT_RECOMPUTE_NOT_IDEMPOTENT")
+      outputs.push({ projectionKind: projection.projectionKind, status: result.status, projectionId: projection.projectionId, projectionVersionId: projection.projectionVersionId, checksum: projection.projectionChecksum, exposure: projection.consumerExposureState })
+    }
+    process.stdout.write(`${JSON.stringify({ command, projections: outputs, existingCryptoProjectionsMutated: false }, null, 2)}\n`)
   } finally {
     await builder.shutdown()
     await owner.shutdown()
@@ -196,7 +277,7 @@ async function status() {
     const rows = await reader.sql.unsafe<Array<{ projection_kind: string; count: number }>>(
       "SELECT projection_kind,count(*)::int count FROM projection.mvp_projection_versions WHERE projection_kind IN ('MacroContextProjection','BitcoinEtfFlowProjection') GROUP BY projection_kind ORDER BY projection_kind",
     )
-    process.stdout.write(`${JSON.stringify({ projections: Object.fromEntries(rows.map((row) => [row.projection_kind, row.count])), farside: "SOURCE_ACCESS_BLOCKED" }, null, 2)}\n`)
+    process.stdout.write(`${JSON.stringify({ projections: Object.fromEntries(rows.map((row) => [row.projection_kind, row.count])), farside: "PUBLICLY_AVAILABLE_BROWSER_BACKED" }, null, 2)}\n`)
   } finally {
     await reader.shutdown()
   }

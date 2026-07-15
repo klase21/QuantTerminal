@@ -10,6 +10,7 @@ import {
   parseFarsideCell,
   parseFredObservations,
   parseFredSeriesMetadata,
+  FARSIDE_BITCOIN_ETF_SOURCE,
   VERIFIED_ALPHA_VANTAGE_SERIES,
   VERIFIED_FRED_SERIES,
 } from "../../lib/external-context"
@@ -58,11 +59,22 @@ assert.deepEqual(parseFarsideCell("0"), { state: "ZERO", value: 0, sourceValue: 
 assert.deepEqual(parseFarsideCell("1,234.5"), { state: "POSITIVE", value: 1234.5, sourceValue: "1234.5" })
 assert.deepEqual(parseFarsideCell("(12.5)"), { state: "NEGATIVE", value: -12.5, sourceValue: "-12.5" })
 assert.deepEqual(parseFarsideCell("not-a-number"), { state: "MALFORMED", sourceText: "not-a-number" })
-const farside = ready(parseFarsideBitcoinEtfAllData("<table><tr><th>Date</th><th>IBIT</th><th>Total</th></tr><tr><td>15 Jul 2026</td><td></td><td>-</td></tr><tr><td>14 Jul 2026</td><td>0</td><td>(12.5)</td></tr></table>"))
-assert.equal(farside.rows[0]?.total.state, "DASH")
-assert.equal(farside.rows[1]?.cells.IBIT.state, "ZERO")
+const farsideHeaders = ["Date", "IBIT", "FBTC", "BITB", "ARKB", "BTCO", "EZBC", "BRRR", "HODL", "BTCW", "MSBT", "GBTC", "BTC", "Total"]
+const farsideRow = (date: string, values: readonly string[]) => `<tr><td>${date}</td>${values.map((value) => `<td>${value}</td>`).join("")}</tr>`
+const farside = ready(parseFarsideBitcoinEtfAllData(`<table class="etf"><tr>${farsideHeaders.map((header) => `<th>${header}</th>`).join("")}</tr>${farsideRow("15 Jul 2026", ["1.0", "-", "0.0", "", "-", "-", "-", "-", "-", "-", "-", "-", "1.0"])}${farsideRow("14 Jul 2026", ["(12.5)", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "(12.5)"])}${farsideRow("Total", ["(11.5)", "-", "0.0", "-", "-", "-", "-", "-", "-", "-", "-", "-", "(11.5)"])}</table>`))
+assert.equal(farside.rows.length, 2)
+assert.equal(farside.rows[0]?.cells.BITB.state, "ZERO")
+assert.equal(farside.rows[1]?.cells.IBIT.state, "NEGATIVE")
 assert.equal(farside.rows[1]?.total.state, "NEGATIVE")
-assert.equal(parseFarsideBitcoinEtfAllData("<table><tr><th>Date</th><th>Total</th></tr><tr><td>1</td><td>1</td></tr></table>", { maxRows: 0 }).state, "TOO_LARGE")
+assert.equal(farside.cumulativeRow.rowKind, "CUMULATIVE_TOTAL")
+assert.deepEqual(farside.reconciliation, { checkedRows: 2, matchedRows: 2, mismatches: [] })
+assert.deepEqual(
+  [FARSIDE_BITCOIN_ETF_SOURCE.sourceAvailability, FARSIDE_BITCOIN_ETF_SOURCE.representation, FARSIDE_BITCOIN_ETF_SOURCE.directHttpPath, FARSIDE_BITCOIN_ETF_SOURCE.acquisition],
+  ["PUBLICLY_AVAILABLE", "HTML_EMBEDDED_TABLE", "UNCERTIFIED_OR_EDGE_REJECTED", "BROWSER_BACKED_SCHEDULED_RETRIEVAL"],
+)
+assert.equal(parseFarsideBitcoinEtfAllData("<table class=\"etf\"><tr><th>Date</th><th>Total</th></tr><tr><td>1</td><td>1</td></tr></table>").state, "INVALID_RESPONSE")
+assert.equal(parseFarsideBitcoinEtfAllData(`<table class="etf"><tr>${farsideHeaders.map((header) => `<th>${header}</th>`).join("")}</tr>${farsideRow("15 Jul 2026", ["1", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "2"])}${farsideRow("Total", ["1", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "1"])}</table>`).state, "INVALID_RESPONSE")
+assert.equal(parseFarsideBitcoinEtfAllData("<table class=\"etf\"></table>", { maxRows: 0 }).state, "TOO_LARGE")
 
 assert.deepEqual(VERIFIED_FRED_SERIES.map((entry) => entry.seriesId), ["DGS2", "DGS10", "T10Y2Y", "DTWEXBGS", "FEDFUNDS", "WALCL"])
 assert.deepEqual(VERIFIED_ALPHA_VANTAGE_SERIES.map((entry) => entry.role), ["SPY", "QQQ", "GLD", "WTI_CRUDE_OIL", "EUR_USD"])

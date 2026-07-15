@@ -10,10 +10,19 @@ import {
 } from "./fred"
 import {
   FARSIDE_BITCOIN_ETF_ALL_DATA_URL,
+  FARSIDE_BITCOIN_ETF_WORDPRESS_URL,
   parseFarsideBitcoinEtfAllData,
   type FarsideCell,
 } from "./farsideBitcoinEtf"
 import type { AlphaVantageRole, FredRole } from "./registry"
+
+interface FarsideRetrieval {
+  readonly html: string
+  readonly retrievedAt: string
+  readonly acquisition: "WORDPRESS_OFFICIAL_API" | "BROWSER_BACKED_SCHEDULED_RETRIEVAL"
+  readonly wordpressStatus: number
+  readonly browserStatus: number | null
+}
 
 export type ExternalCanaryProvider = "fred" | "alpha-vantage" | "farside"
 
@@ -81,10 +90,51 @@ function flowObservation(date: string, fundId: string, cell: FarsideCell): Exter
   const window = utcDay(date)
   return Object.freeze({
     sourceObservationId: `farside-investors:bitcoin-etf:${fundId}:${date}`,
-    sourceObservedAt: window.end,
-    effectiveAt: window.end,
+    sourceObservedAt: window.start,
+    effectiveAt: window.start,
     payload: Object.freeze({ instrumentId: "BTC_SPOT_ETF_US", fundId, flowValue: millionToUsd(cell.sourceValue), currency: "USD", windowStart: window.start, windowEnd: window.end, sourceValueState: cell.state, sourceReportedDate: date, providerTier: "C_VERIFIED_PUBLIC" }),
   })
+}
+
+async function retrieveFarsideHtml(): Promise<FarsideRetrieval> {
+  const wordpress = await fetch(FARSIDE_BITCOIN_ETF_WORDPRESS_URL, {
+    cache: "no-store",
+    redirect: "follow",
+    headers: { Accept: "application/json", "User-Agent": "QuantTerminal-MVP-External-Context/1.0" },
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (wordpress.ok) {
+    const responseText = await wordpress.text()
+    let payload: unknown
+    try { payload = JSON.parse(responseText) } catch { throw new Error("FARSIDE_WORDPRESS_JSON_INVALID") }
+    if (!payload || typeof payload !== "object") throw new Error("FARSIDE_WORDPRESS_RESPONSE_INVALID")
+    const page = payload as { readonly id?: unknown; readonly content?: { readonly rendered?: unknown } }
+    if (page.id !== 1321 || typeof page.content?.rendered !== "string") throw new Error("FARSIDE_WORDPRESS_PAGE_CONTRACT_INVALID")
+    return Object.freeze({ html: page.content.rendered, retrievedAt: new Date().toISOString(), acquisition: "WORDPRESS_OFFICIAL_API", wordpressStatus: wordpress.status, browserStatus: null })
+  }
+
+  const { chromium } = await import("playwright-core")
+  const browser = await chromium.launch({
+    channel: "chrome",
+    headless: false,
+    timeout: 45_000,
+  })
+  try {
+    const context = await browser.newContext({ locale: "en-GB" })
+    const page = await context.newPage()
+    const response = await page.goto(FARSIDE_BITCOIN_ETF_WORDPRESS_URL, { waitUntil: "domcontentloaded", timeout: 45_000 })
+    if (!response) throw new Error("FARSIDE_BROWSER_NO_DOCUMENT_RESPONSE")
+    const body = await response.body()
+    let payload: unknown
+    try { payload = JSON.parse(body.toString("utf8")) } catch { throw new Error("FARSIDE_BROWSER_WORDPRESS_JSON_INVALID") }
+    if (!payload || typeof payload !== "object") throw new Error("FARSIDE_BROWSER_WORDPRESS_RESPONSE_INVALID")
+    const wordpressPage = payload as { readonly id?: unknown; readonly content?: { readonly rendered?: unknown } }
+    if (wordpressPage.id !== 1321 || typeof wordpressPage.content?.rendered !== "string") throw new Error("FARSIDE_BROWSER_WORDPRESS_PAGE_CONTRACT_INVALID")
+    const html = wordpressPage.content.rendered
+    return Object.freeze({ html, retrievedAt: new Date().toISOString(), acquisition: "BROWSER_BACKED_SCHEDULED_RETRIEVAL", wordpressStatus: wordpress.status, browserStatus: response.status() })
+  } finally {
+    await browser.close()
+  }
 }
 
 export async function fetchFredCanary(role: FredRole = "US_10Y_TREASURY_YIELD"): Promise<ExternalCanaryBundle> {
@@ -123,12 +173,11 @@ export async function fetchAlphaVantageCanary(role: AlphaVantageRole = "SPY"): P
 }
 
 export async function fetchFarsideCanary(): Promise<ExternalCanaryBundle> {
-  const response = await fetch(FARSIDE_BITCOIN_ETF_ALL_DATA_URL, { cache: "no-store", redirect: "follow", headers: { Accept: "text/html,application/xhtml+xml", "Accept-Language": "en-GB,en;q=0.9", "User-Agent": "Mozilla/5.0 (compatible; QuantTerminal-MVP-External-Context/1.0)" }, signal: AbortSignal.timeout(30_000) })
-  if (!response.ok) throw new Error(`FARSIDE_SOURCE_HTTP_${response.status}`)
-  const html = await response.text()
+  const retrieval = await retrieveFarsideHtml()
+  const html = retrieval.html
   const parsed = parseFarsideBitcoinEtfAllData(html)
   if (parsed.state !== "READY") throw new Error(`FARSIDE_${parsed.state}:${parsed.reason}`)
-  const selected = parsed.value.rows.slice(0, 90)
+  const selected = parsed.value.rows
   const observations: ExternalCanaryObservation[] = []
   for (const row of selected) {
     const date = sourceDate(row.sourceDate)
@@ -139,7 +188,8 @@ export async function fetchFarsideCanary(): Promise<ExternalCanaryBundle> {
     }
   }
   if (!observations.length) throw new Error("FARSIDE_CANARY_NO_OBSERVATIONS")
-  return Object.freeze({ provider: "farside", datasetId: "etf-flow", providerId: "farside-investors", subject: "BTC_SPOT_ETF_US", mediaType: "text/html", extension: "html", parserVersion: "farside-bitcoin-etf-table-v1", candidateKind: "ETF_FLOW_OBSERVATION", rawBytes: Buffer.from(html, "utf8"), observations: Object.freeze(observations), limitations: Object.freeze(["SOURCE_REPORTED_USD_MILLIONS", "BLANK_AND_DASH_ARE_NOT_ZERO", "OBSERVED_FLOW_IS_NOT_ESTIMATED_DEMAND"]), metadata: Object.freeze({ tableIdentity: parsed.value.identity, headers: parsed.value.headers, sourceRows: selected.length, sourceUnit: "USD_MILLIONS", retrievedAt: new Date().toISOString() }) })
+  const orderedDates = selected.map((row) => sourceDate(row.sourceDate)).sort()
+  return Object.freeze({ provider: "farside", datasetId: "etf-flow", providerId: "farside-investors", subject: "BTC_SPOT_ETF_US", mediaType: "text/html", extension: "html", parserVersion: "farside-bitcoin-etf-table-v2", candidateKind: "ETF_FLOW_OBSERVATION", rawBytes: Buffer.from(html, "utf8"), observations: Object.freeze(observations), limitations: Object.freeze(["SOURCE_REPORTED_USD_MILLIONS", "BLANK_AND_DASH_ARE_NOT_ZERO", "OBSERVED_FLOW_IS_NOT_ESTIMATED_DEMAND", "DAILY_NOT_REALTIME"]), metadata: Object.freeze({ sourceAvailability: "PUBLICLY_AVAILABLE", representation: parsed.value.representation, directHttpPath: "UNCERTIFIED_OR_EDGE_REJECTED", acquisition: retrieval.acquisition, recommendedAcquisition: "BROWSER_BACKED_SCHEDULED_RETRIEVAL", wordpressEndpointStatus: retrieval.wordpressStatus, browserDocumentStatus: retrieval.browserStatus, retrievalUrl: parsed.value.retrievalUrl, tableIdentity: parsed.value.identity, headers: parsed.value.headers, sourceRows: selected.length, cumulativeRows: 1, sourceUnit: "USD_MILLIONS", reconciliation: parsed.value.reconciliation, earliestSourceDate: orderedDates[0], latestSourceDate: orderedDates.at(-1), retrievedAt: retrieval.retrievedAt }) })
 }
 
 export function fetchExternalCanary(provider: ExternalCanaryProvider): Promise<ExternalCanaryBundle> {

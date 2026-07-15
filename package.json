@@ -50,6 +50,7 @@
     "lucide-react": "^1.16.0",
     "next": "14.2.5",
     "nvm": "^0.0.4",
+    "playwright-core": "^1.55.0",
     "postgres": "^3.4.9",
     "radix-ui": "^1.4.3",
     "react": "18.3.1",

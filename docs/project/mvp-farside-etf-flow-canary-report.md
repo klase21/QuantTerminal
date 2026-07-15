@@ -2,29 +2,55 @@
 
 ## Result
 
-`SOURCE_ACCESS_BLOCKED`
+`CERTIFIED_BOUNDED_CANARY`
 
-Two exact server-side attempts to
-`https://farside.co.uk/bitcoin-etf-flow-all-data/` returned HTTP 403. The
-public page was independently readable and identified the `Bitcoin ETF Flow -
-All Data (US$m)` table and its expected fund columns, but that read path does
-not provide the Raw HTML required by the governed worker.
+Source availability is `PUBLICLY_AVAILABLE` and the representation is
+`HTML_EMBEDDED_TABLE`. Ordinary direct server requests to both the public page
+and official WordPress page endpoint are edge-rejected with HTTP 403 in this
+runtime, so that transport remains `UNCERTIFIED_OR_EDGE_REJECTED`.
 
-## Persistence
+The official WordPress endpoint `/wp-json/wp/v2/pages/1321` was then retrieved
+through an ordinary Playwright-controlled Chrome context. It returned HTTP 200
+without cookies, login, Authorization, API keys, challenge solvers, proxies, or
+stealth plugins. `content.rendered` supplied the complete HTML containing
+`table.etf`; this HTML was stored as the Raw Artifact before parsing. The
+certified acquisition mode is `BROWSER_BACKED_SCHEDULED_RETRIEVAL`.
 
-Zero Raw Artifacts, observations, lineage edges, Coverage decisions, and ETF
-Flow Projections were created. No flow value was inferred from the visible
-page, cached elsewhere, converted from blank or dash, or substituted with zero.
+## Source Contract
 
-## Parser Contract
+- Raw Artifact SHA-256: `b4cc0b5d0d4adc9b4f90d94cfededa40b2b8650fc280f078b2381105bf10a6bc`
+- Raw Artifact bytes: 699,484
+- Exact headers: Date, IBIT, FBTC, BITB, ARKB, BTCO, EZBC, BRRR, HODL,
+  BTCW, MSBT, GBTC, BTC, Total
+- Dated rows: 643
+- Cumulative summary rows: 1 final Total row
+- Earliest source date: 2024-01-11
+- Latest source date: 2026-07-14
+- Unit: source-reported US$ millions
+- Daily Total reconciliation: 643/643 matched; zero mismatches
 
-The deterministic parser recognizes source date, fund columns, Total, source
-units, header identity, row order, blank, dash, explicit zero, positive,
-negative, malformed, missing-column, and changed-header states.
+Blank and dash remain missing, while `0.0` remains an explicit zero.
+Parenthesized values are negative. Header changes, row-width changes, malformed
+values, or Total reconciliation failure reject publication eligibility.
 
-## Certification
+## Persistence And Rerun
 
-Not certified. The source remains a public supplemental candidate pending an
-approved server-side acquisition method that yields a durable Raw HTML
-Artifact. This limitation does not block FRED, Alpha Vantage, or core crypto
-pages.
+The bounded Canary created one Raw Artifact, 7,468 deterministic Candidates,
+7,468 append-only Canonical Facts, 7,468 lineage edges, and one eligible
+Coverage decision. All source publication decisions remain `PENDING`.
+
+The exact rerun reproduced the Raw Artifact checksum and returned
+`RERUN_DUPLICATE`: 7,468 Candidate duplicates, 7,468 Fact duplicates, and
+7,468 submission duplicates. Counts before and after were identical, no false
+conflict was created, and active leases returned to zero.
+
+## Projection
+
+`BitcoinEtfFlowProjection` is `GENERATED` and `READY_FOR_CUTOVER`:
+
+- Projection version: `mvpv_1a28580aebc99079a4aab906f7f23e09b35ed50c316f3b3bf430625ef91cb68b`
+- Checksum: `028007160d1b9939843d0fb4c8057a0215dbb22b6d95daeac39f3171b95123b9`
+- Exact recompute: `DUPLICATE`
+
+The Projection is daily supplemental context. Observed ETF flow is not
+estimated institutional demand and does not rewrite governed crypto Evidence.

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "mvp-external-context-readiness/v1",
-  "readinessEnum": ["CERTIFIED_BOUNDED_CANARY", "CERTIFIED_BOUNDED_CANARY_WITH_LICENSE_LIMITATION", "SOURCE_ACCESS_BLOCKED", "ROLE_PENDING"],
-  "projectionAvailabilityEnum": ["GENERATED_SUPPLEMENTAL", "NOT_GENERATED_SOURCE_BLOCKED"],
+  "readinessEnum": ["CERTIFIED_BOUNDED_CANARY", "CERTIFIED_BOUNDED_CANARY_WITH_LICENSE_LIMITATION", "PUBLIC_RETRIEVAL_PATH_PENDING", "ROLE_PENDING"],
+  "projectionAvailabilityEnum": ["GENERATED_SUPPLEMENTAL", "NOT_GENERATED_RETRIEVAL_PENDING"],
   "persistenceEnum": ["PERSISTED", "NOT_PERSISTED"],
   "sources": [
     {
@@ -33,12 +33,20 @@
       "provider": "FARSIDE",
       "source": "FARSIDE_PUBLIC_WEB",
       "purpose": "OBSERVED_BITCOIN_ETF_FLOW",
-      "readiness": "SOURCE_ACCESS_BLOCKED",
-      "runtimeAttempts": 2,
-      "httpStatus": 403,
-      "persistence": "NOT_PERSISTED",
-      "projectionAvailability": "NOT_GENERATED_SOURCE_BLOCKED",
-      "certified": false
+      "readiness": "CERTIFIED_BOUNDED_CANARY",
+      "sourceAvailability": "PUBLICLY_AVAILABLE",
+      "representation": "HTML_EMBEDDED_TABLE",
+      "directHttpPath": "UNCERTIFIED_OR_EDGE_REJECTED",
+      "acquisition": "BROWSER_BACKED_SCHEDULED_RETRIEVAL",
+      "wordpressDirectHttpStatus": 403,
+      "browserDocumentStatus": 200,
+      "datedRowCount": 643,
+      "candidateCount": 7468,
+      "factCount": 7468,
+      "persistence": "PERSISTED",
+      "projectionAvailability": "GENERATED_SUPPLEMENTAL",
+      "exactRerun": "RERUN_DUPLICATE",
+      "certified": true
     }
   ],
   "supplementalProjection": {
@@ -47,6 +55,15 @@
     "checksum": "a8f16e6fcb91cf6121ab3bb10068853dfe2e194d3773efa6f20af31bfd4a177b",
     "supersedesProjectionVersionId": "mvpv_68616843f840fa2593cc437d48fc51818ea14803f6b1bdb7c29d91cf5f344112",
     "correctionReason": "POSTGRES_TIMESTAMP_PRECISION_NORMALIZATION",
+    "recompute": "DUPLICATE",
+    "cryptoEvidenceMutated": false
+  },
+  "bitcoinEtfFlowProjection": {
+    "kind": "BitcoinEtfFlowProjection",
+    "projectionVersionId": "mvpv_1a28580aebc99079a4aab906f7f23e09b35ed50c316f3b3bf430625ef91cb68b",
+    "checksum": "028007160d1b9939843d0fb4c8057a0215dbb22b6d95daeac39f3171b95123b9",
+    "lifecycle": "GENERATED",
+    "consumerExposure": "READY_FOR_CUTOVER",
     "recompute": "DUPLICATE",
     "cryptoEvidenceMutated": false
   }

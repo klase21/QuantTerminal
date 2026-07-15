@@ -36,6 +36,20 @@ export const VERIFIED_ALPHA_VANTAGE_SERIES: readonly AlphaVantageRegistration[] 
 ])
 
 export const FARSIDE_BITCOIN_ETF_LICENSE: LicenseClassification = "PUBLIC_HTML_ATTRIBUTION_REQUIRED"
+export const FARSIDE_BITCOIN_ETF_SOURCE = Object.freeze({
+  providerId: "farside-investors",
+  sourceId: "FARSIDE_PUBLIC_WEB",
+  purpose: "OBSERVED_BITCOIN_ETF_FLOW",
+  sourceAvailability: "PUBLICLY_AVAILABLE",
+  representation: "HTML_EMBEDDED_TABLE",
+  directHttpPath: "UNCERTIFIED_OR_EDGE_REJECTED",
+  acquisition: "BROWSER_BACKED_SCHEDULED_RETRIEVAL",
+  frequency: "SOURCE_UPDATED_DAILY",
+  unit: "USD_MILLIONS",
+  authentication: "NONE",
+  license: FARSIDE_BITCOIN_ETF_LICENSE,
+  parserVersion: "farside-bitcoin-etf-table-v2",
+} as const)
 
 export function getVerifiedFredSeries(role: FredRole): FredSeriesRegistration {
   const registration = VERIFIED_FRED_SERIES.find((entry) => entry.role === role)
