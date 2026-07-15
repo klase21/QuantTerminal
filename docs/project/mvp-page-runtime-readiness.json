@@ -1,13 +1,15 @@
 {
   "schemaVersion": "mvp-page-runtime-readiness/v1",
   "featureCount": 52,
-  "statusEnum": ["FUNCTIONAL_PROJECTION_BACKED","FUNCTIONAL_PROJECTION_BACKED_WITH_LIMITATION","FUNCTIONAL_LIVE_OVERLAY","SOURCE_BLOCKED","NOT_IN_MVP_SCOPE","BROKEN"],
-  "summary": {"functionalProjectionBacked":43,"functionalProjectionBackedWithLimitation":6,"functionalLiveOverlay":0,"sourceBlocked":1,"notInMvpScope":2,"broken":0,"mockOrLegacyDefault":0},
-  "functionalProjectionBacked": ["DASH_DIRECTION","DASH_DRIVERS","DASH_RISK","DASH_DERIVATIVES","DASH_INTENSITY","DASH_COVERAGE","DASH_EVIDENCE_LINK","RPL_CONTROLS","RPL_PLAYBACK","RPL_PRICE","RPL_FUNDING","RPL_OI","RPL_AGGTRADES","RPL_EVIDENCE","RES_CONCLUSION","RES_FACTS","RES_INTERPRETATION","RES_COUNTER","RES_CONFIDENCE","RES_LIMITATIONS","RES_LINEAGE","RES_VERSION","MKT_UNIVERSE","MKT_PRICE","MKT_DERIVATIVES","MKT_STATE","MKT_COVERAGE","MKT_EVIDENCE","MKT_NAV","SCN_RANKING","SCN_REASON","SCN_EVIDENCE","SCN_COVERAGE","SCN_SELECTION","SCN_HANDOFF","TRD_SELECTED","TRD_CONTEXT","TRD_SUPPORT","TRD_COUNTER","TRD_RISK","TRD_INVALIDATION","TRD_EVIDENCE","TRD_STATUS"],
-  "functionalProjectionBackedWithLimitation": ["DASH_LIQUIDATION","RPL_ORDERBOOK","RPL_ANNOTATIONS","RES_HISTORICAL","MKT_LIVE_STRUCTURE","MKT_ROTATION"],
+  "statusEnum": ["PASS","PASS_WITH_LIMITATION","SOURCE_BLOCKED","NOT_IN_MVP_SCOPE","FUNCTIONAL_DEFECT","VISUAL_DEFECT","RESPONSIVE_DEFECT","ACCESSIBILITY_DEFECT"],
+  "summary": {"pass":43,"passWithLimitation":6,"sourceBlocked":1,"notInMvpScope":2,"functionalDefect":0,"visualDefect":0,"responsiveDefect":0,"accessibilityDefect":0,"mockOrLegacyDefault":0},
+  "pass": ["DASH_DIRECTION","DASH_DRIVERS","DASH_RISK","DASH_DERIVATIVES","DASH_INTENSITY","DASH_COVERAGE","DASH_EVIDENCE_LINK","RPL_CONTROLS","RPL_PLAYBACK","RPL_PRICE","RPL_FUNDING","RPL_OI","RPL_AGGTRADES","RPL_EVIDENCE","RES_CONCLUSION","RES_FACTS","RES_INTERPRETATION","RES_COUNTER","RES_CONFIDENCE","RES_LIMITATIONS","RES_LINEAGE","RES_VERSION","MKT_UNIVERSE","MKT_PRICE","MKT_DERIVATIVES","MKT_STATE","MKT_COVERAGE","MKT_EVIDENCE","MKT_NAV","SCN_RANKING","SCN_REASON","SCN_EVIDENCE","SCN_COVERAGE","SCN_SELECTION","SCN_HANDOFF","TRD_SELECTED","TRD_CONTEXT","TRD_SUPPORT","TRD_COUNTER","TRD_RISK","TRD_INVALIDATION","TRD_EVIDENCE","TRD_STATUS"],
+  "passWithLimitation": ["DASH_LIQUIDATION","RPL_ORDERBOOK","RPL_ANNOTATIONS","RES_HISTORICAL","MKT_LIVE_STRUCTURE","MKT_ROTATION"],
   "sourceBlocked": ["RPL_LIQUIDATION"],
   "notInMvpScope": ["DASH_SUSPENSE","TRD_LOCAL"],
-  "broken": [],
-  "verification": {"sixRoutesRendered":true,"scannerCandidateReachedTrade":true,"directReloadPreservedContext":true,"classifiedErrors":true,"asOfVisible":true,"limitationsVisible":true,"lineageVisible":true}
+  "functionalDefect": [],
+  "visualDefect": [],
+  "responsiveDefect": [],
+  "accessibilityDefect": [],
+  "verification": {"sixRoutesRendered":true,"responsiveCellsPassed":36,"scannerCandidateReachedTrade":true,"directReloadPreservedContext":true,"classifiedErrors":true,"asOfVisible":true,"limitationsVisible":true,"lineageVisible":true,"horizontalOverflow":0,"criticalDefects":0}
 }
-

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "mvp-performance-qa/v1",
+  "productionBuild": "PASS",
+  "sharedFirstLoadJsBytes": 87500,
+  "routeFirstLoadJsBytes": {
+    "Dashboard": 120000,
+    "Markets": 120000,
+    "Scanner": 120000,
+    "Trade": 120000,
+    "Replay": 120000,
+    "Research": 120000
+  },
+  "apiPayloadBytes": {
+    "Dashboard": 72568,
+    "Markets": 64215,
+    "Scanner": 50554,
+    "Trade": 16898,
+    "Replay": 11390,
+    "Research": 13625
+  },
+  "apiStatus": {"Dashboard":200,"Markets":200,"Scanner":200,"Trade":200,"Replay":200,"Research":200},
+  "cacheControl": "private, max-age=60, stale-while-revalidate=300",
+  "consumerExposure": "CONSUMER_VISIBLE",
+  "boundedness": {"all868FetchedByOnePage":false,"fullEvidenceCorpusFetched":false,"rawAggTradesFetched":false,"browserProjectionGeneration":false,"aggressivePollingIntroduced":false},
+  "consoleErrors": 0,
+  "notes": ["Each page issues one bounded Projection-view request plus the pre-existing health/live-overlay requests where applicable.","Browser performance timing entries were unavailable in the controlled page scope; payload sizes were measured directly over HTTP."]
+}

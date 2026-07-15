@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "mvp-data-state-qa/v1",
+  "statusEnum": ["PASS","PASS_WITH_LIMITATION","SOURCE_BLOCKED"],
+  "states": [
+    {"state":"AVAILABLE","status":"PASS","severity":"SUCCESS","behavior":"Shows governed value, source, and as-of context."},
+    {"state":"STALE","status":"PASS","severity":"WARNING","behavior":"Keeps governed value visible and labels stale freshness."},
+    {"state":"GAP","status":"PASS","severity":"DANGER","behavior":"Explains missing governed interval; no zero substitution."},
+    {"state":"BACKFILL_PENDING","status":"PASS","severity":"WARNING","behavior":"Reports pending population without blocking unrelated sections."},
+    {"state":"SOURCE_UNAVAILABLE","status":"PASS","severity":"DANGER","behavior":"Names the unavailable source and preserves available primary content."},
+    {"state":"SOURCE_BLOCKED","status":"SOURCE_BLOCKED","severity":"DANGER","behavior":"Explains the external source blocker and conclusion impact."},
+    {"state":"UNSUPPORTED","status":"PASS","severity":"NEUTRAL","behavior":"Classifies the scope as unsupported; retry is not suggested."},
+    {"state":"EXPERIMENTAL","status":"PASS_WITH_LIMITATION","severity":"EXPERIMENTAL","behavior":"Uses explicit experimental text and dashed warning treatment."},
+    {"state":"LOWER_BOUND","status":"PASS_WITH_LIMITATION","severity":"EXPERIMENTAL","behavior":"States that the value is incomplete by construction."},
+    {"state":"NOT_APPLICABLE","status":"PASS","severity":"NEUTRAL","behavior":"Explains that the state does not apply; no retry."},
+    {"state":"PROJECTION_MISSING","status":"PASS","severity":"EMPTY","behavior":"Announced empty state; no legacy fallback."},
+    {"state":"PROJECTION_WITHHELD","status":"PASS","severity":"PARTIAL","behavior":"Announced withheld state with governed reason."},
+    {"state":"READ_ERROR","status":"PASS","severity":"ERROR","behavior":"Assertive alert with bounded reason; read errors are not cached as valid data."}
+  ],
+  "liveOverlay": {"governedReferenceRemainsVisibleWhenDisconnected":true,"sourceShown":true,"observedTimeShown":true,"freshnessShown":true,"browserEvidenceRecompute":false}
+}
+

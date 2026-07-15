@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "mvp-cross-page-qa/v1",
+  "statusEnum": ["PASS","FAIL"],
+  "flows": [
+    {"from":"Dashboard","to":"Markets","status":"PASS","preserves":["instrument"]},
+    {"from":"Dashboard","to":"Research","status":"PASS","preserves":["instrument","evidence"]},
+    {"from":"Dashboard","to":"Replay","status":"PASS","preserves":["instrument"]},
+    {"from":"Markets","to":"Research","status":"PASS","preserves":["instrument","evidence"]},
+    {"from":"Markets","to":"Replay","status":"PASS","preserves":["instrument","start","end"]},
+    {"from":"Scanner","to":"Trade","status":"PASS","preserves":["candidate","instrument","evidence"]},
+    {"from":"Scanner","to":"Research","status":"PASS","preserves":["instrument","evidence"]},
+    {"from":"Trade","to":"Research","status":"PASS","preserves":["instrument","candidate","evidence"]},
+    {"from":"Trade","to":"Replay","status":"PASS","preserves":["instrument","candidate","evidence","start","end"]},
+    {"from":"Replay","to":"Research","status":"PASS","preserves":["instrument","start","end","evidence"]},
+    {"from":"Research","to":"Lineage disclosure","status":"PASS","preserves":["packet identity","version","recompute identity"]}
+  ],
+  "history": {"browserBack":true,"browserForward":true,"directReload":true,"mobileInstrumentSelection":true},
+  "invalidParameters": {"unsupportedInstrument":"READ_ERROR","replayWindowOver24Hours":"READ_ERROR","legacyFallbackActivated":false}
+}
+

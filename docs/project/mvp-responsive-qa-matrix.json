@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "mvp-responsive-qa-matrix/v1",
+  "testedBrowser": "Chrome browser automation",
+  "baseUrl": "http://localhost:3017",
+  "routes": ["/dashboard","/markets","/scanner","/trade?instrument=BTCUSDT","/replay?instrument=BTCUSDT&start=2026-07-11T00%3A00%3A00.000Z&end=2026-07-12T00%3A00%3A00.000Z","/research?instrument=BTCUSDT"],
+  "cellStatusEnum": ["PASS","FUNCTIONAL_DEFECT","VISUAL_DEFECT","RESPONSIVE_DEFECT","ACCESSIBILITY_DEFECT"],
+  "viewports": [
+    {"width":1440,"height":900,"pages":{"Dashboard":"PASS","Markets":"PASS","Scanner":"PASS","Trade":"PASS","Replay":"PASS","Research":"PASS"}},
+    {"width":1280,"height":800,"pages":{"Dashboard":"PASS","Markets":"PASS","Scanner":"PASS","Trade":"PASS","Replay":"PASS","Research":"PASS"}},
+    {"width":1024,"height":768,"pages":{"Dashboard":"PASS","Markets":"PASS","Scanner":"PASS","Trade":"PASS","Replay":"PASS","Research":"PASS"}},
+    {"width":768,"height":1024,"pages":{"Dashboard":"PASS","Markets":"PASS","Scanner":"PASS","Trade":"PASS","Replay":"PASS","Research":"PASS"}},
+    {"width":390,"height":844,"pages":{"Dashboard":"PASS","Markets":"PASS","Scanner":"PASS","Trade":"PASS","Replay":"PASS","Research":"PASS"}},
+    {"width":360,"height":800,"pages":{"Dashboard":"PASS","Markets":"PASS","Scanner":"PASS","Trade":"PASS","Replay":"PASS","Research":"PASS"}}
+  ],
+  "assertions": {"cells":36,"horizontalOverflow":0,"clippedPrimaryControls":0,"controlsBelow40Px":0,"missingH1":0,"rawJsonPresentation":0,"criticalLayoutDefects":0}
+}
+

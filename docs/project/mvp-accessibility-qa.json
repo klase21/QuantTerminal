@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "mvp-accessibility-qa/v1",
+  "statusEnum": ["PASS","PASS_WITH_LIMITATION","ACCESSIBILITY_DEFECT"],
+  "summary": {"primaryBlockers":0,"defects":0,"pagesPassed":6},
+  "checks": [
+    {"check":"keyboardNavigation","status":"PASS","evidence":"Visible 2px focus outline and stable link/select/range order."},
+    {"check":"semanticHeadings","status":"PASS","evidence":"Exactly one H1 per page with H2 section hierarchy."},
+    {"check":"controlsAndLabels","status":"PASS","evidence":"No unlabeled button, input, or select in the six-route matrix."},
+    {"check":"touchTargets","status":"PASS","evidence":"No visible main control below 40px; primary controls target 44px."},
+    {"check":"statusAnnouncements","status":"PASS","evidence":"Loading and nonfatal states use polite status; read errors use assertive alert."},
+    {"check":"colorIndependence","status":"PASS","evidence":"Every state badge includes explicit text."},
+    {"check":"chartAlternatives","status":"PASS","evidence":"Replay lanes use textual governed summaries and discrete Funding descriptions."},
+    {"check":"reducedMotion","status":"PASS","evidence":"All MVP roots opt into the existing foundation reduced-motion rules."},
+    {"check":"contrast","status":"PASS","evidence":"Foundation primary, secondary, muted, warning, and state colors are retained on governed dark surfaces."}
+  ],
+  "pages": {"Dashboard":"PASS","Markets":"PASS","Scanner":"PASS","Trade":"PASS","Replay":"PASS","Research":"PASS"}
+}
+
