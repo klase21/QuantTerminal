@@ -62,4 +62,3 @@ export async function materializeMvpReplaySequence(projection: ConsumerProjectio
     return Object.freeze({ ...base, modelChecksum: canonicalChecksum(base) })
   } finally { await client.shutdown() }
 }
-

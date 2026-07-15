@@ -1,6 +1,6 @@
 # MVP Online Serving Architecture
 
-Certification date: 2026-07-15  
+Certification date: 2026-07-15
 Status: local serving foundation certified; Neon publication deferred to MVP-7B.
 
 ## Decision

@@ -167,4 +167,3 @@ export function verifyReplaySnapshot(snapshot: ServingReplaySnapshot): boolean {
 
 function asRecord(value: unknown): Readonly<Record<string, unknown>> { return value && typeof value === "object" && !Array.isArray(value) ? Object.freeze(value as Record<string, unknown>) : Object.freeze({}) }
 function asList(value: unknown): readonly unknown[] { return Object.freeze(Array.isArray(value) ? [...value] : []) }
-

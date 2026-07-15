@@ -37,4 +37,3 @@ export class MvpServingMigrationRunner {
     return Object.freeze(results)
   }
 }
-

@@ -47,4 +47,3 @@ async function reset() {
 
 async function main(){const command=process.argv[2] as Command;if(command==="migrate"){console.log(JSON.stringify({command,result:await migrate()},null,2));return}if(command==="publish")return publish();if(command==="verify"||command==="status"||command==="checksum")return inspect(command);if(command==="reset")return reset();throw new Error("Usage: runMvpServing.ts <migrate|publish|verify|status|checksum|reset --confirm-isolated>")}
 void main().catch((error:unknown)=>{console.error(error instanceof Error?error.message:"MVP_SERVING_COMMAND_FAILED");process.exitCode=1})
-

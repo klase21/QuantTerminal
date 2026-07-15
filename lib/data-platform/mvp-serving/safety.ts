@@ -30,4 +30,3 @@ export function requireMvpServingIsolatedTarget(connectionString: string | undef
   if (!result.safe || reasons.length) throw new Error(`UNSAFE_MVP_SERVING_TARGET ${result.redactedTarget}: ${[...new Set(reasons)].join(",")}`)
   return result
 }
-
