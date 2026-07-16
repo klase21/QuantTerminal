@@ -1,10 +1,11 @@
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import { BOUNDED_FUNDING_SOURCE_CONTRACT_VERSION } from "./boundedFunding"
 import { MVP_REFRESH_INSTRUMENTS, MVP_REFRESH_MANDATORY_DATASETS, type RefreshUnitState } from "./contracts"
+import type { AuthoritativeSlotReconciliation } from "./controlledOhlcvRecovery"
 
 export type RefreshLogicalDataset = typeof MVP_REFRESH_MANDATORY_DATASETS[number]
 export type RefreshLogicalInstrument = typeof MVP_REFRESH_INSTRUMENTS[number]
-export type RefreshSlotAction = "REUSE_COMMITTED" | "CREATE_NEW_ON_LIVE_RESUME" | "BLOCKED_CONFLICT"
+export type RefreshSlotAction = "REUSE_COMMITTED" | "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT" | "CREATE_NEW_ON_LIVE_RESUME" | "BLOCKED_CONFLICT"
 export type CommittedAttemptClassification = "EQUIVALENT_COMMITTED_ATTEMPTS" | "CONFLICTING_COMMITTED_ATTEMPTS" | "INCOMPLETE_AUDIT_DATA"
 export type NonterminalAttemptClassification = "RECOVERABLE_ACQUIRED" | "ORPHANED_ACQUIRED" | "SUPERSEDED_BY_COMMITTED_LOGICAL_SLOT" | "CONTROL_PLANE_CONFLICT"
 
@@ -155,10 +156,12 @@ export function classifyNonterminalAttempt(attempt: RefreshUnitAttemptAudit, com
   return "RECOVERABLE_ACQUIRED"
 }
 
-export function buildRefreshSlotResumePlan(input: { readonly intervalStart: string; readonly intervalEnd: string; readonly attempts: readonly RefreshUnitAttemptAudit[]; readonly sourceFinalizationState?: "SOURCE_AVAILABLE" | "SOURCE_NOT_FINALIZED" }): readonly RefreshSlotResumePlanEntry[] {
+export function buildRefreshSlotResumePlan(input: { readonly intervalStart: string; readonly intervalEnd: string; readonly attempts: readonly RefreshUnitAttemptAudit[]; readonly authoritativeResolutions?: readonly AuthoritativeSlotReconciliation[]; readonly sourceFinalizationState?: "SOURCE_AVAILABLE" | "SOURCE_NOT_FINALIZED" }): readonly RefreshSlotResumePlanEntry[] {
   const slots = createMandatoryRefreshLogicalSlots(input.intervalStart, input.intervalEnd)
   return Object.freeze(slots.map((slot) => {
     const attempts = input.attempts.filter((attempt) => attempt.dataset === slot.dataset && attempt.instrument === slot.instrument && attempt.intervalStart === slot.intervalStart && attempt.intervalEnd === slot.intervalEnd)
+    const authority = input.authoritativeResolutions?.find((value) => value.provider === slot.provider && value.dataset === slot.dataset && value.instrument === slot.instrument && value.intervalStart === slot.intervalStart && value.intervalEnd === slot.intervalEnd && value.sourceContractVersion === slot.contractVersion)
+    if (authority) return Object.freeze({ logicalSlotId: authority.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, intervalStart: slot.intervalStart, intervalEnd: slot.intervalEnd, action: "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT" as const, authoritativeUnitId: authority.authoritativeUnitId, reason: "CERTIFIED_AUTHORITATIVE_RECOVERY_RECONCILIATION", checkpointStartStage: "VALIDATED" as const, blockers: Object.freeze([]), sourceFinalizationState: input.sourceFinalizationState ?? "SOURCE_AVAILABLE", ignoredAttemptIds: Object.freeze(attempts.filter((attempt) => attempt.unitId !== authority.authoritativeUnitId).map((attempt) => attempt.unitId).sort()) })
     const resolution = reconcileCommittedAttempts(attempts)
     const nonterminal = attempts.filter((attempt) => attempt.state === "ACQUIRED")
     if (resolution.classification === "CONFLICTING_COMMITTED_ATTEMPTS") return Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, intervalStart: slot.intervalStart, intervalEnd: slot.intervalEnd, action: "BLOCKED_CONFLICT" as const, authoritativeUnitId: null, reason: resolution.classification, checkpointStartStage: "PENDING" as const, blockers: Object.freeze([...resolution.mismatchFields]), sourceFinalizationState: input.sourceFinalizationState ?? "SOURCE_AVAILABLE", ignoredAttemptIds: Object.freeze(attempts.filter((attempt) => attempt.state === "ACQUIRED").map((attempt) => attempt.unitId).sort()) })

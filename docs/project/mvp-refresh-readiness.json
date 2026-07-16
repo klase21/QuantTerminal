@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-refresh-readiness/1.0.0",
-  "assessedAt": "2026-07-16T07:00:00.000Z",
+  "assessedAt": "2026-07-16T13:20:18.245Z",
   "activeProduction": {
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -24,14 +24,17 @@
     "priorAuthenticationSqlstate": "28P01_RESOLVED",
     "migrationImplemented": true,
     "migrationApplied": true,
-    "migrationChecksum": "894968a8b5540af3a396a6cb2860f0850d553b126ff66cd7795a6059519abf7f",
+    "migrationChecksums": [
+      "894968a8b5540af3a396a6cb2860f0850d553b126ff66cd7795a6059519abf7f",
+      "4840919bc60606d806dd1a58a9715a3b98832d034e47a97748781a6efe61e46e"
+    ],
     "migrationBlocker": null,
     "migrationReapplication": "SKIPPED_IDEMPOTENT",
     "migrationChecksumDrift": "FAIL_CLOSED_CERTIFIED",
-    "relationCount": 15,
-    "totalIndexCount": 30,
-    "explicitIndexCount": 3,
-    "constraintCount": 77,
+    "relationCount": 20,
+    "totalIndexCount": 48,
+    "explicitIndexCount": 7,
+    "constraintCount": 125,
     "appendOnlyEventTrigger": "CERTIFIED",
     "relationsCertified": true,
     "indexesCertified": true,
@@ -80,17 +83,28 @@
     "candidateMembership": "IMMUTABLE_APPEND_ONLY_CERTIFIED",
     "broadWorkerParity": "CERTIFIED",
     "targetWindowLogicalSlots": "24_DETERMINISTIC_RUN_INDEPENDENT",
-    "targetWindowReconciliation": "BLOCKED_CONFLICTING_COMMITTED_ATTEMPTS",
+    "targetWindowReconciliation": "AUTHORITATIVE_RECOVERY_OUTPUT_ESTABLISHED",
+    "controlledReacquisition": {
+      "sourceContractPersisted": true,
+      "retrievalPersisted": true,
+      "rawArtifactPersisted": true,
+      "candidateCount": 288,
+      "canonicalCommitStatus": "CREATED",
+      "attributableFactCount": 288,
+      "providerAuditComparison": "MATCHES_8A2E_PROVIDER_AUDIT",
+      "exactRerun": "DUPLICATE",
+      "legacyAttemptsModified": false,
+      "watermarkWrites": 0
+    },
     "targetWindowDryRun": {
-      "reuseCommitted": 0,
+      "reuseAuthoritativeRecoveryOutput": 1,
       "createNewOnLiveResume": 23,
-      "blockedConflict": 1,
+      "blockedConflict": 0,
       "unitsCreated": 0
     }
   },
   "remainingMvp8bBlockers": [
-    "TARGET_OHLCV_BTCUSDT_COMMITTED_OUTPUT_CONFLICT",
-    "SOURCE_CONTRACT_VERSION_UNRECORDED",
+    "EXECUTE_REMAINING_23_MANDATORY_SLOTS",
     "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",
     "EXECUTE_AND_COMPARE_ONE_COMPLETE_INACTIVE_CANDIDATE"
   ]

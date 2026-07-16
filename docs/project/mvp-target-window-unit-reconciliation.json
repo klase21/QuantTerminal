@@ -69,15 +69,26 @@
     }
   ],
   "committedResolution": {
-    "classification": "CONFLICTING_COMMITTED_ATTEMPTS",
+    "classification": "LEGACY_COMMITTED_UNATTRIBUTABLE_NON_AUTHORITATIVE",
     "authoritativeUnitId": null,
-    "mismatchFields": ["CANONICAL_OUTPUT", "SOURCE_CONTRACT_VERSION"]
+    "mismatchFields": ["ATTRIBUTABLE_LINEAGE", "SOURCE_CONTRACT_VERSION"]
+  },
+  "authoritativeRecovery": {
+    "established": true,
+    "logicalSlotId": "mrsl_41655a7f35277663021c111b69563454d6a1a879b6ea0981d892720e184431c7",
+    "authoritativeUnitId": "mru_2d91420b6409dfd1eb40f23ca8523da4ce3004fe369263ccb5ad3882a5c95411",
+    "sourceContractId": "mrsrc_602ba68a71e1ff4986df8f2e016e23af915c83bdf6e4bbac08070735d8caeb64",
+    "factCount": 288,
+    "canonicalFactSetDigest": "152a974651ea5c85a4790656076453abb673db10917061dcd8fead289ff20cbd",
+    "authorityReason": "CONTROLLED_REACQUISITION_WITH_COMPLETE_PROVENANCE",
+    "legacyCommittedDisposition": "LEGACY_COMMITTED_UNATTRIBUTABLE_NON_AUTHORITATIVE",
+    "orphanedAcquiredDisposition": "ORPHANED_NO_EVIDENCE_QUARANTINED"
   },
   "dryRun": {
-    "counts": { "REUSE_COMMITTED": 0, "CREATE_NEW_ON_LIVE_RESUME": 23, "BLOCKED_CONFLICT": 1 },
-    "expectedCleanCase": { "REUSE_COMMITTED": 1, "CREATE_NEW_ON_LIVE_RESUME": 23, "BLOCKED_CONFLICT": 0 },
+    "counts": { "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT": 1, "CREATE_NEW_ON_LIVE_RESUME": 23, "BLOCKED_CONFLICT": 0 },
+    "expectedCleanCase": { "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT": 1, "CREATE_NEW_ON_LIVE_RESUME": 23, "BLOCKED_CONFLICT": 0 },
     "slots": [
-      { "logicalSlotId": "mrsl_01ad7033b060e774203dc1d5ca5798210d88e7055f87c0dbc0224523bf5d5cd4", "dataset": "ohlcv", "instrument": "BTCUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "BLOCKED_CONFLICT", "authoritativeUnitId": null, "reason": "CONFLICTING_COMMITTED_ATTEMPTS", "checkpointStartStage": "PENDING", "blockers": ["CANONICAL_OUTPUT", "SOURCE_CONTRACT_VERSION"], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_41655a7f35277663021c111b69563454d6a1a879b6ea0981d892720e184431c7", "dataset": "ohlcv", "instrument": "BTCUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT", "authoritativeUnitId": "mru_2d91420b6409dfd1eb40f23ca8523da4ce3004fe369263ccb5ad3882a5c95411", "reason": "CERTIFIED_AUTHORITATIVE_RECOVERY", "checkpointStartStage": "COMMITTED", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
       { "logicalSlotId": "mrsl_9f61ab62411d7650d5aa39b9d6fc7364d439f5e54c8b647868bdc5625ac1d686", "dataset": "ohlcv", "instrument": "ETHUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
       { "logicalSlotId": "mrsl_67c4888481b67db37ad5da8cb2ba92139fcb7d9d228e3b2529858ed48bf7763e", "dataset": "ohlcv", "instrument": "SOLUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
       { "logicalSlotId": "mrsl_b8ea212c2779be696e98d0dec1edbd616088233637d6b5d4b31d98337fd19a98", "dataset": "ohlcv", "instrument": "BNBUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
@@ -103,8 +114,8 @@
       { "logicalSlotId": "mrsl_ab25a46b9d3b7d0b1d2d2eb443d9eaf3a293ab8c524df88b50948b3f1d13e0e6", "dataset": "agg-trade", "instrument": "DOGEUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" }
     ]
   },
-  "mutations": { "unitsCreated": 0, "canonicalWrites": 0, "servingWrites": 0, "exposureWrites": 0 },
-  "liveResumeReadiness": "BLOCKED",
-  "blockers": ["TARGET_OHLCV_BTCUSDT_COMMITTED_OUTPUT_CONFLICT", "SOURCE_CONTRACT_VERSION_UNRECORDED"],
-  "recommendedResumeEntryPoint": "READ_ONLY_CANONICAL_OUTPUT_AUDIT_FOR_FOUR_COMMITTED_UNITS"
+  "mutations": { "controlledRecoveryUnitsCreated": 1, "canonicalFactsCreated": 288, "watermarkWrites": 0, "servingWrites": 0, "exposureWrites": 0 },
+  "liveResumeReadiness": "READY_FOR_LIVE_8A_2B_RESUME",
+  "blockers": ["REMAINING_23_MANDATORY_SLOTS_NOT_EXECUTED", "INACTIVE_CANDIDATE_CYCLE_NOT_EXECUTED"],
+  "recommendedResumeEntryPoint": "MVP_8A_2B_PLAN_24_SLOTS_REUSE_AUTHORITY_THEN_CREATE_23"
 }

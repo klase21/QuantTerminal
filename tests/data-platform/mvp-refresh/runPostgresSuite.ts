@@ -16,6 +16,10 @@ import {
 const EXPECTED_RELATIONS = [
   "activation_readiness",
   "candidate_validation",
+  "controlled_candidate_set",
+  "controlled_canonical_commit_set",
+  "controlled_retrieval",
+  "logical_slot_reconciliation",
   "refresh_artifact",
   "refresh_candidate",
   "refresh_event",
@@ -28,10 +32,11 @@ const EXPECTED_RELATIONS = [
   "release_manifest",
   "release_manifest_entry",
   "source_availability_observation",
+  "source_contract",
   "source_watermark",
 ] as const
 
-const EXPECTED_INDEXES = ["refresh_event_run_time_idx", "refresh_unit_run_state_idx", "source_watermark_run_idx"] as const
+const EXPECTED_INDEXES = ["controlled_candidate_set_unit_idx", "controlled_commit_set_unit_idx", "controlled_retrieval_unit_idx", "logical_slot_reconciliation_unit_idx", "refresh_event_run_time_idx", "refresh_unit_run_state_idx", "source_watermark_run_idx"] as const
 
 async function main() {
   const first = createMvpRefreshClientFromEnvironment()

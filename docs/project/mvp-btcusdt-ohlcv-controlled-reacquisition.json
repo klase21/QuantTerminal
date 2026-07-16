@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "mvp-btcusdt-ohlcv-controlled-reacquisition/1.0.0",
+  "certifiedAt": "2026-07-16T13:20:18.245Z",
+  "target": {
+    "provider": "binance-vision",
+    "dataset": "ohlcv",
+    "instrument": "BTCUSDT",
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z",
+    "cadence": "5m"
+  },
+  "sourceContract": {
+    "id": "mrsrc_602ba68a71e1ff4986df8f2e016e23af915c83bdf6e4bbac08070735d8caeb64",
+    "version": "mvp-bounded-ohlcv/1.0.0",
+    "derivedFromCommittedImplementation": true,
+    "expectedRows": 288,
+    "checksumAlgorithm": "SHA-256",
+    "canonicalizationContract": "MVP_8A2E_STABLE_OHLCV_DOMAIN_V1"
+  },
+  "recovery": {
+    "runCount": 1,
+    "unitCount": 1,
+    "unitState": "VALIDATED",
+    "runState": "BLOCKED",
+    "runBlocker": "DOWNSTREAM_DEFERRED_TO_MVP_8A2B"
+  },
+  "acquisition": {
+    "classification": "HTTP_SUCCESS",
+    "finalized": true,
+    "rawByteCount": 13617,
+    "rawSha256": "fae0f2c65324006b2bdf30df50c9fb50dc49f05fd548c6d7d43f9339845143cf",
+    "rowCount": 288,
+    "contentTypeClassVerified": true,
+    "representativeExactContentType": false,
+    "temporaryDuplicateRetained": false
+  },
+  "canonical": {
+    "status": "CREATED",
+    "createdCount": 288,
+    "duplicateCount": 0,
+    "conflictCount": 0,
+    "attributableFactCount": 288,
+    "stableDomainDigest": "152a974651ea5c85a4790656076453abb673db10917061dcd8fead289ff20cbd"
+  },
+  "providerAuditComparison": {
+    "classification": "MATCHES_8A2E_PROVIDER_AUDIT",
+    "providerStableDomainDigest": "e8c2b46a73c77a0817435e39954af74dc77f120e134ebf1f1d58b0d0518fef89"
+  },
+  "authority": {
+    "status": "CREATED",
+    "factCount": 288,
+    "reason": "CONTROLLED_REACQUISITION_WITH_COMPLETE_PROVENANCE",
+    "legacyCommittedDisposition": "LEGACY_COMMITTED_UNATTRIBUTABLE_NON_AUTHORITATIVE",
+    "legacyCommittedCount": 4,
+    "orphanedAcquiredDisposition": "ORPHANED_NO_EVIDENCE_QUARANTINED",
+    "orphanedAcquiredCount": 1
+  },
+  "planner": {
+    "slotCount": 24,
+    "reuseAuthoritativeRecoveryOutput": 1,
+    "createNewOnLiveResume": 23,
+    "blockedConflict": 0,
+    "unitsCreatedByDryRun": 0
+  },
+  "idempotency": {
+    "exactRerun": "DUPLICATE",
+    "payloadReacquiredOnExactRerun": false
+  },
+  "integrity": {
+    "legacyAttemptsModified": false,
+    "watermarkWrites": 0,
+    "downstreamWrites": 0,
+    "servingWrites": 0,
+    "exposureWrites": 0,
+    "productionWrites": 0
+  }
+}

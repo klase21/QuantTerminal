@@ -196,6 +196,11 @@ export class MvpRefreshStore {
     if (!rows[0]?.valid) throw new Error("REFRESH_LEASE_FENCE_LOST")
   }
 
+  async releaseLease(leaseKey: string, ownerId: string, fencingToken: number): Promise<void> {
+    const result = await this.client.sql.unsafe("UPDATE refresh_control.refresh_lease SET released_at=now() WHERE lease_key=$1 AND owner_id=$2 AND fencing_token=$3 AND released_at IS NULL AND expires_at>now()", [leaseKey, ownerId, fencingToken])
+    if (result.count !== 1) throw new Error("REFRESH_LEASE_FENCE_LOST")
+  }
+
   async status(): Promise<object> {
     const runs = await this.client.sql.unsafe<Array<{ run_id: string; state: string; blocker_codes: string[]; updated_at: string }>>("SELECT run_id,state,blocker_codes,updated_at::text FROM refresh_control.refresh_run ORDER BY created_at DESC LIMIT 10")
     const counts = await this.client.sql.unsafe<Array<{ state: string; count: string }>>("SELECT state,count(*)::text count FROM refresh_control.refresh_unit GROUP BY state ORDER BY state")

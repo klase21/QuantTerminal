@@ -30,6 +30,14 @@ The run-independent planner resolved 24 deterministic logical slots. The current
 
 The clean-case algorithm is certified with fixtures as one `REUSE_COMMITTED` plus 23 `CREATE_NEW_ON_LIVE_RESUME`; it emits no BTCUSDT OHLCV unit in that case. On the actual control plane, the conflict prevents all unit creation. Read-only PostgreSQL certification confirmed unit, event, artifact, and lease row counts were unchanged.
 
+## MVP-8A.2F controlled reacquisition
+
+The unresolved BTCUSDT OHLCV slot was reacquired once through the committed bounded adapter under an explicit checksummed source contract. The finalized archive contained 13,617 bytes and exactly 288 aligned five-minute candles. Its provider stable-domain digest matched the prior non-retaining 8A.2E audit digest.
+
+The recovery persisted one Retrieval, one Raw Artifact reference, 288 deterministic Candidates, one canonical commit set, and 288 attributable immutable canonical Facts. The canonical result was `CREATED` with no conflict. An append-only logical-slot reconciliation now makes this provenance chain authoritative while leaving all four unattributable legacy `COMMITTED` attempts and the evidence-free `ACQUIRED` attempt unchanged.
+
+The exact worker rerun returned `DUPLICATE` before payload acquisition. The 24-slot dry run now returns one `REUSE_AUTHORITATIVE_RECOVERY_OUTPUT`, 23 `CREATE_NEW_ON_LIVE_RESUME`, and zero conflicts. No watermark, downstream product, serving corpus, exposure, Neon, Vercel, or Production write occurred.
+
 ## Reproducible commands
 
 ```powershell
@@ -41,6 +49,10 @@ npx tsx workers/data-platform/runMvpRefresh.ts plan
 npx tsx workers/data-platform/runMvpRefresh.ts availability
 npx tsx workers/data-platform/runMvpRefresh.ts migrate
 npx tsx workers/data-platform/runMvpRefresh.ts run
+npx tsx workers/data-platform/runMvpControlledOhlcvRecovery.ts preflight
+npx tsx workers/data-platform/runMvpControlledOhlcvRecovery.ts run
+npx tsx tests/data-platform/mvp-refresh/controlled-reacquisition/runUnitSuite.ts
+npx tsx tests/data-platform/mvp-refresh/controlled-reacquisition/runPostgresSuite.ts
 ```
 
 Only the first four commands are environment-independent. `migrate` and `run` require the isolated URL to be present in the worker environment. No command prints it.
@@ -74,3 +86,11 @@ Only the first four commands are environment-independent. `migrate` and `run` re
 - Target acquisition: not attempted.
 - Bounded adapter/downstream foundation suite: PASS.
 - Isolated serving target: not configured; no substitute database used.
+- Controlled provenance migration: `002` SKIPPED on exact reapplication.
+- Refresh-control relations/indexes/constraints after provenance migration: 20 / 48 / 125.
+- Controlled BTCUSDT archive bytes: 13,617; parsed rows: 288.
+- Controlled canonical result: `CREATED`, 288 attributable Facts, zero conflicts.
+- Controlled exact rerun: `DUPLICATE` before payload acquisition.
+- Controlled authority rollback injections: PASS before insertion and after insertion-before-verification.
+- Controlled stale-fence rejection: PASS.
+- Controlled recovery watermark/downstream/serving/exposure writes: 0 / 0 / 0 / 0.

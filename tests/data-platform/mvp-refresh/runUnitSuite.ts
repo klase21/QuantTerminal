@@ -112,13 +112,13 @@ async function main() {
   assert.equal(inspectMvpRefreshTarget(localTarget.replace("mvp_refresh", "mvp_serving"), {}).safe, false)
 
   const migrations = await discoverMvpRefreshMigrations()
-  assert.equal(migrations.length, 1)
-  assert.match(migrations[0].checksum, /^[0-9a-f]{64}$/)
+  assert.equal(migrations.length, 2)
+  assert(migrations.every((migration) => /^[0-9a-f]{64}$/.test(migration.checksum)))
   assert.doesNotThrow(() => verifyAppliedMvpRefreshMigrationChecksum(migrations[0].checksum, migrations[0].checksum))
   assert.throws(() => verifyAppliedMvpRefreshMigrationChecksum(checksum("changed"), migrations[0].checksum), /APPLIED_MVP_REFRESH_MIGRATION_CHECKSUM_MISMATCH/)
   assert(planNextMvpRefresh("2026-07-16T12:00:00.000Z"))
 
-  console.log(JSON.stringify({ status: "PASS", assertions: 58, migrationChecksum: migrations[0].checksum, candidateActivation: false, productionMutation: false }))
+  console.log(JSON.stringify({ status: "PASS", assertions: 58, migrationChecksums: migrations.map((migration) => migration.checksum), candidateActivation: false, productionMutation: false }))
 }
 
 void main().catch((error: unknown) => { console.error(error instanceof Error ? error.message : "MVP_REFRESH_TEST_FAILED"); process.exitCode = 1 })

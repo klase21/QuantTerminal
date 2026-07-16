@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
-import { createMvpRefreshClientFromEnvironment, MvpRefreshStore } from "@/lib/data-platform/mvp-refresh"
+import { ControlledOhlcvRecoveryStore, createMvpRefreshClientFromEnvironment, MvpRefreshStore } from "@/lib/data-platform/mvp-refresh"
 
 const START = "2026-07-15T00:00:00.000Z"
 const END = "2026-07-16T00:00:00.000Z"
@@ -16,8 +16,11 @@ async function main(): Promise<void> {
   try {
     await client.verify()
     const before = await counts(client), attempts = await new MvpRefreshStore(client).auditUnitsForWindow(START, END)
-    const committed = attempts.filter((attempt) => attempt.state === "COMMITTED"), acquired = attempts.find((attempt) => attempt.state === "ACQUIRED")
-    assert.equal(attempts.length, 5)
+    const authorities = await new ControlledOhlcvRecoveryStore(client).readAuthoritiesForWindow(START, END)
+    const historicalIds = new Set(authorities.flatMap((authority) => [...authority.legacyCommittedUnitIds, authority.orphanedAcquiredUnitId]))
+    const historical = attempts.filter((attempt) => historicalIds.has(attempt.unitId))
+    const committed = historical.filter((attempt) => attempt.state === "COMMITTED"), acquired = historical.find((attempt) => attempt.state === "ACQUIRED")
+    assert.equal(historical.length, 5)
     assert.equal(committed.length, 4)
     assert(committed.every((attempt) => attempt.checkpoint.factDigest === canonicalChecksum({ unit: attempt.unitId, stage: "COMMITTED" })))
     assert(committed.every((attempt) => attempt.artifacts.length === 0 && attempt.lease === null))
