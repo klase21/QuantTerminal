@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "mvp-refresh-capacity/1.0.0",
+  "measuredAt": "2026-07-16T00:39:34.756Z",
+  "initialCycleStatus": "NOOP_NO_CLOSED_WINDOW_AVAILABLE",
+  "measurements": {
+    "rawArtifactBytes": 0,
+    "newParquetBytes": 0,
+    "newCanonicalPostgresBytes": 0,
+    "newD4Bytes": 0,
+    "newServingBytes": 0,
+    "newReplayBytes": 0,
+    "refreshControlPlaneBytes": 573440,
+    "refreshControlPlaneTableBytes": 65536,
+    "refreshControlPlaneIndexBytes": 376832,
+    "refreshDatabaseBytes": 8657943,
+    "refreshControlPlaneCategories": {
+      "candidateManifestBytes": 155648,
+      "leaseEventBytes": 98304,
+      "migrationBytes": 49152,
+      "planRunUnitBytes": 196608,
+      "sourceArtifactBytes": 73728
+    },
+    "temporaryPeakBytes": 0,
+    "finalRetainedBytes": 0
+  },
+  "durationsMs": {
+    "migration": null,
+    "availability": null,
+    "acquisition": null,
+    "canonicalCommit": null,
+    "candidateBuild": null
+  },
+  "nullMeasurementReason": "NO_NEW_CLOSED_WINDOW_SO_NO_SOURCE_OR_CANDIDATE_BYTES",
+  "planningComparison": {
+    "expectedServingGrowthGbPerMonth": 0.12,
+    "highServingGrowthGbPerMonth": 0.15,
+    "comparisonStatus": "NOT_MEASURABLE_FROM_BLOCKED_CYCLE",
+    "fullHistoryStorageExcluded": true
+  }
+}

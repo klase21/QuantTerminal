@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "mvp-refresh-readiness/1.0.0",
+  "assessedAt": "2026-07-16T00:39:34.756Z",
+  "activeProduction": {
+    "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "governedThrough": "2026-07-15T00:00:00.000Z",
+    "modified": false
+  },
+  "controlPlane": {
+    "database": "quantterminal_mvp_refresh_isolated",
+    "postgresMajorVersionRequired": 16,
+    "environmentInheritance": "PASS_ROOT_AND_NODE_CHILD",
+    "postgresDriver": "postgres/3.4.9",
+    "connectionStringHandling": "ORIGINAL_VALUE_PASSED_DIRECTLY_NO_RECONSTRUCTION",
+    "sameFactoryPreflight": {
+      "connectionSucceeded": true,
+      "expectedDatabase": true,
+      "expectedRole": true,
+      "postgresMajor16": true,
+      "sanitizedErrorCode": null,
+      "sanitizedErrorClass": "NONE"
+    },
+    "priorAuthenticationSqlstate": "28P01_RESOLVED",
+    "migrationImplemented": true,
+    "migrationApplied": true,
+    "migrationChecksum": "894968a8b5540af3a396a6cb2860f0850d553b126ff66cd7795a6059519abf7f",
+    "migrationBlocker": null,
+    "migrationReapplication": "SKIPPED_IDEMPOTENT",
+    "migrationChecksumDrift": "FAIL_CLOSED_CERTIFIED",
+    "relationCount": 15,
+    "totalIndexCount": 30,
+    "explicitIndexCount": 3,
+    "constraintCount": 77,
+    "appendOnlyEventTrigger": "CERTIFIED",
+    "relationsCertified": true,
+    "indexesCertified": true,
+    "leaseIntegrationCertified": true,
+    "secretPersistenceRows": 0,
+    "productionWriteCapability": false
+  },
+  "nextEligibleWindow": null,
+  "nextWindowCandidateAfterFinalization": {
+    "requestedStart": "2026-07-15T00:00:00.000Z",
+    "requestedEnd": "2026-07-16T00:00:00.000Z",
+    "eligibleNoEarlierThan": "2026-07-16T02:00:00.000Z"
+  },
+  "fundingDisposition": "FUNDING_REFRESH_PATH_UNAVAILABLE",
+  "initialCycle": {
+    "status": "NOOP",
+    "reason": "NO_CLOSED_WINDOW_AVAILABLE",
+    "acquisitionStarted": false,
+    "canonicalCommitAttempted": false,
+    "candidateGenerated": false,
+    "manifestGenerated": false,
+    "productionMutation": false
+  },
+  "foundation": {
+    "stateMachines": "IMPLEMENTED",
+    "fencingLeases": "POSTGRES_CERTIFIED",
+    "checkpointRecovery": "POSTGRES_CERTIFIED_ACQUIRED_NORMALIZED_COMMITTED",
+    "candidateBuildRecovery": "POSTGRES_CERTIFIED_INACTIVE",
+    "deterministicIdentities": "UNIT_CERTIFIED",
+    "freshnessModel": "UNIT_CERTIFIED",
+    "pinnedCorpusCompatibility": "UNIT_CERTIFIED",
+    "releaseChannelMode": "IMPLEMENTED_FAIL_CLOSED_NOT_ACTIVATED",
+    "candidateActivation": "FORBIDDEN"
+  },
+  "remainingMvp8bBlockers": [
+    "IMPLEMENT_SAFE_BOUNDED_PROVIDER_NATIVE_FUNDING_REFRESH",
+    "EXTRACT_BOUNDED_CANONICAL_COMMIT_ENTRY_POINTS",
+    "EXTRACT_AFFECTED_WINDOW_EVIDENCE_AND_PROJECTION_ENTRY_POINTS",
+    "EXECUTE_AND_COMPARE_ONE_COMPLETE_INACTIVE_CANDIDATE"
+  ]
+}

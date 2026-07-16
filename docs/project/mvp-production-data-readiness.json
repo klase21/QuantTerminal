@@ -93,6 +93,21 @@
     "VERCEL_PLATFORM_ALIASES_REQUIRE_VERCEL_AUTHENTICATION"
   ],
   "remainingProductionBlockers": [],
+  "mvp8aRefreshFoundation": {
+    "status": "IMPLEMENTED_LOCALLY_NOT_ACTIVATED",
+    "productionCorpusModified": false,
+    "productionEnvironmentModified": false,
+    "releaseMode": "PINNED_CORPUS",
+    "candidateReleaseChannelActivated": false,
+    "initialCycle": "NOOP_NO_CLOSED_WINDOW_AVAILABLE",
+    "environmentInheritance": "PASS_ROOT_AND_NODE_CHILD",
+    "postgresIntegration": "CERTIFIED_15_RELATIONS_30_INDEXES_77_CONSTRAINTS",
+    "leaseAndRecovery": "CERTIFIED",
+    "blockerReasonCodes": [
+      "SOURCE_NOT_FINALIZED",
+      "FUNDING_REFRESH_PATH_UNAVAILABLE"
+    ]
+  },
   "protectedState": {
     "fundingCommandsExecuted": false,
     "populationRunnersExecuted": false,

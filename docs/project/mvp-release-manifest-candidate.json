@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "mvp-release-manifest-candidate/1.0.0",
+  "status": "NOT_GENERATED_NOOP",
+  "releaseChannel": "candidate",
+  "candidateLifecycle": null,
+  "exposureEligibility": "INELIGIBLE",
+  "requestedStart": null,
+  "requestedEnd": null,
+  "blockerReasonCodes": [
+    "SOURCE_NOT_FINALIZED",
+    "FUNDING_REFRESH_PATH_UNAVAILABLE"
+  ],
+  "corpusId": null,
+  "servingChecksum": null,
+  "manifestChecksum": null,
+  "productionActivation": false
+}

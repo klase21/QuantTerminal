@@ -157,3 +157,11 @@ The public application domain is `https://quantterminalai.vercel.app`. Vercel al
 Production health certifies `SERVING_POSTGRES`, the pooled read-only serving role, corpus `mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949`, checksum `129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949`, 870 Projections, 84 Evidence summaries, 84 Replay snapshots, two demo profiles, three release-inventory records, and one active exposure. Request-time canonical databases, Segment manifests, Parquet, Raw Artifacts, and publisher credentials remain absent.
 
 The prior READY Production deployment `dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR` remains the platform rollback target. Rollback was not required. A Production rollback changes the active Vercel deployment only; it does not mutate Neon or canonical truth.
+
+## MVP-8A refresh and release foundation
+
+Production remains in explicit pinned-corpus mode. MVP-8A adds a backward-compatible, opt-in release-channel resolver but does not change runtime defaults or Vercel variables. A channel release must carry a checksummed manifest linked to its predecessor and must verify corpus checksum, schema, counts, and exposure before reads are admitted. Candidate manifests are local and inactive; Preview and Production channel records are prohibited in MVP-8A.
+
+Incremental operational state belongs to the separate local `quantterminal_mvp_refresh_isolated` control plane. It has no Neon or canonical write authority. See `docs/architecture/mvp-refresh-and-release-channel.md` for window, watermark, fencing, and scheduler contracts.
+
+The MVP-8A continuation certified root/Node-child inheritance and the same-factory local connection without URL reconstruction or credential override. The isolated refresh schema now has checksummed migration, relation, constraint, lease, fencing, checkpoint, crash-recovery, and capacity evidence. This certification did not change the Production serving plane, Neon corpus, Vercel configuration, or pinned-corpus behavior.
