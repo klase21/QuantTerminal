@@ -2,6 +2,7 @@ import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import type postgres from "postgres"
 import type { MvpRefreshPostgresClient } from "./client"
 import { isLegalRunTransition, isLegalUnitTransition, type RefreshPlan, type RefreshRunState, type RefreshUnitState } from "./contracts"
+import type { RefreshUnitAttemptAudit } from "./unitReconciliation"
 
 export interface RefreshUnitInput {
   readonly unitId: string
@@ -11,6 +12,15 @@ export interface RefreshUnitInput {
   readonly intervalStart: string
   readonly intervalEnd: string
   readonly checksum: string
+}
+
+function jsonRecord(value: Record<string, unknown> | string | null): Readonly<Record<string, unknown>> {
+  if (typeof value === "string") {
+    const parsed: unknown = JSON.parse(value)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("REFRESH_UNIT_CHECKPOINT_INVALID")
+    return Object.freeze(parsed as Record<string, unknown>)
+  }
+  return Object.freeze(value ?? {})
 }
 
 export class MvpRefreshStore {
@@ -53,6 +63,32 @@ export class MvpRefreshStore {
       inserted += result.count
     }
     return inserted
+  }
+
+  async auditUnitsForWindow(intervalStart: string, intervalEnd: string): Promise<readonly RefreshUnitAttemptAudit[]> {
+    const units = await this.client.sql.unsafe<Array<{ unit_id: string; run_id: string; instrument: RefreshUnitAttemptAudit["instrument"]; dataset_id: RefreshUnitAttemptAudit["dataset"]; interval_start: string; interval_end: string; state: RefreshUnitState; checksum: string; checkpoint: Record<string, unknown> | string }>>("SELECT unit_id,run_id,instrument,dataset_id,interval_start::text,interval_end::text,state,checksum,checkpoint FROM refresh_control.refresh_unit WHERE interval_start=$1 AND interval_end=$2 ORDER BY created_at,unit_id", [intervalStart, intervalEnd])
+    if (!units.length) return Object.freeze([])
+    const unitIds = units.map((unit) => unit.unit_id)
+    const events = await this.client.sql.unsafe<Array<{ entity_id: string; event_kind: string; from_state: string | null; to_state: string | null; occurred_at: string }>>("SELECT entity_id,event_kind,from_state,to_state,occurred_at::text FROM refresh_control.refresh_event WHERE entity_kind='refresh_unit' AND entity_id=ANY($1::text[]) ORDER BY occurred_at,event_id", [unitIds])
+    const artifacts = await this.client.sql.unsafe<Array<{ unit_id: string; artifact_id: string; content_checksum: string; retrieval_identity: string | null; contract_version: string | null }>>("SELECT unit_id,artifact_id,content_checksum,lineage->>'retrievalIdentity' retrieval_identity,lineage->>'sourceContractVersion' contract_version FROM refresh_control.refresh_artifact WHERE unit_id=ANY($1::text[]) ORDER BY created_at,artifact_id", [unitIds])
+    const leases = await this.client.sql.unsafe<Array<{ lease_key: string; fencing_token: string; active: boolean; released: boolean }>>("SELECT lease_key,fencing_token::text,expires_at>now() AND released_at IS NULL active,released_at IS NOT NULL released FROM refresh_control.refresh_lease")
+    return Object.freeze(units.map((unit) => {
+      const lease = leases.find((value) => value.lease_key.includes(unit.unit_id))
+      return Object.freeze({
+        unitId: unit.unit_id,
+        runId: unit.run_id,
+        instrument: unit.instrument,
+        dataset: unit.dataset_id,
+        intervalStart: new Date(unit.interval_start).toISOString(),
+        intervalEnd: new Date(unit.interval_end).toISOString(),
+        state: unit.state,
+        unitChecksum: unit.checksum,
+        checkpoint: jsonRecord(unit.checkpoint),
+        artifacts: Object.freeze(artifacts.filter((value) => value.unit_id === unit.unit_id).map((value) => Object.freeze({ artifactId: value.artifact_id, checksum: value.content_checksum, retrievalIdentity: value.retrieval_identity, contractVersion: value.contract_version }))),
+        events: Object.freeze(events.filter((value) => value.entity_id === unit.unit_id).map((value) => Object.freeze({ eventKind: value.event_kind, fromState: value.from_state, toState: value.to_state, occurredAt: new Date(value.occurred_at).toISOString() }))),
+        lease: lease ? Object.freeze({ fencingToken: Number(lease.fencing_token), active: lease.active, released: lease.released }) : null,
+      })
+    }))
   }
 
   async transitionRun(runId: string, to: RefreshRunState, blockerCodes: readonly string[] = []): Promise<void> {

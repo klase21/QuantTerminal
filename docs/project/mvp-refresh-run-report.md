@@ -22,7 +22,13 @@ The bounded Evidence loader now accepts a complete exact-window contract while p
 
 Local serving migration `003` adds immutable corpus membership and candidate manifest records. Fault injection after header, membership, and manifest writes rolled back atomically, retained no fixture candidate, and left the active exposure unchanged. No live target-day candidate was assembled.
 
-The target-window recovery audit found five OHLCV units across separate runs, all for BTCUSDT: four `COMMITTED` and one `ACQUIRED`. None has a checkpoint, artifact, or active lease. The other five instruments have no OHLCV unit, and no target-window OI, Funding, or AggTrades unit exists. This actual state was preserved without acquisition or unit creation.
+The target-window recovery audit found five OHLCV units across separate runs, all for BTCUSDT: four `COMMITTED` and one `ACQUIRED`. The committed attempts each have a `factDigest` checkpoint, but the four values differ; none has an artifact row or recorded source contract version. The acquired attempt has an artifact-checksum checkpoint but no artifact row or active lease. The other five instruments have no OHLCV unit, and no target-window OI, Funding, or AggTrades unit exists. This actual state was preserved without acquisition or unit creation.
+
+## MVP-8A.2D reconciliation
+
+The run-independent planner resolved 24 deterministic logical slots. The current result is zero reused slots, 23 missing slots, and one blocked BTCUSDT OHLCV slot. The committed attempts are `CONFLICTING_COMMITTED_ATTEMPTS` on canonical-output digest and missing contract-version evidence. No authoritative unit was selected. The acquired attempt is `CONTROL_PLANE_CONFLICT` and cannot resume or override a committed slot.
+
+The clean-case algorithm is certified with fixtures as one `REUSE_COMMITTED` plus 23 `CREATE_NEW_ON_LIVE_RESUME`; it emits no BTCUSDT OHLCV unit in that case. On the actual control plane, the conflict prevents all unit creation. Read-only PostgreSQL certification confirmed unit, event, artifact, and lease row counts were unchanged.
 
 ## Reproducible commands
 

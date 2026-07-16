@@ -32,6 +32,12 @@ The local serving schema now has immutable candidate membership and manifest rel
 
 No audit command above was invoked. Existing operational progress files remain outside the new control plane.
 
+## Target-window logical reconciliation
+
+Mandatory planning now resolves run-independent logical slots before creating physical units. The slot identity covers provider, dataset, canonical instrument, exact interval, and source contract version. A clean target plan is exactly one reused committed BTCUSDT OHLCV slot plus 23 new slots; duplicate attempts never increase the mandatory-slot count.
+
+The current target audit is not clean. Four BTCUSDT OHLCV attempts are `COMMITTED` with four different recorded `factDigest` values, no artifact rows, and no recorded source contract version. They are classified `CONFLICTING_COMMITTED_ATTEMPTS`. The associated `ACQUIRED` attempt has no artifact row or active lease and is `CONTROL_PLANE_CONFLICT`. The planner returns 24 outcomes but blocks unit creation until authoritative read-only canonical evidence resolves the committed mismatch.
+
 ## State machines
 
 Plans move `DRAFT -> READY -> SUPERSEDED|CANCELLED`. Runs advance serially from `PLANNED` through acquisition, normalization, commit, validation, materialization, comparison, and `READY_FOR_RELEASE_REVIEW`; terminal `NOOP`, `BLOCKED`, `FAILED`, and `CANCELLED` states do not resume in place. Units follow the equivalent bounded stages. Candidates move `BUILDING -> VALIDATING -> INVALID|READY_FOR_RELEASE_REVIEW`; `RELEASED` is forbidden by the MVP-8A command surface.

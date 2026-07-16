@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "mvp-target-window-unit-reconciliation/1.0.0",
+  "targetWindow": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "logicalSlotContract": {
+    "identityFields": ["provider", "dataset", "canonicalInstrument", "eventTimeStart", "eventTimeEnd", "sourceContractVersion"],
+    "slotCount": 24,
+    "runIdentityIndependent": true
+  },
+  "servingBaseline": {
+    "publishedCorpora": 1,
+    "inactiveCorpora": 0,
+    "activeExposures": 1,
+    "modified": false
+  },
+  "attempts": [
+    {
+      "runId": "mrr_7be10da45bb7995fb127bf99ab31a8e50757636c5dffc6f01a4e3fe615f35dad",
+      "unitId": "mru_fee9399337890c81c5b6ebd3a48e6ae2e1f1e200b6f1532d0f53e1a06b3e8ef5",
+      "state": "ACQUIRED",
+      "unitChecksum": "fee9399337890c81c5b6ebd3a48e6ae2e1f1e200b6f1532d0f53e1a06b3e8ef5",
+      "checkpoint": { "stage": "ACQUIRED", "artifactChecksum": "ed8e8943caf13908aa79286330ea5b86a0b9ffb5850e8bec38cd1eaad2c4de11" },
+      "artifactRows": 0,
+      "activeLease": false,
+      "events": ["PENDING->LEASED@2026-07-16T00:38:21.797Z", "LEASED->ACQUIRED@2026-07-16T00:38:21.804Z"],
+      "classification": "CONTROL_PLANE_CONFLICT"
+    },
+    {
+      "runId": "mrr_bd9410fa7b18ade25a86b06c3d1fa6188c86303eb0ac442efa8f3e5a6932d33b",
+      "unitId": "mru_980999fe92a57dba1ddb2d10fae608425b0dafbf17a714b4eed615b5b79bbef8",
+      "state": "COMMITTED",
+      "unitChecksum": "980999fe92a57dba1ddb2d10fae608425b0dafbf17a714b4eed615b5b79bbef8",
+      "factDigest": "1f111e85445d0e4b5db1b04243832be7df4d6b36827996aff5e11985ade0f05a",
+      "artifactRows": 0,
+      "activeLease": false,
+      "events": ["PENDING->LEASED@2026-07-16T00:39:22.255Z", "LEASED->ACQUIRED@2026-07-16T00:39:22.261Z", "ACQUIRED->NORMALIZED@2026-07-16T00:39:22.291Z", "NORMALIZED->COMMITTED@2026-07-16T00:39:22.319Z"]
+    },
+    {
+      "runId": "mrr_21ee197d5202e2b7bd9b378aa2e732e5cba3ff98353b3b15e8e3645f9a993bd1",
+      "unitId": "mru_b68b6289cc96c6ae66b6011caae2d4611bc2c877614ea3be4362544e75c92515",
+      "state": "COMMITTED",
+      "unitChecksum": "b68b6289cc96c6ae66b6011caae2d4611bc2c877614ea3be4362544e75c92515",
+      "factDigest": "91547a1e082663170d2d387e3d88b60c7a4743475855301700491d6cd358e27e",
+      "artifactRows": 0,
+      "activeLease": false,
+      "events": ["PENDING->LEASED@2026-07-16T00:41:42.769Z", "LEASED->ACQUIRED@2026-07-16T00:41:42.776Z", "ACQUIRED->NORMALIZED@2026-07-16T00:41:42.802Z", "NORMALIZED->COMMITTED@2026-07-16T00:41:42.833Z"]
+    },
+    {
+      "runId": "mrr_26a21860bf4f4698295589adad462c472061405d4277f93a93ecdec2466a873b",
+      "unitId": "mru_9892985b2759897af3364388badd85a22467f243245f9b9ae302de1c407c756e",
+      "state": "COMMITTED",
+      "unitChecksum": "9892985b2759897af3364388badd85a22467f243245f9b9ae302de1c407c756e",
+      "factDigest": "791cd9a64264faf6abff887d259101fb73a10b448a2d846155800749e442a95c",
+      "artifactRows": 0,
+      "activeLease": false,
+      "events": ["PENDING->LEASED@2026-07-16T01:23:42.131Z", "LEASED->ACQUIRED@2026-07-16T01:23:42.138Z", "ACQUIRED->NORMALIZED@2026-07-16T01:23:42.173Z", "NORMALIZED->COMMITTED@2026-07-16T01:23:42.203Z"]
+    },
+    {
+      "runId": "mrr_6f32059f5402ed09b022941bdc1751e671baa46e2938f4c03853bdedba028d8d",
+      "unitId": "mru_5a9bb9f8653bb2b42d4fd0b654d99fea11d428cf67eeffe770210b3f0e505f7a",
+      "state": "COMMITTED",
+      "unitChecksum": "5a9bb9f8653bb2b42d4fd0b654d99fea11d428cf67eeffe770210b3f0e505f7a",
+      "factDigest": "b6964931b3c92f7170916772d6c698cdab483502fb973ff6c0cab2f57c6488ed",
+      "artifactRows": 0,
+      "activeLease": false,
+      "events": ["PENDING->LEASED@2026-07-16T06:05:57.176Z", "LEASED->ACQUIRED@2026-07-16T06:05:57.181Z", "ACQUIRED->NORMALIZED@2026-07-16T06:05:57.209Z", "NORMALIZED->COMMITTED@2026-07-16T06:05:57.235Z"]
+    }
+  ],
+  "committedResolution": {
+    "classification": "CONFLICTING_COMMITTED_ATTEMPTS",
+    "authoritativeUnitId": null,
+    "mismatchFields": ["CANONICAL_OUTPUT", "SOURCE_CONTRACT_VERSION"]
+  },
+  "dryRun": {
+    "counts": { "REUSE_COMMITTED": 0, "CREATE_NEW_ON_LIVE_RESUME": 23, "BLOCKED_CONFLICT": 1 },
+    "expectedCleanCase": { "REUSE_COMMITTED": 1, "CREATE_NEW_ON_LIVE_RESUME": 23, "BLOCKED_CONFLICT": 0 },
+    "slots": [
+      { "logicalSlotId": "mrsl_01ad7033b060e774203dc1d5ca5798210d88e7055f87c0dbc0224523bf5d5cd4", "dataset": "ohlcv", "instrument": "BTCUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "BLOCKED_CONFLICT", "authoritativeUnitId": null, "reason": "CONFLICTING_COMMITTED_ATTEMPTS", "checkpointStartStage": "PENDING", "blockers": ["CANONICAL_OUTPUT", "SOURCE_CONTRACT_VERSION"], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_9f61ab62411d7650d5aa39b9d6fc7364d439f5e54c8b647868bdc5625ac1d686", "dataset": "ohlcv", "instrument": "ETHUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_67c4888481b67db37ad5da8cb2ba92139fcb7d9d228e3b2529858ed48bf7763e", "dataset": "ohlcv", "instrument": "SOLUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_b8ea212c2779be696e98d0dec1edbd616088233637d6b5d4b31d98337fd19a98", "dataset": "ohlcv", "instrument": "BNBUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_5b67dc0c4750eebec6c2504346689fc65befa97e50cdb55eb4b692a7828776a1", "dataset": "ohlcv", "instrument": "XRPUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_4680cd010280f74f5abd755c3a5810484ebc1e5e2bff9c548334488bf94f21d7", "dataset": "ohlcv", "instrument": "DOGEUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_4b323ac87e608ff1c1b2e0e9b20d59133343538d7f62439eaee082ffa64d000a", "dataset": "open-interest", "instrument": "BTCUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_1a47d778320865997dd440b8ed47ebc29d7b869ee1e079e6bb00d645019ffc80", "dataset": "open-interest", "instrument": "ETHUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_3f6aaa474355b8c7176b29dae52bdbf19e77097b787276b7b56ca76c9d286e56", "dataset": "open-interest", "instrument": "SOLUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_f4b4071477102a8d0e9ad70bccd882a512e35e540c59e22cafff6404708cf150", "dataset": "open-interest", "instrument": "BNBUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_799aa23a7993bd6f8a9d4cb3c31b5c96c46f09b35a6cf6beed9b7f081d831c58", "dataset": "open-interest", "instrument": "XRPUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_fc42fe15c65e3396afe3036e71a704745b79af4e6b6642e80b43874b24820e71", "dataset": "open-interest", "instrument": "DOGEUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_70dce0724afcede67325e88e703b2cfc7b88fcfdbdcbbacb3a7f4a50e7e2e30f", "dataset": "funding", "instrument": "BTCUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_8d7570bb6d33b1fc97eb7dad8df17f77909de436eb84e2e7be52839ae25ffffb", "dataset": "funding", "instrument": "ETHUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_7136a033b848450d7e0c764958e0bf94da4346fc82139e674d7efa595398bba4", "dataset": "funding", "instrument": "SOLUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_9febf821ec288416b43e54bd96119d13ff0383a5821b40162e629c5e065782d0", "dataset": "funding", "instrument": "BNBUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_af422a9f49841af2b07c93dec3bba2570e63f9fc03d2dba166d407251ff522c2", "dataset": "funding", "instrument": "XRPUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_1712e9c7e14d0c53c5e54cc3a38be69673318ce3691ced371521efc87eac9902", "dataset": "funding", "instrument": "DOGEUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_3957dec4bb1137fc3a00957c2013e1ed2dee8931d536eb6873ce42b6cc5f4a2d", "dataset": "agg-trade", "instrument": "BTCUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_c0e5c28c0dbcf1c5207c3628f147d39d5bea1c8a04a6c7150fb9b74554f5e00c", "dataset": "agg-trade", "instrument": "ETHUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_6445fd19f7bc0c95b92da14e40b76d71d1bdd28c668df28cf61e6d44178dff31", "dataset": "agg-trade", "instrument": "SOLUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_6d76f2ce86f36db4a1d26a950dfcf02402e617905191c53b6a4196a4311677cf", "dataset": "agg-trade", "instrument": "BNBUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_dbcf6aa0b1e01eb1a3b897d1cd90e0ec9f353b1bbb1f8caf70169926e40a5bc5", "dataset": "agg-trade", "instrument": "XRPUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" },
+      { "logicalSlotId": "mrsl_ab25a46b9d3b7d0b1d2d2eb443d9eaf3a293ab8c524df88b50948b3f1d13e0e6", "dataset": "agg-trade", "instrument": "DOGEUSDT", "interval": "[2026-07-15T00:00:00.000Z,2026-07-16T00:00:00.000Z)", "action": "CREATE_NEW_ON_LIVE_RESUME", "authoritativeUnitId": null, "reason": "LOGICAL_SLOT_MISSING", "checkpointStartStage": "PENDING", "blockers": [], "sourceFinalizationState": "SOURCE_AVAILABLE" }
+    ]
+  },
+  "mutations": { "unitsCreated": 0, "canonicalWrites": 0, "servingWrites": 0, "exposureWrites": 0 },
+  "liveResumeReadiness": "BLOCKED",
+  "blockers": ["TARGET_OHLCV_BTCUSDT_COMMITTED_OUTPUT_CONFLICT", "SOURCE_CONTRACT_VERSION_UNRECORDED"],
+  "recommendedResumeEntryPoint": "READ_ONLY_CANONICAL_OUTPUT_AUDIT_FOR_FOUR_COMMITTED_UNITS"
+}

@@ -78,10 +78,19 @@
     "affectedWindowEntryPoints": "CONSISTENCY_EVIDENCE_PROJECTION_REPLAY_EXECUTABLE_AND_HISTORICAL_DUPLICATE_CERTIFIED",
     "inactiveCandidateTarget": "POSTGRES_MIGRATION_AND_ATOMIC_ROLLBACK_CERTIFIED",
     "candidateMembership": "IMMUTABLE_APPEND_ONLY_CERTIFIED",
-    "broadWorkerParity": "CERTIFIED"
+    "broadWorkerParity": "CERTIFIED",
+    "targetWindowLogicalSlots": "24_DETERMINISTIC_RUN_INDEPENDENT",
+    "targetWindowReconciliation": "BLOCKED_CONFLICTING_COMMITTED_ATTEMPTS",
+    "targetWindowDryRun": {
+      "reuseCommitted": 0,
+      "createNewOnLiveResume": 23,
+      "blockedConflict": 1,
+      "unitsCreated": 0
+    }
   },
   "remainingMvp8bBlockers": [
-    "RECONCILE_EXISTING_TARGET_OHLCV_UNIT_DISTRIBUTION",
+    "TARGET_OHLCV_BTCUSDT_COMMITTED_OUTPUT_CONFLICT",
+    "SOURCE_CONTRACT_VERSION_UNRECORDED",
     "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",
     "EXECUTE_AND_COMPARE_ONE_COMPLETE_INACTIVE_CANDIDATE"
   ]

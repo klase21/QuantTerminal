@@ -2,6 +2,7 @@ import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import type { MvpRefreshPostgresClient } from "./client"
 import { createRefreshPlan, createRefreshPolicy, MVP_REFRESH_INSTRUMENTS, MVP_REFRESH_MANDATORY_DATASETS, resolveNextEligibleWindow, type RefreshPlan } from "./contracts"
 import { MvpRefreshStore, type RefreshUnitInput } from "./store"
+import { buildRefreshSlotResumePlan, createMissingRefreshUnitsForResume } from "./unitReconciliation"
 
 export const ACTIVE_MVP_SERVING_BASELINE = Object.freeze({
   corpusId: "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -40,13 +41,16 @@ export async function runInitialBoundedRefresh(client: MvpRefreshPostgresClient,
   const plan = planNextMvpRefresh(now)
   if (!plan) return Object.freeze({ status: "NOOP", reason: "NO_CLOSED_WINDOW_AVAILABLE", productionMutation: false })
   if (sourceReadiness !== "READY_FOR_ACQUISITION") return Object.freeze({ status: "BLOCKED", reason: "SOURCE_NOT_FINALIZED", timeState: "TIME_ELIGIBLE", sourceState: "SOURCE_NOT_FINALIZED", acquisitionState: "NOT_READY_FOR_ACQUISITION", requestedStart: plan.window.requestedStart, requestedEnd: plan.window.requestedEnd, refreshUnitsCreated: 0, acquisitionStarted: false, candidateGenerated: false, productionMutation: false })
+  const attempts = await store.auditUnitsForWindow(plan.window.requestedStart, plan.window.requestedEnd)
+  const resumePlan = buildRefreshSlotResumePlan({ intervalStart: plan.window.requestedStart, intervalEnd: plan.window.requestedEnd, attempts, sourceFinalizationState: "SOURCE_AVAILABLE" })
+  if (resumePlan.some((entry) => entry.action === "BLOCKED_CONFLICT")) return Object.freeze({ status: "BLOCKED", reason: "TARGET_WINDOW_LOGICAL_SLOT_CONFLICT", requestedStart: plan.window.requestedStart, requestedEnd: plan.window.requestedEnd, logicalSlotCount: resumePlan.length, refreshUnitsCreated: 0, acquisitionStarted: false, candidateGenerated: false, productionMutation: false })
   await store.putPolicy(DEFAULT_MVP_REFRESH_POLICY)
   await store.putPlan(plan)
   const runChecksum = canonicalChecksum({ schemaVersion: "mvp-refresh-run/1.0.0", planId: plan.planId })
   const runId = `mrr_${runChecksum}`
   const runInsert = await store.putRun(runId, plan.planId, runChecksum)
   if (runInsert === "DUPLICATE") return Object.freeze({ status: "DUPLICATE", runId, planId: plan.planId, productionMutation: false })
-  const units = createRefreshUnits(plan, runId)
+  const units = createMissingRefreshUnitsForResume(runId, resumePlan)
   await store.putUnits(units)
   await store.transitionRun(runId, "ACQUIRING")
   const blockersByDataset = new Map<string, string>(MVP_REFRESH_SOURCE_AUDIT.filter((source) => source.blocker).map((source) => [source.datasetId, source.blocker as string]))
