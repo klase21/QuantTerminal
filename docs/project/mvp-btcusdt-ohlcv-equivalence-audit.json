@@ -1,0 +1,175 @@
+{
+  "auditId": "mvp-8a-2e-btcusdt-ohlcv-2026-07-15",
+  "auditDate": "2026-07-16",
+  "mode": "READ_ONLY_FORENSIC_AUDIT",
+  "target": {
+    "provider": "binance-vision",
+    "dataset": "ohlcv",
+    "instrument": "BTCUSDT",
+    "interval": "5m",
+    "eventTimeStart": "2026-07-15T00:00:00.000Z",
+    "eventTimeEnd": "2026-07-16T00:00:00.000Z"
+  },
+  "attemptInventory": [
+    {
+      "runId": "mrr_7be10da45bb7995fb127bf99ab31a8e50757636c5dffc6f01a4e3fe615f35dad",
+      "unitId": "mru_fee9399337890c81c5b6ebd3a48e6ae2e1f1e200b6f1532d0f53e1a06b3e8ef5",
+      "state": "ACQUIRED",
+      "stateEvents": [
+        { "from": "PENDING", "to": "LEASED", "occurredAt": "2026-07-16T00:38:21.797Z" },
+        { "from": "LEASED", "to": "ACQUIRED", "occurredAt": "2026-07-16T00:38:21.804Z" }
+      ],
+      "artifactChecksum": "ed8e8943caf13908aa79286330ea5b86a0b9ffb5850e8bec38cd1eaad2c4de11",
+      "artifactRows": 0,
+      "checkpointRows": 0,
+      "activeLease": false,
+      "retrievalIdentity": null,
+      "candidateIdentity": null,
+      "canonicalCommitIdentity": null,
+      "canonicalFactIdentities": [],
+      "classification": "ORPHANED_NO_EVIDENCE"
+    },
+    {
+      "runId": "mrr_bd9410fa7b18ade25a86b06c3d1fa6188c86303eb0ac442efa8f3e5a6932d33b",
+      "unitId": "mru_980999fe92a57dba1ddb2d10fae608425b0dafbf17a714b4eed615b5b79bbef8",
+      "state": "COMMITTED",
+      "stateEvents": [
+        { "from": "PENDING", "to": "LEASED", "occurredAt": "2026-07-16T00:39:22.255Z" },
+        { "from": "LEASED", "to": "ACQUIRED", "occurredAt": "2026-07-16T00:39:22.261Z" },
+        { "from": "ACQUIRED", "to": "NORMALIZED", "occurredAt": "2026-07-16T00:39:22.291Z" },
+        { "from": "NORMALIZED", "to": "COMMITTED", "occurredAt": "2026-07-16T00:39:22.319Z" }
+      ],
+      "committedAt": "2026-07-16T00:39:22.319Z",
+      "recordedFactDigest": "1f111e85445d0e4b5db1b04243832be7df4d6b36827996aff5e11985ade0f05a",
+      "recordedDigestReconstructedFromAttemptMetadata": true,
+      "refreshCandidateId": "mrc_9d5ea420e9015a24502ae1447bb49288591d4024e322d0f87382b5fae9762350",
+      "artifactRows": 0,
+      "activeLease": false,
+      "canonicalFactIdentities": [],
+      "provenance": "CONTRACT_PROVENANCE_UNRECORDED"
+    },
+    {
+      "runId": "mrr_21ee197d5202e2b7bd9b378aa2e732e5cba3ff98353b3b15e8e3645f9a993bd1",
+      "unitId": "mru_b68b6289cc96c6ae66b6011caae2d4611bc2c877614ea3be4362544e75c92515",
+      "state": "COMMITTED",
+      "stateEvents": [
+        { "from": "PENDING", "to": "LEASED", "occurredAt": "2026-07-16T00:41:42.769Z" },
+        { "from": "LEASED", "to": "ACQUIRED", "occurredAt": "2026-07-16T00:41:42.776Z" },
+        { "from": "ACQUIRED", "to": "NORMALIZED", "occurredAt": "2026-07-16T00:41:42.802Z" },
+        { "from": "NORMALIZED", "to": "COMMITTED", "occurredAt": "2026-07-16T00:41:42.833Z" }
+      ],
+      "committedAt": "2026-07-16T00:41:42.833Z",
+      "recordedFactDigest": "91547a1e082663170d2d387e3d88b60c7a4743475855301700491d6cd358e27e",
+      "recordedDigestReconstructedFromAttemptMetadata": true,
+      "refreshCandidateId": "mrc_3e7fd8c70ac0372139307b1de46d4cdd3b2de7c9ba91023741c46ff6d10e138f",
+      "artifactRows": 0,
+      "activeLease": false,
+      "canonicalFactIdentities": [],
+      "provenance": "CONTRACT_PROVENANCE_UNRECORDED"
+    },
+    {
+      "runId": "mrr_26a21860bf4f4698295589adad462c472061405d4277f93a93ecdec2466a873b",
+      "unitId": "mru_9892985b2759897af3364388badd85a22467f243245f9b9ae302de1c407c756e",
+      "state": "COMMITTED",
+      "stateEvents": [
+        { "from": "PENDING", "to": "LEASED", "occurredAt": "2026-07-16T01:23:42.131Z" },
+        { "from": "LEASED", "to": "ACQUIRED", "occurredAt": "2026-07-16T01:23:42.138Z" },
+        { "from": "ACQUIRED", "to": "NORMALIZED", "occurredAt": "2026-07-16T01:23:42.173Z" },
+        { "from": "NORMALIZED", "to": "COMMITTED", "occurredAt": "2026-07-16T01:23:42.203Z" }
+      ],
+      "committedAt": "2026-07-16T01:23:42.203Z",
+      "recordedFactDigest": "791cd9a64264faf6abff887d259101fb73a10b448a2d846155800749e442a95c",
+      "recordedDigestReconstructedFromAttemptMetadata": true,
+      "refreshCandidateId": "mrc_9249593a2e5975232ba871aea2bef8c27caf6075e859d8ba6c0624468ffc6237",
+      "artifactRows": 0,
+      "activeLease": false,
+      "canonicalFactIdentities": [],
+      "provenance": "CONTRACT_PROVENANCE_UNRECORDED"
+    },
+    {
+      "runId": "mrr_6f32059f5402ed09b022941bdc1751e671baa46e2938f4c03853bdedba028d8d",
+      "unitId": "mru_5a9bb9f8653bb2b42d4fd0b654d99fea11d428cf67eeffe770210b3f0e505f7a",
+      "state": "COMMITTED",
+      "stateEvents": [
+        { "from": "PENDING", "to": "LEASED", "occurredAt": "2026-07-16T06:05:57.176Z" },
+        { "from": "LEASED", "to": "ACQUIRED", "occurredAt": "2026-07-16T06:05:57.181Z" },
+        { "from": "ACQUIRED", "to": "NORMALIZED", "occurredAt": "2026-07-16T06:05:57.209Z" },
+        { "from": "NORMALIZED", "to": "COMMITTED", "occurredAt": "2026-07-16T06:05:57.235Z" }
+      ],
+      "committedAt": "2026-07-16T06:05:57.235Z",
+      "recordedFactDigest": "b6964931b3c92f7170916772d6c698cdab483502fb973ff6c0cab2f57c6488ed",
+      "recordedDigestReconstructedFromAttemptMetadata": true,
+      "refreshCandidateId": "mrc_3ae074c9edfe772fe8400de944e92e5cd63304d82dc79536a1f6fbe6260dbf63",
+      "artifactRows": 0,
+      "activeLease": false,
+      "canonicalFactIdentities": [],
+      "provenance": "CONTRACT_PROVENANCE_UNRECORDED"
+    }
+  ],
+  "lineage": {
+    "refreshArtifactRows": 0,
+    "d3CandidateRows": 0,
+    "attemptCanonicalCommitIdentities": 0,
+    "attemptCanonicalFactIdentities": 0,
+    "canonicalOhlcvRelationPresentInConfiguredAuditTarget": false,
+    "canonicalVersionRelationPresentInConfiguredAuditTarget": false,
+    "classification": "INCOMPLETE_OR_UNVERIFIABLE_PROVENANCE"
+  },
+  "independentDigestContract": {
+    "algorithm": "SHA-256",
+    "encoding": "UTF-8 JSON",
+    "sort": ["eventTimestamp", "canonicalFactIdentity"],
+    "attemptMetadataExcluded": true,
+    "recordedFactDigestImplementationReused": false
+  },
+  "attemptDigestResults": [
+    { "unitOrdinal": 1, "factCount": null, "timestampSequenceDigest": null, "valueOnlyDigest": null, "fullStableDomainDigest": null, "reason": "NO_ATTRIBUTABLE_CANONICAL_FACT_IDENTITIES" },
+    { "unitOrdinal": 2, "factCount": null, "timestampSequenceDigest": null, "valueOnlyDigest": null, "fullStableDomainDigest": null, "reason": "NO_ATTRIBUTABLE_CANONICAL_FACT_IDENTITIES" },
+    { "unitOrdinal": 3, "factCount": null, "timestampSequenceDigest": null, "valueOnlyDigest": null, "fullStableDomainDigest": null, "reason": "NO_ATTRIBUTABLE_CANONICAL_FACT_IDENTITIES" },
+    { "unitOrdinal": 4, "factCount": null, "timestampSequenceDigest": null, "valueOnlyDigest": null, "fullStableDomainDigest": null, "reason": "NO_ATTRIBUTABLE_CANONICAL_FACT_IDENTITIES" }
+  ],
+  "pairwiseComparison": {
+    "pairCount": 6,
+    "classifications": { "INSUFFICIENT_EVIDENCE": 6 },
+    "independentDigestEqualPairs": 0,
+    "firstDifferingRows": null,
+    "totalDifferingRows": 0,
+    "zeroDifferencesMeaning": "NO_COMPARABLE_ROWS_NOT_EQUIVALENCE"
+  },
+  "recordedFactDigestAudit": {
+    "classification": "DIGEST_INCLUDED_ATTEMPT_METADATA",
+    "reconstructedCount": 4,
+    "canonicalFactDigest": false
+  },
+  "sourceContractProvenance": {
+    "classification": "CONTRACT_PROVENANCE_UNRECORDED",
+    "sourceContractVersionRecorded": false,
+    "parserVersionRecorded": false,
+    "normalizerVersionRecorded": false,
+    "modelVersionRecorded": false
+  },
+  "currentProviderComparison": {
+    "classification": "PROVIDER_COMPARISON_INCONCLUSIVE",
+    "sourceStatus": "HTTP_SUCCESS",
+    "rawSha256": "fae0f2c65324006b2bdf30df50c9fb50dc49f05fd548c6d7d43f9339845143cf",
+    "factCount": 288,
+    "minTimestamp": "2026-07-15T00:00:00.000Z",
+    "maxTimestamp": "2026-07-15T23:55:00.000Z",
+    "timestampSequenceDigest": "346ec4e133e421ec88a703153604b8ef742e12afb64476c84b0016e8f4f89a0d",
+    "valueOnlyDigest": "c7fc75fefd3eeb9d0ff2040f61116f217ecc02e2571b25ffa4eb05dd79f20a76",
+    "fullStableDomainDigest": "e8c2b46a73c77a0817435e39954af74dc77f120e134ebf1f1d58b0d0518fef89",
+    "retainedPayload": false,
+    "comparisonToAttempts": "PROVIDER_COMPARISON_INCONCLUSIVE"
+  },
+  "finalSlotClassification": "INSUFFICIENT_EVIDENCE_TO_RESOLVE",
+  "authoritativeSelectionEligible": false,
+  "recoveryDecision": "CONTROLLED_REACQUISITION_AND_COMPARISON_WITH_EXPLICIT_CONTRACT_CAPTURE",
+  "integrity": {
+    "refreshWrites": 0,
+    "canonicalWrites": 0,
+    "servingWrites": 0,
+    "retainedProviderObjects": 0,
+    "externalSystemWrites": 0,
+    "progressFilesModifiedByAudit": false
+  }
+}
