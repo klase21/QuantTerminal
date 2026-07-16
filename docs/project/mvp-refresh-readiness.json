@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-refresh-readiness/1.0.0",
-  "assessedAt": "2026-07-16T06:03:52.840Z",
+  "assessedAt": "2026-07-16T07:00:00.000Z",
   "activeProduction": {
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -43,8 +43,8 @@
     "requestedStart": "2026-07-15T00:00:00.000Z",
     "requestedEnd": "2026-07-16T00:00:00.000Z",
     "timeState": "TIME_ELIGIBLE",
-    "sourceState": "SOURCE_NOT_FINALIZED",
-    "acquisitionState": "NOT_READY_FOR_ACQUISITION"
+    "sourceState": "SOURCE_AVAILABLE",
+    "acquisitionState": "READY_BUT_NOT_EXECUTED_IN_MVP_8A_2C"
   },
   "nextWindowCandidateAfterFinalization": {
     "requestedStart": "2026-07-15T00:00:00.000Z",
@@ -75,12 +75,14 @@
     "boundedOhlcv": "FIXTURE_CERTIFIED_TARGET_SOURCE_NOT_FINALIZED",
     "boundedOpenInterest": "FIXTURE_CERTIFIED_TARGET_SOURCE_NOT_FINALIZED",
     "boundedAggTradesSegment": "FIXTURE_CERTIFIED_TARGET_SOURCE_NOT_FINALIZED",
-    "affectedWindowEntryPoints": "CONSISTENCY_EVIDENCE_PROJECTION_REPLAY_UNIT_CERTIFIED",
-    "inactiveCandidateTarget": "CONTRACT_CERTIFIED_DATABASE_TEST_DEFERRED_ENVIRONMENT_NOT_CONFIGURED"
+    "affectedWindowEntryPoints": "CONSISTENCY_EVIDENCE_PROJECTION_REPLAY_EXECUTABLE_AND_HISTORICAL_DUPLICATE_CERTIFIED",
+    "inactiveCandidateTarget": "POSTGRES_MIGRATION_AND_ATOMIC_ROLLBACK_CERTIFIED",
+    "candidateMembership": "IMMUTABLE_APPEND_ONLY_CERTIFIED",
+    "broadWorkerParity": "CERTIFIED"
   },
   "remainingMvp8bBlockers": [
-    "SOURCE_NOT_FINALIZED",
-    "CERTIFY_INACTIVE_INSERT_AGAINST_CONFIGURED_LOCAL_SERVING_DATABASE",
+    "RECONCILE_EXISTING_TARGET_OHLCV_UNIT_DISTRIBUTION",
+    "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",
     "EXECUTE_AND_COMPARE_ONE_COMPLETE_INACTIVE_CANDIDATE"
   ]
 }

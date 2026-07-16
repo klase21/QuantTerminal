@@ -11,6 +11,7 @@ import {
   createConsistencyRunSpecification,
   createImmutableConsistencyResult,
   createMvpMarketAssessment,
+  persistMvpEvidenceWindow,
   readMvpEvidenceWindows,
   type AvailableTemporalAlignmentInput,
   type ConsistencyResult,
@@ -122,39 +123,9 @@ function completionSummary(runId: string, evaluations: readonly MvpRuleEvaluatio
 }
 
 async function persistWindow(input: { readonly corpus: CorpusManifest; readonly data: Awaited<ReturnType<typeof readMvpEvidenceWindows>>[number]; readonly worker: ConsistencyPostgresRuntime; readonly assembler: ConsistencyPostgresRuntime }) {
-  const assessment = createMvpMarketAssessment({ corpusId: input.corpus.corpusId, corpusChecksum: input.corpus.corpusChecksum, measurement: input.data.measurement })
-  const policies = { temporalPolicyId: POLICY.temporal, temporalPolicyVersion: "1.0.0", comparisonPolicyReferences: [{ policyId: POLICY.comparison, policyVersion: "1.0.0" }], severityPolicyId: POLICY.severity, severityPolicyVersion: "1.0.0", retryPolicyReference: null }
-  const spec = createConsistencyRunSpecification({ ruleSetId: MVP_EVIDENCE_RULE_SET_ID, ruleSetVersion: MVP_EVIDENCE_RULE_SET_VERSION, subjectId: assessment.instrument, eventTimeStart: assessment.eventTimeStart, eventTimeEnd: assessment.eventTimeEnd, knowledgeMode: "RETROSPECTIVE", knowledgeTimeCutoff: assessment.knowledgeTimeCutoff, orderedInputs: input.data.runInputs, ruleRegistryChecksum: RULE_REGISTRY_CHECKSUM, policyBindings: policies, executionProfile: "mvp-bounded-corpus", createdAt: assessment.createdAt })
-  const runStore = new ConsistencyRunStore(input.worker), resultStore = new ConsistencyResultStore(input.worker)
-  const created = await runStore.create(spec)
-  if (created.status === "CONFLICT") throw new Error(`MVP_EVIDENCE_RUN_CONFLICT:${spec.runId}`)
-  if (created.run.currentState === "PENDING") {
-    const transition = await runStore.transition({ commandId: `start:${spec.runId}`, runId: spec.runId, specificationChecksum: spec.specificationChecksum, nextState: "RUNNING", actorType: "WORKER", actorId: "mvp-evidence-worker", occurredAt: assessment.createdAt, policyVersionReferences: Object.values(POLICY), reasonCodes: [], details: [], completionSummary: null })
-    if (transition.status === "REJECTED") throw new Error(`MVP_EVIDENCE_RUN_START_REJECTED:${transition.failure}`)
-  }
-  const alignment = new TemporalAlignmentRuntime().align({ runSpecification: spec, policy: temporalPolicy(), eventTimeWindow: { start: assessment.eventTimeStart, end: assessment.eventTimeEnd }, knowledgeTime: { mode: "RETROSPECTIVE", cutoff: assessment.knowledgeTimeCutoff }, targetEventTime: null, inputs: input.data.temporalInputs, createdAt: assessment.createdAt })
-  if (alignment.status !== "MATCHED") throw new Error(`MVP_EVIDENCE_ALIGNMENT_${alignment.status}`)
-  const results: ConsistencyResult[] = []
-  const resultStatuses: string[] = []
-  for (const evaluation of assessment.ruleEvaluations) {
-    const write = await resultStore.write({ runSpecification: spec, alignment, ruleId: evaluation.ruleId, ruleVersion: evaluation.ruleVersion, diagnosticSchemaVersion: "mvp-evidence-diagnostics/1.0.0", inputs: input.data.resultInputs, outcome: outcome(evaluation), severity: "ADVISORY", blocking: evaluation.state === "NOT_EVALUABLE", diagnostics: [diagnostic(evaluation, assessment)], policyBindings: policies, schemaVersion: "1", createdAt: assessment.createdAt })
-    if (write.status !== "CREATED" && write.status !== "DUPLICATE" && write.status !== "REUSED") throw new Error(`MVP_EVIDENCE_RESULT_${write.status}`)
-    results.push(write.result); resultStatuses.push(write.status)
-  }
-  const current = await runStore.read(spec.runId)
-  if (current.currentState === "RUNNING") {
-    const transition = await runStore.transition({ commandId: `complete:${spec.runId}`, runId: spec.runId, specificationChecksum: spec.specificationChecksum, nextState: "COMPLETED", actorType: "WORKER", actorId: "mvp-evidence-worker", occurredAt: assessment.createdAt, policyVersionReferences: Object.values(POLICY), reasonCodes: [], details: [], completionSummary: completionSummary(spec.runId, assessment.ruleEvaluations) })
-    if (transition.status === "REJECTED") throw new Error(`MVP_EVIDENCE_RUN_COMPLETE_REJECTED:${transition.failure}`)
-  }
-  const evidenceStore = new CoreEvidenceStore(input.assembler)
-  for (const result of results) {
-    if (result.eventTimeWindow.start !== assessment.eventTimeStart || result.eventTimeWindow.end !== assessment.eventTimeEnd || result.knowledgeMode !== "RETROSPECTIVE" || result.knowledgeTimeCutoff !== assessment.knowledgeTimeCutoff) throw new Error(`MVP_EVIDENCE_RESULT_TIME_DRIFT:${JSON.stringify({ result: { eventTimeWindow: result.eventTimeWindow, knowledgeMode: result.knowledgeMode, knowledgeTimeCutoff: result.knowledgeTimeCutoff }, assessment: { start: assessment.eventTimeStart, end: assessment.eventTimeEnd, cutoff: assessment.knowledgeTimeCutoff } })}`)
-  }
-  const evidence = await evidenceStore.assemble({ subject: { subjectId: assessment.instrument, subjectType: "INSTRUMENT" }, topic: "MVP_MARKET_STATE", timeScope: { eventTimeStart: assessment.eventTimeStart, eventTimeEnd: assessment.eventTimeEnd, knowledgeMode: "RETROSPECTIVE", knowledgeTimeCutoff: assessment.knowledgeTimeCutoff }, profile: PROFILE, selections: results.map((result) => ({ result, dependencySnapshotId: input.corpus.corpusId })), requirements: [], createdAt: assessment.createdAt })
-  if (!("packet" in evidence) || ["CONFLICT", "REJECTED", "RETRYABLE_FAILURE"].includes(evidence.status)) throw new Error(`MVP_EVIDENCE_PACKET_${evidence.status}:${"reason" in evidence ? evidence.reason : "NO_PACKET"}`)
-  const assessmentWrite = await new MvpEvidenceAssessmentStore(input.assembler).write(evidence.packet.packetVersionId, assessment)
-  if (assessmentWrite.status === "CONFLICT") throw new Error("MVP_EVIDENCE_ASSESSMENT_CONFLICT")
-  return Object.freeze({ assessment, packet: evidence.packet, runId: spec.runId, resultStatuses: Object.freeze(resultStatuses), packetStatus: evidence.status, assessmentStatus: assessmentWrite.status })
+  const persisted = await persistMvpEvidenceWindow(input)
+  if (!persisted.packet || persisted.status === "CONFLICT" || persisted.status === "INELIGIBLE") throw new Error(`MVP_EVIDENCE_PACKET_${persisted.status}`)
+  return persisted
 }
 
 function selectEvidenceCorpus(rows: readonly Awaited<ReturnType<typeof persistWindow>>[]) {

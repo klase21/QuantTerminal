@@ -1,6 +1,6 @@
 # MVP Refresh And Release Channel
 
-Status: MVP-8A control plane, provider-native Funding, and remaining bounded adapter foundation locally certified; target archives are not finalized.
+Status: MVP-8A control plane, provider-native Funding, bounded adapters, executable affected-window downstream services, and immutable inactive serving membership locally certified. The target-day live cycle has not resumed.
 
 ## Boundaries
 
@@ -21,12 +21,14 @@ The immutable chain remains Raw Artifact -> Candidate -> Canonical Fact -> Consi
 | Funding acquisition | isolated official REST bounded adapter | Safe for one finalized UTC day | exact-byte artifact, deterministic Candidate/Fact identity, fenced checkpoints | Locally certified; legacy compatibility runner rejected and not invoked |
 | AggTrades acquisition | `boundedAdapters.ts` plus certified Segment builder | Exact one-day ZIP and event cap | ZIP checksum, Segment identity, fenced commit | Extracted and fixture-certified; target archive HTTP 404 |
 | Raw Artifact / Candidate / Fact | dataset-specific D3 workers | Contracts are append-only | Provider request and Candidate identities | Reuse only through bounded adapters |
-| Coverage / Consistency / Evidence | bounded affected-window gates plus existing generators | One validated interval only | Immutable output identities | Entry points extracted; no target-day execution |
-| Consumer Projection | bounded affected-window gate plus existing generator | One validated interval only | Immutable Projection identities | Entry point extracted; no target-day execution |
-| Replay snapshot | bounded affected-window gate plus existing materializer | One validated interval only | Model and snapshot checksum | Entry point extracted; no target-day execution |
+| Coverage / Consistency / Evidence | shared bounded Evidence loader and D4 persistence services | One validated interval only | Immutable Result and Packet identities | Historical exact rerun certified `DUPLICATE`; no target-day execution |
+| Consumer Projection | shared bounded input and persistence services | One validated interval only | Immutable Projection identities | Historical exact rerun certified `DUPLICATE`; broad 868 assertion retained |
+| Replay snapshot | typed identity-complete handoff to existing materializer | One validated interval only | Model and snapshot checksum | Incomplete input is `INELIGIBLE`; no target-day execution |
 | Macro / ETF | certified adapters and persisted Facts | Bounded and supplemental | Source checksum and duplicate classification | May refresh independently; cannot advance mandatory watermark |
 | Serving publication | `runMvpServing.ts` | Atomic but publishes a complete serving corpus | Corpus checksum and DUPLICATE | Build local candidate only; Neon publication prohibited |
 | Vercel exposure | pinned corpus ID/checksum | Blocks automatic recurring releases | Explicit expected identity | Preserve `PINNED_CORPUS`; add opt-in `RELEASE_CHANNEL` contract |
+
+The local serving schema now has immutable candidate membership and manifest relations. Atomic fault injection after candidate header, membership, and manifest insertion left no partial records and did not change active exposure. The candidate service is local-publisher-only and exposes no activation operation.
 
 No audit command above was invoked. Existing operational progress files remain outside the new control plane.
 

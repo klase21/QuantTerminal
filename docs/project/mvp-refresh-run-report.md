@@ -16,6 +16,14 @@ At `2026-07-16T06:03:52.840Z`, wall-clock eligibility had passed. Binance Vision
 
 The remaining bounded adapters and affected-window gates are now extracted and fixture-certified. The local inactive serving transaction contract is fixture-certified to preserve active exposure, but `MVP_SERVING_ISOLATED_POSTGRES_URL` was absent, so no local serving database transaction was attempted.
 
+## MVP-8A.2C downstream certification
+
+The bounded Evidence loader now accepts a complete exact-window contract while preserving the broad worker defaults and rolling baselines. Shared Consistency/Evidence and Projection persistence services were certified against the already governed BTCUSDT 2026-07-11 window: Evidence and Projection both returned `DUPLICATE`, and the existing 420 Results, 84 Packets, 868 crypto Projections, and 84 Replay snapshots remained unchanged.
+
+Local serving migration `003` adds immutable corpus membership and candidate manifest records. Fault injection after header, membership, and manifest writes rolled back atomically, retained no fixture candidate, and left the active exposure unchanged. No live target-day candidate was assembled.
+
+The target-window recovery audit found five OHLCV units across separate runs, all for BTCUSDT: four `COMMITTED` and one `ACQUIRED`. None has a checkpoint, artifact, or active lease. The other five instruments have no OHLCV unit, and no target-window OI, Funding, or AggTrades unit exists. This actual state was preserved without acquisition or unit creation.
+
 ## Reproducible commands
 
 ```powershell

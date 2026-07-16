@@ -3,7 +3,7 @@ import path from "node:path"
 
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import { createMvpMarketAssessment, readMvpEvidenceWindows } from "@/lib/data-platform/consistency"
-import { ConsistencyMigrationRunner, ConsistencyPostgresRuntime, D2DependencyBootstrapRunner, MvpProjectionReadPort, MvpProjectionStore, seedMvpProjectionDefinitions, type D4Environment } from "@/lib/data-platform/consistency-evidence/postgres"
+import { ConsistencyMigrationRunner, ConsistencyPostgresRuntime, D2DependencyBootstrapRunner, MvpProjectionReadPort, MvpProjectionStore, loadMvpProjectionEvidenceInputs, persistMvpProjectionBatch, seedMvpProjectionDefinitions, type D4Environment } from "@/lib/data-platform/consistency-evidence/postgres"
 import { generateMvpProjectionCorpus, MVP_PROJECTION_DEFINITIONS, verifyMvpProjection, type MvpProjectionEvidenceInput, type MvpProjectionKind } from "@/lib/data-platform/evidence-platform"
 import { createIntegratedBackfillClientsFromEnvironment } from "@/lib/data-platform/population/backfill"
 
@@ -59,30 +59,9 @@ async function applyAndSeed(): Promise<readonly string[]> {
 async function evidenceInputs(corpus: CorpusManifest, d4: ConsistencyPostgresRuntime): Promise<{ readonly inputs: readonly MvpProjectionEvidenceInput[]; readonly shutdown: () => Promise<void> }> {
   const clients = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "READ_ONLY", maxConnections: 2, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-projection-d2" }, d3: { roleIntent: "READ_ONLY", maxConnections: 1, applicationName: "mvp-projection-d3" } })
   try {
-    const windows = await readMvpEvidenceWindows({ d2: clients.d2, objectRoot: process.env.D3_BACKFILL_OBJECT_ROOT! })
-    const [stored, results, facts, coverage, prices] = await Promise.all([
-      d4.sql.unsafe<Array<{ subject_id: string; event_time_start: Date; assessment_checksum: string; packet_version_id: string; packet_id: string; packet_checksum: string }>>("SELECT a.subject_id,a.event_time_start,a.assessment_checksum,a.packet_version_id,i.packet_id,v.packet_checksum FROM evidence.mvp_market_assessments a JOIN evidence.core_packet_versions v USING(packet_version_id) JOIN evidence.core_packet_identities i USING(packet_id) ORDER BY a.subject_id,a.event_time_start"),
-      d4.sql.unsafe<Array<{ packet_version_id: string; result_id: string; result_checksum: string }>>("SELECT DISTINCT r.packet_version_id,r.result_id,i.result_checksum FROM evidence.core_packet_result_references r JOIN consistency.immutable_results i USING(result_id) ORDER BY r.packet_version_id,r.result_id"),
-      d4.sql.unsafe<Array<{ packet_version_id: string; canonical_record_id: string; record_version: number; input_checksum: string; dataset_id: string; provider_id: string; publication_state: "PENDING" }>>("SELECT DISTINCT packet_version_id,canonical_record_id,record_version,input_checksum,dataset_id,provider_id,publication_state FROM evidence.core_packet_fact_references ORDER BY packet_version_id,dataset_id,canonical_record_id,record_version"),
-      clients.d3.sql.unsafe<Array<{ decision_id: string; dataset_id: string; bounded_dimensions: Record<string, unknown>; eligibility_result: string }>>("SELECT decision_id,dataset_id,bounded_dimensions,eligibility_result FROM coverage.watermark_eligibility_decisions WHERE eligibility_result='ELIGIBLE' ORDER BY decision_id"),
-      clients.d2.sql.unsafe<Array<{ symbol: string; utc_day: string; close: string }>>("SELECT symbol,to_char(open_time AT TIME ZONE 'UTC','YYYY-MM-DD') utc_day,close::text close FROM canonical.ohlcv WHERE open_time >= '2026-06-28T00:00:00Z' AND open_time < '2026-07-12T00:00:00Z' AND extract(hour from open_time AT TIME ZONE 'UTC')=23 AND extract(minute from open_time AT TIME ZONE 'UTC')=55 ORDER BY symbol,open_time"),
-    ])
-    const byWindow = new Map(stored.map((row) => [`${row.subject_id}:${new Date(row.event_time_start).toISOString()}`, row]))
-    const inputs = windows.map((window): MvpProjectionEvidenceInput => {
-      const assessment = createMvpMarketAssessment({ corpusId: corpus.corpusId, corpusChecksum: corpus.corpusChecksum, measurement: window.measurement })
-      const persisted = byWindow.get(`${assessment.instrument}:${assessment.eventTimeStart}`)
-      if (!persisted || persisted.assessment_checksum !== assessment.assessmentChecksum) throw new Error(`MVP_PROJECTION_EVIDENCE_BINDING_MISMATCH:${assessment.instrument}:${assessment.eventTimeStart}`)
-      const date = assessment.eventTimeStart.slice(0, 10)
-      const coverageDecisionIds = coverage.filter((row) => { const dimensions = JSON.stringify(row.bounded_dimensions); return dimensions.includes(assessment.instrument) && dimensions.includes(date) }).map((row) => row.decision_id)
-      if (!coverageDecisionIds.length) throw new Error(`MVP_PROJECTION_COVERAGE_DEPENDENCY_MISSING:${assessment.instrument}:${date}`)
-      const factReferences = facts.filter((row) => row.packet_version_id === persisted.packet_version_id)
-      if (factReferences.some((row) => row.publication_state !== "PENDING")) throw new Error("MVP_PROJECTION_SOURCE_PUBLICATION_NOT_PENDING")
-      const latestPrice = prices.find((row) => row.symbol === assessment.instrument && row.utc_day === date)?.close
-      if (!latestPrice) throw new Error(`MVP_PROJECTION_LATEST_PRICE_MISSING:${assessment.instrument}:${date}`)
-      return Object.freeze({ assessment, packetId: persisted.packet_id, packetVersionId: persisted.packet_version_id, packetChecksum: persisted.packet_checksum, resultReferences: Object.freeze(results.filter((row) => row.packet_version_id === persisted.packet_version_id).map((row) => Object.freeze({ resultId: row.result_id, checksum: row.result_checksum }))), factReferences: Object.freeze(factReferences.map((row) => Object.freeze({ id: row.canonical_record_id, version: String(row.record_version), checksum: row.input_checksum, datasetId: row.dataset_id, providerId: row.provider_id, publicationState: row.publication_state }))), coverageDecisionIds: Object.freeze(coverageDecisionIds), latestPrice })
-    })
-    if (inputs.length !== 84 || inputs.some((input) => input.resultReferences.length !== 5 || !input.factReferences.length)) throw new Error("MVP_PROJECTION_INPUT_CARDINALITY_INVALID")
-    return { inputs: Object.freeze(inputs), shutdown: clients.shutdown }
+    const sharedInputs = await loadMvpProjectionEvidenceInputs({ corpus, d4, d2: clients.d2, d3: clients.d3, objectRoot: process.env.D3_BACKFILL_OBJECT_ROOT! })
+    if (sharedInputs.length !== 84 || sharedInputs.some((input) => input.resultReferences.length !== 5 || !input.factReferences.length)) throw new Error("MVP_PROJECTION_INPUT_CARDINALITY_INVALID")
+    return { inputs: sharedInputs, shutdown: clients.shutdown }
   } catch (error) { await clients.shutdown(); throw error }
 }
 
@@ -96,13 +75,9 @@ async function execute(command: "generate" | "recompute") {
     source = await evidenceInputs(corpus, reader)
     const projections = generateMvpProjectionCorpus(source.inputs)
     if (projections.length !== 868 || projections.some((value) => !verifyMvpProjection(value))) throw new Error(`MVP_PROJECTION_CORPUS_INVALID:${projections.length}`)
-    const store = new MvpProjectionStore(builder), statuses: string[] = []
-    for (let index = 0; index < projections.length; index += 1) {
-      const outcome = await store.write(projections[index]!)
-      if (outcome.status === "CONFLICT") throw new Error(`MVP_PROJECTION_CONFLICT:${projections[index]!.projectionVersionId}`)
-      statuses.push(outcome.status)
-      if ((index + 1) % 50 === 0 || index + 1 === projections.length) console.log(`[${index + 1}/${projections.length}] ${projections[index]!.projectionKind} ${outcome.status}`)
-    }
+    const persisted = await persistMvpProjectionBatch(new MvpProjectionStore(builder), projections)
+    if (persisted.status === "CONFLICT") throw new Error("MVP_PROJECTION_CONFLICT")
+    const statuses = [...persisted.statuses]
     const counts = Object.fromEntries(MVP_PROJECTION_DEFINITIONS.map((definition) => [definition.projectionKind, projections.filter((value) => value.projectionKind === definition.projectionKind).length]))
     const basis = { schemaVersion: "mvp-projection-corpus-basis/v1", sourceCorpusId: corpus.corpusId, sourceCorpusChecksum: corpus.corpusChecksum, evidenceAssessmentCount: source.inputs.length, projectionDefinitions: MVP_PROJECTION_DEFINITIONS, projectionCounts: counts, totalProjectionCount: projections.length, certificationSlice: projections.filter((value) => value.eventTimeStart === "2026-07-11T00:00:00.000Z").map((value) => ({ projectionVersionId: value.projectionVersionId, projectionKind: value.projectionKind, subjectId: value.subjectId, checksum: value.projectionChecksum })), dependencyDigest: canonicalChecksum(projections.map((value) => ({ id: value.projectionVersionId, dependencies: value.dependencyDigest }))) }
     const projectionCorpusChecksum = canonicalChecksum(basis)

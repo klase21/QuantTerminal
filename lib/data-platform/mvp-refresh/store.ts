@@ -79,6 +79,32 @@ export class MvpRefreshStore {
     await this.client.sql.unsafe("UPDATE refresh_control.refresh_unit SET checkpoint=$2::jsonb,updated_at=now() WHERE unit_id=$1", [unitId, JSON.stringify(checkpoint)])
   }
 
+  async readStageCheckpoint(unitId: string, stage: string): Promise<Record<string, unknown> | null> {
+    const rows = await this.client.sql.unsafe<Array<{ checkpoint: Record<string, unknown> }>>("SELECT checkpoint FROM refresh_control.refresh_unit WHERE unit_id=$1", [unitId])
+    const downstream = rows[0]?.checkpoint?.downstream
+    if (!downstream || typeof downstream !== "object" || Array.isArray(downstream)) return null
+    const value = (downstream as Record<string, unknown>)[stage]
+    return value && typeof value === "object" && !Array.isArray(value) ? Object.freeze(value as Record<string, unknown>) : null
+  }
+
+  async writeStageCheckpoint(input: { readonly unitId: string; readonly stage: string; readonly checkpoint: object & { readonly checksum: string }; readonly leaseKey: string; readonly ownerId: string; readonly fencingToken: number }): Promise<"CREATED" | "DUPLICATE"> {
+    return this.client.transaction(async (sql) => {
+      const fence = await sql.unsafe<Array<{ valid: boolean }>>("SELECT owner_id=$2 AND fencing_token=$3 AND expires_at>now() AND released_at IS NULL valid FROM refresh_control.refresh_lease WHERE lease_key=$1 FOR UPDATE", [input.leaseKey, input.ownerId, input.fencingToken])
+      if (!fence[0]?.valid) throw new Error("REFRESH_LEASE_FENCE_LOST")
+      const rows = await sql.unsafe<Array<{ checkpoint: Record<string, unknown> }>>("SELECT checkpoint FROM refresh_control.refresh_unit WHERE unit_id=$1 FOR UPDATE", [input.unitId])
+      if (!rows[0]) throw new Error("REFRESH_UNIT_MISSING")
+      const current = rows[0].checkpoint ?? {}, downstream = current.downstream && typeof current.downstream === "object" && !Array.isArray(current.downstream) ? current.downstream as Record<string, unknown> : {}, existing = downstream[input.stage]
+      if (existing) {
+        const storedChecksum = typeof existing === "object" && !Array.isArray(existing) ? String((existing as Record<string, unknown>).checksum ?? "") : ""
+        if (storedChecksum !== input.checkpoint.checksum) throw new Error("REFRESH_CHECKPOINT_IMMUTABLE_CONFLICT")
+        return "DUPLICATE"
+      }
+      const next = { ...current, downstream: { ...downstream, [input.stage]: input.checkpoint } }
+      await sql.unsafe("UPDATE refresh_control.refresh_unit SET checkpoint=$2::text::jsonb,updated_at=now() WHERE unit_id=$1", [input.unitId, JSON.stringify(next)])
+      return "CREATED"
+    })
+  }
+
   async recordArtifact(input: { readonly unitId: string; readonly artifactId: string; readonly artifactKind: string; readonly contentChecksum: string; readonly byteCount: number; readonly lineage: object }): Promise<"INSERTED" | "DUPLICATE"> {
     const units = await this.client.sql.unsafe<Array<{ run_id: string }>>("SELECT run_id FROM refresh_control.refresh_unit WHERE unit_id=$1", [input.unitId])
     if (!units[0]) throw new Error("REFRESH_UNIT_MISSING")

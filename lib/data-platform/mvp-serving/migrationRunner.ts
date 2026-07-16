@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import type { MvpServingPostgresClient } from "./client"
-import { MVP_SERVING_MIGRATION_ORDER } from "./migrationOrder"
+import { MVP_SERVING_CERTIFIED_LEGACY_CHECKSUMS, MVP_SERVING_MIGRATION_ORDER } from "./migrationOrder"
 
 export interface MvpServingMigrationArtifact { readonly migrationId: string; readonly filename: string; readonly checksum: string; readonly sql: string }
 export type MvpServingMigrationResult = { readonly status: "APPLIED" | "SKIPPED" | "FAILED"; readonly migrationId: string; readonly checksum: string; readonly reason?: string }
@@ -27,7 +27,9 @@ export class MvpServingMigrationRunner {
       try {
         const existing = await this.client.sql.unsafe<Array<{ migration_checksum: string }>>("SELECT migration_checksum FROM serving_control.migration_ledger WHERE migration_id=$1", [artifact.migrationId])
         if (existing[0]) {
-          if (existing[0].migration_checksum !== artifact.checksum) throw new Error("APPLIED_MVP_SERVING_MIGRATION_CHECKSUM_MISMATCH")
+          const legacy = MVP_SERVING_CERTIFIED_LEGACY_CHECKSUMS[artifact.migrationId]
+          const accepted = existing[0].migration_checksum === artifact.checksum || (legacy?.repositoryChecksum === artifact.checksum && legacy.appliedChecksums.includes(existing[0].migration_checksum))
+          if (!accepted) throw new Error("APPLIED_MVP_SERVING_MIGRATION_CHECKSUM_MISMATCH")
           results.push({ status: "SKIPPED", migrationId: artifact.migrationId, checksum: artifact.checksum }); continue
         }
         await this.client.transaction(async (sql) => { await sql.unsafe(artifact.sql); await sql.unsafe("INSERT INTO serving_control.migration_ledger VALUES($1,$2,$3,now(),$4)", [artifact.migrationId, artifact.filename, artifact.checksum, appliedBy]) })

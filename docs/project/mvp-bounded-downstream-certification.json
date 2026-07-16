@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "mvp-bounded-downstream-certification/1.0.0",
+  "targetInterval": ["2026-07-15T00:00:00.000Z", "2026-07-16T00:00:00.000Z"],
+  "liveTargetExecution": false,
+  "services": {
+    "consistency": "EXECUTABLE_SHARED_SERVICE",
+    "evidence": "EXECUTABLE_SHARED_SERVICE",
+    "projection": "EXECUTABLE_SHARED_SERVICE",
+    "replayHandoff": "EXECUTABLE_TYPED_HANDOFF",
+    "checkpointResume": "FENCED_IMMUTABLE"
+  },
+  "broadWorkerParity": {
+    "evidence": "SAME_PERSISTENCE_SERVICE",
+    "projection": "SAME_INPUT_AND_BATCH_PERSISTENCE_SERVICES",
+    "wholeCorpusAssertionsPreserved": true
+  },
+  "historicalDuplicateCertification": {
+    "instrument": "BTCUSDT",
+    "window": ["2026-07-11T00:00:00.000Z", "2026-07-12T00:00:00.000Z"],
+    "evidence": "DUPLICATE",
+    "projection": "DUPLICATE",
+    "resultCount": 420,
+    "evidencePacketCount": 84,
+    "cryptoProjectionCount": 868,
+    "replaySnapshotCount": 84
+  },
+  "targetRecoveryStatePreserved": {
+    "ohlcvUnits": 5,
+    "committed": 4,
+    "acquired": 1,
+    "allExistingUnitsInstrument": "BTCUSDT",
+    "missingInstruments": ["ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+    "otherDatasetUnits": 0
+  },
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}

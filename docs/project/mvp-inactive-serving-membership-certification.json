@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "mvp-inactive-serving-membership-certification/1.0.0",
+  "migration": {
+    "id": "003",
+    "checksum": "50f3e25597aff94178d38b262611e5590d933174646716815b90e28f19fd7ddb",
+    "application": "APPLIED",
+    "reapplication": "SKIPPED"
+  },
+  "relations": ["serving_corpus_member", "serving_candidate_manifest"],
+  "invariants": {
+    "appendOnly": true,
+    "deterministicChecksum": true,
+    "duplicateLogicalMemberRejected": true,
+    "unexpectedDeletionBlocked": true,
+    "candidateLifecycle": "WITHHELD",
+    "candidateExposure": "INTERNAL_ONLY",
+    "activationSurfacePresent": false
+  },
+  "atomicRollback": {
+    "afterHeader": "PASS",
+    "afterMembers": "PASS",
+    "afterManifest": "PASS",
+    "retainedFixtureCorpora": 0
+  },
+  "localServingState": {
+    "publishedCorpora": 1,
+    "inactiveCorpora": 0,
+    "activeExposures": 1,
+    "unchanged": true
+  },
+  "managedServingWriteAttempted": false,
+  "productionActivationAttempted": false
+}

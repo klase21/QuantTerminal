@@ -180,24 +180,32 @@ function resultInput(
   });
 }
 
-async function loadRows(d2: IsolatedPostgresClient) {
+async function loadRows(
+  d2: IsolatedPostgresClient,
+  input: {
+    readonly factStart: string;
+    readonly segmentStart: string;
+    readonly end: string;
+    readonly symbols: readonly string[];
+  },
+) {
   const common = `rv.current_publication_state publication_state,rv.registry_snapshot_id,rv.provider_snapshot_id,rv.provider_certification_snapshot_id,rv.policy_version_id,rv.schema_version,rv.normalization_version,le.edge_id lineage_node_id`;
   const [ohlcv, oi, funding, segments] = await Promise.all([
     d2.sql.unsafe<FactRow[]>(
       `SELECT o.fact_id,o.canonical_record_id,o.business_identity,o.record_version,'ohlcv' dataset_id,o.provider_id,o.symbol,o.open_time event_time,o.close_time interval_end,o.open::text value_a,o.close::text value_b,o.high::text value_c,o.low::text value_d,o.checksum,o.recorded_at,${common},'OHLCV' fact_table FROM canonical.ohlcv o JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=o.canonical_record_id AND le.destination_node_version=o.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE o.open_time >= $1 AND o.open_time < $2 AND o.symbol=ANY($3) ORDER BY o.symbol,o.open_time`,
-      [MVP_EVIDENCE_START, MVP_EVIDENCE_END, MVP_EVIDENCE_SYMBOLS],
+      [input.factStart, input.end, input.symbols],
     ),
     d2.sql.unsafe<FactRow[]>(
       `SELECT o.fact_id,o.canonical_record_id,o.business_identity,o.record_version,'open-interest' dataset_id,o.provider_id,o.symbol,o.observed_at event_time,NULL::timestamptz interval_end,o.open_interest::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,o.checksum,o.recorded_at,${common},'OPEN_INTEREST' fact_table FROM canonical.open_interest o JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=o.canonical_record_id AND le.destination_node_version=o.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE o.observed_at >= $1 AND o.observed_at < $2 AND o.symbol=ANY($3) ORDER BY o.symbol,o.observed_at`,
-      [MVP_EVIDENCE_START, MVP_EVIDENCE_END, MVP_EVIDENCE_SYMBOLS],
+      [input.factStart, input.end, input.symbols],
     ),
     d2.sql.unsafe<FactRow[]>(
       `SELECT f.fact_id,f.canonical_record_id,f.business_identity,f.record_version,'funding' dataset_id,f.provider_id,f.symbol,f.funding_time event_time,NULL::timestamptz interval_end,f.funding_rate::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,f.checksum,f.recorded_at,${common},'FUNDING' fact_table FROM canonical.funding f JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=f.canonical_record_id AND le.destination_node_version=f.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE f.funding_time >= $1 AND f.funding_time < $2 AND f.symbol=ANY($3) ORDER BY f.symbol,f.funding_time`,
-      [MVP_EVIDENCE_START, MVP_EVIDENCE_END, MVP_EVIDENCE_SYMBOLS],
+      [input.factStart, input.end, input.symbols],
     ),
     d2.sql.unsafe<SegmentRow[]>(
       `SELECT m.fact_id,m.canonical_record_id,m.business_identity,m.record_version,'agg-trade' dataset_id,m.provider_id,m.symbol,m.window_start event_time,m.window_end interval_end,m.record_count::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,m.checksum,m.recorded_at,${common},'STREAM_MANIFEST' fact_table,m.segment_object_key object_key,m.segment_content_checksum segment_checksum,m.record_count::int record_count,m.event_time_max FROM canonical.stream_manifests m JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=m.canonical_record_id AND le.destination_node_version=m.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE m.source_dataset_id='agg-trade' AND m.segment_contract_version='2' AND m.window_start >= $1 AND m.window_end <= $2 AND m.symbol=ANY($3) ORDER BY m.symbol,m.window_start`,
-      [MVP_EVIDENCE_AGG_START, MVP_EVIDENCE_END, MVP_EVIDENCE_SYMBOLS],
+      [input.segmentStart, input.end, input.symbols],
     ),
   ]);
   return { ohlcv, oi, funding, segments };
@@ -206,8 +214,28 @@ async function loadRows(d2: IsolatedPostgresClient) {
 export async function readMvpEvidenceWindows(input: {
   readonly d2: IsolatedPostgresClient;
   readonly objectRoot: string;
+  readonly eventTimeStart?: string;
+  readonly eventTimeEnd?: string;
+  readonly instruments?: readonly string[];
 }): Promise<readonly MvpEvidenceWindowData[]> {
-  const rows = await loadRows(input.d2);
+  const eventTimeStart = input.eventTimeStart ?? MVP_EVIDENCE_START;
+  const eventTimeEnd = input.eventTimeEnd ?? MVP_EVIDENCE_END;
+  const instruments = input.instruments ?? MVP_EVIDENCE_SYMBOLS;
+  const startMs = Date.parse(eventTimeStart), endMs = Date.parse(eventTimeEnd);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs)
+    throw new Error("MVP_EVIDENCE_WINDOW_INVALID");
+  if (!instruments.length || instruments.some((value) => !MVP_EVIDENCE_SYMBOLS.includes(value as (typeof MVP_EVIDENCE_SYMBOLS)[number])))
+    throw new Error("MVP_EVIDENCE_INSTRUMENT_INVALID");
+  const bounded = input.eventTimeStart !== undefined || input.eventTimeEnd !== undefined || input.instruments !== undefined;
+  if (bounded && (input.eventTimeStart === undefined || input.eventTimeEnd === undefined || input.instruments === undefined))
+    throw new Error("MVP_EVIDENCE_BOUNDED_CONTRACT_INCOMPLETE");
+  const baselineStart = new Date(startMs - 30 * 86_400_000).toISOString();
+  const rows = await loadRows(input.d2, {
+    factStart: bounded ? baselineStart : MVP_EVIDENCE_START,
+    segmentStart: bounded ? baselineStart : MVP_EVIDENCE_AGG_START,
+    end: eventTimeEnd,
+    symbols: instruments,
+  });
   const segmentPort = createAggTradesSegmentReadPort({
     objectRoot: input.objectRoot,
   });
@@ -230,7 +258,7 @@ export async function readMvpEvidenceWindows(input: {
     });
   }
   const output: MvpEvidenceWindowData[] = [];
-  for (const symbol of MVP_EVIDENCE_SYMBOLS) {
+  for (const symbol of instruments) {
     const symbolOhlcv = rows.ohlcv.filter((row) => row.symbol === symbol),
       symbolOi = rows.oi.filter((row) => row.symbol === symbol),
       symbolFunding = rows.funding.filter((row) => row.symbol === symbol),
@@ -264,6 +292,7 @@ export async function readMvpEvidenceWindows(input: {
       const date = dates[index]!,
         start = `${date}T00:00:00.000Z`,
         end = new Date(Date.parse(start) + 86_400_000).toISOString();
+      if (Date.parse(start) < startMs || Date.parse(start) >= endMs) continue;
       const currentOhlcv = symbolOhlcv.filter(
           (row) => day(row.event_time) === date,
         ),
