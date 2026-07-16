@@ -1,6 +1,6 @@
 # MVP Refresh And Release Channel
 
-Status: MVP-8A control plane and MVP-8A.1 bounded provider-native Funding path locally certified; the primary bounded cycle remains a timing `NOOP`.
+Status: MVP-8A control plane, provider-native Funding, and remaining bounded adapter foundation locally certified; target archives are not finalized.
 
 ## Boundaries
 
@@ -16,14 +16,14 @@ The immutable chain remains Raw Artifact -> Candidate -> Canonical Fact -> Consi
 
 | Stage | Existing surface | Incremental safety | Idempotency/checkpoint | MVP-8A disposition |
 | --- | --- | --- | --- | --- |
-| OHLCV acquisition | `runD3OhlcvBackfill.ts` / Binance Vision daily request | Request is bounded; runner is snapshot-oriented | Progress JSON and source checksums | Extract bounded commit entry point before use |
-| Open Interest acquisition | `runD3OpenInterestBackfill.ts` / Binance Vision daily request | Request is bounded; runner is snapshot-oriented | Progress JSON and duplicate Facts | Extract bounded commit entry point before use; no forward fill |
+| OHLCV acquisition | `boundedAdapters.ts` / Binance Vision daily archive | Exact one-day request and record cap | Source checksum, batch identity, fenced commit | Extracted and fixture-certified; target archive HTTP 404 |
+| Open Interest acquisition | `boundedAdapters.ts` / Binance Vision daily metrics | Exact one-day request and record cap | Source checksum, duplicate observation checks, fenced commit | Extracted and fixture-certified; no forward fill; target archive HTTP 404 |
 | Funding acquisition | isolated official REST bounded adapter | Safe for one finalized UTC day | exact-byte artifact, deterministic Candidate/Fact identity, fenced checkpoints | Locally certified; legacy compatibility runner rejected and not invoked |
-| AggTrades acquisition | daily ZIP and Segment workers | Source interval is bounded; worker assumes backfill progress | ZIP checksum, Segment identity, manifests | Extract bounded Segment commit entry point; no full-history scan |
+| AggTrades acquisition | `boundedAdapters.ts` plus certified Segment builder | Exact one-day ZIP and event cap | ZIP checksum, Segment identity, fenced commit | Extracted and fixture-certified; target archive HTTP 404 |
 | Raw Artifact / Candidate / Fact | dataset-specific D3 workers | Contracts are append-only | Provider request and Candidate identities | Reuse only through bounded adapters |
-| Coverage / Consistency / Evidence | `runMvpEvidence.ts` | Current command enforces whole 420/84 corpus | Immutable checksums | Bounded affected-window entry point required |
-| Consumer Projection | `runMvpProjections.ts` | Current command enforces whole 868 corpus | Immutable Projection identity | Bounded affected-window entry point required |
-| Replay snapshot | serving materializer | Deterministic per window, but publisher assembles whole release | Model and snapshot checksum | Materialize only newly eligible or source-version-changed windows |
+| Coverage / Consistency / Evidence | bounded affected-window gates plus existing generators | One validated interval only | Immutable output identities | Entry points extracted; no target-day execution |
+| Consumer Projection | bounded affected-window gate plus existing generator | One validated interval only | Immutable Projection identities | Entry point extracted; no target-day execution |
+| Replay snapshot | bounded affected-window gate plus existing materializer | One validated interval only | Model and snapshot checksum | Entry point extracted; no target-day execution |
 | Macro / ETF | certified adapters and persisted Facts | Bounded and supplemental | Source checksum and duplicate classification | May refresh independently; cannot advance mandatory watermark |
 | Serving publication | `runMvpServing.ts` | Atomic but publishes a complete serving corpus | Corpus checksum and DUPLICATE | Build local candidate only; Neon publication prohibited |
 | Vercel exposure | pinned corpus ID/checksum | Blocks automatic recurring releases | Explicit expected identity | Preserve `PINNED_CORPUS`; add opt-in `RELEASE_CHANNEL` contract |
@@ -41,6 +41,8 @@ Every run/unit transition is checked in code and recorded as an append-only even
 The planner subtracts the source finalization delay, floors to the last closed UTC day, starts at the active governed-through boundary, and selects at most the first next day. At `2026-07-15T23:42:12.251Z`, the two-hour delay left no new eligible day, so the initial result was `NOOP`. The next candidate interval is `[2026-07-15T00:00:00.000Z, 2026-07-16T00:00:00.000Z)` and cannot become eligible before `2026-07-16T02:00:00.000Z`.
 
 At the MVP-8A.1 decision time (`2026-07-16T01:15:25.194Z`) the next interval remained ineligible, so no live Funding request was made. Candidate governed-through is the minimum certified watermark across mandatory OHLCV, OI, discrete Funding, and AggTrades for all six instruments. Supplemental Macro, SPY, and ETF observations have a separate watermark and cannot advance it.
+
+At the MVP-8A.2A check, the wall-clock gate had elapsed but all 18 required Binance Vision daily archive probes for OHLCV, Open Interest, and AggTrades returned HTTP 404. The preceding day returned HTTP 200. This is `TIME_ELIGIBLE`, `SOURCE_NOT_FINALIZED`, and `NOT_READY_FOR_ACQUISITION`; the fixed two-hour delay does not imply archive readiness.
 
 ## Freshness
 

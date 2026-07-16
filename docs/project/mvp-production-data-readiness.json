@@ -99,16 +99,16 @@
     "productionEnvironmentModified": false,
     "releaseMode": "PINNED_CORPUS",
     "candidateReleaseChannelActivated": false,
-    "initialCycle": "NOOP_NO_CLOSED_WINDOW_AVAILABLE",
+    "initialCycle": "TIME_ELIGIBLE_SOURCE_NOT_FINALIZED_NOT_READY_FOR_ACQUISITION",
     "environmentInheritance": "PASS_ROOT_AND_NODE_CHILD",
     "postgresIntegration": "CERTIFIED_15_RELATIONS_30_INDEXES_77_CONSTRAINTS",
     "leaseAndRecovery": "CERTIFIED",
     "blockerReasonCodes": [
-      "SOURCE_NOT_FINALIZED",
-      "BOUNDED_CANONICAL_COMMIT_ENTRY_POINT_REQUIRED",
-      "BOUNDED_SEGMENT_COMMIT_ENTRY_POINT_REQUIRED"
+      "SOURCE_NOT_FINALIZED"
     ],
-    "boundedFundingRefresh": "FIXTURE_AND_ISOLATED_POSTGRES_CERTIFIED_NO_LIVE_PRIMARY_ACQUISITION"
+    "boundedFundingRefresh": "FIXTURE_AND_ISOLATED_POSTGRES_CERTIFIED_AVAILABLE",
+    "boundedMarketAdapters": "FIXTURE_CERTIFIED_NO_TARGET_DAY_ACQUISITION",
+    "inactiveCandidateServingTarget": "CONTRACT_CERTIFIED_DATABASE_TEST_DEFERRED_ENVIRONMENT_NOT_CONFIGURED"
   },
   "protectedState": {
     "fundingCommandsExecuted": false,

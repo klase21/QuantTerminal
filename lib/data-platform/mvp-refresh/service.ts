@@ -13,10 +13,10 @@ export const ACTIVE_MVP_SERVING_BASELINE = Object.freeze({
 export const DEFAULT_MVP_REFRESH_POLICY = createRefreshPolicy({ policyVersion: "mvp-refresh-policy/1.0.0", finalizationDelayMinutes: 120, overlapHours: 1, maximumCatchupDays: 7, maximumRetries: 3, leaseSeconds: 300 })
 
 export const MVP_REFRESH_SOURCE_AUDIT = Object.freeze([
-  Object.freeze({ datasetId: "ohlcv", sourceId: "binance-vision-klines", boundedAcquisition: true, canonicalCommit: false, blocker: "BOUNDED_CANONICAL_COMMIT_ENTRY_POINT_REQUIRED", cadence: "5m" }),
-  Object.freeze({ datasetId: "open-interest", sourceId: "binance-vision-open-interest", boundedAcquisition: true, canonicalCommit: false, blocker: "BOUNDED_CANONICAL_COMMIT_ENTRY_POINT_REQUIRED", cadence: "5m" }),
-  Object.freeze({ datasetId: "funding", sourceId: "binance-official-rest-funding-rate", boundedAcquisition: true, canonicalCommit: true, blocker: null, cadence: "provider-native-discrete" }),
-  Object.freeze({ datasetId: "agg-trade", sourceId: "binance-vision-agg-trades", boundedAcquisition: true, canonicalCommit: false, blocker: "BOUNDED_SEGMENT_COMMIT_ENTRY_POINT_REQUIRED", cadence: "event" }),
+  Object.freeze({ datasetId: "ohlcv", sourceId: "binance-vision-klines", boundedAcquisition: true, canonicalCommit: true, blocker: null, requiresAvailability: true, cadence: "5m" }),
+  Object.freeze({ datasetId: "open-interest", sourceId: "binance-vision-open-interest", boundedAcquisition: true, canonicalCommit: true, blocker: null, requiresAvailability: true, cadence: "5m" }),
+  Object.freeze({ datasetId: "funding", sourceId: "binance-official-rest-funding-rate", boundedAcquisition: true, canonicalCommit: true, blocker: null, requiresAvailability: true, cadence: "provider-native-discrete" }),
+  Object.freeze({ datasetId: "agg-trade", sourceId: "binance-vision-agg-trades", boundedAcquisition: true, canonicalCommit: true, blocker: null, requiresAvailability: true, cadence: "event" }),
   Object.freeze({ datasetId: "macro", sourceId: "fred-dgs10", boundedAcquisition: true, canonicalCommit: true, blocker: null, cadence: "daily-supplemental" }),
   Object.freeze({ datasetId: "daily-market-context", sourceId: "alpha-vantage-spy", boundedAcquisition: true, canonicalCommit: true, blocker: null, cadence: "daily-supplemental" }),
   Object.freeze({ datasetId: "etf-flow", sourceId: "farside-bitcoin-etf", boundedAcquisition: true, canonicalCommit: true, blocker: null, cadence: "daily-supplemental" }),
@@ -35,10 +35,11 @@ export function createRefreshUnits(plan: RefreshPlan, runId: string): readonly R
   })))
 }
 
-export async function runInitialBoundedRefresh(client: MvpRefreshPostgresClient, now = new Date().toISOString()): Promise<object> {
+export async function runInitialBoundedRefresh(client: MvpRefreshPostgresClient, now = new Date().toISOString(), sourceReadiness: "SOURCE_NOT_FINALIZED" | "READY_FOR_ACQUISITION" = "SOURCE_NOT_FINALIZED"): Promise<object> {
   const store = new MvpRefreshStore(client)
   const plan = planNextMvpRefresh(now)
   if (!plan) return Object.freeze({ status: "NOOP", reason: "NO_CLOSED_WINDOW_AVAILABLE", productionMutation: false })
+  if (sourceReadiness !== "READY_FOR_ACQUISITION") return Object.freeze({ status: "BLOCKED", reason: "SOURCE_NOT_FINALIZED", timeState: "TIME_ELIGIBLE", sourceState: "SOURCE_NOT_FINALIZED", acquisitionState: "NOT_READY_FOR_ACQUISITION", requestedStart: plan.window.requestedStart, requestedEnd: plan.window.requestedEnd, refreshUnitsCreated: 0, acquisitionStarted: false, candidateGenerated: false, productionMutation: false })
   await store.putPolicy(DEFAULT_MVP_REFRESH_POLICY)
   await store.putPlan(plan)
   const runChecksum = canonicalChecksum({ schemaVersion: "mvp-refresh-run/1.0.0", planId: plan.planId })

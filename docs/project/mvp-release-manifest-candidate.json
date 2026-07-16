@@ -1,15 +1,13 @@
 {
   "schemaVersion": "mvp-release-manifest-candidate/1.0.0",
-  "status": "NOT_GENERATED_NOOP",
+  "status": "NOT_GENERATED_SOURCE_NOT_FINALIZED",
   "releaseChannel": "candidate",
   "candidateLifecycle": null,
   "exposureEligibility": "INELIGIBLE",
-  "requestedStart": null,
-  "requestedEnd": null,
+  "requestedStart": "2026-07-15T00:00:00.000Z",
+  "requestedEnd": "2026-07-16T00:00:00.000Z",
   "blockerReasonCodes": [
-    "SOURCE_NOT_FINALIZED",
-    "BOUNDED_CANONICAL_COMMIT_ENTRY_POINT_REQUIRED",
-    "BOUNDED_SEGMENT_COMMIT_ENTRY_POINT_REQUIRED"
+    "SOURCE_NOT_FINALIZED"
   ],
   "corpusId": null,
   "servingChecksum": null,

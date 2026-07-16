@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-refresh-readiness/1.0.0",
-  "assessedAt": "2026-07-16T01:15:25.194Z",
+  "assessedAt": "2026-07-16T06:03:52.840Z",
   "activeProduction": {
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -39,16 +39,22 @@
     "secretPersistenceRows": 0,
     "productionWriteCapability": false
   },
-  "nextEligibleWindow": null,
+  "nextEligibleWindow": {
+    "requestedStart": "2026-07-15T00:00:00.000Z",
+    "requestedEnd": "2026-07-16T00:00:00.000Z",
+    "timeState": "TIME_ELIGIBLE",
+    "sourceState": "SOURCE_NOT_FINALIZED",
+    "acquisitionState": "NOT_READY_FOR_ACQUISITION"
+  },
   "nextWindowCandidateAfterFinalization": {
     "requestedStart": "2026-07-15T00:00:00.000Z",
     "requestedEnd": "2026-07-16T00:00:00.000Z",
     "eligibleNoEarlierThan": "2026-07-16T02:00:00.000Z"
   },
-  "fundingDisposition": "BOUNDED_PROVIDER_NATIVE_PATH_CERTIFIED_PRIMARY_WINDOW_NOT_FINALIZED",
+  "fundingDisposition": "BOUNDED_PROVIDER_NATIVE_PATH_CERTIFIED_AVAILABLE",
   "initialCycle": {
     "status": "NOOP",
-    "reason": "NO_CLOSED_WINDOW_AVAILABLE",
+    "reason": "MANDATORY_ARCHIVES_SOURCE_NOT_FINALIZED",
     "acquisitionStarted": false,
     "canonicalCommitAttempted": false,
     "candidateGenerated": false,
@@ -65,12 +71,16 @@
     "pinnedCorpusCompatibility": "UNIT_CERTIFIED",
     "releaseChannelMode": "IMPLEMENTED_FAIL_CLOSED_NOT_ACTIVATED",
     "candidateActivation": "FORBIDDEN",
-    "boundedFunding": "FIXTURE_AND_POSTGRES_CERTIFIED"
+    "boundedFunding": "FIXTURE_AND_POSTGRES_CERTIFIED",
+    "boundedOhlcv": "FIXTURE_CERTIFIED_TARGET_SOURCE_NOT_FINALIZED",
+    "boundedOpenInterest": "FIXTURE_CERTIFIED_TARGET_SOURCE_NOT_FINALIZED",
+    "boundedAggTradesSegment": "FIXTURE_CERTIFIED_TARGET_SOURCE_NOT_FINALIZED",
+    "affectedWindowEntryPoints": "CONSISTENCY_EVIDENCE_PROJECTION_REPLAY_UNIT_CERTIFIED",
+    "inactiveCandidateTarget": "CONTRACT_CERTIFIED_DATABASE_TEST_DEFERRED_ENVIRONMENT_NOT_CONFIGURED"
   },
   "remainingMvp8bBlockers": [
-    "EXTRACT_BOUNDED_OHLCV_AND_OI_CANONICAL_COMMIT_ENTRY_POINTS",
-    "EXTRACT_BOUNDED_AGGTRADES_SEGMENT_COMMIT_ENTRY_POINT",
-    "EXTRACT_AFFECTED_WINDOW_EVIDENCE_AND_PROJECTION_ENTRY_POINTS",
+    "SOURCE_NOT_FINALIZED",
+    "CERTIFY_INACTIVE_INSERT_AGAINST_CONFIGURED_LOCAL_SERVING_DATABASE",
     "EXECUTE_AND_COMPARE_ONE_COMPLETE_INACTIVE_CANDIDATE"
   ]
 }
