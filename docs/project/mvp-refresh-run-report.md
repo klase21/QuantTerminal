@@ -8,10 +8,9 @@ PostgreSQL certification time: 2026-07-16T00:39:34.756Z
 
 After the two-hour finalization delay, no UTC day beyond the active `2026-07-15T00:00:00.000Z` boundary was eligible at audit time. The planner returned `NO_CLOSED_WINDOW_AVAILABLE`. The next candidate interval is `[2026-07-15T00:00:00.000Z, 2026-07-16T00:00:00.000Z)` and cannot become eligible before `2026-07-16T02:00:00.000Z`. No acquisition, canonical commit, Evidence generation, Projection generation, Replay materialization, candidate build, publication, exposure, or Production activation occurred.
 
-Two data-path blockers remain even though PostgreSQL integration is now certified and the initial cycle itself was a timing `NOOP`:
+MVP-8A.1 removed the prior Funding-path blocker with a separate provider-native adapter. It was fixture-certified for all six instruments and PostgreSQL-certified through fenced `COMPLETE` state. The primary interval was still not finalized at `2026-07-16T01:15:25.194Z`, so no live request was made.
 
-1. `FUNDING_REFRESH_PATH_UNAVAILABLE`: the repository has provider request/parser logic only behind the deferred compatibility runner and related gap helper, not a separate bounded canonical refresh command. The protected Funding commands were not invoked.
-2. OHLCV, OI, AggTrades, Evidence, and Projection paths still require bounded commit/generation entry points before an eligible candidate cycle can run without broad progress-file or corpus behavior.
+Remaining blockers are the bounded OHLCV and OI canonical commit entry points, bounded AggTrades Segment commit, and affected-window Consistency, Evidence, Projection, and Replay materialization entry points.
 
 ## Reproducible commands
 
@@ -44,7 +43,9 @@ Only the first four commands are environment-independent. `migrate` and `run` re
 - Secret-bearing persisted rows: 0.
 - Database/control-plane bytes: 8,657,943 / 573,440.
 - Planned units for the next eligible day: 24 (six instruments x four mandatory datasets).
-- Funding units that will block without a new safe path: 6.
+- Funding bounded unit integration: PASS through artifact, normalization, duplicate canonical result, validation, and watermark persistence.
+- Funding fixture coverage: six instruments, three provider-native events each.
+- Funding primary live acquisition: not attempted because the source-finalization gate had not elapsed.
 - Raw Artifact bytes: 0.
 - New canonical/D4/serving/Replay bytes: 0.
 - Candidate release: not generated.

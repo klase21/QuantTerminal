@@ -32,11 +32,11 @@ async function main() {
   if (command === "preflight") return print({ command, result: await preflightMvpRefreshClientFromEnvironment() })
   if (command === "migrate") return print({ command, result: await migrate() })
   if (command === "plan") return print({ command, plan: planNextMvpRefresh() ?? { status: "NOOP", reason: "NO_CLOSED_WINDOW_AVAILABLE" } })
-  if (command === "availability") return print({ command, sources: MVP_REFRESH_SOURCE_AUDIT, safeToAcquire: false, blockerReasonCodes: ["FUNDING_REFRESH_PATH_UNAVAILABLE"] })
+  if (command === "availability") return print({ command, sources: MVP_REFRESH_SOURCE_AUDIT, safeToAcquire: false, blockerReasonCodes: MVP_REFRESH_SOURCE_AUDIT.flatMap((source) => source.blocker ? [source.blocker] : []) })
   if (command === "run") { await migrate(); return print({ command, result: await withClient((client) => runInitialBoundedRefresh(client)) }) }
   if (command === "resume") return print({ command, status: "BLOCKED", reason: "TERMINAL_BLOCKED_RUN_REQUIRES_NEW_PLAN" })
   if (command === "verify") return print({ command, status: "VERIFIED", controlPlane: await status(), productionMutation: false })
-  if (["build-candidate", "compare", "manifest"].includes(command)) return print({ command, status: "BLOCKED", reason: "FUNDING_REFRESH_PATH_UNAVAILABLE", candidateActivation: false })
+  if (["build-candidate", "compare", "manifest"].includes(command)) return print({ command, status: "BLOCKED", reasons: MVP_REFRESH_SOURCE_AUDIT.flatMap((source) => source.blocker ? [source.blocker] : []), candidateActivation: false })
   if (command === "status") return print({ command, result: await status() })
   if (command === "reset-isolated") return print({ command, result: await reset() })
   throw new Error("Usage: runMvpRefresh.ts <inspect-connection|preflight|migrate|plan|availability|run|resume|verify|build-candidate|compare|manifest|status|reset-isolated --confirm-isolated>")

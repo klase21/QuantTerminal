@@ -75,6 +75,37 @@ export class MvpRefreshStore {
     })
   }
 
+  async writeCheckpoint(unitId: string, checkpoint: object): Promise<void> {
+    await this.client.sql.unsafe("UPDATE refresh_control.refresh_unit SET checkpoint=$2::jsonb,updated_at=now() WHERE unit_id=$1", [unitId, JSON.stringify(checkpoint)])
+  }
+
+  async recordArtifact(input: { readonly unitId: string; readonly artifactId: string; readonly artifactKind: string; readonly contentChecksum: string; readonly byteCount: number; readonly lineage: object }): Promise<"INSERTED" | "DUPLICATE"> {
+    const units = await this.client.sql.unsafe<Array<{ run_id: string }>>("SELECT run_id FROM refresh_control.refresh_unit WHERE unit_id=$1", [input.unitId])
+    if (!units[0]) throw new Error("REFRESH_UNIT_MISSING")
+    const result = await this.client.sql.unsafe("INSERT INTO refresh_control.refresh_artifact(artifact_id,run_id,unit_id,artifact_kind,content_checksum,byte_count,lineage,created_at) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,now()) ON CONFLICT (artifact_id) DO NOTHING", [input.artifactId, units[0].run_id, input.unitId, input.artifactKind, input.contentChecksum, input.byteCount, JSON.stringify(input.lineage)])
+    if (result.count === 0) {
+      const rows = await this.client.sql.unsafe<Array<{ content_checksum: string; byte_count: string }>>("SELECT content_checksum,byte_count::text FROM refresh_control.refresh_artifact WHERE artifact_id=$1", [input.artifactId])
+      if (rows[0]?.content_checksum !== input.contentChecksum || Number(rows[0]?.byte_count) !== input.byteCount) throw new Error("REFRESH_ARTIFACT_IMMUTABLE_CONFLICT")
+      return "DUPLICATE"
+    }
+    return "INSERTED"
+  }
+
+  async recordFundingObservation(input: { readonly unitId: string; readonly provider: string; readonly instrument: string; readonly intervalStart: string; readonly intervalEnd: string; readonly observedThrough: string | null; readonly finalizedThrough: string; readonly sourceChecksum: string; readonly eventCount: number; readonly coverageState: "COMPLETE"; readonly recordedAt: string }): Promise<void> {
+    const units = await this.client.sql.unsafe<Array<{ run_id: string }>>("SELECT run_id FROM refresh_control.refresh_unit WHERE unit_id=$1", [input.unitId])
+    const runId = units[0]?.run_id
+    if (!runId) throw new Error("REFRESH_UNIT_MISSING")
+    const sourceId = `${input.provider}:${input.instrument}`
+    const observation = { requestedStart: input.intervalStart, requestedEnd: input.intervalEnd, observedThrough: input.observedThrough, finalizedThrough: input.finalizedThrough, lastProviderNativeEventTimestamp: input.observedThrough, availabilityState: "AVAILABLE", coverageState: input.coverageState, checksumState: "VERIFIED", eventCount: input.eventCount, limitations: [] }
+    const observationChecksum = canonicalChecksum({ runId, datasetId: "funding", sourceId, observation })
+    const observationId = `mrao_${observationChecksum}`
+    await this.client.sql.unsafe("INSERT INTO refresh_control.source_availability_observation(observation_id,run_id,dataset_id,source_id,interval_start,interval_end,state,reason_codes,observation,checksum,observed_at) VALUES($1,$2,'funding',$3,$4,$5,'AVAILABLE','{}',$6::jsonb,$7,$8) ON CONFLICT (observation_id) DO NOTHING", [observationId, runId, sourceId, input.intervalStart, input.intervalEnd, JSON.stringify(observation), observationChecksum, input.recordedAt])
+    const watermarkBasis = { runId, datasetId: "funding", sourceId, mandatory: true, observedThrough: input.finalizedThrough, state: "AVAILABLE", reasonCodes: [], sourceChecksum: input.sourceChecksum }
+    const watermarkChecksum = canonicalChecksum(watermarkBasis)
+    const watermarkId = `mrw_${watermarkChecksum}`
+    await this.client.sql.unsafe("INSERT INTO refresh_control.source_watermark(watermark_id,run_id,dataset_id,source_id,mandatory,observed_through,state,reason_codes,source_checksum,checksum,observed_at) VALUES($1,$2,'funding',$3,true,$4,'AVAILABLE','{}',$5,$6,$7) ON CONFLICT (run_id,dataset_id,source_id) DO NOTHING", [watermarkId, runId, sourceId, input.finalizedThrough, input.sourceChecksum, watermarkChecksum, input.recordedAt])
+  }
+
   async appendEvent(runId: string | null, entityKind: string, entityId: string, eventKind: string, fromState: string | null, toState: string | null, payload: object): Promise<string> {
     return this.appendEventSql(this.client.sql, runId, entityKind, entityId, eventKind, fromState, toState, payload)
   }

@@ -105,8 +105,10 @@
     "leaseAndRecovery": "CERTIFIED",
     "blockerReasonCodes": [
       "SOURCE_NOT_FINALIZED",
-      "FUNDING_REFRESH_PATH_UNAVAILABLE"
-    ]
+      "BOUNDED_CANONICAL_COMMIT_ENTRY_POINT_REQUIRED",
+      "BOUNDED_SEGMENT_COMMIT_ENTRY_POINT_REQUIRED"
+    ],
+    "boundedFundingRefresh": "FIXTURE_AND_ISOLATED_POSTGRES_CERTIFIED_NO_LIVE_PRIMARY_ACQUISITION"
   },
   "protectedState": {
     "fundingCommandsExecuted": false,

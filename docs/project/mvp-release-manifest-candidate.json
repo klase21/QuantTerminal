@@ -8,7 +8,8 @@
   "requestedEnd": null,
   "blockerReasonCodes": [
     "SOURCE_NOT_FINALIZED",
-    "FUNDING_REFRESH_PATH_UNAVAILABLE"
+    "BOUNDED_CANONICAL_COMMIT_ENTRY_POINT_REQUIRED",
+    "BOUNDED_SEGMENT_COMMIT_ENTRY_POINT_REQUIRED"
   ],
   "corpusId": null,
   "servingChecksum": null,

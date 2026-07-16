@@ -1,6 +1,6 @@
 # MVP Refresh And Release Channel
 
-Status: MVP-8A local foundation and isolated PostgreSQL control plane certified; the bounded cycle remains a timing `NOOP`.
+Status: MVP-8A control plane and MVP-8A.1 bounded provider-native Funding path locally certified; the primary bounded cycle remains a timing `NOOP`.
 
 ## Boundaries
 
@@ -18,7 +18,7 @@ The immutable chain remains Raw Artifact -> Candidate -> Canonical Fact -> Consi
 | --- | --- | --- | --- | --- |
 | OHLCV acquisition | `runD3OhlcvBackfill.ts` / Binance Vision daily request | Request is bounded; runner is snapshot-oriented | Progress JSON and source checksums | Extract bounded commit entry point before use |
 | Open Interest acquisition | `runD3OpenInterestBackfill.ts` / Binance Vision daily request | Request is bounded; runner is snapshot-oriented | Progress JSON and duplicate Facts | Extract bounded commit entry point before use; no forward fill |
-| Funding acquisition | `runD3FundingBackfill.ts` and recent-gap helper | Not safe for MVP-8A | Compatibility snapshot owns resume/reconcile | `FUNDING_REFRESH_PATH_UNAVAILABLE`; protected runner not invoked |
+| Funding acquisition | isolated official REST bounded adapter | Safe for one finalized UTC day | exact-byte artifact, deterministic Candidate/Fact identity, fenced checkpoints | Locally certified; legacy compatibility runner rejected and not invoked |
 | AggTrades acquisition | daily ZIP and Segment workers | Source interval is bounded; worker assumes backfill progress | ZIP checksum, Segment identity, manifests | Extract bounded Segment commit entry point; no full-history scan |
 | Raw Artifact / Candidate / Fact | dataset-specific D3 workers | Contracts are append-only | Provider request and Candidate identities | Reuse only through bounded adapters |
 | Coverage / Consistency / Evidence | `runMvpEvidence.ts` | Current command enforces whole 420/84 corpus | Immutable checksums | Bounded affected-window entry point required |
@@ -40,7 +40,7 @@ Every run/unit transition is checked in code and recorded as an append-only even
 
 The planner subtracts the source finalization delay, floors to the last closed UTC day, starts at the active governed-through boundary, and selects at most the first next day. At `2026-07-15T23:42:12.251Z`, the two-hour delay left no new eligible day, so the initial result was `NOOP`. The next candidate interval is `[2026-07-15T00:00:00.000Z, 2026-07-16T00:00:00.000Z)` and cannot become eligible before `2026-07-16T02:00:00.000Z`.
 
-Candidate governed-through is the minimum certified watermark across mandatory OHLCV, OI, discrete Funding, and AggTrades for all six instruments. Supplemental Macro, SPY, and ETF observations have a separate watermark and cannot advance it.
+At the MVP-8A.1 decision time (`2026-07-16T01:15:25.194Z`) the next interval remained ineligible, so no live Funding request was made. Candidate governed-through is the minimum certified watermark across mandatory OHLCV, OI, discrete Funding, and AggTrades for all six instruments. Supplemental Macro, SPY, and ETF observations have a separate watermark and cannot advance it.
 
 ## Freshness
 

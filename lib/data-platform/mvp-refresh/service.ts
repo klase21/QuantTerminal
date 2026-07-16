@@ -15,7 +15,7 @@ export const DEFAULT_MVP_REFRESH_POLICY = createRefreshPolicy({ policyVersion: "
 export const MVP_REFRESH_SOURCE_AUDIT = Object.freeze([
   Object.freeze({ datasetId: "ohlcv", sourceId: "binance-vision-klines", boundedAcquisition: true, canonicalCommit: false, blocker: "BOUNDED_CANONICAL_COMMIT_ENTRY_POINT_REQUIRED", cadence: "5m" }),
   Object.freeze({ datasetId: "open-interest", sourceId: "binance-vision-open-interest", boundedAcquisition: true, canonicalCommit: false, blocker: "BOUNDED_CANONICAL_COMMIT_ENTRY_POINT_REQUIRED", cadence: "5m" }),
-  Object.freeze({ datasetId: "funding", sourceId: "binance-futures-funding", boundedAcquisition: false, canonicalCommit: false, blocker: "FUNDING_REFRESH_PATH_UNAVAILABLE", cadence: "provider-native-discrete" }),
+  Object.freeze({ datasetId: "funding", sourceId: "binance-official-rest-funding-rate", boundedAcquisition: true, canonicalCommit: true, blocker: null, cadence: "provider-native-discrete" }),
   Object.freeze({ datasetId: "agg-trade", sourceId: "binance-vision-agg-trades", boundedAcquisition: true, canonicalCommit: false, blocker: "BOUNDED_SEGMENT_COMMIT_ENTRY_POINT_REQUIRED", cadence: "event" }),
   Object.freeze({ datasetId: "macro", sourceId: "fred-dgs10", boundedAcquisition: true, canonicalCommit: true, blocker: null, cadence: "daily-supplemental" }),
   Object.freeze({ datasetId: "daily-market-context", sourceId: "alpha-vantage-spy", boundedAcquisition: true, canonicalCommit: true, blocker: null, cadence: "daily-supplemental" }),
@@ -48,8 +48,10 @@ export async function runInitialBoundedRefresh(client: MvpRefreshPostgresClient,
   const units = createRefreshUnits(plan, runId)
   await store.putUnits(units)
   await store.transitionRun(runId, "ACQUIRING")
-  const fundingUnits = units.filter((unit) => unit.datasetId === "funding")
-  for (const unit of fundingUnits) await store.transitionUnit(unit.unitId, "BLOCKED", ["FUNDING_REFRESH_PATH_UNAVAILABLE"])
-  await store.transitionRun(runId, "BLOCKED", ["FUNDING_REFRESH_PATH_UNAVAILABLE"])
-  return Object.freeze({ status: "BLOCKED", runId, planId: plan.planId, requestedStart: plan.window.requestedStart, requestedEnd: plan.window.requestedEnd, unitCount: units.length, blockedUnitCount: fundingUnits.length, blockerReasonCodes: Object.freeze(["FUNDING_REFRESH_PATH_UNAVAILABLE"]), canonicalCommit: "NOT_ATTEMPTED", candidate: "NOT_GENERATED", productionMutation: false })
+  const blockersByDataset = new Map<string, string>(MVP_REFRESH_SOURCE_AUDIT.filter((source) => source.blocker).map((source) => [source.datasetId, source.blocker as string]))
+  const blockedUnits = units.filter((unit) => blockersByDataset.has(unit.datasetId))
+  for (const unit of blockedUnits) await store.transitionUnit(unit.unitId, "BLOCKED", [blockersByDataset.get(unit.datasetId)!])
+  const blockerReasonCodes = Object.freeze([...new Set(blockedUnits.map((unit) => blockersByDataset.get(unit.datasetId)!))])
+  await store.transitionRun(runId, "BLOCKED", blockerReasonCodes)
+  return Object.freeze({ status: "BLOCKED", runId, planId: plan.planId, requestedStart: plan.window.requestedStart, requestedEnd: plan.window.requestedEnd, unitCount: units.length, blockedUnitCount: blockedUnits.length, blockerReasonCodes, canonicalCommit: "NOT_ATTEMPTED", candidate: "NOT_GENERATED", productionMutation: false })
 }
