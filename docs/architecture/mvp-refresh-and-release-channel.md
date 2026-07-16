@@ -56,6 +56,12 @@ At the MVP-8A.2A check, the wall-clock gate had elapsed but all 18 required Bina
 
 Page-ready states are `CURRENT`, `DELAYED`, `STALE`, `UNAVAILABLE`, `INCONSISTENT`, and `CANDIDATE_ONLY`. They are independent of Coverage, Consistency, Confidence, and exposure. Stable reason codes include source finalization, availability, gaps, checksums, mandatory/supplemental lag, failed validation, inactive candidate state, Funding path unavailability, and active-corpus lag.
 
+## Live Resume Coordinator
+
+The bounded release foundation now includes a strict 24-slot coordinator contract. It accepts only the certified one-day reconciliation graph, reuses the attributable BTCUSDT OHLCV authority without a new unit, and resolves at most 23 unit intents. Seventeen append-only stages carry deterministic input/output checksums, previous-stage linkage, and fence identity. Dataset and common watermarks derive from unique logical slots, never attempt counts.
+
+The coordinator, dry-run worker, confirmation gate, checkpoint recovery, and fault policy are fixture-certified. Live execution remains fail-closed until environment-backed OHLCV, Open Interest, and AggTrades provenance-to-canonical executor bindings are extracted from their broad workers. The legacy initial-cycle route is not an allowed substitute.
+
 `/api/health/mvp-freshness` is a local read-only foundation endpoint. It emits corpus and governance identities but no URL, hostname, credential, Raw Artifact path, or Parquet path.
 
 ## Release channels

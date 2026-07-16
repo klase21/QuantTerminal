@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-refresh-readiness/1.0.0",
-  "assessedAt": "2026-07-16T13:20:18.245Z",
+  "assessedAt": "2026-07-16T23:21:05.688Z",
   "activeProduction": {
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -101,9 +101,22 @@
       "createNewOnLiveResume": 23,
       "blockedConflict": 0,
       "unitsCreated": 0
+    },
+    "liveResumeCoordinator": {
+      "version": "mvp-live-resume-coordinator/1.0.0",
+      "logicalSlots": 24,
+      "maximumUnitRows": 23,
+      "stageCount": 17,
+      "failureStagesCertified": 17,
+      "deterministicResume": "PASS",
+      "candidateActivationAvailable": false,
+      "liveAcquisitionExecuted": false,
+      "environmentExecutorBindings": "BLOCKED"
     }
   },
   "remainingMvp8bBlockers": [
+    "LIVE_RESUME_ENVIRONMENT_EXECUTOR_BINDINGS_REQUIRED",
+    "RESTORE_CERTIFIED_LOCAL_TRUTH_AND_SERVING_ROLE_BINDINGS",
     "EXECUTE_REMAINING_23_MANDATORY_SLOTS",
     "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",
     "EXECUTE_AND_COMPARE_ONE_COMPLETE_INACTIVE_CANDIDATE"

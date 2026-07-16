@@ -38,6 +38,14 @@ The recovery persisted one Retrieval, one Raw Artifact reference, 288 determinis
 
 The exact worker rerun returned `DUPLICATE` before payload acquisition. The 24-slot dry run now returns one `REUSE_AUTHORITATIVE_RECOVERY_OUTPUT`, 23 `CREATE_NEW_ON_LIVE_RESUME`, and zero conflicts. No watermark, downstream product, serving corpus, exposure, Neon, Vercel, or Production write occurred.
 
+## MVP-8A.2H Coordinator Certification
+
+The dedicated coordinator verifies the certified 1+23 graph, caps local concurrency at two, resolves logical slots before insertion, and sequences 17 checksum-linked stages through inactive candidate comparison. Fixture certification injected a failure after every stage and resumed deterministically without duplicate unit intents or executor calls. A mandatory slot failure prevented both common-watermark persistence and downstream invocation.
+
+The dedicated worker implements exact-day parsing, safe plan/preflight/dry-run/status surfaces, sanitized output, and an explicit live double-confirmation gate. No live target-day acquisition or unit creation was performed. The live command remains blocked because the archive adapters are parsers/builders rather than complete callable Retrieval-to-canonical executors; broad worker invocation is prohibited.
+
+PostgreSQL checkpoint certification created and replayed a coordinator stage event inside a disposable transaction. The exact repeat returned `DUPLICATE`, the stored checksum reproduced, append-only mutation was rejected, and the transaction retained zero rows.
+
 ## Reproducible commands
 
 ```powershell

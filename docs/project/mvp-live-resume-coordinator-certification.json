@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "mvp-live-resume-coordinator-certification/1.0.0",
+  "certifiedAt": "2026-07-16T23:21:05.688Z",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "planner": {
+    "logicalSlots": 24,
+    "reuseAuthoritativeRecoveryOutput": 1,
+    "createNewOnLiveResume": 23,
+    "blockedConflict": 0,
+    "planChecksumVerified": true
+  },
+  "coordinator": {
+    "version": "mvp-live-resume-coordinator/1.0.0",
+    "stageCount": 17,
+    "maximumConcurrency": 2,
+    "authoritativeReuseCreatesUnit": false,
+    "maximumUnitRows": 23,
+    "logicalSlotCompleteness": true,
+    "commonWatermarkFailClosed": true,
+    "candidateActivationAvailable": false
+  },
+  "certification": {
+    "dryRunCreatesRows": false,
+    "allFailureStagesInjected": true,
+    "failureStagesCertified": 17,
+    "exactResume": "PASS",
+    "postgresCheckpointPersistence": "PASS_ROLLBACK_TRANSACTION",
+    "postgresCheckpointExactRepeat": "DUPLICATE",
+    "appendOnlyCheckpointMutation": "REJECTED",
+    "retainedCertificationRows": 0,
+    "changedStageChecksum": "REJECTED",
+    "mandatorySlotFailureBlocksDownstream": true,
+    "candidateExposureChanged": false,
+    "liveTargetDayAcquisitionExecuted": false
+  },
+  "worker": {
+    "commands": ["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify"],
+    "exactIntervalRequired": true,
+    "liveDoubleConfirmationRequired": true,
+    "sanitizedOutput": true,
+    "legacyInitialCycleUsed": false
+  },
+  "environmentPreflight": {
+    "refreshControlPlane": "PASS",
+    "authoritativeReconciliation": "PASS",
+    "planner": "PASS",
+    "objectStorage": "PASS",
+    "truthPlaneRoles": "BLOCKED_AUTHENTICATION_IN_CURRENT_EXECUTION_ENVIRONMENT",
+    "servingPublisherRole": "BLOCKED_ROLE_MISMATCH_IN_CURRENT_EXECUTION_ENVIRONMENT",
+    "secretValuesExposed": false
+  },
+  "status": "BLOCKED",
+  "blockerReasonCodes": [
+    "LIVE_RESUME_ENVIRONMENT_EXECUTOR_BINDINGS_REQUIRED",
+    "LOCAL_TRUTH_PLANE_AUTHENTICATION_REQUIRED",
+    "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED"
+  ],
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}
