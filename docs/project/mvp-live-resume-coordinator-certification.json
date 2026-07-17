@@ -59,11 +59,12 @@
     "fixtureGraph": "PASS_1_REUSE_23_EXECUTOR_CALLS",
     "archiveAvailability": "PASS_18_OF_18",
     "fundingAvailability": "PASS_6_OF_6",
-    "liveComposition": "BLOCKED"
+    "concretePortContract": "CERTIFIED",
+    "liveComposition": "ENVIRONMENT_BOOTSTRAP_BLOCKED"
   },
   "status": "BLOCKED",
   "blockerReasonCodes": [
-    "LIVE_EXECUTOR_PORT_COMPOSITION_INCOMPLETE",
+    "LIVE_RESUME_ENVIRONMENT_PORT_BOOTSTRAP_REQUIRED",
     "LOCAL_TRUTH_PLANE_AUTHENTICATION_REQUIRED",
     "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED"
   ],

@@ -13,6 +13,20 @@
     "exactIntervalHours": 24,
     "sanitizedDiagnostics": true
   },
+  "environmentFactory": {
+    "modes": ["INSPECT", "PREFLIGHT", "CERTIFICATION", "LIVE"],
+    "inspectConnects": false,
+    "preflightWrites": false,
+    "certificationRequiresCompleteBindings": true,
+    "liveRequiresPassingPreflight": true,
+    "closeLifecycle": true
+  },
+  "concretePorts": {
+    "version": "mvp-live-executor-ports/1.0.0",
+    "requiredPortCount": 14,
+    "fixtureComposition": "PASS",
+    "environmentBackedWorkerBootstrap": "BLOCKED"
+  },
   "fixtureGraph": {
     "logicalSlots": 24,
     "authoritativeReuse": 1,
@@ -48,7 +62,7 @@
     "LOCAL_D3_AUTHENTICATION_REQUIRED",
     "LOCAL_D4_AUTHENTICATION_REQUIRED",
     "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED",
-    "LIVE_EXECUTOR_PORT_COMPOSITION_INCOMPLETE"
+    "LIVE_RESUME_ENVIRONMENT_PORT_BOOTSTRAP_REQUIRED"
   ],
   "productionMutation": false,
   "neonMutation": false,

@@ -21,3 +21,9 @@ OHLCV excludes BTCUSDT acquisition because that slot is satisfied only through t
 Fixture composition certifies the exact 1+23 graph, 23 executor calls, zero BTCUSDT OHLCV acquisition calls, identity/checksum propagation, all 17 coordinator failure points, deterministic resume, and inactive candidate behavior. The environment-backed preflight found all 18 archives and all six Funding requests ready, and reproduced the certified planner result.
 
 The current local execution environment is not live-ready. D2, D3, and D4 authentication failed with sanitized SQLSTATE `28P01`; the isolated serving target connected under a role other than the required publisher. No substitute target was attempted. The worker remains fail-closed and no target-day acquisition, unit creation, watermark change, candidate build, or external mutation occurred.
+
+## Concrete Port Composition
+
+The environment factory now has four explicit modes: `INSPECT`, `PREFLIGHT`, `CERTIFICATION`, and `LIVE`. Inspection opens no connection. Preflight returns diagnostics without ports. Certification accepts only a complete callable local binding set. Live additionally requires the real environment preflight to pass before returning ports. Every result owns an explicit close lifecycle.
+
+The concrete composition contract covers the four bounded dataset executors, dataset/common watermark persistence, five downstream stages, inactive candidate assembly, manifest persistence, and exact comparison. The remaining code blocker is the worker bootstrap that constructs those adapters from environment-backed clients; it cannot be replaced with certification fixtures.

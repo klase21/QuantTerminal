@@ -3,6 +3,8 @@ import assert from "node:assert/strict"
 import {
   LIVE_RESUME_REQUIRED_BINDING_NAMES,
   composeLocalLiveResumeEnvironment,
+  createLocalLiveResumeEnvironment,
+  inspectLocalLiveResumeEnvironment,
   preflightLocalLiveResumeEnvironment,
   type LiveResumeBindingCapability,
   type LiveResumeCoordinatorPorts,
@@ -27,14 +29,24 @@ async function main() {
   assert.equal(missing.capabilities.filter((value) => value.diagnostic === "VARIABLE_MISSING").length >= 5, true)
   assert.equal(missing.capabilities.some((value) => value.activationCapable), false)
   assert.equal(missing.capabilities.find((value) => value.bindingName === "candidate-activation")?.callable, false)
+  const inspected = inspectLocalLiveResumeEnvironment({} as NodeJS.ProcessEnv)
+  assert.equal(inspected.length, missing.capabilities.length)
+  assert.equal(inspected.every((value) => !value.callable), true)
+  const inspectFactory = await createLocalLiveResumeEnvironment({ mode: "INSPECT", environment: {} as NodeJS.ProcessEnv })
+  assert.equal(inspectFactory.ports, null)
+  assert.equal(inspectFactory.passed, true)
 
   const ports = Object.freeze({}) as LiveResumeCoordinatorPorts
   const complete = LIVE_RESUME_REQUIRED_BINDING_NAMES.map((name) => capability(name))
   assert.equal(composeLocalLiveResumeEnvironment({ ports, capabilities: [...complete, capability("candidate-activation", false)] }), ports)
   assert.throws(() => composeLocalLiveResumeEnvironment({ ports, capabilities: complete.map((value, index) => index === 0 ? { ...value, expectedRole: false } : value) }), /BINDING_INCOMPLETE/)
   assert.throws(() => composeLocalLiveResumeEnvironment({ ports, capabilities: [...complete, capability("candidate-activation", true)] }), /ACTIVATION_BINDING_FORBIDDEN/)
+  const certification = await createLocalLiveResumeEnvironment({ mode: "CERTIFICATION", bindings: { ports, capabilities: [...complete, capability("candidate-activation", false)] } })
+  assert.equal(certification.ports, ports)
+  await certification.close()
+  await assert.rejects(() => createLocalLiveResumeEnvironment({ mode: "CERTIFICATION" }), /CERTIFICATION_BINDINGS_REQUIRED/)
 
-  console.log(JSON.stringify({ status: "PASS", requiredBindings: LIVE_RESUME_REQUIRED_BINDING_NAMES.length, activationCapable: false, externalMutation: false }))
+  console.log(JSON.stringify({ status: "PASS", requiredBindings: LIVE_RESUME_REQUIRED_BINDING_NAMES.length, factoryModes: 4, activationCapable: false, externalMutation: false }))
 }
 
 void main().catch((error) => { console.error(error); process.exitCode = 1 })

@@ -13,6 +13,7 @@ export type LiveResumeDiagnostic =
   | "WRONG_ROLE"
   | "NON_LOCAL_TARGET"
   | "CONNECTION_FAILED"
+  | "BINDING_INCOMPLETE"
   | "READY"
 
 export type LiveResumeBindingMode = "READ_ONLY" | "READ_WRITE" | "APPEND_ONLY"
@@ -40,6 +41,17 @@ export interface LiveResumeEnvironmentPreflight {
   readonly passed: boolean
   readonly capabilities: readonly LiveResumeBindingCapability[]
   readonly productionOrNeonWriteTarget: false
+}
+
+export type LiveResumeEnvironmentMode = "INSPECT" | "PREFLIGHT" | "CERTIFICATION" | "LIVE"
+
+export interface LocalLiveResumeEnvironment {
+  readonly mode: LiveResumeEnvironmentMode
+  readonly capabilities: readonly LiveResumeBindingCapability[]
+  readonly diagnostics: readonly { readonly bindingName: string; readonly diagnostic: LiveResumeDiagnostic; readonly sanitizedErrorCode: string | null }[]
+  readonly ports: LiveResumeCoordinatorPorts | null
+  readonly passed: boolean
+  close(): Promise<void>
 }
 
 const instruments = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"])
@@ -72,6 +84,23 @@ export const LIVE_RESUME_REQUIRED_BINDING_NAMES = Object.freeze([
   ...downstreamBindings,
   "local-candidate-assembler",
 ] as const)
+
+export function inspectLocalLiveResumeEnvironment(environment: NodeJS.ProcessEnv = process.env): readonly LiveResumeBindingCapability[] {
+  const configured = (bindingName: string, variable: string, mode: LiveResumeBindingMode): LiveResumeBindingCapability => {
+    const present = Boolean(environment[variable])
+    return Object.freeze({ bindingName, configured: present, localOnly: false, expectedDatabase: false, expectedRole: false, callable: false, mode, supportedDatasets: Object.freeze([]), supportedInstruments: Object.freeze([]), exactIntervalLimitHours: null, legacyWorkerDependency: false, activationCapable: false, diagnostic: present ? "BINDING_INCOMPLETE" : "VARIABLE_MISSING", limitationReason: present ? "PREFLIGHT_REQUIRED" : `${variable}_VARIABLE_MISSING`, sanitizedErrorCode: null })
+  }
+  const databases = databaseRequirements.map(([variable, , , bindingName, mode]) => configured(bindingName, variable, mode as LiveResumeBindingMode))
+  const byName = new Map(databases.map((value) => [value.bindingName, value]))
+  const objectStorage = configured("bounded-object-storage", "D3_BACKFILL_OBJECT_ROOT", "READ_WRITE")
+  const d2 = byName.get("d2-canonical-persistence")!, refresh = byName.get("refresh-control-plane")!, d4 = byName.get("d4-downstream-persistence")!, serving = byName.get("inactive-candidate-serving")!
+  const capabilities: LiveResumeBindingCapability[] = [...databases, objectStorage]
+  capabilities.push(...datasetBindings.map(([name, datasets, supported]) => derivedCapability(name, d2, "READ_WRITE", datasets, supported)))
+  capabilities.push(...downstreamBindings.map((name) => derivedCapability(name, name.includes("refresh") || name.includes("watermark") || name.includes("reconciliation") || name.includes("authoritative") || name.includes("source-contract") ? refresh : d4, name.includes("reader") ? "READ_ONLY" : "APPEND_ONLY")))
+  capabilities.push(derivedCapability("local-candidate-assembler", serving, "APPEND_ONLY"))
+  capabilities.push(derivedCapability("candidate-activation", { ...serving, callable: false, activationCapable: false, diagnostic: "READY", limitationReason: "ACTIVATION_INTENTIONALLY_UNAVAILABLE" }, "READ_ONLY"))
+  return Object.freeze(capabilities)
+}
 
 function isLocal(value: string | undefined): boolean {
   if (!value) return false
@@ -141,6 +170,7 @@ export async function preflightLocalLiveResumeEnvironment(environment: NodeJS.Pr
 export interface LiveResumeLocalBindingSet {
   readonly ports: LiveResumeCoordinatorPorts
   readonly capabilities: readonly LiveResumeBindingCapability[]
+  readonly close?: () => Promise<void>
 }
 
 export function composeLocalLiveResumeEnvironment(input: LiveResumeLocalBindingSet): LiveResumeCoordinatorPorts {
@@ -148,4 +178,24 @@ export function composeLocalLiveResumeEnvironment(input: LiveResumeLocalBindingS
   if (!mandatory.length || mandatory.some((value) => !value.configured || !value.localOnly || !value.expectedDatabase || !value.expectedRole || !value.callable || value.legacyWorkerDependency || value.activationCapable)) throw new Error("LIVE_RESUME_ENVIRONMENT_BINDING_INCOMPLETE")
   if (input.capabilities.some((value) => value.bindingName === "candidate-activation" && value.callable)) throw new Error("LIVE_RESUME_ACTIVATION_BINDING_FORBIDDEN")
   return Object.freeze(input.ports)
+}
+
+export async function createLocalLiveResumeEnvironment(input: { readonly mode: LiveResumeEnvironmentMode; readonly environment?: NodeJS.ProcessEnv; readonly bindings?: LiveResumeLocalBindingSet }): Promise<LocalLiveResumeEnvironment> {
+  const environment = input.environment ?? process.env
+  if (input.mode === "INSPECT") {
+    const capabilities = inspectLocalLiveResumeEnvironment(environment)
+    return Object.freeze({ mode: input.mode, capabilities, diagnostics: Object.freeze(capabilities.map((value) => Object.freeze({ bindingName: value.bindingName, diagnostic: value.diagnostic, sanitizedErrorCode: value.sanitizedErrorCode }))), ports: null, passed: true, close: async () => undefined })
+  }
+  if (input.mode === "CERTIFICATION") {
+    if (!input.bindings) throw new Error("LIVE_RESUME_CERTIFICATION_BINDINGS_REQUIRED")
+    const ports = composeLocalLiveResumeEnvironment(input.bindings)
+    const capabilities = Object.freeze([...input.bindings.capabilities])
+    return Object.freeze({ mode: input.mode, capabilities, diagnostics: Object.freeze(capabilities.map((value) => Object.freeze({ bindingName: value.bindingName, diagnostic: value.diagnostic, sanitizedErrorCode: value.sanitizedErrorCode }))), ports, passed: true, close: input.bindings.close ?? (async () => undefined) })
+  }
+  const preflight = await preflightLocalLiveResumeEnvironment(environment)
+  if (input.mode === "PREFLIGHT") return Object.freeze({ mode: input.mode, capabilities: preflight.capabilities, diagnostics: Object.freeze(preflight.capabilities.map((value) => Object.freeze({ bindingName: value.bindingName, diagnostic: value.diagnostic, sanitizedErrorCode: value.sanitizedErrorCode }))), ports: null, passed: preflight.passed, close: async () => undefined })
+  if (!preflight.passed) throw new Error("LIVE_RESUME_LOCAL_PREFLIGHT_FAILED")
+  if (!input.bindings) throw new Error("LIVE_RESUME_LIVE_BINDINGS_REQUIRED")
+  const ports = composeLocalLiveResumeEnvironment({ ...input.bindings, capabilities: preflight.capabilities })
+  return Object.freeze({ mode: input.mode, capabilities: preflight.capabilities, diagnostics: Object.freeze(preflight.capabilities.map((value) => Object.freeze({ bindingName: value.bindingName, diagnostic: value.diagnostic, sanitizedErrorCode: value.sanitizedErrorCode }))), ports, passed: true, close: input.bindings.close ?? (async () => undefined) })
 }

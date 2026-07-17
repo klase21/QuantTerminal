@@ -37,3 +37,5 @@ No scheduler, live acquisition, target-day unit, candidate, exposure, or externa
 MVP-8A.2I adds a shared local-only capability and diagnostic contract. The worker now uses it for target identity checks and reports dataset/downstream callability without exposing connection details. Fixture composition proves the complete 1+23 coordinator graph through the binding contract.
 
 The environment-backed run remains blocked: the current D2/D3/D4 credentials fail authentication, the serving target does not authenticate as the publisher, and the final concrete live executor port composition is not yet installed. The worker does not substitute fixture ports or broad workers for a live run.
+
+The typed port composition itself is now implemented and fixture-certified. It validates exact slot contracts, executes the shared bounded stage sequence, derives watermarks from logical slots, and propagates checksummed identities to downstream and candidate stages. The remaining code gap is limited to constructing that composition from real environment-backed adapter instances in the worker bootstrap.

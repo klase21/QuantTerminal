@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "mvp-live-executor-port-composition-certification/1.0.0",
+  "certifiedAt": "2026-07-17T00:09:16.428Z",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "contract": {
+    "version": "mvp-live-executor-ports/1.0.0",
+    "requiredPortCount": 14,
+    "exactDayRequired": true,
+    "plannerChecksumRequired": true,
+    "checkpointChecksumRequired": true,
+    "fencingTokenRequired": true,
+    "unboundedScanAvailable": false,
+    "activationAvailable": false
+  },
+  "datasetComposition": {
+    "ohlcvAllowedInstruments": 5,
+    "btcusdtOhlcvAcquisitionRejected": true,
+    "openInterestAllowedInstruments": 6,
+    "fundingAllowedInstruments": 6,
+    "aggTradesAllowedInstruments": 6,
+    "legacyWorkerFallback": false
+  },
+  "fixtureGraph": {
+    "logicalOutcomes": 24,
+    "authoritativeReuse": 1,
+    "executorCalls": 23,
+    "btcusdtOhlcvAcquisitionCalls": 0,
+    "datasetWatermarks": 4,
+    "commonWatermark": "VERIFIED",
+    "downstreamStages": 5,
+    "candidateLifecycle": "WITHHELD_INTERNAL_ONLY",
+    "candidateExposed": false,
+    "exactRerun": "PASS"
+  },
+  "failureInjection": {
+    "datasetExecutors": "PASS",
+    "retrieval": "PASS",
+    "rawArtifact": "PASS",
+    "candidate": "PASS",
+    "canonicalCommit": "PASS",
+    "coordinatorStages": 17,
+    "mandatoryFailureBlocksDownstream": true,
+    "partialCandidateExposed": false
+  },
+  "livePreflight": {
+    "archiveAvailability": "PASS_18_OF_18",
+    "fundingAvailability": "PASS_6_OF_6",
+    "planner": "PASS_1_REUSE_23_CREATE_0_CONFLICT",
+    "d2Canonical": "AUTHENTICATION_FAILED_28P01",
+    "d3Candidate": "AUTHENTICATION_FAILED_28P01",
+    "d4Downstream": "AUTHENTICATION_FAILED_28P01",
+    "inactiveServing": "WRONG_ROLE",
+    "passed": false
+  },
+  "status": "BLOCKED",
+  "blockerReasonCodes": [
+    "LIVE_RESUME_ENVIRONMENT_PORT_BOOTSTRAP_REQUIRED",
+    "LOCAL_D2_AUTHENTICATION_REQUIRED",
+    "LOCAL_D3_AUTHENTICATION_REQUIRED",
+    "LOCAL_D4_AUTHENTICATION_REQUIRED",
+    "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED"
+  ],
+  "targetDayAcquisitionExecuted": false,
+  "targetDayUnitsCreated": 0,
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}

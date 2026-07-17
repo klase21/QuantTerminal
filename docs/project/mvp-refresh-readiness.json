@@ -111,7 +111,16 @@
       "deterministicResume": "PASS",
       "candidateActivationAvailable": false,
       "liveAcquisitionExecuted": false,
-      "environmentExecutorBindings": "CAPABILITY_CONTRACT_CERTIFIED_LIVE_COMPOSITION_BLOCKED",
+      "environmentExecutorBindings": "CONCRETE_PORT_CONTRACT_CERTIFIED_ENVIRONMENT_BOOTSTRAP_BLOCKED",
+      "liveExecutorPorts": {
+        "version": "mvp-live-executor-ports/1.0.0",
+        "requiredPortCount": 14,
+        "fixtureExecutorCalls": 23,
+        "btcusdtOhlcvAcquisitionCalls": 0,
+        "watermarkCoordination": "PASS",
+        "downstreamPropagation": "PASS",
+        "candidateExposureChanged": false
+      },
       "environmentPreflight": {
         "archiveAvailability": "PASS_18_OF_18",
         "fundingAvailability": "PASS_6_OF_6",
@@ -123,7 +132,7 @@
     }
   },
   "remainingMvp8bBlockers": [
-    "LIVE_EXECUTOR_PORT_COMPOSITION_INCOMPLETE",
+    "LIVE_RESUME_ENVIRONMENT_PORT_BOOTSTRAP_REQUIRED",
     "RESTORE_CERTIFIED_LOCAL_TRUTH_AND_SERVING_ROLE_BINDINGS",
     "EXECUTE_REMAINING_23_MANDATORY_SLOTS",
     "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",

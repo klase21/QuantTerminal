@@ -52,6 +52,12 @@ The shared environment contract represents 26 mandatory bindings and exposes no 
 
 The non-mutating live preflight confirmed one authoritative reuse, 23 create intents, all 18 archives ready, and all six Funding checks ready. Refresh control and local object storage passed. D2, D3, and D4 failed authentication with sanitized SQLSTATE `28P01`; the serving database identity passed but its role did not match the required publisher. No fallback database, unit, payload, watermark, candidate, Neon, Vercel, or Production write was attempted.
 
+## MVP-8A.2J Concrete Port Composition
+
+The new concrete port layer implements fourteen callable dataset, watermark, downstream, and candidate boundaries. The complete fixture graph produced 23 executor calls, no BTCUSDT OHLCV acquisition, four complete dataset watermarks, one common watermark, five downstream stages, and one inactive candidate flow. Exact rerun was deterministic and all injected stage failures remained fail closed.
+
+Environment factory modes and close lifecycle are certified. The environment-backed worker bootstrap is still missing, so `run` and `resume` remain fail closed after the explicit confirmation gate. Current D2/D3/D4 authentication and serving publisher role diagnostics are unchanged. No live target-day work occurred.
+
 ## Reproducible commands
 
 ```powershell
