@@ -54,6 +54,10 @@ export interface LiveResumeStatusSnapshot {
   readonly retainedArtifacts: number
   readonly retainedCandidates: number
   readonly effectiveExecutionState: "NOT_STARTED" | "ACTIVE" | "BLOCKED" | "COMPLETE"
+  readonly disposition: "ACTIVE" | "QUARANTINED" | "SUPERSEDED"
+  readonly resumeEligible: boolean
+  readonly quarantineReason: string | null
+  readonly incidentChecksum: string | null
 }
 
 export interface PersistedLiveResumeExecution {
@@ -112,16 +116,22 @@ export class PostgresLiveResumeExecutionStore {
     const watermarks = run ? await this.client.sql.unsafe<Array<{ common_watermark: string | null }>>("SELECT min(observed_through)::text common_watermark FROM refresh_control.source_watermark WHERE run_id=$1 AND mandatory", [runId]) : []
     const retained = run ? await this.client.sql.unsafe<Array<{ artifacts: number; candidates: number }>>("SELECT (SELECT count(*)::int FROM refresh_control.refresh_artifact a JOIN refresh_control.refresh_unit u ON u.unit_id=a.unit_id WHERE u.run_id=$1) artifacts,(SELECT count(*)::int FROM refresh_control.refresh_candidate WHERE run_id=$1) candidates", [runId]) : []
     const failures = run ? await this.client.sql.unsafe<Array<{ event_kind: string }>>("SELECT event_kind FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='live_resume_coordinator' AND event_kind LIKE 'STAGE_FAILURE_%' ORDER BY occurred_at DESC,event_id DESC LIMIT 1", [runId]) : []
+    const dispositions = run ? await this.client.sql.unsafe<Array<{ to_state: string; payload: { reasonCode?: string; incidentChecksum?: string } | string }>>("SELECT to_state,payload FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='execution_generation' AND entity_id=$1 AND event_kind='EXECUTION_GENERATION_DISPOSITION' ORDER BY occurred_at,event_id", [runId]) : []
+    if (dispositions.length > 1) throw new Error("EXECUTION_GENERATION_DISPOSITION_MULTIPLE")
+    const dispositionRow = dispositions[0]
+    const dispositionPayload = typeof dispositionRow?.payload === "string" ? JSON.parse(dispositionRow.payload) as { reasonCode?: string; incidentChecksum?: string } : dispositionRow?.payload
+    const disposition = dispositionRow?.to_state === "QUARANTINED" ? "QUARANTINED" as const : dispositionRow?.to_state === "SUPERSEDED" ? "SUPERSEDED" as const : "ACTIVE" as const
     const byState: Record<string, number> = {}, byDataset: Record<string, number> = {}
     for (const unit of units) { byState[unit.state] = (byState[unit.state] ?? 0) + 1; byDataset[unit.dataset_id] = (byDataset[unit.dataset_id] ?? 0) + 1 }
     const createdSlots = 0
     const reusedSlots = units.filter((unit) => unit.state === "COMPLETE").length
-    const resumableSlots = units.filter((unit) => unit.state !== "COMPLETE" && RECOVERABLE_UNIT_STATES.has(unit.state)).length
+    const resumableSlots = disposition === "ACTIVE" ? units.filter((unit) => unit.state !== "COMPLETE" && RECOVERABLE_UNIT_STATES.has(unit.state)).length : 0
     const terminalBlockers = units.filter((unit) => !RECOVERABLE_UNIT_STATES.has(unit.state) && unit.state !== "COMPLETE").map((unit) => `UNIT_${unit.dataset_id}_${unit.state}`)
     const lease = leases[0]
     const blockedSlots = units.filter((unit) => ["BLOCKED", "FAILED", "UNAVAILABLE"].includes(unit.state)).length
-    const effectiveExecutionState = !run ? "NOT_STARTED" : run.state === "READY_FOR_RELEASE_REVIEW" ? "COMPLETE" : failures.length || blockedSlots ? "BLOCKED" : "ACTIVE"
-    return Object.freeze({ planId: plan.planIdentity, planChecksum: plan.planChecksum, persistedRunId: run ? runId : null, runState: run?.state ?? null, unitCountsByState: Object.freeze(byState), unitCountsByDataset: Object.freeze(byDataset), authoritativeReuse: 1, createdSlots, reusedSlots, resumableSlots, missingSlots: Math.max(0, 23 - units.length), currentCoordinatorStage: stageRows[0]?.event_kind.replace(/^STAGE_/, "") ?? null, leaseState: !lease ? "ABSENT" : lease.active ? "ACTIVE" : lease.released ? "RELEASED" : "EXPIRED", candidateState: candidates[0]?.lifecycle ?? null, commonWatermark: watermarks[0]?.common_watermark ? new Date(watermarks[0].common_watermark).toISOString() : null, blockers: Object.freeze([...(run?.blocker_codes ?? []), ...terminalBlockers, ...failures.map((value) => value.event_kind.replace(/^STAGE_FAILURE_/, "STAGE_FAILURE:"))].sort()), persistedUnitCount: units.length, recoverableSlots: units.filter((unit) => RECOVERABLE_UNIT_STATES.has(unit.state)).length, blockedSlots, retainedArtifacts: retained[0]?.artifacts ?? 0, retainedCandidates: retained[0]?.candidates ?? 0, effectiveExecutionState })
+    const effectiveExecutionState = !run ? "NOT_STARTED" : disposition !== "ACTIVE" ? "BLOCKED" : run.state === "READY_FOR_RELEASE_REVIEW" ? "COMPLETE" : failures.length || blockedSlots ? "BLOCKED" : "ACTIVE"
+    const dispositionBlocker = disposition === "QUARANTINED" ? ["EXECUTION_GENERATION_QUARANTINED"] : disposition === "SUPERSEDED" ? ["EXECUTION_GENERATION_SUPERSEDED"] : []
+    return Object.freeze({ planId: plan.planIdentity, planChecksum: plan.planChecksum, persistedRunId: run ? runId : null, runState: run?.state ?? null, unitCountsByState: Object.freeze(byState), unitCountsByDataset: Object.freeze(byDataset), authoritativeReuse: 1, createdSlots, reusedSlots, resumableSlots, missingSlots: Math.max(0, 23 - units.length), currentCoordinatorStage: stageRows[0]?.event_kind.replace(/^STAGE_/, "") ?? null, leaseState: !lease ? "ABSENT" : lease.active ? "ACTIVE" : lease.released ? "RELEASED" : "EXPIRED", candidateState: candidates[0]?.lifecycle ?? null, commonWatermark: watermarks[0]?.common_watermark ? new Date(watermarks[0].common_watermark).toISOString() : null, blockers: Object.freeze([...(run?.blocker_codes ?? []), ...terminalBlockers, ...failures.map((value) => value.event_kind.replace(/^STAGE_FAILURE_/, "STAGE_FAILURE:")), ...dispositionBlocker].sort()), persistedUnitCount: units.length, recoverableSlots: disposition === "ACTIVE" ? units.filter((unit) => RECOVERABLE_UNIT_STATES.has(unit.state)).length : 0, blockedSlots, retainedArtifacts: retained[0]?.artifacts ?? 0, retainedCandidates: retained[0]?.candidates ?? 0, effectiveExecutionState, disposition, resumeEligible: disposition === "ACTIVE" && Boolean(run) && run.state !== "READY_FOR_RELEASE_REVIEW", quarantineReason: disposition === "QUARANTINED" ? dispositionPayload?.reasonCode ?? null : null, incidentChecksum: disposition === "QUARANTINED" ? dispositionPayload?.incidentChecksum ?? null : null })
   }
 
   async readPersistedExecution(intervalStart: string, intervalEnd: string): Promise<PersistedLiveResumeExecution | null> {
@@ -153,6 +163,10 @@ export class PostgresLiveResumeExecutionStore {
   private async resolveSql(sql: postgres.TransactionSql, plan: CertifiedLiveResumePlan, identity: { readonly runId: string; readonly checksum: string }, intent: Exclude<LiveResumeExecutionIntent, "DRY_RUN">, failurePoint?: "AFTER_PLAN" | "AFTER_RUN" | "AFTER_FIRST_UNIT"): Promise<LiveResumeExecutionSetup> {
     const createSlots = plan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME")
     if (createSlots.length !== 23 || createSlots.some((slot) => slot.dataset === "ohlcv" && slot.instrument === "BTCUSDT")) throw new Error("LIVE_RESUME_EXECUTION_SLOT_SET_INVALID")
+    const dispositions = await sql.unsafe<Array<{ to_state: string }>>("SELECT to_state FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='execution_generation' AND entity_id=$1 AND event_kind='EXECUTION_GENERATION_DISPOSITION' FOR SHARE", [identity.runId])
+    if (dispositions.length > 1) throw new Error("EXECUTION_GENERATION_DISPOSITION_MULTIPLE")
+    if (dispositions[0]?.to_state === "QUARANTINED") throw new Error("EXECUTION_GENERATION_QUARANTINED")
+    if (dispositions[0]?.to_state === "SUPERSEDED") throw new Error("EXECUTION_GENERATION_SUPERSEDED")
     await sql.unsafe("INSERT INTO refresh_control.refresh_policy(policy_id,policy_version,policy,checksum,created_at) VALUES($1,$2,$3::jsonb,$4,now()) ON CONFLICT (policy_id) DO NOTHING", [DEFAULT_MVP_REFRESH_POLICY.policyId, DEFAULT_MVP_REFRESH_POLICY.policyVersion, JSON.stringify(DEFAULT_MVP_REFRESH_POLICY), DEFAULT_MVP_REFRESH_POLICY.checksum])
     const policies = await sql.unsafe<Array<{ checksum: string }>>("SELECT checksum FROM refresh_control.refresh_policy WHERE policy_id=$1", [DEFAULT_MVP_REFRESH_POLICY.policyId])
     if (policies[0]?.checksum !== DEFAULT_MVP_REFRESH_POLICY.checksum) throw new Error("LIVE_RESUME_POLICY_IMMUTABLE_CONFLICT")

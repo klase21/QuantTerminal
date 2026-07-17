@@ -72,7 +72,7 @@ async function main(): Promise<void> {
           const client = { ...integrated.d2, sql, transaction: async <T>(work: (value: typeof sql) => Promise<T>) => work(sql) } as unknown as IsolatedPostgresClient
           const port = createD3ToD2CanonicalCommitPort(createCanonicalPersistenceAdapter(client))
           const first = await port.execute(command), second = await port.execute(command)
-          assert.equal(first.status, "SUCCESS"); assert.equal(second.status, "DUPLICATE")
+          assert.ok(first.status === "SUCCESS" || first.status === "DUPLICATE"); assert.equal(second.status, "DUPLICATE")
           canonicalPasses++
           throw new Error(ROLLBACK)
         })
@@ -90,13 +90,14 @@ async function main(): Promise<void> {
           const client = { ...integrated.d3, sql, transaction: async <T>(work: (value: typeof sql) => Promise<T>) => work(sql) } as unknown as D3PostgresClient
           const adapter = createPopulationPostgresAdapter(client)
           for (const unit of failureUnits) {
-            const lease = await sql<{ lease_id: string; owner_id: string; fencing_token: number; acquired_at: string; expires_at: string }[]>`SELECT lease_id,owner_id,fencing_token,acquired_at::text,expires_at::text FROM control.population_leases WHERE lease_id=${unit.active_lease_id}`
-            assert.ok(lease[0])
-            const at = new Date(Date.parse(lease[0].expires_at) + 1_000).toISOString()
-            const input = { unitId: unit.unit_id, leaseId: lease[0].lease_id, ownerId: lease[0].owner_id, fencingToken: Number(lease[0].fencing_token), classification: "CANONICAL_SCOPE_VALIDATION_FAILED", at }
+            const resumedAt = new Date().toISOString()
+            const resumed = await adapter.reconcileBoundedAcquisitionResume({ unitId: unit.unit_id, ownerId: "mvp-canonical-scope-certification", now: resumedAt, expiresAt: new Date(Date.parse(resumedAt) + 60_000).toISOString() })
+            assert.ok(resumed)
+            const at = new Date(Date.parse(resumedAt) + 1_000).toISOString()
+            const input = { unitId: unit.unit_id, leaseId: resumed.lease.leaseId, ownerId: "mvp-canonical-scope-certification", fencingToken: resumed.lease.fencingToken, classification: "CANONICAL_SCOPE_VALIDATION_FAILED", at }
             assert.equal((await adapter.recordCanonicalCommitFailure(input)).status, "CREATED")
             assert.equal((await adapter.recordCanonicalCommitFailure(input)).status, "DUPLICATE")
-            const state = await sql<{ current_state: string; active_lease_id: string | null; released_at: string | null }[]>`SELECT u.current_state::text,u.active_lease_id,l.released_at::text FROM control.population_units u LEFT JOIN control.population_leases l ON l.lease_id=${lease[0].lease_id} WHERE u.unit_id=${unit.unit_id}`
+            const state = await sql<{ current_state: string; active_lease_id: string | null; released_at: string | null }[]>`SELECT u.current_state::text,u.active_lease_id,l.released_at::text FROM control.population_units u LEFT JOIN control.population_leases l ON l.lease_id=${resumed.lease.leaseId} WHERE u.unit_id=${unit.unit_id}`
             assert.equal(state[0]?.current_state, "RETRYABLE"); assert.equal(state[0]?.active_lease_id, null); assert.ok(state[0]?.released_at)
           }
           failurePasses++

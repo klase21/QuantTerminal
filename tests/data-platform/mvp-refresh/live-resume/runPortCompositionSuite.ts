@@ -10,6 +10,8 @@ import {
   createLiveExecutorPortSet,
   createMandatoryRefreshLogicalSlots,
   liveResumeStageOutput,
+  assertLiveExecutorResultIdentity,
+  verifyLiveExecutorResultBeforeFinalize,
   type BoundedLiveSlotAdapter,
   type LiveCandidateExecutor,
   type LiveDownstreamExecutor,
@@ -24,9 +26,14 @@ const start = "2026-07-15T00:00:00.000Z", end = "2026-07-16T00:00:00.000Z"
 const instruments = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const
 const datasets = ["ohlcv", "open-interest", "funding", "agg-trade"] as const
 const contracts = { ohlcv: "mvp-bounded-ohlcv/1.0.0", "open-interest": "mvp-bounded-open-interest/1.0.0", funding: "binance-official-rest-funding-rate/1.0.0", "agg-trade": "mvp-bounded-agg-trade/1.0.0" } as const
+const providers = { ohlcv: "binance-vision", "open-interest": "binance-vision", funding: "binance-official-rest", "agg-trade": "binance-vision" } as const
 
 function plan() {
   return createCertifiedLiveResumePlan({ intervalStart: start, intervalEnd: end, slots: createMandatoryRefreshLogicalSlots(start, end).map((slot) => Object.freeze({ ...slot, action: slot.dataset === "ohlcv" && slot.instrument === "BTCUSDT" ? "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT" as const : "CREATE_NEW_ON_LIVE_RESUME" as const, authoritativeUnitId: slot.dataset === "ohlcv" && slot.instrument === "BTCUSDT" ? "authority" : null, reason: "CERTIFIED", checkpointStartStage: slot.dataset === "ohlcv" && slot.instrument === "BTCUSDT" ? "VALIDATED" as const : "PENDING" as const, blockers: Object.freeze([]), sourceFinalizationState: "SOURCE_AVAILABLE" as const, ignoredAttemptIds: Object.freeze([]) })) })
+}
+
+function invocationIdentity(dataset: typeof datasets[number], instrument: typeof instruments[number]) {
+  return createMandatoryRefreshLogicalSlots(start, end).find((slot) => slot.dataset === dataset && slot.instrument === instrument)!.logicalSlotId
 }
 
 function adapter(dataset: typeof datasets[number], calls: string[], fail: { dataset: string | null; stage?: string | null }): BoundedLiveSlotAdapter {
@@ -52,7 +59,7 @@ function adapter(dataset: typeof datasets[number], calls: string[], fail: { data
 
 function authority(slot: ReturnType<typeof plan>["slots"][number]): LiveResumeSlotResult {
   const hash = (kind: string) => canonicalChecksum({ kind, slot: slot.logicalSlotId })
-  return Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, unitId: null, sourceContractId: contracts.ohlcv, retrievalIdentity: `retrieval:${hash("retrieval")}`, rawArtifactIdentity: `artifact:${hash("artifact")}`, rawArtifactChecksum: hash("raw"), candidateIdentity: `candidate:${hash("candidate")}`, candidateChecksum: hash("candidate-checksum"), canonicalCommitResult: "DUPLICATE", canonicalFactIdentities: Object.freeze(Array.from({ length: 288 }, (_, index) => Object.freeze({ identity: `ohlcv:BTCUSDT:${index}`, checksum: canonicalChecksum({ slot: slot.logicalSlotId, index }) }))), validationStatus: "PASSED", limitations: Object.freeze([]), durationMs: 0, retainedBytes: 0 })
+  return Object.freeze({ logicalSlotId: slot.logicalSlotId, executionGenerationId: "AUTHORITATIVE_RECOVERY", dataset: slot.dataset, instrument: slot.instrument, intervalStart: slot.intervalStart, intervalEnd: slot.intervalEnd, unitId: null, sourceContractId: "mrsrc_fixture", sourceContractVersion: contracts.ohlcv, providerBinding: providers.ohlcv, retrievalIdentity: `retrieval:${hash("retrieval")}`, rawArtifactIdentity: `artifact:${hash("artifact")}`, rawArtifactChecksum: hash("raw"), candidateIdentity: `candidate:${hash("candidate")}`, candidateChecksum: hash("candidate-checksum"), canonicalCommitResult: "DUPLICATE", canonicalFactIdentities: Object.freeze(Array.from({ length: 288 }, (_, index) => Object.freeze({ identity: `ohlcv:BTCUSDT:${index}`, checksum: canonicalChecksum({ slot: slot.logicalSlotId, index }) }))), validationStatus: "PASSED", limitations: Object.freeze([]), durationMs: 0, retainedBytes: 0 })
 }
 
 function fixture(failDataset: string | null = null) {
@@ -100,10 +107,10 @@ async function main() {
   assert.equal(failed.downstream.length, 0)
 
   const direct = createLiveExecutorPortSet({ ohlcv: adapter("ohlcv", [], { dataset: null }), "open-interest": adapter("open-interest", [], { dataset: null }), funding: adapter("funding", [], { dataset: null }), "agg-trade": adapter("agg-trade", [], { dataset: null }) })
-  await assert.rejects(() => direct.executeBoundedOhlcvSlot({ intervalStart: start, intervalEnd: end, logicalSlotId: "slot", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts.ohlcv, unitId: "unit", dataset: "ohlcv", instrument: "BTCUSDT", fencingToken: 1, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" }), /REUSE_ONLY/)
+  await assert.rejects(() => direct.executeBoundedOhlcvSlot({ intervalStart: start, intervalEnd: end, logicalSlotId: invocationIdentity("ohlcv", "BTCUSDT"), executionGenerationId: "generation", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts.ohlcv, sourceContractVersion: contracts.ohlcv, providerBinding: providers.ohlcv, unitId: "unit", dataset: "ohlcv", instrument: "BTCUSDT", fencingToken: 1, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" }), /REUSE_ONLY/)
   for (const stage of ["retrieval", "artifact", "candidate", "commit"] as const) {
     const failing = createLiveExecutorPortSet({ ohlcv: adapter("ohlcv", [], { dataset: null, stage }), "open-interest": adapter("open-interest", [], { dataset: null }), funding: adapter("funding", [], { dataset: null }), "agg-trade": adapter("agg-trade", [], { dataset: null }) })
-    await assert.rejects(() => failing.executeBoundedOhlcvSlot({ intervalStart: start, intervalEnd: end, logicalSlotId: "slot", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts.ohlcv, unitId: "unit", dataset: "ohlcv", instrument: "ETHUSDT", fencingToken: 1, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" }), /INJECTED/)
+    await assert.rejects(() => failing.executeBoundedOhlcvSlot({ intervalStart: start, intervalEnd: end, logicalSlotId: invocationIdentity("ohlcv", "ETHUSDT"), executionGenerationId: "generation", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts.ohlcv, sourceContractVersion: contracts.ohlcv, providerBinding: providers.ohlcv, unitId: "unit", dataset: "ohlcv", instrument: "ETHUSDT", fencingToken: 1, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" }), /INJECTED/)
   }
   const skipped = { inspect: 0, artifact: 0, candidate: 0, commit: 0 }
   const bytes = new TextEncoder().encode("durable"), checksum = canonicalChecksum(Array.from(bytes)), candidateChecksum = canonicalChecksum({ durable: true })
@@ -117,8 +124,18 @@ async function main() {
     validate: async () => [],
   })
   const resumed = createLiveExecutorPortSet({ ohlcv: adapter("ohlcv", [], { dataset: null }), "open-interest": resumedAdapter, funding: adapter("funding", [], { dataset: null }), "agg-trade": adapter("agg-trade", [], { dataset: null }) })
-  await resumed.executeBoundedOpenInterestSlot({ intervalStart: start, intervalEnd: end, logicalSlotId: "durable-slot", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts["open-interest"], unitId: "unit", dataset: "open-interest", instrument: "ETHUSDT", fencingToken: 3, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" })
+  await resumed.executeBoundedOpenInterestSlot({ intervalStart: start, intervalEnd: end, logicalSlotId: invocationIdentity("open-interest", "ETHUSDT"), executionGenerationId: "generation", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts["open-interest"], sourceContractVersion: contracts["open-interest"], providerBinding: providers["open-interest"], unitId: "unit", dataset: "open-interest", instrument: "ETHUSDT", fencingToken: 3, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" })
   assert.deepEqual(skipped, { inspect: 0, artifact: 0, candidate: 0, commit: 1 })
+  const stableInvocation: LiveExecutorInvocation = { intervalStart: start, intervalEnd: end, logicalSlotId: invocationIdentity("open-interest", "ETHUSDT"), executionGenerationId: "generation", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts["open-interest"], sourceContractVersion: contracts["open-interest"], providerBinding: providers["open-interest"], unitId: "unit", dataset: "open-interest", instrument: "ETHUSDT", fencingToken: 4, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" }
+  const stableResult = await resumed.executeBoundedOpenInterestSlot(stableInvocation)
+  assert.doesNotThrow(() => assertLiveExecutorResultIdentity({ ...stableInvocation, fencingToken: 99 }, stableResult))
+  let mismatchFailures = 0
+  await assert.rejects(() => verifyLiveExecutorResultBeforeFinalize(stableInvocation, { ...stableResult, logicalSlotId: invocationIdentity("funding", "ETHUSDT") }, async () => { mismatchFailures += 1 }), /IDENTITY_MISMATCH/)
+  assert.equal(mismatchFailures, 1)
+  const prewriteCalls: string[] = []
+  const prewrite = createLiveExecutorPortSet({ ohlcv: adapter("ohlcv", [], { dataset: null }), "open-interest": adapter("open-interest", prewriteCalls, { dataset: null }), funding: adapter("funding", [], { dataset: null }), "agg-trade": adapter("agg-trade", [], { dataset: null }) })
+  await assert.rejects(() => prewrite.executeBoundedOpenInterestSlot({ ...stableInvocation, logicalSlotId: invocationIdentity("funding", "ETHUSDT") }), /PREWRITE_LOGICAL_SLOT_MISMATCH/)
+  assert.equal(prewriteCalls.length, 0)
   console.log(JSON.stringify({ status: "PASS", executorCalls: value.calls.length, btcusdtOhlcvAcquisitions: 0, downstreamStages: value.downstream.length, candidateExposed: false, exactRerun: "PASS" }))
 }
 

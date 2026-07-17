@@ -78,8 +78,8 @@ async function main() {
     const beforeRecovery = await adapter.auditBoundedAcquisitionLineage(START, END, "mvp-live-resume")
     const doge = beforeRecovery.units.find((unit) => unit.dataset === "funding" && unit.instrument === "DOGEUSDT")
     const eth = beforeRecovery.units.find((unit) => unit.dataset === "open-interest" && unit.instrument === "ETHUSDT")
-    assert.ok(doge?.leaseExpired && doge.retrievalAttempts === 1 && doge.candidates === 0)
-    assert.ok(eth?.leaseExpired && eth.retrievalAttempts === 1 && eth.candidates === 2)
+    assert.ok(doge && !doge.activeLease && doge.retrievalAttempts === 1 && doge.candidates === 3)
+    assert.ok(eth && !eth.activeLease && eth.retrievalAttempts === 1 && eth.candidates === 2)
     const beforeCounts = await integrated.d3.sql<{ readonly events: number; readonly checkpoints: number; readonly attempts: number; readonly candidates: number }[]>`SELECT (SELECT count(*)::int FROM control.population_unit_events WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) events,(SELECT count(*)::int FROM control.population_checkpoints WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) checkpoints,(SELECT count(*)::int FROM control.retrieval_attempts WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) attempts,(SELECT count(*)::int FROM population.candidates WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) candidates`
     let duplicateEvents = 0, conflictEvents = 0, failureDuplicates = 0, releasedLeases = 0, dogeStage = "", ethStage = "", dogeFence = 0, ethFence = 0, secondDogeFence = 0, secondEthFence = 0
     try {
@@ -109,17 +109,17 @@ async function main() {
           if (state[0]?.current_state === "RETRYABLE" && state[0]?.active_lease_id === null) releasedLeases++
           return [first, second] as const
         }
-        const dogeRuns = await reconcileTwice(doge, "CANDIDATE_LINEAGE"), ethRuns = await reconcileTwice(eth, "CANONICAL_COMMIT")
+        const dogeRuns = await reconcileTwice(doge, "CANONICAL_COMMIT"), ethRuns = await reconcileTwice(eth, "CANONICAL_COMMIT")
         dogeStage = dogeRuns[0].stage; ethStage = ethRuns[0].stage; dogeFence = dogeRuns[0].lease.fencingToken; secondDogeFence = dogeRuns[1].lease.fencingToken; ethFence = ethRuns[0].lease.fencingToken; secondEthFence = ethRuns[1].lease.fencingToken
         const durable = await sql<{ readonly attempts: number; readonly candidates: number }[]>`SELECT (SELECT count(*)::int FROM control.retrieval_attempts WHERE unit_id=ANY(${sql.array([doge.unitId,eth.unitId])})) attempts,(SELECT count(*)::int FROM population.candidates WHERE unit_id=ANY(${sql.array([doge.unitId,eth.unitId])})) candidates`
-        assert.deepEqual(durable[0], { attempts: 2, candidates: 2 })
+        assert.deepEqual(durable[0], { attempts: 2, candidates: 5 })
         throw new Error(ROLLBACK)
       })
     } catch (error) { if (!(error instanceof Error) || error.message !== ROLLBACK) throw error }
     const afterCounts = await integrated.d3.sql<{ readonly events: number; readonly checkpoints: number; readonly attempts: number; readonly candidates: number }[]>`SELECT (SELECT count(*)::int FROM control.population_unit_events WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) events,(SELECT count(*)::int FROM control.population_checkpoints WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) checkpoints,(SELECT count(*)::int FROM control.retrieval_attempts WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) attempts,(SELECT count(*)::int FROM population.candidates WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) candidates`
     assert.deepEqual(afterCounts[0], beforeCounts[0])
     assert.deepEqual({ duplicateEvents, conflictEvents, failureDuplicates, releasedLeases }, { duplicateEvents: 2, conflictEvents: 2, failureDuplicates: 2, releasedLeases: 2 })
-    assert.equal(dogeStage, "CANDIDATE_LINEAGE"); assert.equal(ethStage, "CANONICAL_COMMIT")
+    assert.equal(dogeStage, "CANONICAL_COMMIT"); assert.equal(ethStage, "CANONICAL_COMMIT")
     assert.equal(secondDogeFence > dogeFence && secondEthFence > ethFence, true)
 
     console.log(JSON.stringify({ status: "PASS", retrievalBeforeCandidate: true, callerRetrievalIdIgnored: true, retrievalFailurePreventedCandidate: true, exactDuplicate: true, immutableConflict: "CLOSED", rollbackRetainedRows: 0, preflightProbeRetainedRows: 0, dogeResumeStage: dogeStage, ethResumeStage: ethStage, resumeReconciliationRuns: 2, duplicateEventException: false, eventDuplicates: duplicateEvents, eventConflicts: conflictEvents, retrievalObjectCandidateDuplicates: 0, failureLeasesReleased: releasedLeases, staleFenceAdvanced: true, productionMutation: false }))

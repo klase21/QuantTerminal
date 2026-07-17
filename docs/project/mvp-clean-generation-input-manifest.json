@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "mvp-clean-generation-input/1.0.0",
+  "certifiedPlanContext": {
+    "planId": "mrlp_e01c4dc5a8962f070d27b57b718e3914a6973013882d445b0e9a10706accc1c5",
+    "planChecksum": "e01c4dc5a8962f070d27b57b718e3914a6973013882d445b0e9a10706accc1c5"
+  },
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "logicalSlots": {
+    "count": 24,
+    "identitySetChecksum": "e891046fd6f948f2a50bab5d252e84fbe460bf1bb0af914c3c5f946da58c0c25"
+  },
+  "checksumVerifiedReusableRawPayloadByteIdentities": [
+    {
+      "identity": "raw_89848cfa8e5095a82e6cec9a6e05e4b864f7cdee80386552faadfbb41386974b",
+      "checksum": "89848cfa8e5095a82e6cec9a6e05e4b864f7cdee80386552faadfbb41386974b"
+    },
+    {
+      "identity": "raw_8eafe3e4c8f2116d646d282c183103b2316987123d5fb2ade6c1dac6f0a245fe",
+      "checksum": "8eafe3e4c8f2116d646d282c183103b2316987123d5fb2ade6c1dac6f0a245fe"
+    },
+    {
+      "identity": "raw_a8d97a44c3965e30eb1a8c0800d383ebf391f6cf7c4fc01c85cec4e015add26d",
+      "checksum": "a8d97a44c3965e30eb1a8c0800d383ebf391f6cf7c4fc01c85cec4e015add26d"
+    },
+    {
+      "identity": "raw_c87fba7741fe9dcee0c89edb8b98c4a5bfe228aff08c36a3005366ad155844f7",
+      "checksum": "c87fba7741fe9dcee0c89edb8b98c4a5bfe228aff08c36a3005366ad155844f7"
+    }
+  ],
+  "excludedExecutionIdentitySets": {
+    "populationRunAttempts": {
+      "count": 6,
+      "checksum": "947b8b62fee43f35e20d2a5600b5a466da4242707765609926b8d85fa2de908e"
+    },
+    "retrievalAttempts": {
+      "count": 4,
+      "checksum": "539af63f1e0db50937c2a2dd7ba7c63b98cd475e5d1d3343dd23dadf4098186a"
+    },
+    "candidates": {
+      "count": 294,
+      "checksum": "719b33a6d4b866e4443a484ecd08831d6df81f1d1dc721c9a6fc82f2166adfd7"
+    },
+    "checkpoints": {
+      "count": 4,
+      "checksum": "805bef42d5fba05889dd398d1df91fa9c8c2419adca285a0e74c60b1121353fd"
+    }
+  },
+  "requiredFreshLineagePolicy": "FRESH_RETRIEVAL_CANDIDATE_FACT_DOWNSTREAM_WATERMARK_REPLAY_MANIFEST",
+  "manifestChecksum": "1b280b1fdd380b8c6f5927070d58155028296416f2c322e29e92116927df5de0"
+}

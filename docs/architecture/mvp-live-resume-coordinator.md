@@ -79,3 +79,19 @@ The later live execution reached Canonical Commit and exposed a scope-validator 
 Canonical scope validation is now dataset-aware. Funding and Open Interest observations must be contained by their immutable day-scoped Raw Object. The bounded AggTrades contract requires its one daily Segment to match the Raw Object interval exactly. Cross-instrument, non-contained, provider-snapshot, dataset, or source-contract mismatch fails closed.
 
 Canonical exceptions now invoke the atomic Population failure boundary. A sanitized event, Candidate checkpoint, retryable transition, and lease release commit together; any failure rolls them all back. The coordinator receives the exception and invokes no downstream stage. Authenticated rollback certification ran the retained 3 Funding, 288 Open Interest, one AggTrades, and two-Candidate ETH partial shapes twice. Exact D2 retry returned `DUPLICATE`, both injected unit failures released their leases, and zero rows or artifacts remained.
+
+## Logical Slot Identity Boundary
+
+The next incident exposed a late comparison between the authoritative OHLCV source-contract identity and its human-readable contract version. The authoritative result is now validated before concurrent acquisition starts. Every ordinary executor reconstructs and validates its Logical Slot ID, dataset, instrument, exact interval, provider binding, and contract version before source inspection or Population lease acquisition.
+
+Executor results carry the Logical Slot ID unchanged and keep execution generation, Population attempts, leases, fences, and checkpoints separate. A higher fence remains compatible with the same slot. Cross-slot output fails closed. Injected post-write mismatch records failure and checkpoint state, releases the lease, and blocks all downstream work.
+
+Status now selects one latest Population run attempt per logical unit and counts distinct lineage identities. The previously reported increase from four to six Retrievals and 294 to 299 Candidates was join amplification across two run attempts; read-only durable inspection found no extra Retrieval or Candidate rows.
+
+The affected live execution is not eligible for resume. It requires an append-only quarantine transition followed by a clean execution generation under this repaired contract.
+
+## Execution Generation Quarantine
+
+The worker now resolves an immutable generation disposition before source availability or executor checks. `QUARANTINED` and `SUPERSEDED` fail closed before acquisition, lease reconciliation, watermark, downstream, Replay, manifest, or serving work. The same guard runs inside atomic Refresh execution setup.
+
+Quarantine is an explicit exact-run operator action. Preview is read-only. Confirmation appends the Refresh disposition, fences and releases unreleased Population leases, and appends deterministic Population evidence without changing historical run or unit state. Status remains readable and projects `resumeEligible: false`.

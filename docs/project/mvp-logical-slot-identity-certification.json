@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "mvp-logical-slot-identity-certification/1.0.0",
+  "assessedAt": "2026-07-17T09:43:28.354Z",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "firstMismatch": {
+    "dataset": "ohlcv",
+    "instrument": "BTCUSDT",
+    "resultKind": "AUTHORITATIVE_RECOVERY_REUSE",
+    "predicate": "IMMUTABLE_SOURCE_CONTRACT_ID_COMPARED_TO_SOURCE_CONTRACT_VERSION",
+    "expectedVersion": "mvp-bounded-ohlcv/1.0.0",
+    "actualIdentityClass": "IMMUTABLE_SOURCE_CONTRACT_ID"
+  },
+  "durableAudit": {
+    "retrievalAttempts": 4,
+    "rawObjects": 4,
+    "candidates": 294,
+    "reportedIncreaseClassification": "STATUS_JOIN_DOUBLE_COUNT",
+    "newRetrievalRows": 0,
+    "newCandidateRows": 0,
+    "commonWatermark": null,
+    "servingCandidate": null
+  },
+  "repair": {
+    "preWriteCompatibilityGate": true,
+    "sourceContractIdentitySeparatedFromVersion": true,
+    "providerBindingExplicit": true,
+    "intervalExplicit": true,
+    "executionGenerationExplicit": true,
+    "higherFenceCompatible": true,
+    "crossSlotRejected": true,
+    "statusCollapsesAttempts": true
+  },
+  "currentExecutionDisposition": "QUARANTINE_REQUIRED",
+  "productionChanged": false
+}
+

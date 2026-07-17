@@ -174,3 +174,23 @@ Read-only audit identified ETHUSDT Open Interest as the first lease rejection. I
 Resume reconciliation now preserves terminal runs and appends a deterministic next run attempt, projects durable partial units to `RETRYABLE` through an immutable event, and acquires the exact unit with a strictly higher fence. Running-parent BTC AggTrades and SOL Open Interest reuse their current runs; DOGE Funding and ETH Open Interest reuse all durable lineage beneath new run attempts. Canonical failure remains atomic across checkpoint, event, unit state, and lease release.
 
 Rollback certification seeded all four real shapes and ran twice: eight winners, eight rejected competitors, eight duplicate reconciliation classifications on exact retry, zero repeated Retrieval/Object/Candidate records, zero duplicate events/checkpoints, and zero retained rows/artifacts. Authenticated preflight now reports all four persisted partials as lease-eligible and would fail for an active unexpired lease. The live resume command was not run.
+
+## MVP-8A.2Q Logical Slot Identity Repair
+
+Read-only audit found the first identity rejection on authoritative BTCUSDT OHLCV reuse. The result correctly returned its immutable source-contract identity, but the coordinator compared that field to `mvp-bounded-ohlcv/1.0.0`, its contract version. Two concurrent Population run attempts started before the late rejection.
+
+The reported Retrieval increase from four to six and Candidate increase from 294 to 299 was not durable insertion. The old status join repeated the original DOGE Funding and ETH Open Interest lineage beneath their newer run attempts. Direct table inspection found four Retrievals, four Raw Objects, and 294 Candidates. The newer run attempts have no Retrieval or Candidate children and are non-authoritative execution evidence.
+
+Source-contract identity and version are now separate fields. The authoritative result is validated before concurrent acquisition. Dataset executors validate Logical Slot ID, provider binding, dataset, instrument, exact interval, and contract version before source inspection or lease acquisition. Population execution generations are explicit; run attempt and fence changes cannot alter Logical Slot ID.
+
+Commit-bearing certification created disposable integrated D2/D3, isolated D4, refresh, and serving databases plus disposable object storage. First execution and higher-fence resume committed successfully. Two exact resumes retained one Retrieval, one Raw Object, one Candidate, one Fact, and one logical slot. Cross-slot output failed closed. Injected post-write mismatch committed one failure event and one checkpoint, released all leases, and wrote no downstream output. Cleanup retained zero databases, roles, or artifacts.
+
+The current live execution remains read-only incident evidence and must be quarantined append-only. No live resume, watermark, Replay, candidate, Production, Neon, Vercel, or exposure mutation occurred.
+
+## MVP-8A.2R Append-Only Execution Generation Quarantine
+
+The quarantine contract uses one immutable Refresh generation-disposition event and deterministic Population quarantine events. It does not rewrite Refresh run state, Population unit state, lineage, checkpoints, or historical leases. Exact replay is `DUPLICATE`; changed reason or evidence is `CONFLICT`.
+
+The real operator preview verified one plan/run, 23 Refresh units, six Population run attempts collapsed into four logical units, four Retrievals, four Raw Objects, 294 Candidates, no active leases, one unreleased expired lease, no common watermark, and no serving candidate. It produced incident checksum `bc716619be2df7afe0899c69b368f8d8f9dba76a201310a19eb55b04ce0140eb` with zero writes.
+
+Commit-bearing disposable certification returned `CREATED`, then exact `DUPLICATE`, and `CONFLICT` for changed evidence. It released the active disposable lease, rejected resume before writes, retained immutable evidence, wrote no downstream output, and removed all disposable databases, roles, and storage. The real generation was not quarantined; operator execution remains required.

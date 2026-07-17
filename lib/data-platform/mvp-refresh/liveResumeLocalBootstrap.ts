@@ -189,10 +189,10 @@ function populationDefinition(input: Parameters<BoundedLiveSlotAdapter["persistA
   const dimensions = Object.freeze({ venue: "binance-usdm-futures", subjectOrSymbol: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, resolution: input.dataset === "agg-trade" ? "tick" : input.dataset === "funding" ? "event" : "5m", partitionKey: input.logicalSlotId })
   const base = { profile, datasetId: input.dataset, providerId: GOVERNANCE[input.dataset].providerId, dimensions }
   const requestIdentity = createJobRequestIdentity(base)
-  const request: PopulationJobRequest = Object.freeze({ ...base, requestIdentity, occurrenceIdentity: input.logicalSlotId, intentionalRerunIdentity: null, requestedAt: at, requestedBy: "mvp-live-resume" })
-  const jobId = createPopulationJobId(requestIdentity, request.occurrenceIdentity, null)
+  const request: PopulationJobRequest = Object.freeze({ ...base, requestIdentity, occurrenceIdentity: input.logicalSlotId, intentionalRerunIdentity: input.executionGenerationId, requestedAt: at, requestedBy: "mvp-live-resume" })
+  const jobId = createPopulationJobId(requestIdentity, request.occurrenceIdentity, request.intentionalRerunIdentity)
   const job: PopulationJob = Object.freeze({ jobId, request, currentState: "QUEUED", currentEventId: `population-event:job-created:${jobId}`, createdAt: at, updatedAt: at })
-  const units = expandPopulationUnits(job, [{ profileId: profile.profileId, profileVersion: profile.profileVersion, datasetId: input.dataset, providerId: base.providerId, providerSnapshotId: GOVERNANCE[input.dataset].providerRegistry, policyVersionId: GOVERNANCE[input.dataset].policy, venue: dimensions.venue, subjectOrSymbol: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, resolution: dimensions.resolution, partitionKey: input.logicalSlotId, requestFingerprint: requestIdentity, requestParameters: { sourceContractId: input.sourceContractId }, required: true }], at)
+  const units = expandPopulationUnits(job, [{ profileId: profile.profileId, profileVersion: profile.profileVersion, datasetId: input.dataset, providerId: base.providerId, providerSnapshotId: GOVERNANCE[input.dataset].providerRegistry, policyVersionId: GOVERNANCE[input.dataset].policy, venue: dimensions.venue, subjectOrSymbol: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, resolution: dimensions.resolution, partitionKey: input.logicalSlotId, requestFingerprint: requestIdentity, requestParameters: { logicalSlotId: input.logicalSlotId, executionGenerationId: input.executionGenerationId, sourceContractId: input.sourceContractId }, required: true }], at).map((unit) => Object.freeze({ ...unit, unitId: `population-unit-execution-v1:${canonicalChecksum({ logicalSlotId: input.logicalSlotId, executionGenerationId: input.executionGenerationId })}` }))
   return Object.freeze({ request, jobId, units })
 }
 
@@ -207,7 +207,7 @@ async function preparePopulation(input: Parameters<BoundedLiveSlotAdapter["persi
   if (!claimed) throw new Error("LIVE_POPULATION_UNIT_LEASE_UNAVAILABLE")
   const transition = await adapter.transitionUnitIdempotently({ eventId: `live-retrieving:${input.logicalSlotId}:fence:${claimed.fencingToken}`, unitId: claimed.unitId, runId: run.runId, eventType: "STATE_ADVANCED", previousState: "LEASED", nextState: "RETRIEVING", fencingToken: claimed.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: {}, leaseId: claimed.leaseId, ownerId: "mvp-live-resume" })
   if (transition.status === "CONFLICT") throw new Error("LIVE_POPULATION_RETRIEVING_EVENT_CONFLICT")
-  return Object.freeze({ jobId: definition.jobId, runId: run.runId, unitId: claimed.unitId, leaseId: claimed.leaseId, fencingToken: claimed.fencingToken, retrievalAttemptId: createRetrievalAttemptId(claimed.unitId, run.runId, 1) })
+  return Object.freeze({ jobId: definition.jobId, runId: run.runId, unitId: claimed.unitId, leaseId: claimed.leaseId, fencingToken: claimed.fencingToken, retrievalAttemptId: createRetrievalAttemptId(claimed.unitId, input.executionGenerationId, 1) })
 }
 
 function rawManifest(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], state: SlotState, objectId: string, objectStorageKey: string, at: string): RawObjectManifest {
@@ -379,6 +379,12 @@ function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; 
       states.delete(invocation.logicalSlotId)
       return Object.freeze([])
     },
+    async recordIdentityMismatch(invocation, classification) {
+      const value = states.get(invocation.logicalSlotId)
+      if (!value?.population) return
+      await input.d3.recordCanonicalCommitFailure({ unitId: value.population.unitId, leaseId: value.population.leaseId, ownerId: "mvp-live-resume", fencingToken: value.population.fencingToken, classification, at: new Date().toISOString() })
+      states.delete(invocation.logicalSlotId)
+    },
   })
 }
 
@@ -466,7 +472,7 @@ function createCandidateExecutor(service: LocalInactiveCandidateAssemblyService)
 function authoritativeResult(slot: RefreshSlotResumePlanEntry, authority: Awaited<ReturnType<ControlledOhlcvRecoveryStore["readAuthoritiesForWindow"]>>[number]): LiveResumeSlotResult {
   if (slot.dataset !== "ohlcv" || slot.instrument !== "BTCUSDT" || authority.logicalSlotId !== slot.logicalSlotId) throw new Error("LIVE_AUTHORITATIVE_SLOT_MISMATCH")
   const checksum = authority.canonicalFactSetDigest
-  return Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, unitId: authority.authoritativeUnitId, sourceContractId: authority.sourceContractId, retrievalIdentity: authority.retrievalId, rawArtifactIdentity: authority.artifactId, rawArtifactChecksum: checksum, candidateIdentity: authority.candidateSetId, candidateChecksum: checksum, canonicalCommitResult: "DUPLICATE", canonicalFactIdentities: Object.freeze([{ identity: authority.commitSetId, checksum }]), validationStatus: "PASSED", limitations: Object.freeze([]), durationMs: 0, retainedBytes: 0 })
+  return Object.freeze({ logicalSlotId: slot.logicalSlotId, executionGenerationId: "AUTHORITATIVE_RECOVERY", dataset: slot.dataset, instrument: slot.instrument, intervalStart: slot.intervalStart, intervalEnd: slot.intervalEnd, unitId: authority.authoritativeUnitId, sourceContractId: authority.sourceContractId, sourceContractVersion: authority.sourceContractVersion, providerBinding: authority.provider, retrievalIdentity: authority.retrievalId, rawArtifactIdentity: authority.artifactId, rawArtifactChecksum: checksum, candidateIdentity: authority.candidateSetId, candidateChecksum: checksum, canonicalCommitResult: "DUPLICATE", canonicalFactIdentities: Object.freeze([{ identity: authority.commitSetId, checksum }]), validationStatus: "PASSED", limitations: Object.freeze([]), durationMs: 0, retainedBytes: 0 })
 }
 
 export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBootstrapInput): Promise<LiveResumeLocalBindingSet> {

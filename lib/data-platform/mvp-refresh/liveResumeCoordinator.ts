@@ -1,6 +1,6 @@
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import { MVP_REFRESH_INSTRUMENTS, MVP_REFRESH_MANDATORY_DATASETS } from "./contracts"
-import type { RefreshLogicalDataset, RefreshLogicalInstrument, RefreshSlotResumePlanEntry } from "./unitReconciliation"
+import { createRefreshLogicalSlot, type RefreshLogicalDataset, type RefreshLogicalInstrument, type RefreshSlotResumePlanEntry } from "./unitReconciliation"
 
 export const LIVE_RESUME_COORDINATOR_VERSION = "mvp-live-resume-coordinator/1.0.0" as const
 export const LIVE_RESUME_MAX_INTERVAL_MS = 86_400_000
@@ -76,6 +76,11 @@ export interface LiveResumeSlotResult {
   readonly instrument: RefreshLogicalInstrument
   readonly unitId: string | null
   readonly sourceContractId: string
+  readonly sourceContractVersion: string
+  readonly providerBinding: string
+  readonly intervalStart: string
+  readonly intervalEnd: string
+  readonly executionGenerationId: string
   readonly retrievalIdentity: string
   readonly rawArtifactIdentity: string
   readonly rawArtifactChecksum: string
@@ -168,19 +173,34 @@ export interface LiveResumeCoordinatorResult {
   readonly candidateExposed: false
 }
 
-export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify" | "bootstrap-governance"
-export interface LiveResumeWorkerOptions {
-  readonly command: LiveResumeWorkerCommand
+export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify" | "bootstrap-governance" | "quarantine-generation"
+export type LiveResumeWorkerOptions = {
+  readonly command: Exclude<LiveResumeWorkerCommand, "quarantine-generation">
   readonly start: string
   readonly end: string
   readonly executionMode: "dry-run" | "live"
   readonly confirmLocalInactiveCandidate: boolean
+} | {
+  readonly command: "quarantine-generation"
+  readonly runId: string
+  readonly reason: string
+  readonly confirmQuarantine: boolean
+  readonly incidentChecksum: string | null
+  readonly operatorConfirmationIdentity: string
+  readonly executionMode: "dry-run"
+  readonly confirmLocalInactiveCandidate: false
 }
 
 export function parseLiveResumeWorkerOptions(argv: readonly string[]): LiveResumeWorkerOptions {
   const command = argv[0] as LiveResumeWorkerCommand | undefined
-  if (!command || !["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify", "bootstrap-governance"].includes(command)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
+  if (!command || !["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify", "bootstrap-governance", "quarantine-generation"].includes(command)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
   const option = (name: string) => argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3)
+  if (command === "quarantine-generation") {
+    const runId = option("run-id"), reason = option("reason") ?? "LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT", confirmQuarantine = option("confirm-quarantine") === "true", incidentChecksum = option("incident-checksum") ?? null, operatorConfirmationIdentity = option("operator-confirmation-identity") ?? "preview-only"
+    if (!runId || !/^mrlr_[0-9a-f]{64}$/.test(runId)) throw new Error("QUARANTINE_EXACT_RUN_ID_REQUIRED")
+    if (confirmQuarantine && (!incidentChecksum || !/^[0-9a-f]{64}$/.test(incidentChecksum) || operatorConfirmationIdentity === "preview-only")) throw new Error("QUARANTINE_EXPLICIT_CONFIRMATION_REQUIRED")
+    return Object.freeze({ command, runId, reason, confirmQuarantine, incidentChecksum, operatorConfirmationIdentity, executionMode: "dry-run", confirmLocalInactiveCandidate: false })
+  }
   const start = option("start"), end = option("end")
   if (!start || !end) throw new Error("LIVE_RESUME_EXACT_INTERVAL_REQUIRED")
   exactIso(start); exactIso(end)
@@ -203,6 +223,7 @@ const SOURCE_CONTRACT_BY_DATASET: Readonly<Record<RefreshLogicalDataset, string>
   funding: "binance-official-rest-funding-rate/1.0.0",
   "agg-trade": "mvp-bounded-agg-trade/1.0.0",
 })
+const PROVIDER_BY_DATASET: Readonly<Record<RefreshLogicalDataset, string>> = Object.freeze({ ohlcv: "binance-vision", "open-interest": "binance-vision", funding: "binance-official-rest", "agg-trade": "binance-vision" })
 
 function exactIso(value: string): string {
   const timestamp = Date.parse(value)
@@ -308,8 +329,27 @@ async function mapBounded<T, R>(values: readonly T[], concurrency: number, execu
   return Object.freeze(output)
 }
 
+export function validateLiveResumeSlotResultIdentity(result: LiveResumeSlotResult, slot: RefreshSlotResumePlanEntry): void {
+  if (result.logicalSlotId !== slot.logicalSlotId || result.dataset !== slot.dataset || result.instrument !== slot.instrument || result.intervalStart !== slot.intervalStart || result.intervalEnd !== slot.intervalEnd || result.sourceContractVersion !== SOURCE_CONTRACT_BY_DATASET[slot.dataset] || result.providerBinding !== PROVIDER_BY_DATASET[slot.dataset] || !result.sourceContractId || !result.executionGenerationId) throw new Error("LIVE_RESUME_SLOT_RESULT_IDENTITY_MISMATCH")
+}
+
+export function certifyLiveResumeIdentityCompatibility(plan: CertifiedLiveResumePlan, authority: LiveResumeSlotResult): Readonly<{ passed: true; stableLogicalSlots: number; executionIdentitySeparated: true; higherFenceCompatible: true; crossSlotRejected: true }> {
+  const authoritySlot = plan.slots.find((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")
+  if (!authoritySlot) throw new Error("LIVE_RESUME_AUTHORITY_SLOT_MISSING")
+  validateLiveResumeSlotResultIdentity(authority, authoritySlot)
+  for (const slot of plan.slots.filter((value) => value.action !== "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")) {
+    const rebuilt = createRefreshLogicalSlot({ provider: PROVIDER_BY_DATASET[slot.dataset], dataset: slot.dataset, instrument: slot.instrument, intervalStart: slot.intervalStart, intervalEnd: slot.intervalEnd, contractVersion: SOURCE_CONTRACT_BY_DATASET[slot.dataset] })
+    if (rebuilt.logicalSlotId !== slot.logicalSlotId) throw new Error("LIVE_RESUME_PREFLIGHT_LOGICAL_SLOT_UNSTABLE")
+  }
+  const other = plan.slots.find((slot) => slot.logicalSlotId !== authoritySlot.logicalSlotId)!
+  let crossSlotRejected = false
+  try { validateLiveResumeSlotResultIdentity(Object.freeze({ ...authority, logicalSlotId: other.logicalSlotId }), authoritySlot) } catch { crossSlotRejected = true }
+  if (!crossSlotRejected) throw new Error("LIVE_RESUME_PREFLIGHT_CROSS_SLOT_ACCEPTED")
+  return Object.freeze({ passed: true, stableLogicalSlots: plan.slots.length, executionIdentitySeparated: true, higherFenceCompatible: true, crossSlotRejected: true })
+}
+
 function validateSlotResult(result: LiveResumeSlotResult, slot: RefreshSlotResumePlanEntry): void {
-  if (result.logicalSlotId !== slot.logicalSlotId || result.dataset !== slot.dataset || result.instrument !== slot.instrument || result.sourceContractId !== SOURCE_CONTRACT_BY_DATASET[slot.dataset]) throw new Error("LIVE_RESUME_SLOT_RESULT_IDENTITY_MISMATCH")
+  validateLiveResumeSlotResultIdentity(result, slot)
   if (!result.retrievalIdentity || !result.rawArtifactIdentity || !/^[0-9a-f]{64}$/.test(result.rawArtifactChecksum) || !result.candidateIdentity || !/^[0-9a-f]{64}$/.test(result.candidateChecksum) || !result.canonicalFactIdentities.length || result.canonicalFactIdentities.some((fact) => !fact.identity || !/^[0-9a-f]{64}$/.test(fact.checksum)) || result.validationStatus !== "PASSED" || result.durationMs < 0 || result.retainedBytes < 0) throw new Error("LIVE_RESUME_SLOT_RESULT_INCOMPLETE")
 }
 
@@ -380,10 +420,13 @@ export class MvpLiveResumeCoordinator {
       if (input.mode === "DRY_RUN") return Object.freeze({ status: "DRY_RUN", coordinatorRunId, planIdentity: input.plan.planIdentity, planChecksum: input.plan.planChecksum, logicalOutcomes: 24, unitIntents: resolutions.filter((value) => value.action === "CREATED_UNIT").length, resolutions: Object.freeze(resolutions), slotResults: Object.freeze([]), checkpoints: Object.freeze(checkpoints), commonWatermark: null, candidateExposed: false })
 
       const slotResults: LiveResumeSlotResult[] = []
+      const authoritySlot = input.plan.slots.find((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")!
+      const authorityResult = await this.ports.authoritativeOhlcv.reuse(authoritySlot)
+      validateSlotResult(authorityResult, authoritySlot)
       await stage("SOURCES_ACQUIRED", { resolutions: resolutions.map((value) => [value.logicalSlotId, value.action, value.unitId]) }, async () => {
         const results = await mapBounded(input.plan.slots, concurrency, async (slot) => {
           const resolution = resolutions.find((value) => value.logicalSlotId === slot.logicalSlotId)!
-          const result = resolution.action === "REUSED_AUTHORITATIVE_OUTPUT" ? await this.ports.authoritativeOhlcv.reuse(slot) : await this.ports.executors[slot.dataset].execute(slot, resolution, { runId: coordinatorRunId, mode: input.mode, fencingToken: lease.fencingToken })
+          const result = resolution.action === "REUSED_AUTHORITATIVE_OUTPUT" ? authorityResult : await this.ports.executors[slot.dataset].execute(slot, resolution, { runId: coordinatorRunId, mode: input.mode, fencingToken: lease.fencingToken })
           validateSlotResult(result, slot)
           return result
         })

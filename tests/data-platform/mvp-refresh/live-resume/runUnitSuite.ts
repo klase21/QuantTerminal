@@ -19,6 +19,7 @@ import {
 
 const start = "2026-07-15T00:00:00.000Z", end = "2026-07-16T00:00:00.000Z"
 const contracts = { ohlcv: "mvp-bounded-ohlcv/1.0.0", "open-interest": "mvp-bounded-open-interest/1.0.0", funding: "binance-official-rest-funding-rate/1.0.0", "agg-trade": "mvp-bounded-agg-trade/1.0.0" } as const
+const providers = { ohlcv: "binance-vision", "open-interest": "binance-vision", funding: "binance-official-rest", "agg-trade": "binance-vision" } as const
 
 function plan() {
   const slots = createMandatoryRefreshLogicalSlots(start, end).map((slot) => Object.freeze({
@@ -41,7 +42,7 @@ function plan() {
 function slotResult(slot: ReturnType<typeof plan>["slots"][number], unitId: string | null): LiveResumeSlotResult {
   const hash = (kind: string) => canonicalChecksum({ kind, slot: slot.logicalSlotId })
   const count = slot.dataset === "funding" ? 3 : slot.dataset === "agg-trade" ? 1 : 288
-  return Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, unitId, sourceContractId: contracts[slot.dataset], retrievalIdentity: `retrieval:${hash("retrieval")}`, rawArtifactIdentity: `artifact:${hash("artifact")}`, rawArtifactChecksum: hash("raw"), candidateIdentity: `candidate:${hash("candidate")}`, candidateChecksum: hash("candidate-checksum"), canonicalCommitResult: "DUPLICATE", canonicalFactIdentities: Object.freeze(Array.from({ length: count }, (_, index) => Object.freeze({ identity: `fact:${slot.logicalSlotId}:${index}`, checksum: canonicalChecksum({ slot: slot.logicalSlotId, index }) }))), validationStatus: "PASSED", limitations: Object.freeze([]), durationMs: 1, retainedBytes: 1 })
+  return Object.freeze({ logicalSlotId: slot.logicalSlotId, executionGenerationId: "fixture-generation", dataset: slot.dataset, instrument: slot.instrument, intervalStart: slot.intervalStart, intervalEnd: slot.intervalEnd, unitId, sourceContractId: contracts[slot.dataset], sourceContractVersion: contracts[slot.dataset], providerBinding: providers[slot.dataset], retrievalIdentity: `retrieval:${hash("retrieval")}`, rawArtifactIdentity: `artifact:${hash("artifact")}`, rawArtifactChecksum: hash("raw"), candidateIdentity: `candidate:${hash("candidate")}`, candidateChecksum: hash("candidate-checksum"), canonicalCommitResult: "DUPLICATE", canonicalFactIdentities: Object.freeze(Array.from({ length: count }, (_, index) => Object.freeze({ identity: `fact:${slot.logicalSlotId}:${index}`, checksum: canonicalChecksum({ slot: slot.logicalSlotId, index }) }))), validationStatus: "PASSED", limitations: Object.freeze([]), durationMs: 1, retainedBytes: 1 })
 }
 
 function fixture() {
@@ -139,6 +140,11 @@ async function main() {
   assert.equal(parseLiveResumeWorkerOptions(["bootstrap-governance", `--start=${start}`, `--end=${end}`]).command, "bootstrap-governance")
   assert.throws(() => parseLiveResumeWorkerOptions(["run", `--start=${start}`, `--end=${end}`]), /EXPLICIT_CONFIRMATION_REQUIRED/)
   assert.equal(parseLiveResumeWorkerOptions(["run", `--start=${start}`, `--end=${end}`, "--execution-mode=live", "--confirm-local-inactive-candidate=true"]).confirmLocalInactiveCandidate, true)
+  const quarantineRunId = `mrlr_${"a".repeat(64)}`
+  const quarantinePreview = parseLiveResumeWorkerOptions(["quarantine-generation", `--run-id=${quarantineRunId}`, "--reason=LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT"])
+  assert.equal(quarantinePreview.command, "quarantine-generation")
+  assert.equal(quarantinePreview.confirmQuarantine, false)
+  assert.throws(() => parseLiveResumeWorkerOptions(["quarantine-generation", `--run-id=${quarantineRunId}`, "--confirm-quarantine=true"]), /EXPLICIT_CONFIRMATION_REQUIRED/)
   assert.doesNotThrow(() => assertSanitizedLiveResumeOutput({ configured: true, planChecksum: certified.planChecksum }))
   assert.throws(() => assertSanitizedLiveResumeOutput({ connectionString: "redacted" }), /OUTPUT_NOT_SANITIZED/)
 

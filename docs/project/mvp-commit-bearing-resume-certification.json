@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "mvp-commit-bearing-resume-certification/1.0.0",
+  "assessedAt": "2026-07-17T09:43:28.354Z",
+  "topology": {
+    "integratedD2D3": "DISPOSABLE_ONE_DATABASE_DISTINCT_ROLES",
+    "d4": "DISPOSABLE_ISOLATED_DATABASE",
+    "refresh": "DISPOSABLE_ISOLATED_DATABASE",
+    "serving": "DISPOSABLE_ISOLATED_DATABASE",
+    "objectStorage": "DISPOSABLE_LOCAL_ROOT"
+  },
+  "firstExecution": "COMMITTED_AND_INSPECTED",
+  "resume": "COMMITTED_HIGHER_FENCE",
+  "exactResumeRuns": 2,
+  "logicalSlotStable": true,
+  "executionIdentitiesChanged": true,
+  "immutableCounts": {
+    "logicalSlots": 1,
+    "retrievals": 1,
+    "rawObjects": 1,
+    "candidates": 1,
+    "facts": 1
+  },
+  "duplicateImmutableRows": 0,
+  "crossSlotRejected": true,
+  "postWriteMismatch": {
+    "failureEvents": 1,
+    "checkpoints": 1,
+    "activeLeases": 0,
+    "downstreamWrites": 0,
+    "evidencePreserved": true
+  },
+  "cleanup": {
+    "retainedDatabases": 0,
+    "retainedRoles": 0,
+    "retainedArtifacts": 0
+  },
+  "productionChanged": false
+}

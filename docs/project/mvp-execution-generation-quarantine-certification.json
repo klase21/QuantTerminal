@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "mvp-execution-generation-quarantine-certification/1.0.0",
+  "status": "PASS",
+  "disposableCommittedState": true,
+  "incidentShape": {
+    "refreshUnits": 23,
+    "populationRunAttempts": 6,
+    "populationUnits": 4,
+    "retrievalAttempts": 4,
+    "rawObjects": 4,
+    "candidates": 294
+  },
+  "results": {
+    "firstQuarantine": "CREATED",
+    "exactRetry": "DUPLICATE",
+    "changedEvidence": "CONFLICT",
+    "activeLeasesReleased": 1,
+    "resumeRejectedBeforeWrites": true,
+    "immutableCountsPreserved": true,
+    "downstreamWrites": 0,
+    "statusCollapsedAttempts": true,
+    "evidenceReadable": true
+  },
+  "cleanup": {
+    "databasesRetained": 0,
+    "rolesRetained": 0,
+    "artifactsRetained": 0
+  },
+  "externalMutation": {
+    "production": false,
+    "neon": false,
+    "vercel": false,
+    "preview": false,
+    "activeExposure": false
+  }
+}

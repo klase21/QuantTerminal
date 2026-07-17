@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-refresh-readiness/1.0.0",
-  "assessedAt": "2026-07-17T08:42:01.710Z",
+  "assessedAt": "2026-07-17T09:43:28.354Z",
   "activeProduction": {
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -228,10 +228,47 @@
         "retainedRows": 0,
         "preflightResumeLeaseGate": "PASS_4_OF_4",
         "productionChanged": false
+      },
+      "logicalSlotIdentityRepair": {
+        "status": "COMMIT_BEARING_CERTIFIED",
+        "firstMismatch": "AUTHORITATIVE_SOURCE_CONTRACT_ID_VS_VERSION",
+        "preWriteGate": true,
+        "executionGenerationSeparated": true,
+        "higherFenceCompatible": true,
+        "crossSlotRejected": true,
+        "statusJoinDoubleCountRepaired": true,
+        "durableRetrievalCount": 4,
+        "durableCandidateCount": 294,
+        "newRetrievalRowsFromIncident": 0,
+        "newCandidateRowsFromIncident": 0,
+        "commitBearingExactResumeRuns": 2,
+        "commitBearingDuplicateImmutableRows": 0,
+        "postMismatchActiveLeases": 0,
+        "postMismatchDownstreamWrites": 0,
+        "disposableDatabasesRetained": 0,
+        "currentExecutionDisposition": "QUARANTINE_REQUIRED",
+        "productionChanged": false
+      },
+      "executionGenerationQuarantine": {
+        "status": "CODE_AND_COMMIT_BEARING_CERTIFICATION_COMPLETE_OPERATOR_EXECUTION_REQUIRED",
+        "dispositionLedger": "APPEND_ONLY_REFRESH_EVENT",
+        "incidentChecksum": "bc716619be2df7afe0899c69b368f8d8f9dba76a201310a19eb55b04ce0140eb",
+        "previewWrites": 0,
+        "firstDisposableQuarantine": "CREATED",
+        "exactRetry": "DUPLICATE",
+        "changedEvidence": "CONFLICT",
+        "activeDisposableLeasesAfterQuarantine": 0,
+        "immutableLineageChanged": false,
+        "downstreamWrites": 0,
+        "disposableResourcesRetained": 0,
+        "realGenerationQuarantined": false,
+        "productionChanged": false
       }
     }
   },
   "remainingMvp8bBlockers": [
+    "OPERATOR_EXECUTE_APPEND_ONLY_QUARANTINE_CURRENT_EXECUTION_GENERATION",
+    "CREATE_CLEAN_EXECUTION_GENERATION_WITH_REPAIRED_IDENTITY_CONTRACT",
     "EXECUTE_REMAINING_23_MANDATORY_SLOTS",
     "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",
     "EXECUTE_AND_COMPARE_ONE_COMPLETE_INACTIVE_CANDIDATE"

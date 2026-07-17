@@ -7,10 +7,11 @@ import type {
   LiveResumeStageOutput,
   LiveResumeUnitResolution,
 } from "./liveResumeCoordinator"
-import type { RefreshLogicalDataset, RefreshLogicalInstrument, RefreshSlotResumePlanEntry } from "./unitReconciliation"
+import { createRefreshLogicalSlot, type RefreshLogicalDataset, type RefreshLogicalInstrument, type RefreshSlotResumePlanEntry } from "./unitReconciliation"
 
 export const LIVE_EXECUTOR_PORT_VERSION = "mvp-live-executor-ports/1.0.0" as const
 export const LIVE_EXECUTOR_ALLOWED_INSTRUMENTS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const)
+const LIVE_EXECUTOR_PROVIDER_BY_DATASET: Readonly<Record<RefreshLogicalDataset, string>> = Object.freeze({ ohlcv: "binance-vision", "open-interest": "binance-vision", funding: "binance-official-rest", "agg-trade": "binance-vision" })
 export const LIVE_EXECUTOR_PORT_NAMES = Object.freeze([
   "executeBoundedOhlcvSlot", "executeBoundedOpenInterestSlot", "executeBoundedFundingSlot", "executeBoundedAggTradesSlot",
   "persistDatasetWatermark", "persistCommonWatermark", "executeBoundedCoverage", "executeAffectedConsistency",
@@ -25,9 +26,12 @@ export interface LiveExecutorInvocation {
   readonly intervalStart: string
   readonly intervalEnd: string
   readonly logicalSlotId: string
+  readonly executionGenerationId: string
   readonly plannerIdentity: string
   readonly plannerChecksum: string
   readonly sourceContractId: string
+  readonly sourceContractVersion: string
+  readonly providerBinding: string
   readonly unitId: string
   readonly dataset: RefreshLogicalDataset
   readonly instrument: RefreshLogicalInstrument
@@ -46,6 +50,11 @@ export interface LiveExecutorPortResult {
   readonly instrument: RefreshLogicalInstrument
   readonly unitId: string
   readonly sourceContractId: string
+  readonly sourceContractVersion: string
+  readonly providerBinding: string
+  readonly intervalStart: string
+  readonly intervalEnd: string
+  readonly executionGenerationId: string
   readonly retrievalIdentity: string | null
   readonly rawArtifactIdentity: string | null
   readonly rawArtifactChecksum: string | null
@@ -111,6 +120,7 @@ export interface BoundedLiveSlotAdapter {
   normalizeAndPersistCandidates(input: LiveExecutorInvocation, source: LiveSlotSourceResult, artifact: LiveSlotArtifactResult): Promise<LiveSlotCandidateResult>
   commit(input: LiveExecutorInvocation, candidate: LiveSlotCandidateResult): Promise<LiveSlotCommitResult>
   validate(input: LiveExecutorInvocation, source: LiveSlotSourceResult, artifact: LiveSlotArtifactResult, candidate: LiveSlotCandidateResult, commit: LiveSlotCommitResult): Promise<readonly string[]>
+  recordIdentityMismatch?(input: LiveExecutorInvocation, classification: "LIVE_RESUME_SLOT_RESULT_IDENTITY_MISMATCH"): Promise<void>
 }
 
 export interface LiveExecutorPortSet {
@@ -131,15 +141,17 @@ function validateInvocation(input: LiveExecutorInvocation, adapter: BoundedLiveS
   exactDay(input.intervalStart, input.intervalEnd)
   checksum64(input.plannerChecksum, "LIVE_EXECUTOR_PLANNER_CHECKSUM_INVALID")
   checksum64(input.checkpointInputChecksum, "LIVE_EXECUTOR_CHECKPOINT_CHECKSUM_INVALID")
-  if (!input.logicalSlotId || !input.plannerIdentity || !input.unitId || input.fencingToken < 1) throw new Error("LIVE_EXECUTOR_IDENTITY_INCOMPLETE")
-  if (input.dataset !== adapter.dataset || input.sourceContractId !== adapter.sourceContractId) throw new Error("LIVE_EXECUTOR_SOURCE_CONTRACT_MISMATCH")
+  if (!input.logicalSlotId || !input.executionGenerationId || !input.plannerIdentity || !input.unitId || input.fencingToken < 1) throw new Error("LIVE_EXECUTOR_IDENTITY_INCOMPLETE")
+  if (input.dataset !== adapter.dataset || input.sourceContractVersion !== adapter.sourceContractId || input.sourceContractId !== adapter.sourceContractId) throw new Error("LIVE_EXECUTOR_SOURCE_CONTRACT_MISMATCH")
+  const expectedSlot = createRefreshLogicalSlot({ provider: input.providerBinding, dataset: input.dataset, instrument: input.instrument, intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, contractVersion: input.sourceContractVersion })
+  if (expectedSlot.logicalSlotId !== input.logicalSlotId) throw new Error("LIVE_EXECUTOR_PREWRITE_LOGICAL_SLOT_MISMATCH")
   if (input.dataset === "ohlcv" && input.instrument === "BTCUSDT") throw new Error("LIVE_EXECUTOR_BTCUSDT_OHLCV_REUSE_ONLY")
   if (!input.allowedDatasets.includes(input.dataset) || !input.allowedInstruments.includes(input.instrument) || !adapter.supportedInstruments.includes(input.instrument)) throw new Error("LIVE_EXECUTOR_ALLOWLIST_REJECTED")
   for (const upstream of input.requiredUpstream) { if (!upstream.identity) throw new Error("LIVE_EXECUTOR_UPSTREAM_IDENTITY_MISSING"); checksum64(upstream.checksum, "LIVE_EXECUTOR_UPSTREAM_CHECKSUM_INVALID") }
 }
 
 function terminal(input: LiveExecutorInvocation, status: LiveExecutorStatus, limitations: readonly string[], startedAt: number): LiveExecutorPortResult {
-  const basis = { status, logicalSlotId: input.logicalSlotId, dataset: input.dataset, instrument: input.instrument, unitId: input.unitId, sourceContractId: input.sourceContractId, retrievalIdentity: null, rawArtifactIdentity: null, rawArtifactChecksum: null, candidateIdentity: null, candidateChecksum: null, canonicalOutputIdentities: Object.freeze([]), createdCount: 0, duplicateCount: 0, conflictCount: status === "CONFLICT" ? 1 : 0, limitations: Object.freeze([...limitations]), retainedBytes: 0, durationMs: Math.max(0, Date.now() - startedAt), resumeToken: Object.freeze({ stage: "SOURCE_FINALIZATION", status }), failureClassification: status === "BLOCKED_PRECONDITION" ? "BINDING_INCOMPLETE" as const : "READY" as const }
+  const basis = { status, logicalSlotId: input.logicalSlotId, executionGenerationId: input.executionGenerationId, dataset: input.dataset, instrument: input.instrument, intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, unitId: input.unitId, sourceContractId: input.sourceContractId, sourceContractVersion: input.sourceContractVersion, providerBinding: input.providerBinding, retrievalIdentity: null, rawArtifactIdentity: null, rawArtifactChecksum: null, candidateIdentity: null, candidateChecksum: null, canonicalOutputIdentities: Object.freeze([]), createdCount: 0, duplicateCount: 0, conflictCount: status === "CONFLICT" ? 1 : 0, limitations: Object.freeze([...limitations]), retainedBytes: 0, durationMs: Math.max(0, Date.now() - startedAt), resumeToken: Object.freeze({ stage: "SOURCE_FINALIZATION", status }), failureClassification: status === "BLOCKED_PRECONDITION" ? "BINDING_INCOMPLETE" as const : "READY" as const }
   return Object.freeze({ ...basis, outputChecksum: canonicalChecksum(basis) })
 }
 
@@ -161,10 +173,24 @@ export function createBoundedLiveSlotExecutor(adapter: BoundedLiveSlotAdapter): 
     const commit = await adapter.commit(input, candidate)
     if (commit.status === "CONFLICT" || commit.conflictCount) return terminal(input, "CONFLICT", ["CANONICAL_IMMUTABLE_CONFLICT"], startedAt)
     if (!commit.outputs.length || commit.outputs.some((value) => !value.identity || !/^[0-9a-f]{64}$/.test(value.checksum))) return terminal(input, "BLOCKED_PRECONDITION", ["CANONICAL_ATTRIBUTION_INCOMPLETE"], startedAt)
-    const limitations = await adapter.validate(input, source, artifact, candidate, commit)
     const status = commit.createdCount > 0 ? "CREATED" as const : "DUPLICATE" as const
-    const basis = { status, logicalSlotId: input.logicalSlotId, dataset: input.dataset, instrument: input.instrument, unitId: input.unitId, sourceContractId: input.sourceContractId, retrievalIdentity: source.retrievalIdentity, rawArtifactIdentity: artifact.artifactIdentity, rawArtifactChecksum: artifact.artifactChecksum, candidateIdentity: candidate.candidateIdentity, candidateChecksum: candidate.candidateChecksum, canonicalOutputIdentities: Object.freeze([...commit.outputs]), createdCount: commit.createdCount, duplicateCount: commit.duplicateCount, conflictCount: 0, limitations: Object.freeze([...limitations]), retainedBytes: artifact.retainedBytes, durationMs: Math.max(0, Date.now() - startedAt), resumeToken: Object.freeze({ stage: "VALIDATED", logicalSlotId: input.logicalSlotId, outputChecksum: canonicalChecksum(commit.outputs) }), failureClassification: "READY" as const }
+    const preValidationBasis = { status, logicalSlotId: input.logicalSlotId, executionGenerationId: input.executionGenerationId, dataset: input.dataset, instrument: input.instrument, intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, unitId: input.unitId, sourceContractId: input.sourceContractId, sourceContractVersion: input.sourceContractVersion, providerBinding: input.providerBinding, retrievalIdentity: source.retrievalIdentity, rawArtifactIdentity: artifact.artifactIdentity, rawArtifactChecksum: artifact.artifactChecksum, candidateIdentity: candidate.candidateIdentity, candidateChecksum: candidate.candidateChecksum, canonicalOutputIdentities: Object.freeze([...commit.outputs]), createdCount: commit.createdCount, duplicateCount: commit.duplicateCount, conflictCount: 0, limitations: Object.freeze([]), retainedBytes: artifact.retainedBytes, durationMs: Math.max(0, Date.now() - startedAt), resumeToken: Object.freeze({ stage: "VALIDATED", logicalSlotId: input.logicalSlotId, outputChecksum: canonicalChecksum(commit.outputs) }), failureClassification: "READY" as const }
+    const preValidationResult = Object.freeze({ ...preValidationBasis, outputChecksum: canonicalChecksum(preValidationBasis) })
+    await verifyLiveExecutorResultBeforeFinalize(input, preValidationResult, (classification) => adapter.recordIdentityMismatch?.(input, classification) ?? Promise.resolve())
+    const limitations = await adapter.validate(input, source, artifact, candidate, commit)
+    const basis = { ...preValidationBasis, limitations: Object.freeze([...limitations]) }
     return Object.freeze({ ...basis, outputChecksum: canonicalChecksum(basis) })
+  }
+}
+
+export function assertLiveExecutorResultIdentity(input: LiveExecutorInvocation, result: LiveExecutorPortResult): void {
+  if (result.logicalSlotId !== input.logicalSlotId || result.dataset !== input.dataset || result.instrument !== input.instrument || result.intervalStart !== input.intervalStart || result.intervalEnd !== input.intervalEnd || result.sourceContractId !== input.sourceContractId || result.sourceContractVersion !== input.sourceContractVersion || result.providerBinding !== input.providerBinding || result.executionGenerationId !== input.executionGenerationId) throw new Error("LIVE_RESUME_SLOT_RESULT_IDENTITY_MISMATCH")
+}
+
+export async function verifyLiveExecutorResultBeforeFinalize(input: LiveExecutorInvocation, result: LiveExecutorPortResult, recordFailure: (classification: "LIVE_RESUME_SLOT_RESULT_IDENTITY_MISMATCH") => Promise<void>): Promise<void> {
+  try { assertLiveExecutorResultIdentity(input, result) } catch (error) {
+    await recordFailure("LIVE_RESUME_SLOT_RESULT_IDENTITY_MISMATCH")
+    throw error
   }
 }
 
@@ -249,15 +275,18 @@ export interface ConcreteLiveResumePortComposition extends Omit<LiveResumeCoordi
 function coordinatorSlotResult(result: LiveExecutorPortResult): LiveResumeSlotResult {
   if (result.status !== "CREATED" && result.status !== "DUPLICATE") throw new Error(`LIVE_EXECUTOR_SLOT_${result.status}`)
   if (!result.retrievalIdentity || !result.rawArtifactIdentity || !result.rawArtifactChecksum || !result.candidateIdentity || !result.candidateChecksum) throw new Error("LIVE_EXECUTOR_SLOT_LINEAGE_INCOMPLETE")
-  return Object.freeze({ logicalSlotId: result.logicalSlotId, dataset: result.dataset, instrument: result.instrument, unitId: result.unitId, sourceContractId: result.sourceContractId, retrievalIdentity: result.retrievalIdentity, rawArtifactIdentity: result.rawArtifactIdentity, rawArtifactChecksum: result.rawArtifactChecksum, candidateIdentity: result.candidateIdentity, candidateChecksum: result.candidateChecksum, canonicalCommitResult: result.status, canonicalFactIdentities: result.canonicalOutputIdentities, validationStatus: "PASSED", limitations: result.limitations, durationMs: result.durationMs, retainedBytes: result.retainedBytes })
+  return Object.freeze({ logicalSlotId: result.logicalSlotId, executionGenerationId: result.executionGenerationId, dataset: result.dataset, instrument: result.instrument, intervalStart: result.intervalStart, intervalEnd: result.intervalEnd, unitId: result.unitId, sourceContractId: result.sourceContractId, sourceContractVersion: result.sourceContractVersion, providerBinding: result.providerBinding, retrievalIdentity: result.retrievalIdentity, rawArtifactIdentity: result.rawArtifactIdentity, rawArtifactChecksum: result.rawArtifactChecksum, candidateIdentity: result.candidateIdentity, candidateChecksum: result.candidateChecksum, canonicalCommitResult: result.status, canonicalFactIdentities: result.canonicalOutputIdentities, validationStatus: "PASSED", limitations: result.limitations, durationMs: result.durationMs, retainedBytes: result.retainedBytes })
 }
 
 export function composeConcreteLiveResumePorts(input: ConcreteLiveResumePortComposition): LiveResumeCoordinatorPorts {
   exactDay(input.intervalStart, input.intervalEnd); checksum64(input.plannerChecksum, "LIVE_EXECUTOR_PLANNER_CHECKSUM_INVALID")
   const execute = (dataset: RefreshLogicalDataset, port: (value: LiveExecutorInvocation) => Promise<LiveExecutorPortResult>) => ({ execute: async (slot: RefreshSlotResumePlanEntry, unit: LiveResumeUnitResolution, context: { readonly runId: string; readonly mode: LiveResumeExecutionMode; readonly fencingToken: number }) => {
     if (!unit.unitId || context.mode === "DRY_RUN") throw new Error("LIVE_EXECUTOR_LIVE_UNIT_REQUIRED")
-    const invocation: LiveExecutorInvocation = Object.freeze({ intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, logicalSlotId: slot.logicalSlotId, plannerIdentity: input.plannerIdentity, plannerChecksum: input.plannerChecksum, sourceContractId: unit.sourceContractId, unitId: unit.unitId, dataset, instrument: slot.instrument, fencingToken: context.fencingToken, checkpointInputChecksum: canonicalChecksum({ runId: context.runId, unit, slot }), allowedDatasets: input.allowedDatasets, allowedInstruments: input.allowedInstruments, requiredUpstream: Object.freeze([]), mode: context.mode })
-    return coordinatorSlotResult(await port(invocation))
+    if (slot.dataset !== dataset || unit.logicalSlotId !== slot.logicalSlotId || unit.dataset !== slot.dataset || unit.instrument !== slot.instrument || slot.intervalStart !== input.intervalStart || slot.intervalEnd !== input.intervalEnd) throw new Error("LIVE_EXECUTOR_PREWRITE_LOGICAL_SLOT_MISMATCH")
+    const invocation: LiveExecutorInvocation = Object.freeze({ intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, logicalSlotId: slot.logicalSlotId, executionGenerationId: context.runId, plannerIdentity: input.plannerIdentity, plannerChecksum: input.plannerChecksum, sourceContractId: unit.sourceContractId, sourceContractVersion: unit.sourceContractId, providerBinding: LIVE_EXECUTOR_PROVIDER_BY_DATASET[dataset], unitId: unit.unitId, dataset, instrument: slot.instrument, fencingToken: context.fencingToken, checkpointInputChecksum: canonicalChecksum({ runId: context.runId, unit, slot }), allowedDatasets: input.allowedDatasets, allowedInstruments: input.allowedInstruments, requiredUpstream: Object.freeze([]), mode: context.mode })
+    const result = await port(invocation)
+    assertLiveExecutorResultIdentity(invocation, result)
+    return coordinatorSlotResult(result)
   } })
   return Object.freeze({
     targets: input.targets,

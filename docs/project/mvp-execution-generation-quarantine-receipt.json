@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "mvp-execution-generation-quarantine-receipt/1.0.0",
+  "receiptState": "PREVIEW_ONLY_OPERATOR_EXECUTION_REQUIRED",
+  "persisted": false,
+  "disposition": "QUARANTINED",
+  "generationId": "mrlr_440fd1b84362eaf01744d9ff22d95c35ebcf564e7c4c827829047aef7266074b",
+  "planId": "mrlp_e01c4dc5a8962f070d27b57b718e3914a6973013882d445b0e9a10706accc1c5",
+  "planChecksum": "e01c4dc5a8962f070d27b57b718e3914a6973013882d445b0e9a10706accc1c5",
+  "interval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "reasonCode": "LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT",
+  "incidentChecksum": "bc716619be2df7afe0899c69b368f8d8f9dba76a201310a19eb55b04ce0140eb",
+  "evidenceSummaryChecksum": "d02bad8d523bd89d996b6549504658e5c4bb7a5a59e13bbbe073b4da31ebb8d3",
+  "durableEvidence": {
+    "refreshUnits": 23,
+    "populationRunAttempts": 6,
+    "populationUnits": 4,
+    "retrievalAttempts": 4,
+    "rawObjects": 4,
+    "candidates": 294,
+    "activeLeases": 0,
+    "unreleasedExpiredLeases": 1,
+    "commonWatermark": null,
+    "servingCandidate": null
+  },
+  "productionMutation": false
+}
