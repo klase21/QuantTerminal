@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-refresh-readiness/1.0.0",
-  "assessedAt": "2026-07-17T08:06:09.261Z",
+  "assessedAt": "2026-07-17T08:42:01.710Z",
   "activeProduction": {
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -207,6 +207,26 @@
         "downstreamStagesAfterFailure": 0,
         "rollbackRuns": 2,
         "retainedRows": 0,
+        "productionChanged": false
+      },
+      "populationResumeLeaseReconciliation": {
+        "status": "AUTHENTICATED_ROLLBACK_CERTIFIED",
+        "firstRejectedDataset": "open-interest",
+        "firstRejectedInstrument": "ETHUSDT",
+        "firstRejectedUnitState": "PROCESSING",
+        "firstRejectedRunState": "SUCCEEDED",
+        "durableResumeStage": "CANONICAL_COMMIT",
+        "terminalRunPreserved": true,
+        "deterministicNextRunAttempt": true,
+        "unitSpecificLeaseAcquisition": true,
+        "strictFenceIncrement": true,
+        "concurrentSingleWinner": true,
+        "activeLeaseFailClosed": true,
+        "rollbackRuns": 2,
+        "seededPartialUnits": 4,
+        "retrievalObjectCandidateDuplicates": 0,
+        "retainedRows": 0,
+        "preflightResumeLeaseGate": "PASS_4_OF_4",
         "productionChanged": false
       }
     }

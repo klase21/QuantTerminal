@@ -66,6 +66,12 @@ The Funding/DOGEUSDT failure was a D3 lineage defect: Candidate persistence used
 
 The existing live run remains unchanged: 23 `PENDING` units, a `SOURCES_ACQUIRED` failure, and no common watermark or refresh candidate corpus. D3 retains expired `RAW_PERSISTED` partials for Funding/DOGEUSDT (one attempt, one object, zero Candidates) and Open Interest/ETHUSDT (one attempt, one object, two Candidates). No live resume or Production change occurred.
 
+## Population Lease Reconciliation
+
+Population resume now derives lease eligibility from durable unit lineage and the actual parent-run state. A `PROCESSING` unit with a Candidate-boundary resume stage and no active unexpired lease is append-only reconciled to `RETRYABLE`. Running parent attempts are reused; terminal parents remain historical and receive a deterministic next run attempt.
+
+Lease acquisition is unit-specific and occurs in the same transaction as the reconciliation event and checkpoint. The fence advances exactly once, concurrent contenders lose to the active lease, and Canonical failure atomically checkpoints, releases, and returns the unit to `RETRYABLE`. Authenticated preflight includes this persisted-state lease gate and fails closed for active leases or incomplete durable boundaries.
+
 ## Canonical Scope And Failure Recovery
 
 The later live execution reached Canonical Commit and exposed a scope-validator namespace defect. The retained BTCUSDT AggTrades Raw Object and Segment agree on dataset, instrument, provider snapshot, source contract, and exact day. The rejected field was provider-native venue `binance-usdm-futures` versus canonical venue `BINANCE`; these are not the same identity domain.

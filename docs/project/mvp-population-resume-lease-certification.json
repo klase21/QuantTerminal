@@ -1,0 +1,49 @@
+{
+  "certificationVersion": "mvp-population-resume-lease/1.0.0",
+  "scope": "AUTHENTICATED_ROLLBACK_ONLY",
+  "liveResumeExecuted": false,
+  "firstRejected": {
+    "dataset": "open-interest",
+    "instrument": "ETHUSDT",
+    "unitState": "PROCESSING",
+    "runState": "SUCCEEDED",
+    "fence": 3,
+    "activeLease": false,
+    "resumeStage": "CANONICAL_COMMIT",
+    "rejectedPredicates": [
+      "RUN_STATE_NOT_RUNNING",
+      "UNIT_STATE_NOT_PENDING_OR_RETRYABLE"
+    ]
+  },
+  "realPartialShapes": {
+    "units": 4,
+    "retrievalAttempts": 4,
+    "rawObjects": 4,
+    "candidates": 294,
+    "commonWatermark": null,
+    "servingCandidate": null
+  },
+  "rollbackCertification": {
+    "runs": 2,
+    "safelyLeaseAcquired": 8,
+    "concurrentSingleWinners": 8,
+    "exactReconciliationDuplicates": 8,
+    "failureLeasesReleased": 8,
+    "retrievalsRepeated": 0,
+    "rawObjectsRepeated": 0,
+    "candidatesRepeated": 0,
+    "duplicateEvents": 0,
+    "duplicateCheckpoints": 0,
+    "retainedRows": 0,
+    "retainedArtifacts": 0
+  },
+  "preflight": {
+    "passed": true,
+    "resumeUnitsChecked": 4,
+    "resumeUnitsEligible": 4,
+    "activeLeaseBlocksPreflight": true
+  },
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}

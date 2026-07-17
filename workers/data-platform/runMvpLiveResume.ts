@@ -59,6 +59,10 @@ async function lineageInventory(start: string, end: string) {
   return withIntegrated(async (clients) => createPopulationPostgresAdapter(clients.d3).auditBoundedAcquisitionLineage(start, end, "mvp-live-resume"))
 }
 
+async function resumeLeaseInventory(start: string, end: string) {
+  return withIntegrated(async (clients) => createPopulationPostgresAdapter(clients.d3).inspectResumeLeaseEligibility({ intervalStart: start, intervalEnd: end, requestedBy: "mvp-live-resume", now: new Date().toISOString() }))
+}
+
 async function preflight(start: string, end: string) {
   const governance = await governanceInventory(start)
   const governanceReady = governance.every((entry) => entry.state === "READY")
@@ -68,7 +72,7 @@ async function preflight(start: string, end: string) {
   }
   const archiveRequests = DATASETS.filter((value) => value !== "funding").flatMap((dataset) => INSTRUMENTS.map((instrument) => createBoundedArchiveRequest({ dataset, provider: "binance-vision", instrument, eventTimeStart: start, eventTimeEnd: end, sourceContractVersion: dataset === "ohlcv" ? "mvp-bounded-ohlcv/1.0.0" : dataset === "open-interest" ? "mvp-bounded-open-interest/1.0.0" : "mvp-bounded-agg-trade/1.0.0", maximumRecordCount: dataset === "ohlcv" ? 288 : dataset === "open-interest" ? 10_000 : 10_000_000 })))
   const fundingRequests = INSTRUMENTS.map((instrument) => createBoundedFundingRequest({ provider: "binance-official-rest-funding-rate", instrument, eventTimeStart: start, eventTimeEnd: end, maximumEventCount: 1_000, requestedAt: new Date().toISOString() }))
-  const [loaded, archives, funding] = await Promise.all([
+  const [loaded, archives, funding, resumeLeases] = await Promise.all([
     loadPlan(start, end),
     Promise.all(archiveRequests.map((request) => inspectBoundedArchiveAvailability(request))),
     Promise.all(fundingRequests.map(async (request) => {
@@ -79,6 +83,7 @@ async function preflight(start: string, end: string) {
         return Object.freeze({ instrument: request.instrument, ready: Array.isArray(value), classification: Array.isArray(value) ? "READY" : "MALFORMED_SOURCE_DATA" })
       } catch { return Object.freeze({ instrument: request.instrument, ready: false, classification: "CONNECTION_FAILED" }) }
     })),
+    resumeLeaseInventory(start, end),
   ])
   const localEnvironment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "PREFLIGHT", intervalStart: start, intervalEnd: end, plannerIdentity: loaded.plan.planIdentity, plannerChecksum: loaded.plan.planChecksum })
   const environment = Object.freeze({ version: "mvp-live-resume-environment/1.0.0", passed: localEnvironment.passed, capabilities: localEnvironment.capabilities, productionOrNeonWriteTarget: false as const })
@@ -86,8 +91,10 @@ async function preflight(start: string, end: string) {
   const planCounts = { reuseAuthoritative: loaded.plan.slots.filter((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT").length, createNew: loaded.plan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME").length, conflicts: loaded.plan.slots.filter((slot) => slot.action === "BLOCKED_CONFLICT").length }
   const archivePass = archives.length === 18 && archives.every((value) => value.sourceClassification === "HTTP_SUCCESS" && value.available && value.finalized)
   const fundingPass = funding.length === 6 && funding.every((value) => value.ready)
-  const passed = environment.passed && archivePass && fundingPass && loaded.authorityCount === 1 && planCounts.reuseAuthoritative === 1 && planCounts.createNew === 23 && planCounts.conflicts === 0
-  return Object.freeze({ passed, governance: { ready: governance.length, missing: Object.freeze([]), conflicts: Object.freeze([]) }, environment, sourceAvailability: { archives: { checked: archives.length, ready: archives.filter((value) => value.available && value.finalized).length, passed: archivePass }, funding: { checked: funding.length, ready: funding.filter((value) => value.ready).length, passed: fundingPass } }, authority: { count: loaded.authorityCount, checksumValid: loaded.authorityCount === 1 }, planner: { planIdentity: loaded.plan.planIdentity, planChecksum: loaded.plan.planChecksum, logicalSlots: loaded.plan.slots.length, ...planCounts }, productionOrNeonWriteTarget: false })
+  const resumableLeases = resumeLeases.filter((value) => value.stage !== "COMPLETE")
+  const resumeLeasePass = resumableLeases.every((value) => value.eligible)
+  const passed = environment.passed && archivePass && fundingPass && resumeLeasePass && loaded.authorityCount === 1 && planCounts.reuseAuthoritative === 1 && planCounts.createNew === 23 && planCounts.conflicts === 0
+  return Object.freeze({ passed, governance: { ready: governance.length, missing: Object.freeze([]), conflicts: Object.freeze([]) }, environment, sourceAvailability: { archives: { checked: archives.length, ready: archives.filter((value) => value.available && value.finalized).length, passed: archivePass }, funding: { checked: funding.length, ready: funding.filter((value) => value.ready).length, passed: fundingPass } }, resumeLeaseEligibility: { checked: resumableLeases.length, eligible: resumableLeases.filter((value) => value.eligible).length, passed: resumeLeasePass, units: resumableLeases.map((value) => ({ unitId: value.unitId, dataset: value.dataset, instrument: value.instrument, state: value.currentState, runState: value.runState, stage: value.stage, fence: value.currentFence, activeLease: value.activeLease, leaseExpired: value.leaseExpired, eligible: value.eligible, reason: value.reason })) }, authority: { count: loaded.authorityCount, checksumValid: loaded.authorityCount === 1 }, planner: { planIdentity: loaded.plan.planIdentity, planChecksum: loaded.plan.planChecksum, logicalSlots: loaded.plan.slots.length, ...planCounts }, productionOrNeonWriteTarget: false })
 }
 
 function dryRunPorts(gate: Awaited<ReturnType<typeof preflight>>): LiveResumeCoordinatorPorts {

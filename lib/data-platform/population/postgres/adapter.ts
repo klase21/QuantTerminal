@@ -52,6 +52,21 @@ export interface PopulationResumeResolution {
   readonly candidates: readonly PopulationCandidate[]
   readonly checkpointId: string | null
   readonly lineageChecksum: string
+  readonly reconciliationStatus: "CREATED" | "DUPLICATE"
+}
+export interface PopulationResumeLeaseEligibility {
+  readonly unitId: string
+  readonly runId: string
+  readonly dataset: string
+  readonly instrument: string
+  readonly currentState: string
+  readonly runState: string
+  readonly stage: PopulationResumeStage
+  readonly currentFence: number
+  readonly activeLease: boolean
+  readonly leaseExpired: boolean
+  readonly eligible: boolean
+  readonly reason: "READY" | "ACTIVE_LEASE" | "TERMINAL_UNIT" | "DURABLE_STAGE_MISSING" | "CANCELLED"
 }
 export interface PopulationUnitEventResult { readonly status: "CREATED" | "DUPLICATE" | "CONFLICT"; readonly checksum: string }
 export interface LeaseClaim { readonly unitId: string; readonly leaseId: string; readonly fencingToken: number }
@@ -78,6 +93,7 @@ export interface PopulationPostgresAdapter {
   persistBoundedAcquisitionResult(input: PersistBoundedAcquisitionInput): Promise<PersistBoundedAcquisitionResult>
   transitionUnitIdempotently(input: PopulationUnitEventInput & { readonly leaseId: string; readonly ownerId: string }): Promise<PopulationUnitEventResult>
   reconcileBoundedAcquisitionResume(input: { readonly unitId: string; readonly ownerId: string; readonly now: string; readonly expiresAt: string }): Promise<PopulationResumeResolution | null>
+  inspectResumeLeaseEligibility(input: { readonly intervalStart: string; readonly intervalEnd: string; readonly requestedBy: string; readonly now: string }): Promise<readonly PopulationResumeLeaseEligibility[]>
   recoverPopulationUnitLease(input: { readonly unitId: string; readonly runId: string; readonly ownerId: string; readonly now: string; readonly expiresAt: string }): Promise<LeaseClaim | null>
   recordRecoverableLineageFailure(input: { readonly unitId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly classification: string; readonly at: string }): Promise<PopulationUnitEventResult>
   recordCanonicalCommitFailure(input: { readonly unitId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly classification: string; readonly at: string }): Promise<PopulationUnitEventResult>
@@ -259,15 +275,45 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
         return event
       })
     },
+    async inspectResumeLeaseEligibility(input) {
+      const rows = await client.sql<{ readonly unit_id: string; readonly run_id: string; readonly dataset_id: string; readonly subject_or_symbol: string; readonly current_state: string; readonly current_fencing_token: number; readonly cancellation_requested_at: string | null; readonly active_lease_id: string | null; readonly expires_at: string | null; readonly released_at: string | null; readonly run_state: string; readonly retrieval_attempts: number; readonly candidates: number; readonly committed_candidates: number }[]>`
+        SELECT u.unit_id,r.run_id,u.dataset_id,u.subject_or_symbol,u.current_state::text,u.current_fencing_token,
+          u.cancellation_requested_at::text,u.active_lease_id,l.expires_at::text,l.released_at::text,
+          r.current_state::text run_state,
+          (SELECT count(*)::int FROM control.retrieval_attempts a WHERE a.unit_id=u.unit_id) retrieval_attempts,
+          (SELECT count(*)::int FROM population.candidates c WHERE c.unit_id=u.unit_id) candidates,
+          (SELECT count(DISTINCT o.candidate_id)::int FROM control.population_outcomes o WHERE o.unit_id=u.unit_id AND o.outcome_kind IN ('COMMITTED','DUPLICATE')) committed_candidates
+        FROM control.population_units u
+        JOIN control.population_jobs j ON j.job_id=u.job_id
+        JOIN LATERAL (SELECT x.run_id,x.current_state FROM control.population_runs x WHERE x.job_id=u.job_id ORDER BY x.attempt_number DESC LIMIT 1) r ON true
+        LEFT JOIN control.population_leases l ON l.lease_id=u.active_lease_id
+        WHERE j.requested_by=${input.requestedBy} AND u.window_start=${input.intervalStart} AND u.window_end=${input.intervalEnd}
+        ORDER BY u.dataset_id,u.subject_or_symbol,u.unit_id`
+      return Object.freeze(rows.map((row) => {
+        const retrievalAttempts = Number(row.retrieval_attempts), candidates = Number(row.candidates), committed = Number(row.committed_candidates)
+        const stage: PopulationResumeStage = retrievalAttempts === 0 ? "SOURCE_ACQUISITION" : candidates === 0 ? "CANDIDATE_LINEAGE" : committed >= candidates ? "COMPLETE" : "CANONICAL_COMMIT"
+        const activeLease = Boolean(row.active_lease_id && !row.released_at && row.expires_at && Date.parse(row.expires_at) > Date.parse(input.now))
+        const leaseExpired = Boolean(row.active_lease_id && !row.released_at && row.expires_at && Date.parse(row.expires_at) <= Date.parse(input.now))
+        const terminal = ["COMPLETED", "FAILED", "QUARANTINED", "CANCELLED"].includes(row.current_state)
+        const durableStageMissing = row.current_state === "PROCESSING" && retrievalAttempts === 0
+        const reason: PopulationResumeLeaseEligibility["reason"] = row.cancellation_requested_at ? "CANCELLED" : activeLease ? "ACTIVE_LEASE" : terminal ? "TERMINAL_UNIT" : durableStageMissing ? "DURABLE_STAGE_MISSING" : "READY"
+        return Object.freeze({ unitId: row.unit_id, runId: row.run_id, dataset: row.dataset_id, instrument: row.subject_or_symbol, currentState: row.current_state, runState: row.run_state, stage, currentFence: Number(row.current_fencing_token), activeLease, leaseExpired, eligible: reason === "READY", reason })
+      }))
+    },
     async reconcileBoundedAcquisitionResume(input) {
       return client.transaction(async (sql) => {
-        const units = await sql<{ readonly job_id: string; readonly run_id: string; readonly current_state: string; readonly current_fencing_token: number; readonly active_lease_id: string | null; readonly expires_at: string | null; readonly released_at: string | null }[]>`
-          SELECT u.job_id,r.run_id,u.current_state::text,u.current_fencing_token,u.active_lease_id,l.expires_at,l.released_at
-          FROM control.population_units u JOIN control.population_runs r ON r.job_id=u.job_id
+        const units = await sql<{ readonly job_id: string; readonly current_state: string; readonly current_fencing_token: number; readonly active_lease_id: string | null; readonly cancellation_requested_at: string | null; readonly expires_at: string | null; readonly released_at: string | null }[]>`
+          SELECT u.job_id,u.current_state::text,u.current_fencing_token,u.active_lease_id,
+            u.cancellation_requested_at::text,l.expires_at::text,l.released_at::text
+          FROM control.population_units u
           LEFT JOIN control.population_leases l ON l.lease_id=u.active_lease_id
-          WHERE u.unit_id=${input.unitId} AND r.current_state='RUNNING' FOR UPDATE OF u`
+          WHERE u.unit_id=${input.unitId} FOR UPDATE OF u`
         const unit = units[0]
         if (!unit) return null
+        const currentFence = Number(unit.current_fencing_token)
+        if (!Number.isSafeInteger(currentFence) || currentFence < 0) throw new Error("POPULATION_RESUME_FENCE_INVALID")
+        if (unit.cancellation_requested_at) throw new Error("POPULATION_RESUME_CANCELLED")
+        if (["COMPLETED", "FAILED", "QUARANTINED", "CANCELLED"].includes(unit.current_state)) throw new Error("POPULATION_RESUME_TERMINAL_UNIT")
         const attempts = await sql<Record<string, unknown>[]>`SELECT * FROM control.retrieval_attempts WHERE unit_id=${input.unitId} ORDER BY started_at,attempt_id FOR UPDATE`
         if (attempts.length > 1) throw new Error("POPULATION_RESUME_MULTIPLE_RETRIEVAL_ATTEMPTS")
         const attempt = attempts[0] ? retrievalComparable(attempts[0]) as RetrievalAttempt : null
@@ -283,18 +329,33 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
         if (stage === "COMPLETE") throw new Error("POPULATION_RESUME_ALREADY_COMPLETE")
         if (unit.active_lease_id && !unit.released_at && unit.expires_at && Date.parse(unit.expires_at) > Date.parse(input.now)) throw new Error("POPULATION_RESUME_ACTIVE_LEASE")
         if (unit.active_lease_id && !unit.released_at) await sql`UPDATE control.population_leases SET released_at=${input.now},release_reason='EXPIRED' WHERE lease_id=${unit.active_lease_id} AND released_at IS NULL`
+        const runningRuns = await sql<{ readonly run_id: string; readonly attempt_number: number }[]>`SELECT run_id,attempt_number FROM control.population_runs WHERE job_id=${unit.job_id} AND current_state='RUNNING' ORDER BY attempt_number DESC LIMIT 1 FOR UPDATE`
+        let runId = runningRuns[0]?.run_id ?? null
+        if (!runId) {
+          const attempts = await sql<{ readonly attempt_number: number }[]>`SELECT attempt_number FROM control.population_runs WHERE job_id=${unit.job_id} ORDER BY attempt_number DESC LIMIT 1 FOR UPDATE`
+          const attemptNumber = Number(attempts[0]?.attempt_number ?? 0) + 1
+          runId = createPopulationRunId(unit.job_id, attemptNumber)
+          await sql`INSERT INTO control.population_runs(run_id,job_id,attempt_number,current_state,started_at,heartbeat_at) VALUES(${runId},${unit.job_id},${attemptNumber},'RUNNING',${input.now},${input.now})`
+          await sql`INSERT INTO control.population_run_events(event_id,run_id,event_type,previous_state,next_state,actor_id,occurred_at) VALUES(${eventId("resume-run-created",runId)},${runId},'RUN_RESUME_CREATED',NULL,'CREATED',${input.ownerId},${input.now}),(${eventId("resume-run-started",runId)},${runId},'RUN_RESUME_STARTED','CREATED','RUNNING',${input.ownerId},${input.now})`
+        }
+        let reconciliationStatus: "CREATED" | "DUPLICATE" = "DUPLICATE"
         if (unit.current_state !== "PENDING" && unit.current_state !== "RETRYABLE") {
-          const readyEvent: PopulationUnitEventInput = { eventId: eventId("resume-ready", `${input.unitId}:${unit.current_fencing_token}:${stage}:${lineageChecksum}`), unitId: input.unitId, runId: unit.run_id, eventType: "RESUME_RECONCILED", previousState: unit.current_state, nextState: "RETRYABLE", fencingToken: unit.current_fencing_token || null, actorId: input.ownerId, occurredAt: input.now, details: { stage, lineageChecksum } }
+          const readyEvent: PopulationUnitEventInput = { eventId: eventId("resume-ready", `${input.unitId}:${currentFence}:${stage}:${lineageChecksum}`), unitId: input.unitId, runId, eventType: "RESUME_RECONCILED", previousState: unit.current_state, nextState: "RETRYABLE", fencingToken: currentFence || null, actorId: input.ownerId, occurredAt: input.now, details: { stage, lineageChecksum } }
           const appended = await appendImmutableUnitEvent(sql, readyEvent)
           if (appended.status === "CONFLICT") throw new Error("POPULATION_RESUME_EVENT_CONFLICT")
+          reconciliationStatus = appended.status === "CREATED" ? "CREATED" : "DUPLICATE"
           await sql`UPDATE control.population_units SET current_state='RETRYABLE',active_lease_id=NULL,updated_at=${input.now} WHERE unit_id=${input.unitId}`
         } else if (unit.active_lease_id) await sql`UPDATE control.population_units SET active_lease_id=NULL,updated_at=${input.now} WHERE unit_id=${input.unitId}`
-        const claimed = await sql<{ readonly unit_id: string; readonly lease_id: string; readonly fencing_token: number }[]>`SELECT * FROM control.claim_population_unit(${input.ownerId},${unit.run_id},${input.now},${input.expiresAt})`
-        const leaseRow = claimed.find((value) => value.unit_id === input.unitId)
-        if (!leaseRow) throw new Error("POPULATION_RESUME_UNIT_NOT_CLAIMED")
-        const lease = Object.freeze({ unitId: leaseRow.unit_id, leaseId: leaseRow.lease_id, fencingToken: Number(leaseRow.fencing_token) })
+        const nextFence = currentFence + 1
+        const leaseId = `population-lease:${input.unitId}:${nextFence}`
+        await sql`INSERT INTO control.population_leases(lease_id,unit_id,owner_id,fencing_token,lease_version,acquired_at,expires_at,heartbeat_at) VALUES(${leaseId},${input.unitId},${input.ownerId},${nextFence},${nextFence},${input.now},${input.expiresAt},${input.now})`
+        await sql`UPDATE control.population_units SET current_state='LEASED',current_fencing_token=${nextFence},active_lease_id=${leaseId},attempt_count=attempt_count+1,updated_at=${input.now} WHERE unit_id=${input.unitId} AND current_state='RETRYABLE' AND active_lease_id IS NULL`
+        const leaseEvent: PopulationUnitEventInput = { eventId: `population-unit-event:lease:${input.unitId}:${nextFence}`, unitId: input.unitId, runId, eventType: "LEASE_ACQUIRED", previousState: "RETRYABLE", nextState: "LEASED", fencingToken: nextFence, actorId: input.ownerId, occurredAt: input.now, details: {} }
+        const leaseAppend = await appendImmutableUnitEvent(sql, leaseEvent)
+        if (leaseAppend.status !== "CREATED") throw new Error("POPULATION_RESUME_LEASE_EVENT_CONFLICT")
+        const lease = Object.freeze({ unitId: input.unitId, leaseId, fencingToken: nextFence })
         const resumedState = stage === "SOURCE_ACQUISITION" ? "RETRIEVING" : stage === "CANDIDATE_LINEAGE" ? "RAW_PERSISTED" : "CANDIDATES_READY"
-        const stageEvent: PopulationUnitEventInput = { eventId: eventId("resume-stage", `${input.unitId}:${lease.fencingToken}:${stage}:${lineageChecksum}`), unitId: input.unitId, runId: unit.run_id, eventType: "RESUME_STAGE_RESTORED", previousState: "LEASED", nextState: resumedState, fencingToken: lease.fencingToken, actorId: input.ownerId, occurredAt: input.now, details: { stage, lineageChecksum } }
+        const stageEvent: PopulationUnitEventInput = { eventId: eventId("resume-stage", `${input.unitId}:${lease.fencingToken}:${stage}:${lineageChecksum}`), unitId: input.unitId, runId, eventType: "RESUME_STAGE_RESTORED", previousState: "LEASED", nextState: resumedState, fencingToken: lease.fencingToken, actorId: input.ownerId, occurredAt: input.now, details: { stage, lineageChecksum } }
         const stageAppend = await appendImmutableUnitEvent(sql, stageEvent)
         if (stageAppend.status === "CONFLICT") throw new Error("POPULATION_RESUME_STAGE_EVENT_CONFLICT")
         await sql`UPDATE control.population_units SET current_state=${resumedState},updated_at=${input.now} WHERE unit_id=${input.unitId}`
@@ -303,10 +364,10 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
           checkpointId = eventId("resume-checkpoint", `${input.unitId}:${lease.fencingToken}:${stage}:${lineageChecksum}`)
           const checkpointType = stage === "CANDIDATE_LINEAGE" ? "RAW_BOUNDARY" : "CANDIDATE_BOUNDARY"
           const candidateCursor = stage === "CANONICAL_COMMIT" ? candidates.at(-1)?.candidateId ?? null : null
-          await sql`INSERT INTO control.population_checkpoints(checkpoint_id,job_id,run_id,unit_id,fencing_token,checkpoint_type,completed_stage,raw_manifest_id,candidate_cursor,canonical_submission_id,last_outcome_id,created_at) VALUES(${checkpointId},${unit.job_id},${unit.run_id},${input.unitId},${lease.fencingToken},${checkpointType},${resumedState},${rawObjectId},${candidateCursor},NULL,NULL,${input.now}) ON CONFLICT(checkpoint_id) DO NOTHING`
+          await sql`INSERT INTO control.population_checkpoints(checkpoint_id,job_id,run_id,unit_id,fencing_token,checkpoint_type,completed_stage,raw_manifest_id,candidate_cursor,canonical_submission_id,last_outcome_id,created_at) VALUES(${checkpointId},${unit.job_id},${runId},${input.unitId},${lease.fencingToken},${checkpointType},${resumedState},${rawObjectId},${candidateCursor},NULL,NULL,${input.now}) ON CONFLICT(checkpoint_id) DO NOTHING`
           await sql`UPDATE control.population_units SET current_checkpoint_id=${checkpointId} WHERE unit_id=${input.unitId}`
         }
-        return Object.freeze({ stage, jobId: unit.job_id, runId: unit.run_id, unitId: input.unitId, lease, retrievalAttempt: attempt, rawObjectId, candidates, checkpointId, lineageChecksum })
+        return Object.freeze({ stage, jobId: unit.job_id, runId, unitId: input.unitId, lease, retrievalAttempt: attempt, rawObjectId, candidates, checkpointId, lineageChecksum, reconciliationStatus })
       })
     },
     async recoverPopulationUnitLease(input) {

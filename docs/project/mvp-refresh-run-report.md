@@ -166,3 +166,11 @@ Read-only incident audit identified BTCUSDT AggTrades as the first Canonical Com
 The scope contract now uses provider snapshot and source contract for authority, normalized instrument identity, and dataset-aware time containment. Funding and Open Interest record Candidates may occupy subintervals or points inside one day Raw Objects. The one-Segment AggTrades contract remains exact-day. Non-contained and cross-instrument cases fail closed.
 
 Canonical exceptions now atomically append a sanitized failure event, persist the Candidate-boundary checkpoint, transition the unit to retryable, clear its active lease, and release that lease. Rollback certification used the actual retained 3 Funding, 288 Open Interest, one AggTrades, and two ETH partial Candidates. Two complete runs produced `SUCCESS` then `DUPLICATE` for the same D2 Segment, released both injected-failure leases per run, invoked no downstream stage, and retained zero rows or artifacts. The real run and all external systems remained unchanged.
+
+## Population Resume Lease Reconciliation
+
+Read-only audit identified ETHUSDT Open Interest as the first lease rejection. Its unit was `PROCESSING` at Candidate-boundary Canonical Commit, its fence-3 lease was released, and its parent Population run was `SUCCEEDED`. The old claim predicate required a `RUNNING` run plus `PENDING|RETRYABLE`, so the fallback could not reacquire it.
+
+Resume reconciliation now preserves terminal runs and appends a deterministic next run attempt, projects durable partial units to `RETRYABLE` through an immutable event, and acquires the exact unit with a strictly higher fence. Running-parent BTC AggTrades and SOL Open Interest reuse their current runs; DOGE Funding and ETH Open Interest reuse all durable lineage beneath new run attempts. Canonical failure remains atomic across checkpoint, event, unit state, and lease release.
+
+Rollback certification seeded all four real shapes and ran twice: eight winners, eight rejected competitors, eight duplicate reconciliation classifications on exact retry, zero repeated Retrieval/Object/Candidate records, zero duplicate events/checkpoints, and zero retained rows/artifacts. Authenticated preflight now reports all four persisted partials as lease-eligible and would fail for an active unexpired lease. The live resume command was not run.
