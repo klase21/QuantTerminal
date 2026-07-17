@@ -188,7 +188,7 @@ export class PostgresLiveResumeExecutionStore {
 
     const existingRuns = await sql.unsafe<Array<{ run_id: string; plan_id: string; state: string; checksum: string }>>("SELECT run_id,plan_id,state,checksum FROM refresh_control.refresh_run WHERE run_id=$1 FOR UPDATE", [identity.runId])
     const existingRun = existingRuns[0]
-    if (existingRun && intent === "RUN") throw new Error("LIVE_RESUME_EXECUTION_ALREADY_EXISTS_USE_RESUME")
+    if (existingRun && intent === "RUN" && !plan.executionGeneration) throw new Error("LIVE_RESUME_EXECUTION_ALREADY_EXISTS_USE_RESUME")
     let runStatus: LiveResumeExecutionSetup["runStatus"] = "DUPLICATE", runState = existingRun?.state ?? "PLANNED"
     if (!existingRun) {
       await sql.unsafe("INSERT INTO refresh_control.refresh_run(run_id,plan_id,state,checksum,created_at,updated_at) VALUES($1,$2,'PLANNED',$3,now(),now())", [identity.runId, plan.planIdentity, identity.checksum])
@@ -214,6 +214,17 @@ export class PostgresLiveResumeExecutionStore {
     if (runStatus === "CREATED") {
       const eventChecksum = canonicalChecksum({ kind: "LIVE_RESUME_EXECUTION_SETUP", runId: identity.runId, planId: plan.planIdentity, transactionChecksum })
       await sql.unsafe("INSERT INTO refresh_control.refresh_event(event_id,run_id,entity_kind,entity_id,event_kind,from_state,to_state,payload,checksum,occurred_at) VALUES($1,$2,'refresh_run',$2,'LIVE_EXECUTION_SETUP',NULL,'PLANNED',$3::jsonb,$4,now())", [`mre_${eventChecksum}`, identity.runId, JSON.stringify({ executionProfile: LIVE_EXECUTION_PROFILE, unitCount: 23, transactionChecksum }), eventChecksum])
+    }
+    if (plan.executionGeneration) {
+      const generation = plan.executionGeneration
+      const authority = plan.slots.find((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")
+      if (!authority) throw new Error("CLEAN_GENERATION_AUTHORITY_MISSING")
+      const payload = Object.freeze({ ...generation, planId: plan.planIdentity, runId: identity.runId, intervalStart: plan.intervalStart, intervalEnd: plan.intervalEnd, authoritativeLogicalSlotId: authority.logicalSlotId, executableUnitCount: 23, transactionChecksum, activationAvailable: false })
+      const checksum = canonicalChecksum({ kind: "CLEAN_EXECUTION_GENERATION_CREATED", payload })
+      const eventId = `mre_${checksum}`
+      await sql.unsafe("INSERT INTO refresh_control.refresh_event(event_id,run_id,entity_kind,entity_id,event_kind,from_state,to_state,payload,checksum,occurred_at) VALUES($1,$2,'clean_execution_generation',$3,'CLEAN_EXECUTION_GENERATION_CREATED',NULL,'ACTIVE',$4::jsonb,$5,now()) ON CONFLICT (event_id) DO NOTHING", [eventId, identity.runId, generation.executionGenerationId, JSON.stringify(payload), checksum])
+      const rows = await sql.unsafe<Array<{ checksum: string; payload: unknown }>>("SELECT checksum,payload FROM refresh_control.refresh_event WHERE entity_kind='clean_execution_generation' AND entity_id=$1 AND event_kind='CLEAN_EXECUTION_GENERATION_CREATED'", [generation.executionGenerationId])
+      if (rows.length !== 1 || rows[0]!.checksum !== checksum) throw new Error("CLEAN_GENERATION_RECEIPT_CONFLICT")
     }
     return Object.freeze({ planStatus, persistedPlanId: plan.planIdentity, runStatus, persistedRunId: identity.runId, unitOutcomes: Object.freeze(outcomes), transactionChecksum, resumeClassification: runStatus === "CREATED" ? "NEW_EXECUTION" : runState === "READY_FOR_RELEASE_REVIEW" ? "EXISTING_COMPLETE_EXECUTION" : "EXISTING_INCOMPLETE_EXECUTION" })
   }

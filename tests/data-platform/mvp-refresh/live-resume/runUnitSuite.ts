@@ -6,6 +6,8 @@ import {
   MvpLiveResumeCoordinator,
   assertSanitizedLiveResumeOutput,
   createCertifiedLiveResumePlan,
+  createCleanCertifiedLiveResumePlan,
+  createCleanExecutionGenerationContext,
   createDryRunLiveResumeExecutionSetup,
   createMandatoryRefreshLogicalSlots,
   liveResumeStageOutput,
@@ -80,6 +82,13 @@ async function main() {
   assert.equal(governance.filter((value) => value.dataset === "funding").length, 4)
   assert.ok(governance.some((value) => value.identity === "mvp-bounded-funding-provider:binance-official-rest-funding-rate/1.0.0"))
   assert.ok(governance.every((value) => /^[0-9a-f]{64}$/.test(value.input.contentChecksum)))
+  const manifestBasis = { schemaVersion: "mvp-clean-generation-input/1.0.0" as const, sourceGenerationId: `mrlr_${"a".repeat(64)}`, certifiedPlanContext: { planId: certified.planIdentity, planChecksum: certified.planChecksum }, targetInterval: { start, end }, logicalSlotIds: certified.slots.map((slot) => slot.logicalSlotId).sort(), reusableRawPayloadBytes: Object.freeze([]), excludedExecutionIdentities: { populationRunAttempts: Object.freeze([]), retrievalAttempts: Object.freeze([]), candidates: Object.freeze([]), checkpoints: Object.freeze([]) }, freshLineagePolicy: "FRESH_RETRIEVAL_CANDIDATE_FACT_DOWNSTREAM_WATERMARK_REPLAY_MANIFEST" as const }
+  const manifest = Object.freeze({ ...manifestBasis, checksum: canonicalChecksum(manifestBasis) })
+  const cleanContext = createCleanExecutionGenerationContext({ manifest, predecessorQuarantineReceiptId: `mre_${"b".repeat(64)}`, sourceCommitSha: "abcdef1", operatorConfirmationIdentity: "fixture-operator" })
+  const cleanPlan = createCleanCertifiedLiveResumePlan({ predecessorPlan: certified, context: cleanContext })
+  assert.notEqual(cleanPlan.planIdentity, certified.planIdentity)
+  assert.deepEqual(cleanPlan.slots.map((slot) => slot.logicalSlotId), certified.slots.map((slot) => slot.logicalSlotId))
+  assert.equal(cleanPlan.executionGeneration?.executionGenerationId, cleanContext.executionGenerationId)
 
   const dry = fixture(), dryResult = await new MvpLiveResumeCoordinator(dry.ports).execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "DRY_RUN" })
   assert.equal(dryResult.status, "DRY_RUN")
@@ -152,6 +161,11 @@ async function main() {
   const reconcileConfirmed = parseLiveResumeWorkerOptions(["reconcile-quarantine", `--run-id=${quarantineRunId}`, "--confirm-reconcile=true", `--incident-checksum=${"b".repeat(64)}`, "--operator-confirmation-identity=mvp-operator"])
   assert.equal(reconcileConfirmed.command, "reconcile-quarantine")
   assert.equal(reconcileConfirmed.confirmReconcile, true)
+  const createClean = parseLiveResumeWorkerOptions(["create-clean-generation", `--predecessor-run-id=${quarantineRunId}`, `--start=${start}`, `--end=${end}`, `--manifest-checksum=${"c".repeat(64)}`, "--confirm-create=true", "--operator-confirmation-identity=fixture-operator"])
+  assert.equal(createClean.command, "create-clean-generation")
+  assert.throws(() => parseLiveResumeWorkerOptions(["create-clean-generation", `--predecessor-run-id=${quarantineRunId}`, `--start=${start}`, `--end=${end}`, `--manifest-checksum=${"c".repeat(64)}`]), /EXPLICIT_CONFIRMATION_REQUIRED/)
+  assert.equal(parseLiveResumeWorkerOptions(["clean-generation-status", `--execution-generation-id=${cleanContext.executionGenerationId}`]).command, "clean-generation-status")
+  assert.throws(() => parseLiveResumeWorkerOptions(["execute-clean-generation", `--execution-generation-id=${cleanContext.executionGenerationId}`]), /EXPLICIT_CONFIRMATION_REQUIRED/)
   assert.doesNotThrow(() => assertSanitizedLiveResumeOutput({ configured: true, planChecksum: certified.planChecksum }))
   assert.throws(() => assertSanitizedLiveResumeOutput({ connectionString: "redacted" }), /OUTPUT_NOT_SANITIZED/)
 

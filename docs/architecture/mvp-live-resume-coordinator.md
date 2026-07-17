@@ -1,5 +1,7 @@
 # MVP Live Resume Coordinator
 
+The one-shot successor workflow is defined in `mvp-one-shot-clean-execution-generation.md`. Clean generations carry an immutable generation context in the certified plan and must be addressed by exact generation ID; the quarantined interval-only execution is never selected.
+
 ## Scope
 
 The live resume coordinator is a bounded orchestration service for one certified UTC day. It consumes an immutable reconciliation plan and rejects any graph other than one authoritative BTCUSDT OHLCV reuse plus 23 missing mandatory slots. It does not call the legacy initial-cycle worker.

@@ -1,5 +1,9 @@
 # MVP Refresh Run Report
 
+## MVP-8A.2S Clean Generation
+
+Implementation adds guarded successor creation, exact generation status/preflight/execution commands, generation-scoped Retrieval and Candidate lineage, and an atomic Refresh creation receipt. Runtime outcomes are recorded only after disposable certification and the guarded local workflow complete.
+
 PostgreSQL certification time: 2026-07-16T00:39:34.756Z
 
 ## Outcome

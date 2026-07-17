@@ -36,6 +36,18 @@ export interface CertifiedLiveResumePlan {
   readonly intervalStart: string
   readonly intervalEnd: string
   readonly slots: readonly RefreshSlotResumePlanEntry[]
+  readonly executionGeneration?: CleanExecutionGenerationContext
+}
+
+export interface CleanExecutionGenerationContext {
+  readonly version: "mvp-clean-execution-generation/1.0.0"
+  readonly executionGenerationId: string
+  readonly ordinal: number
+  readonly predecessorRunId: string
+  readonly predecessorQuarantineReceiptId: string
+  readonly inputManifestChecksum: string
+  readonly sourceCommitSha: string
+  readonly operatorConfirmationIdentity: string
 }
 
 export interface LiveResumeTargetClassification {
@@ -173,9 +185,9 @@ export interface LiveResumeCoordinatorResult {
   readonly candidateExposed: false
 }
 
-export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify" | "bootstrap-governance" | "quarantine-generation" | "reconcile-quarantine"
+export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify" | "bootstrap-governance" | "quarantine-generation" | "reconcile-quarantine" | "create-clean-generation" | "clean-generation-status" | "clean-generation-preflight" | "execute-clean-generation"
 export type LiveResumeWorkerOptions = {
-  readonly command: Exclude<LiveResumeWorkerCommand, "quarantine-generation" | "reconcile-quarantine">
+  readonly command: Exclude<LiveResumeWorkerCommand, "quarantine-generation" | "reconcile-quarantine" | "create-clean-generation" | "clean-generation-status" | "clean-generation-preflight" | "execute-clean-generation">
   readonly start: string
   readonly end: string
   readonly executionMode: "dry-run" | "live"
@@ -197,11 +209,26 @@ export type LiveResumeWorkerOptions = {
   readonly operatorConfirmationIdentity: string
   readonly executionMode: "dry-run"
   readonly confirmLocalInactiveCandidate: false
+} | {
+  readonly command: "create-clean-generation"
+  readonly predecessorRunId: string
+  readonly start: string
+  readonly end: string
+  readonly manifestChecksum: string
+  readonly confirmCreate: boolean
+  readonly operatorConfirmationIdentity: string
+  readonly executionMode: "live"
+  readonly confirmLocalInactiveCandidate: false
+} | {
+  readonly command: "clean-generation-status" | "clean-generation-preflight" | "execute-clean-generation"
+  readonly executionGenerationId: string
+  readonly executionMode: "dry-run" | "live"
+  readonly confirmLocalInactiveCandidate: boolean
 }
 
 export function parseLiveResumeWorkerOptions(argv: readonly string[]): LiveResumeWorkerOptions {
   const command = argv[0] as LiveResumeWorkerCommand | undefined
-  if (!command || !["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify", "bootstrap-governance", "quarantine-generation", "reconcile-quarantine"].includes(command)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
+  if (!command || !["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify", "bootstrap-governance", "quarantine-generation", "reconcile-quarantine", "create-clean-generation", "clean-generation-status", "clean-generation-preflight", "execute-clean-generation"].includes(command)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
   const option = (name: string) => argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3)
   if (command === "quarantine-generation") {
     const runId = option("run-id"), reason = option("reason") ?? "LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT", confirmQuarantine = option("confirm-quarantine") === "true", incidentChecksum = option("incident-checksum") ?? null, operatorConfirmationIdentity = option("operator-confirmation-identity") ?? "preview-only"
@@ -214,6 +241,20 @@ export function parseLiveResumeWorkerOptions(argv: readonly string[]): LiveResum
     if (!runId || !/^mrlr_[0-9a-f]{64}$/.test(runId)) throw new Error("QUARANTINE_EXACT_RUN_ID_REQUIRED")
     if (confirmReconcile && (!incidentChecksum || !/^[0-9a-f]{64}$/.test(incidentChecksum) || operatorConfirmationIdentity === "preview-only")) throw new Error("QUARANTINE_RECONCILE_EXPLICIT_CONFIRMATION_REQUIRED")
     return Object.freeze({ command, runId, confirmReconcile, incidentChecksum, operatorConfirmationIdentity, executionMode: "dry-run", confirmLocalInactiveCandidate: false })
+  }
+  if (command === "create-clean-generation") {
+    const predecessorRunId = option("predecessor-run-id"), start = option("start"), end = option("end"), manifestChecksum = option("manifest-checksum"), confirmCreate = option("confirm-create") === "true", operatorConfirmationIdentity = option("operator-confirmation-identity")
+    if (!predecessorRunId || !/^mrlr_[0-9a-f]{64}$/.test(predecessorRunId) || !start || !end || !manifestChecksum || !/^[0-9a-f]{64}$/.test(manifestChecksum) || !confirmCreate || !operatorConfirmationIdentity) throw new Error("CLEAN_GENERATION_EXPLICIT_CONFIRMATION_REQUIRED")
+    exactIso(start); exactIso(end)
+    if (Date.parse(end) - Date.parse(start) !== LIVE_RESUME_MAX_INTERVAL_MS) throw new Error("LIVE_RESUME_INTERVAL_NOT_ONE_DAY")
+    return Object.freeze({ command, predecessorRunId, start, end, manifestChecksum, confirmCreate, operatorConfirmationIdentity, executionMode: "live", confirmLocalInactiveCandidate: false })
+  }
+  if (command === "clean-generation-status" || command === "clean-generation-preflight" || command === "execute-clean-generation") {
+    const executionGenerationId = option("execution-generation-id"), executionMode = option("execution-mode") ?? "dry-run", confirmLocalInactiveCandidate = option("confirm-local-inactive-candidate") === "true"
+    if (!executionGenerationId || !/^mceg_[0-9a-f]{64}$/.test(executionGenerationId)) throw new Error("CLEAN_GENERATION_ID_REQUIRED")
+    if (executionMode !== "dry-run" && executionMode !== "live") throw new Error("LIVE_RESUME_EXECUTION_MODE_INVALID")
+    if (command === "execute-clean-generation" && (executionMode !== "live" || !confirmLocalInactiveCandidate)) throw new Error("LIVE_RESUME_EXPLICIT_CONFIRMATION_REQUIRED")
+    return Object.freeze({ command, executionGenerationId, executionMode, confirmLocalInactiveCandidate })
   }
   const start = option("start"), end = option("end")
   if (!start || !end) throw new Error("LIVE_RESUME_EXACT_INTERVAL_REQUIRED")
@@ -266,13 +307,15 @@ export function createCertifiedLiveResumePlan(input: Omit<CertifiedLiveResumePla
   const intervalStart = exactIso(input.intervalStart), intervalEnd = exactIso(input.intervalEnd)
   if (Date.parse(intervalEnd) - Date.parse(intervalStart) !== LIVE_RESUME_MAX_INTERVAL_MS) throw new Error("LIVE_RESUME_INTERVAL_NOT_ONE_DAY")
   const slots = Object.freeze([...input.slots].sort((left, right) => left.logicalSlotId.localeCompare(right.logicalSlotId)))
-  const basis = { version: LIVE_RESUME_COORDINATOR_VERSION, intervalStart, intervalEnd, slots: slots.map(slotBasis) }
+  const basis = input.executionGeneration
+    ? { version: LIVE_RESUME_COORDINATOR_VERSION, intervalStart, intervalEnd, slots: slots.map(slotBasis), executionGeneration: input.executionGeneration }
+    : { version: LIVE_RESUME_COORDINATOR_VERSION, intervalStart, intervalEnd, slots: slots.map(slotBasis) }
   const planChecksum = canonicalChecksum(basis)
-  return Object.freeze({ planIdentity: `mrlp_${planChecksum}`, planChecksum, intervalStart, intervalEnd, slots })
+  return Object.freeze({ planIdentity: `mrlp_${planChecksum}`, planChecksum, intervalStart, intervalEnd, slots, ...(input.executionGeneration ? { executionGeneration: Object.freeze({ ...input.executionGeneration }) } : {}) })
 }
 
 export function verifyCertifiedLiveResumePlan(plan: CertifiedLiveResumePlan): void {
-  const rebuilt = createCertifiedLiveResumePlan({ intervalStart: plan.intervalStart, intervalEnd: plan.intervalEnd, slots: plan.slots })
+  const rebuilt = createCertifiedLiveResumePlan({ intervalStart: plan.intervalStart, intervalEnd: plan.intervalEnd, slots: plan.slots, executionGeneration: plan.executionGeneration })
   if (rebuilt.planIdentity !== plan.planIdentity || rebuilt.planChecksum !== plan.planChecksum) throw new Error("LIVE_RESUME_PLAN_CHECKSUM_MISMATCH")
   if (plan.slots.length !== 24) throw new Error("LIVE_RESUME_PLAN_SLOT_COUNT_INVALID")
   const reuse = plan.slots.filter((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "mvp-clean-execution-generation-certification/1.0.0",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "predecessorDispositionRequired": "QUARANTINED",
+  "predecessorSagaRequired": "COMPLETE",
+  "logicalSlots": 24,
+  "authoritativeReuse": 1,
+  "executableUnits": 23,
+  "freshLineage": [
+    "REFRESH_PLAN_RUN_UNIT",
+    "POPULATION_ATTEMPT",
+    "RETRIEVAL",
+    "CANDIDATE",
+    "FACT",
+    "DOWNSTREAM",
+    "WATERMARK",
+    "REPLAY",
+    "MANIFEST"
+  ],
+  "contentAddressedRawBytes": true,
+  "activationAvailable": false,
+  "productionMutation": false,
+  "commitBearingCertification": {
+    "passed": true,
+    "exactResumeTwice": true,
+    "duplicateRetrievals": 0,
+    "duplicateRawObjects": 0,
+    "duplicateCandidates": 0,
+    "duplicateFacts": 0,
+    "activeLeasesAfterFailure": 0,
+    "downstreamWritesAfterMismatch": 0,
+    "disposableResourcesDestroyed": true
+  },
+  "atomicCreationCertification": {
+    "passed": true,
+    "exactRetry": "DUPLICATE",
+    "retainedRows": 0
+  },
+  "certificationState": "PASSED"
+}

@@ -25,10 +25,14 @@ import {
   LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT,
   assertExpectedExecutionGenerationIncident,
   createCleanGenerationInputManifest,
+  createCleanExecutionGenerationContext,
+  createCleanCertifiedLiveResumePlan,
+  verifyCleanGenerationManifest,
   createExecutionGenerationQuarantineProposal,
   readExecutionGenerationDisposition,
   type LiveResumeCoordinatorPorts,
   type LiveResumeStageCheckpoint,
+  type CertifiedLiveResumePlan,
 } from "@/lib/data-platform/mvp-refresh"
 import { createBoundedFundingSourceUrl } from "@/lib/data-platform/mvp-refresh/boundedFunding"
 import { createCanonicalPersistenceAdapter } from "@/lib/data-platform/persistence/postgres"
@@ -54,6 +58,61 @@ async function loadPlan(start: string, end: string) {
     const slots = buildRefreshSlotResumePlan({ intervalStart: start, intervalEnd: end, attempts, authoritativeResolutions: authorities, sourceFinalizationState: "SOURCE_AVAILABLE" })
     return Object.freeze({ plan: createCertifiedLiveResumePlan({ intervalStart: start, intervalEnd: end, slots }), authorityCount: authorities.length, persistedExecution: false })
   } finally { await client.shutdown() }
+}
+
+async function cleanGenerationBundle(input: { readonly operatorConfirmationIdentity: string; readonly expectedManifestChecksum?: string }) {
+  const refresh = createMvpRefreshClientFromEnvironment()
+  const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-clean-generation-audit" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-clean-generation-audit" } })
+  try {
+    await refresh.verify()
+    const store = new PostgresExecutionGenerationQuarantineStore(refresh, integrated.d3, integrated.d2)
+    const snapshot = await store.inspect(CONTAMINATED_GENERATION)
+    assertExpectedExecutionGenerationIncident(snapshot, { runId: CONTAMINATED_GENERATION, planId: CONTAMINATED_PLAN, planChecksum: CONTAMINATED_PLAN_CHECKSUM, intervalStart: TARGET_START, intervalEnd: TARGET_END, counts: { refreshUnits: 23, populationRunAttempts: 6, populationUnits: 4, retrievalAttempts: 4, rawObjects: 4, candidates: 294, canonicalFacts: 0, downstreamOutputs: 0, replayOutputs: 0, watermarks: 0, manifests: 0 } })
+    const saga = await store.readSagaStatus(CONTAMINATED_GENERATION)
+    if (!saga || saga.quarantineSagaState !== "COMPLETE" || saga.resumeEligible || saga.activePopulationLeases !== 0 || !saga.quarantineReceiptId) throw new Error("CLEAN_GENERATION_PREDECESSOR_NOT_SAFELY_QUARANTINED")
+    const sourceCommitSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim()
+    const proposal = createExecutionGenerationQuarantineProposal({ snapshot, reasonCode: LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT, sourceCommitSha, operatorConfirmationIdentity: input.operatorConfirmationIdentity })
+    const lineage = await createPopulationPostgresAdapter(integrated.d3).auditBoundedAcquisitionLineage(TARGET_START, TARGET_END, "mvp-live-resume")
+    const predecessor = await new PostgresLiveResumeExecutionStore(refresh).readPersistedExecution(TARGET_START, TARGET_END)
+    if (!predecessor || predecessor.runId !== CONTAMINATED_GENERATION) throw new Error("CLEAN_GENERATION_PREDECESSOR_EXECUTION_MISSING")
+    const manifest = createCleanGenerationInputManifest({ proposal, logicalSlotIds: predecessor.plan.slots.map((slot) => slot.logicalSlotId), checkpointIds: lineage.units.flatMap((unit) => unit.checkpointId ? [unit.checkpointId] : []) })
+    verifyCleanGenerationManifest(manifest)
+    if (input.expectedManifestChecksum && manifest.checksum !== input.expectedManifestChecksum) throw new Error("CLEAN_GENERATION_MANIFEST_CHECKSUM_CONFLICT")
+    const context = createCleanExecutionGenerationContext({ manifest, predecessorQuarantineReceiptId: saga.quarantineReceiptId, sourceCommitSha, operatorConfirmationIdentity: input.operatorConfirmationIdentity })
+    const plan = createCleanCertifiedLiveResumePlan({ predecessorPlan: predecessor.plan, context })
+    return Object.freeze({ manifest, context, plan, predecessorSnapshot: snapshot, saga })
+  } finally { await Promise.allSettled([refresh.shutdown(), integrated.shutdown()]) }
+}
+
+async function loadCleanPlan(executionGenerationId: string): Promise<CertifiedLiveResumePlan> {
+  const client = createMvpRefreshClientFromEnvironment()
+  try {
+    await client.verify()
+    const events = await client.sql.unsafe<Array<{ payload: unknown }>>("SELECT payload FROM refresh_control.refresh_event WHERE entity_kind='clean_execution_generation' AND entity_id=$1 AND event_kind='CLEAN_EXECUTION_GENERATION_CREATED'", [executionGenerationId])
+    if (events.length !== 1) throw new Error("CLEAN_GENERATION_RECEIPT_NOT_FOUND")
+    let receipt = events[0]!.payload
+    if (typeof receipt === "string") receipt = JSON.parse(receipt)
+    const planId = String((receipt as { planId?: unknown }).planId ?? "")
+    const rows = await client.sql.unsafe<Array<{ plan: unknown }>>("SELECT plan FROM refresh_control.refresh_plan WHERE plan_id=$1", [planId])
+    if (rows.length !== 1) throw new Error("CLEAN_GENERATION_PLAN_NOT_FOUND")
+    let payload = rows[0]!.plan
+    for (let index = 0; index < 2 && typeof payload === "string"; index++) payload = JSON.parse(payload)
+    const plan = (payload as { certifiedPlan?: CertifiedLiveResumePlan }).certifiedPlan
+    if (!plan || plan.executionGeneration?.executionGenerationId !== executionGenerationId) throw new Error("CLEAN_GENERATION_PLAN_IDENTITY_MISMATCH")
+    return plan
+  } finally { await client.shutdown() }
+}
+
+async function cleanGenerationStatus(plan: CertifiedLiveResumePlan) {
+  const client = createMvpRefreshClientFromEnvironment()
+  const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-clean-generation-status" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-clean-generation-status" } })
+  try {
+    await client.verify()
+    const status = await new PostgresLiveResumeExecutionStore(client).status(plan)
+    const runId = liveResumeRunIdentity(plan).runId
+    const counts = await integrated.d3.sql.unsafe<Array<{ jobs: number; runs: number; units: number; retrievals: number; candidates: number; active_leases: number }>>("SELECT (SELECT count(*)::int FROM control.population_jobs WHERE intentional_rerun_identity=$1) jobs,(SELECT count(*)::int FROM control.population_runs r JOIN control.population_jobs j ON j.job_id=r.job_id WHERE j.intentional_rerun_identity=$1) runs,(SELECT count(*)::int FROM control.population_units u JOIN control.population_jobs j ON j.job_id=u.job_id WHERE j.intentional_rerun_identity=$1) units,(SELECT count(*)::int FROM control.retrieval_attempts a JOIN control.population_units u ON u.unit_id=a.unit_id JOIN control.population_jobs j ON j.job_id=u.job_id WHERE j.intentional_rerun_identity=$1) retrievals,(SELECT count(*)::int FROM population.candidates c JOIN control.population_units u ON u.unit_id=c.unit_id JOIN control.population_jobs j ON j.job_id=u.job_id WHERE j.intentional_rerun_identity=$1) candidates,(SELECT count(*)::int FROM control.population_leases l JOIN control.population_units u ON u.unit_id=l.unit_id JOIN control.population_jobs j ON j.job_id=u.job_id WHERE j.intentional_rerun_identity=$1 AND l.released_at IS NULL AND l.expires_at>now()) active_leases", [runId])
+    return Object.freeze({ executionGenerationId: plan.executionGeneration!.executionGenerationId, predecessorRunId: plan.executionGeneration!.predecessorRunId, planId: plan.planIdentity, runId, logicalSlots: 24, authoritativeReuse: 1, executableUnits: 23, refresh: status, population: counts[0], activationAvailable: false, productionMutation: false })
+  } finally { await Promise.allSettled([client.shutdown(), integrated.shutdown()]) }
 }
 
 async function withIntegrated<T>(work: (clients: Awaited<ReturnType<typeof createIntegratedBackfillClientsFromEnvironment>>) => Promise<T>): Promise<T> {
@@ -134,8 +193,8 @@ async function reconcileQuarantine(options: Extract<ReturnType<typeof parseLiveR
   } finally { await Promise.allSettled([refresh.shutdown(), integrated.shutdown()]) }
 }
 
-async function preflight(start: string, end: string) {
-  const loaded = await loadPlan(start, end)
+async function preflight(start: string, end: string, planOverride?: CertifiedLiveResumePlan) {
+  const loaded = planOverride ? Object.freeze({ plan: planOverride, authorityCount: 1, persistedExecution: true }) : await loadPlan(start, end)
   const disposition = await generationDisposition(liveResumeRunIdentity(loaded.plan).runId)
   if (disposition?.disposition === "QUARANTINED") {
     const saga = await quarantineSagaStatus(disposition.runId)
@@ -160,7 +219,7 @@ async function preflight(start: string, end: string) {
         return Object.freeze({ instrument: request.instrument, ready: Array.isArray(value), classification: Array.isArray(value) ? "READY" : "MALFORMED_SOURCE_DATA" })
       } catch { return Object.freeze({ instrument: request.instrument, ready: false, classification: "CONNECTION_FAILED" }) }
     })),
-    resumeLeaseInventory(start, end),
+    planOverride?.executionGeneration ? Promise.resolve(Object.freeze([])) : resumeLeaseInventory(start, end),
   ])
   const localEnvironment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "PREFLIGHT", intervalStart: start, intervalEnd: end, plannerIdentity: loaded.plan.planIdentity, plannerChecksum: loaded.plan.planChecksum })
   const authoritySlot = loaded.plan.slots.find((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")!
@@ -196,9 +255,40 @@ async function main() {
   const options = parseLiveResumeWorkerOptions(process.argv.slice(2))
   if (options.command === "quarantine-generation") return print({ command: options.command, result: await quarantineGeneration(options) })
   if (options.command === "reconcile-quarantine") return print({ command: options.command, result: await reconcileQuarantine(options) })
+  if (options.command === "create-clean-generation") {
+    if (options.predecessorRunId !== CONTAMINATED_GENERATION || options.start !== TARGET_START || options.end !== TARGET_END) throw new Error("CLEAN_GENERATION_TARGET_NOT_CERTIFIED")
+    const bundle = await cleanGenerationBundle({ operatorConfirmationIdentity: options.operatorConfirmationIdentity, expectedManifestChecksum: options.manifestChecksum })
+    const gate = await preflight(options.start, options.end, bundle.plan)
+    if (!gate.passed) throw new Error("CLEAN_GENERATION_PRECONDITION_FAILED")
+    const client = createMvpRefreshClientFromEnvironment()
+    try {
+      await client.verify()
+      const setup = await new PostgresLiveResumeExecutionStore(client).resolveOrCreate({ plan: bundle.plan, mode: "LIVE", intent: "RUN" })
+      return print({ command: options.command, status: setup.runStatus === "CREATED" ? "CREATED" : "DUPLICATE", executionGenerationId: bundle.context.executionGenerationId, manifestChecksum: bundle.manifest.checksum, planId: setup.persistedPlanId, runId: setup.persistedRunId, refreshUnits: setup.unitOutcomes.length, authoritativeReuse: 1, populationAttempts: 0, retrievals: 0, candidates: 0, downstream: 0, commonWatermark: null, candidateManifest: null, activationAvailable: false, productionMutation: false })
+    } finally { await client.shutdown() }
+  }
+  if (options.command === "clean-generation-status") {
+    const plan = await loadCleanPlan(options.executionGenerationId)
+    return print({ command: options.command, status: await cleanGenerationStatus(plan) })
+  }
+  if (options.command === "clean-generation-preflight") {
+    const plan = await loadCleanPlan(options.executionGenerationId)
+    const result = await preflight(plan.intervalStart, plan.intervalEnd, plan)
+    return print({ command: options.command, executionGenerationId: options.executionGenerationId, result })
+  }
+  if (options.command === "execute-clean-generation") {
+    const plan = await loadCleanPlan(options.executionGenerationId)
+    const environment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "LIVE", intervalStart: plan.intervalStart, intervalEnd: plan.intervalEnd, plannerIdentity: plan.planIdentity, plannerChecksum: plan.planChecksum })
+    try {
+      if (!environment.ports) throw new Error("LIVE_RESUME_LOCAL_PREFLIGHT_FAILED")
+      const result = await new MvpLiveResumeCoordinator(environment.ports).execute({ plan, allowedInstruments: INSTRUMENTS, allowedDatasets: DATASETS, mode: "LIVE", intent: "RESUME" })
+      return print({ command: options.command, executionGenerationId: options.executionGenerationId, result })
+    } finally { await environment.close() }
+  }
+  if (!("start" in options)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
   if (options.command === "inspect") {
     const environment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "INSPECT" })
-    return print({ command: options.command, coordinatorVersion: "mvp-live-resume-coordinator/1.0.0", environmentVersion: "mvp-live-resume-environment/1.0.0", capabilities: environment.capabilities, commands: ["inspect", "plan", "preflight", "bootstrap-governance", "quarantine-generation", "reconcile-quarantine", "dry-run", "run", "resume", "status", "verify"], liveConfirmationRequired: true })
+    return print({ command: options.command, coordinatorVersion: "mvp-live-resume-coordinator/1.0.0", environmentVersion: "mvp-live-resume-environment/1.0.0", capabilities: environment.capabilities, commands: ["inspect", "plan", "preflight", "bootstrap-governance", "quarantine-generation", "reconcile-quarantine", "create-clean-generation", "clean-generation-status", "clean-generation-preflight", "execute-clean-generation", "dry-run", "run", "resume", "status", "verify"], liveConfirmationRequired: true })
   }
   if (options.command === "bootstrap-governance") {
     const result = await bootstrapGovernance(options.start)

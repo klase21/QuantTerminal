@@ -5,6 +5,8 @@ import {
   PostgresLiveResumeCoordinatorControlPlane,
   PostgresLiveResumeExecutionStore,
   createCertifiedLiveResumePlan,
+  createCleanCertifiedLiveResumePlan,
+  createCleanExecutionGenerationContext,
   createMandatoryRefreshLogicalSlots,
   createMvpRefreshClientFromEnvironment,
   liveResumeRunIdentity,
@@ -98,6 +100,28 @@ async function main() {
 
   const retained = await client.sql.unsafe<Array<{ plans: number; runs: number; units: number }>>("SELECT (SELECT count(*)::int FROM refresh_control.refresh_plan WHERE plan_id=$1) plans,(SELECT count(*)::int FROM refresh_control.refresh_run WHERE run_id=$2) runs,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$2) units", [plan.planIdentity, identity.runId])
   assert.deepEqual(retained[0], { plans: 0, runs: 0, units: 0 })
+
+  const manifestBasis = { schemaVersion: "mvp-clean-generation-input/1.0.0" as const, sourceGenerationId: `mrlr_${"a".repeat(64)}`, certifiedPlanContext: { planId: plan.planIdentity, planChecksum: plan.planChecksum }, targetInterval: { start, end }, logicalSlotIds: plan.slots.map((slot) => slot.logicalSlotId).sort(), reusableRawPayloadBytes: Object.freeze([]), excludedExecutionIdentities: { populationRunAttempts: Object.freeze([]), retrievalAttempts: Object.freeze([]), candidates: Object.freeze([]), checkpoints: Object.freeze([]) }, freshLineagePolicy: "FRESH_RETRIEVAL_CANDIDATE_FACT_DOWNSTREAM_WATERMARK_REPLAY_MANIFEST" as const }
+  const manifest = Object.freeze({ ...manifestBasis, checksum: canonicalChecksum(manifestBasis) })
+  const context = createCleanExecutionGenerationContext({ manifest, predecessorQuarantineReceiptId: `mre_${"b".repeat(64)}`, sourceCommitSha: "abcdef1", operatorConfirmationIdentity: "certification-operator" })
+  const cleanPlan = createCleanCertifiedLiveResumePlan({ predecessorPlan: plan, context })
+  const cleanIdentity = liveResumeRunIdentity(cleanPlan)
+  try {
+    await client.sql.begin(async (sql) => {
+      const transactionClient = { sql, transaction: async <T>(work: (value: typeof sql) => Promise<T>) => work(sql) } as unknown as MvpRefreshPostgresClient
+      const execution = new PostgresLiveResumeExecutionStore(transactionClient)
+      const created = await execution.resolveOrCreate({ plan: cleanPlan, mode: "CERTIFICATION", intent: "RUN" })
+      assert.equal(created.runStatus, "CREATED")
+      assert.equal(created.unitOutcomes.length, 23)
+      const duplicate = await execution.resolveOrCreate({ plan: cleanPlan, mode: "CERTIFICATION", intent: "RUN" })
+      assert.equal(duplicate.runStatus, "DUPLICATE")
+      const receipt = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='clean_execution_generation' AND entity_id=$2 AND event_kind='CLEAN_EXECUTION_GENERATION_CREATED'", [cleanIdentity.runId, context.executionGenerationId])
+      assert.equal(receipt[0]?.count, 1)
+      throw new Error("CLEAN_CERTIFICATION_ROLLBACK")
+    })
+  } catch (error) { if (!(error instanceof Error) || error.message !== "CLEAN_CERTIFICATION_ROLLBACK") throw error }
+  const cleanRetained = await client.sql.unsafe<Array<{ plans: number; runs: number; units: number; receipts: number }>>("SELECT (SELECT count(*)::int FROM refresh_control.refresh_plan WHERE plan_id=$1) plans,(SELECT count(*)::int FROM refresh_control.refresh_run WHERE run_id=$2) runs,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$2) units,(SELECT count(*)::int FROM refresh_control.refresh_event WHERE entity_kind='clean_execution_generation' AND entity_id=$3) receipts", [cleanPlan.planIdentity, cleanIdentity.runId, context.executionGenerationId])
+  assert.deepEqual(cleanRetained[0], { plans: 0, runs: 0, units: 0, receipts: 0 })
 
   for (const failurePoint of ["AFTER_PLAN", "AFTER_RUN", "AFTER_FIRST_UNIT"] as const) {
     await assert.rejects(new PostgresLiveResumeExecutionStore(client).resolveOrCreate({ plan, mode: "CERTIFICATION", intent: "RESUME", certificationFailurePoint: failurePoint }), new RegExp(`CERTIFICATION_FAILURE_${failurePoint}`))
