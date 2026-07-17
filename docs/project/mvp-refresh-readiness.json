@@ -111,11 +111,19 @@
       "deterministicResume": "PASS",
       "candidateActivationAvailable": false,
       "liveAcquisitionExecuted": false,
-      "environmentExecutorBindings": "BLOCKED"
+      "environmentExecutorBindings": "CAPABILITY_CONTRACT_CERTIFIED_LIVE_COMPOSITION_BLOCKED",
+      "environmentPreflight": {
+        "archiveAvailability": "PASS_18_OF_18",
+        "fundingAvailability": "PASS_6_OF_6",
+        "d2Canonical": "AUTHENTICATION_FAILED_28P01",
+        "d3Candidate": "AUTHENTICATION_FAILED_28P01",
+        "d4Downstream": "AUTHENTICATION_FAILED_28P01",
+        "inactiveServing": "WRONG_ROLE"
+      }
     }
   },
   "remainingMvp8bBlockers": [
-    "LIVE_RESUME_ENVIRONMENT_EXECUTOR_BINDINGS_REQUIRED",
+    "LIVE_EXECUTOR_PORT_COMPOSITION_INCOMPLETE",
     "RESTORE_CERTIFIED_LOCAL_TRUTH_AND_SERVING_ROLE_BINDINGS",
     "EXECUTE_REMAINING_23_MANDATORY_SLOTS",
     "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",

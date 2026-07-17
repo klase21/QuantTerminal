@@ -31,3 +31,9 @@ Candidate assembly is restricted to the isolated serving publisher contract. The
 The orchestration service and dry-run worker are executable and certified. The environment-backed live command is not yet releasable: bounded OHLCV, Open Interest, and AggTrades parsing/building functions exist, but no shared callable executor currently binds each one through Retrieval, Raw Artifact, Candidate, and canonical persistence. The dedicated worker therefore fails closed with `LIVE_RESUME_ENVIRONMENT_EXECUTOR_BINDINGS_REQUIRED` after its explicit live confirmation and preflight gates. It never falls back to broad workers.
 
 No scheduler, live acquisition, target-day unit, candidate, exposure, or external deployment is created by this certification.
+
+## Environment Binding Follow-Up
+
+MVP-8A.2I adds a shared local-only capability and diagnostic contract. The worker now uses it for target identity checks and reports dataset/downstream callability without exposing connection details. Fixture composition proves the complete 1+23 coordinator graph through the binding contract.
+
+The environment-backed run remains blocked: the current D2/D3/D4 credentials fail authentication, the serving target does not authenticate as the publisher, and the final concrete live executor port composition is not yet installed. The worker does not substitute fixture ports or broad workers for a live run.

@@ -62,6 +62,8 @@ The bounded release foundation now includes a strict 24-slot coordinator contrac
 
 The coordinator, dry-run worker, confirmation gate, checkpoint recovery, and fault policy are fixture-certified. Live execution remains fail-closed until environment-backed OHLCV, Open Interest, and AggTrades provenance-to-canonical executor bindings are extracted from their broad workers. The legacy initial-cycle route is not an allowed substitute.
 
+The local environment binding contract now centralizes sanitized database/role diagnostics and capability metadata for all mandatory ports. Provider readiness is green for the target day (18 archives and six Funding checks), while local D2/D3/D4 authentication and the isolated serving publisher role remain blocked. This preflight creates no units and retains no payloads.
+
 `/api/health/mvp-freshness` is a local read-only foundation endpoint. It emits corpus and governance identities but no URL, hostname, credential, Raw Artifact path, or Parquet path.
 
 ## Release channels

@@ -52,9 +52,18 @@
     "servingPublisherRole": "BLOCKED_ROLE_MISMATCH_IN_CURRENT_EXECUTION_ENVIRONMENT",
     "secretValuesExposed": false
   },
+  "environmentBindings": {
+    "version": "mvp-live-resume-environment/1.0.0",
+    "mandatoryBindingCount": 26,
+    "capabilityContract": "CERTIFIED",
+    "fixtureGraph": "PASS_1_REUSE_23_EXECUTOR_CALLS",
+    "archiveAvailability": "PASS_18_OF_18",
+    "fundingAvailability": "PASS_6_OF_6",
+    "liveComposition": "BLOCKED"
+  },
   "status": "BLOCKED",
   "blockerReasonCodes": [
-    "LIVE_RESUME_ENVIRONMENT_EXECUTOR_BINDINGS_REQUIRED",
+    "LIVE_EXECUTOR_PORT_COMPOSITION_INCOMPLETE",
     "LOCAL_TRUTH_PLANE_AUTHENTICATION_REQUIRED",
     "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED"
   ],

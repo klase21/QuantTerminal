@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "mvp-live-resume-environment-bindings-certification/1.0.0",
+  "certifiedAt": "2026-07-16T23:43:30.953Z",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "bindingContract": {
+    "version": "mvp-live-resume-environment/1.0.0",
+    "mandatoryBindingCount": 26,
+    "legacyWorkerDependencies": 0,
+    "activationCapableBindings": 0,
+    "exactIntervalHours": 24,
+    "sanitizedDiagnostics": true
+  },
+  "fixtureGraph": {
+    "logicalSlots": 24,
+    "authoritativeReuse": 1,
+    "executorCalls": 23,
+    "btcusdtOhlcvAcquisitionCalls": 0,
+    "coordinatorStages": 17,
+    "failurePointsCertified": 17,
+    "candidateExposed": false,
+    "externalMutation": false
+  },
+  "livePreflight": {
+    "planner": "PASS_1_REUSE_23_CREATE_0_CONFLICT",
+    "authoritativeRecovery": "PASS",
+    "archiveAvailability": "PASS_18_OF_18",
+    "fundingAvailability": "PASS_6_OF_6",
+    "refreshControl": "READY",
+    "objectStorage": "READY",
+    "d2Canonical": "AUTHENTICATION_FAILED_28P01",
+    "d3Candidate": "AUTHENTICATION_FAILED_28P01",
+    "d4Downstream": "AUTHENTICATION_FAILED_28P01",
+    "inactiveServing": "WRONG_ROLE",
+    "passed": false
+  },
+  "liveExecution": {
+    "targetDayAcquisitionExecuted": false,
+    "unitsCreated": 0,
+    "candidateBuilt": false,
+    "activationAvailable": false
+  },
+  "status": "BLOCKED",
+  "blockerReasonCodes": [
+    "LOCAL_D2_AUTHENTICATION_REQUIRED",
+    "LOCAL_D3_AUTHENTICATION_REQUIRED",
+    "LOCAL_D4_AUTHENTICATION_REQUIRED",
+    "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED",
+    "LIVE_EXECUTOR_PORT_COMPOSITION_INCOMPLETE"
+  ],
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}

@@ -46,6 +46,12 @@ The dedicated worker implements exact-day parsing, safe plan/preflight/dry-run/s
 
 PostgreSQL checkpoint certification created and replayed a coordinator stage event inside a disposable transaction. The exact repeat returned `DUPLICATE`, the stored checksum reproduced, append-only mutation was rejected, and the transaction retained zero rows.
 
+## MVP-8A.2I Environment Binding Certification
+
+The shared environment contract represents 26 mandatory bindings and exposes no activation operation. Fixture certification completed the exact 1+23 graph with 23 executor calls, zero BTCUSDT OHLCV acquisition calls, and deterministic recovery across all 17 coordinator stages.
+
+The non-mutating live preflight confirmed one authoritative reuse, 23 create intents, all 18 archives ready, and all six Funding checks ready. Refresh control and local object storage passed. D2, D3, and D4 failed authentication with sanitized SQLSTATE `28P01`; the serving database identity passed but its role did not match the required publisher. No fallback database, unit, payload, watermark, candidate, Neon, Vercel, or Production write was attempted.
+
 ## Reproducible commands
 
 ```powershell
