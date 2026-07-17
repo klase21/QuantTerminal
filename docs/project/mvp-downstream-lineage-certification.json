@@ -1,0 +1,63 @@
+{
+  "certificationVersion": "mvp-downstream-lineage-certification/1.0.0",
+  "scope": "ROLLBACK_ONLY",
+  "authenticated": true,
+  "liveResumeExecuted": false,
+  "stages": [
+    "CANONICAL_COMMIT",
+    "COVERAGE",
+    "CONSISTENCY",
+    "EVIDENCE",
+    "PROJECTION",
+    "REPLAY",
+    "DATASET_WATERMARK",
+    "COMMON_WATERMARK",
+    "CANDIDATE_MANIFEST"
+  ],
+  "physicalOwners": {
+    "candidate": "D3_INTEGRATED",
+    "canonicalFact": "D2_INTEGRATED",
+    "coverageThroughReplay": "D4_ISOLATED",
+    "watermarks": "REFRESH_ISOLATED",
+    "manifest": "SERVING_ISOLATED"
+  },
+  "crossDatabaseForeignKeys": false,
+  "crossDatabaseLineage": "IDENTITY_AND_CHECKSUM",
+  "firstPass": [
+    "CREATED",
+    "CREATED",
+    "CREATED",
+    "CREATED",
+    "CREATED",
+    "CREATED",
+    "CREATED",
+    "CREATED",
+    "CREATED"
+  ],
+  "secondPass": [
+    "DUPLICATE",
+    "DUPLICATE",
+    "DUPLICATE",
+    "DUPLICATE",
+    "DUPLICATE",
+    "DUPLICATE",
+    "DUPLICATE",
+    "DUPLICATE",
+    "DUPLICATE"
+  ],
+  "failureInjection": {
+    "afterStage": "CONSISTENCY",
+    "executedStageCount": 3,
+    "downstreamStageCount": 0
+  },
+  "parentBeforeChild": true,
+  "persistedIdentityPropagation": true,
+  "exactRepeatIdempotent": true,
+  "retainedRows": 0,
+  "retainedArtifacts": 0,
+  "candidateLifecycle": "WITHHELD",
+  "candidateExposure": "INTERNAL_ONLY",
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}
