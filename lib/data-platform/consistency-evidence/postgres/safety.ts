@@ -2,8 +2,12 @@ import { D4_ISOLATED_DATABASE_NAME } from "@/lib/data-platform/evidence-platform
 
 export interface D4Environment {
   readonly D4_ISOLATED_POSTGRES_URL?: string
+  readonly D2_CANONICAL_POSTGRES_URL?: string
+  readonly D3_POPULATION_POSTGRES_URL?: string
   readonly D2_ISOLATED_POSTGRES_URL?: string
   readonly D3_ISOLATED_POSTGRES_URL?: string
+  readonly MVP_REFRESH_ISOLATED_POSTGRES_URL?: string
+  readonly MVP_SERVING_ISOLATED_POSTGRES_URL?: string
   readonly DATABASE_URL?: string
 }
 export interface D4TargetInspection {
@@ -29,8 +33,12 @@ export function inspectD4RuntimeTarget(connectionString: string, environment: D4
     if (database !== D4_ISOLATED_DATABASE_NAME) reasons.push("D4_DATABASE_NAME_MISMATCH")
     if (PRODUCTION_MARKERS.some((marker) => identity.includes(marker))) reasons.push("PRODUCTION_MARKER_DETECTED")
     if (environment.DATABASE_URL && connectionString === environment.DATABASE_URL) reasons.push("MATCHES_APPLICATION_DATABASE")
+    if (environment.D2_CANONICAL_POSTGRES_URL && connectionString === environment.D2_CANONICAL_POSTGRES_URL) reasons.push("MATCHES_D2_CANONICAL_DATABASE")
+    if (environment.D3_POPULATION_POSTGRES_URL && connectionString === environment.D3_POPULATION_POSTGRES_URL) reasons.push("MATCHES_D3_POPULATION_DATABASE")
     if (environment.D2_ISOLATED_POSTGRES_URL && connectionString === environment.D2_ISOLATED_POSTGRES_URL) reasons.push("MATCHES_D2_ISOLATED_DATABASE")
     if (environment.D3_ISOLATED_POSTGRES_URL && connectionString === environment.D3_ISOLATED_POSTGRES_URL) reasons.push("MATCHES_D3_ISOLATED_DATABASE")
+    if (environment.MVP_REFRESH_ISOLATED_POSTGRES_URL && connectionString === environment.MVP_REFRESH_ISOLATED_POSTGRES_URL) reasons.push("MATCHES_MVP_REFRESH_DATABASE")
+    if (environment.MVP_SERVING_ISOLATED_POSTGRES_URL && connectionString === environment.MVP_SERVING_ISOLATED_POSTGRES_URL) reasons.push("MATCHES_MVP_SERVING_DATABASE")
     return Object.freeze({ safe: reasons.length === 0, host, port, database, sslMode: url.searchParams.get("sslmode"), redactedTarget: host + ":" + port + "/" + (database || "<missing>"), reasons: Object.freeze(reasons) })
   } catch {
     return Object.freeze({ safe: false, host: "<invalid>", port: "<invalid>", database: "<invalid>", sslMode: null, redactedTarget: "<invalid-postgres-target>", reasons: Object.freeze(["INVALID_CONNECTION_STRING"]) })

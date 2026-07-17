@@ -2,7 +2,7 @@
 
 ## Scope
 
-The local live-resume environment contract is the sole boundary between the 24-slot coordinator and environment-backed infrastructure. It validates five isolated PostgreSQL targets, bounded local object storage, four dataset executors, refresh-control services, affected-window downstream services, and inactive candidate assembly. It accepts no managed target, no legacy progress-file worker, and no activation operation.
+The local live-resume environment contract is the sole boundary between the 24-slot coordinator and environment-backed infrastructure. It validates integrated durable D2/D3 with distinct roles, isolated D4, isolated refresh control, isolated inactive serving publication, bounded durable object storage, four dataset executors, and affected-window downstream services. It accepts no managed target, no legacy progress-file worker, and no activation operation.
 
 ## Diagnostics
 
@@ -20,10 +20,10 @@ OHLCV excludes BTCUSDT acquisition because that slot is satisfied only through t
 
 Fixture composition certifies the exact 1+23 graph, 23 executor calls, zero BTCUSDT OHLCV acquisition calls, identity/checksum propagation, all 17 coordinator failure points, deterministic resume, and inactive candidate behavior. The environment-backed preflight found all 18 archives and all six Funding requests ready, and reproduced the certified planner result.
 
-The current local execution environment is not live-ready. D2, D3, and D4 authentication failed with sanitized SQLSTATE `28P01`; the isolated serving target connected under a role other than the required publisher. No substitute target was attempted. The worker remains fail-closed and no target-day acquisition, unit creation, watermark change, candidate build, or external mutation occurred.
+The corrected authenticated preflight is live-ready. Durable D2 and D3 both use `quantterminal_backfill` with exact distinct owner roles, D4 remains isolated with role-intent enforcement, refresh and serving identities pass, and durable object storage passes its cleanup probe. No substitute target was attempted and no target-day acquisition, unit creation, watermark change, candidate build, or external mutation occurred.
 
 ## Concrete Port Composition
 
 The environment factory now has four explicit modes: `INSPECT`, `PREFLIGHT`, `CERTIFICATION`, and `LIVE`. Inspection opens no connection. Preflight returns diagnostics without ports. Certification accepts only a complete callable local binding set. Live additionally requires the real environment preflight to pass before returning ports. Every result owns an explicit close lifecycle.
 
-The concrete composition contract covers the four bounded dataset executors, dataset/common watermark persistence, five downstream stages, inactive candidate assembly, manifest persistence, and exact comparison. `createLiveResumeEnvironmentFromProcessEnv` now constructs these adapters directly from the verified local environment and returns one close lifecycle. The worker does not inject adapters. Current blocking diagnostics are operational authentication and serving-role mismatches rather than missing code composition.
+The concrete composition contract covers the four bounded dataset executors, dataset/common watermark persistence, five downstream stages, inactive candidate assembly, manifest persistence, and exact comparison. `createLiveResumeEnvironmentFromProcessEnv` constructs these adapters directly from the verified hybrid environment and returns one close lifecycle. The worker does not inject adapters, and isolated D2/D3 certification variables are not live durable fallbacks.

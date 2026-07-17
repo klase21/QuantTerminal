@@ -5,10 +5,10 @@ import path from "node:path"
 
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import type { RawObjectManifest } from "@/lib/data-platform/persistence"
-import { buildCanonicalStreamSegmentCommand, createCanonicalPersistenceAdapter, createDurableCanonicalPostgresClient, type CanonicalPersistenceAdapter } from "@/lib/data-platform/persistence/postgres"
+import { buildCanonicalStreamSegmentCommand, createCanonicalPersistenceAdapter, type CanonicalPersistenceAdapter, type IsolatedPostgresClient } from "@/lib/data-platform/persistence/postgres"
 import { createCandidateId, createJobRequestIdentity, createPopulationJobId, createRetrievalAttemptId, expandPopulationUnits, type PopulationCandidate, type PopulationJob, type PopulationJobProfile, type PopulationJobRequest } from "@/lib/data-platform/population"
-import { createDurableD3PostgresClient, createPopulationPostgresAdapter, type D3PostgresClient, type PopulationPostgresAdapter } from "@/lib/data-platform/population/postgres"
-import { AGG_TRADES_SEGMENT_NORMALIZER_VERSION, AGG_TRADES_SEGMENT_ORDER_POLICY, AGG_TRADES_SEGMENT_SCHEMA_VERSION, createD3ToD2CanonicalCommitPort, createFilesystemObjectStorage, ProductionNormalizerRegistry, PRODUCTION_NORMALIZER_VERSION, type OpenInterestSourceRow } from "@/lib/data-platform/population/backfill"
+import { createPopulationPostgresAdapter, type D3PostgresClient, type PopulationPostgresAdapter } from "@/lib/data-platform/population/postgres"
+import { AGG_TRADES_SEGMENT_NORMALIZER_VERSION, AGG_TRADES_SEGMENT_ORDER_POLICY, AGG_TRADES_SEGMENT_SCHEMA_VERSION, createD3ToD2CanonicalCommitPort, createFilesystemObjectStorage, createIntegratedBackfillClientsFromEnvironment, ProductionNormalizerRegistry, PRODUCTION_NORMALIZER_VERSION, type OpenInterestSourceRow } from "@/lib/data-platform/population/backfill"
 import type { CanonicalCommitPort, ObjectStoragePort } from "@/lib/data-platform/population/contracts"
 import { ConsistencyPostgresRuntime } from "@/lib/data-platform/consistency-evidence/postgres"
 import { loadMvpProjectionEvidenceInputs, MvpProjectionStore } from "@/lib/data-platform/consistency-evidence/postgres"
@@ -261,7 +261,7 @@ function createWatermarkAudit(store: MvpRefreshStore): LiveWatermarkAuditPort {
 
 function toConsumerProjection(value: MvpProjectionVersion): ConsumerProjection { return Object.freeze({ projectionId: value.projectionId, projectionVersionId: value.projectionVersionId, projectionKind: value.projectionKind, subjectId: value.subjectId, eventTimeStart: value.eventTimeStart, eventTimeEnd: value.eventTimeEnd, knowledgeTimeCutoff: value.knowledgeTimeCutoff, payload: value.structuredPayload, completeness: value.completeness, limitations: value.limitations, lifecycleState: value.lifecycleState, effectiveExposure: "CONSUMER_VISIBLE", projectionChecksum: value.projectionChecksum }) }
 
-function createDownstreamExecutor(input: { readonly d2: ReturnType<typeof createDurableCanonicalPostgresClient>; readonly d3: D3PostgresClient; readonly objectRoot: string; readonly refresh: MvpRefreshStore; readonly consistency: ConsistencyPostgresRuntime; readonly evidence: ConsistencyPostgresRuntime; readonly projection: ConsistencyPostgresRuntime }): LiveDownstreamExecutor {
+function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresClient; readonly d3: D3PostgresClient; readonly objectRoot: string; readonly refresh: MvpRefreshStore; readonly consistency: ConsistencyPostgresRuntime; readonly evidence: ConsistencyPostgresRuntime; readonly projection: ConsistencyPostgresRuntime }): LiveDownstreamExecutor {
   let windows: readonly MvpEvidenceWindowData[] = Object.freeze([]), projections: readonly MvpProjectionVersion[] = Object.freeze([])
   const corpus = (slots: readonly LiveResumeSlotResult[]) => Object.freeze({ corpusId: `mvp-refresh-window:${canonicalChecksum(slots.map((slot) => slot.logicalSlotId))}`, corpusChecksum: canonicalChecksum(slots.map((slot) => [slot.logicalSlotId, slot.candidateChecksum])) })
   const committed = (window: MvpEvidenceWindowData) => Object.freeze(window.resultInputs.map((value) => Object.freeze({ identity: value.canonicalRecordId, checksum: value.checksum })))
@@ -344,11 +344,10 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
     const plannerIdentity = input.plannerIdentity ?? "preflight-plan"
     const plannerChecksum = input.plannerChecksum ?? canonicalChecksum({ plannerIdentity, start, end })
 
-    const d2 = createDurableCanonicalPostgresClient({ connectionString: required(input.environment, "D2_ISOLATED_POSTGRES_URL"), roleIntent: "MIGRATION_OWNER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-d2" }, "INTEGRATED_BACKFILL")
-    scope.add({ close: () => d2.shutdown() })
-    const d3 = createDurableD3PostgresClient({ connectionString: required(input.environment, "D3_ISOLATED_POSTGRES_URL"), roleIntent: "MIGRATION_OWNER", maxConnections: 1, applicationName: "mvp-live-resume-d3" }, "INTEGRATED_BACKFILL")
-    scope.add({ close: () => d3.shutdown() })
-    const d4Environment = { D4_ISOLATED_POSTGRES_URL: input.environment.D4_ISOLATED_POSTGRES_URL, D2_ISOLATED_POSTGRES_URL: input.environment.D2_ISOLATED_POSTGRES_URL, D3_ISOLATED_POSTGRES_URL: input.environment.D3_ISOLATED_POSTGRES_URL }
+    const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-d2" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-live-resume-d3" } }, input.environment)
+    scope.add({ close: () => integrated.shutdown() })
+    const { d2, d3 } = integrated
+    const d4Environment = { D4_ISOLATED_POSTGRES_URL: input.environment.D4_ISOLATED_POSTGRES_URL, D2_CANONICAL_POSTGRES_URL: input.environment.D2_CANONICAL_POSTGRES_URL, D3_POPULATION_POSTGRES_URL: input.environment.D3_POPULATION_POSTGRES_URL, D2_ISOLATED_POSTGRES_URL: input.environment.D2_ISOLATED_POSTGRES_URL, D3_ISOLATED_POSTGRES_URL: input.environment.D3_ISOLATED_POSTGRES_URL, MVP_REFRESH_ISOLATED_POSTGRES_URL: input.environment.MVP_REFRESH_ISOLATED_POSTGRES_URL, MVP_SERVING_ISOLATED_POSTGRES_URL: input.environment.MVP_SERVING_ISOLATED_POSTGRES_URL, DATABASE_URL: input.environment.DATABASE_URL }
     const d4 = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "MIGRATION_OWNER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-d4", environment: d4Environment })
     await d4.connect(); scope.add({ close: () => d4.shutdown() })
     const consistency = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "CONSISTENCY_WORKER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-consistency", environment: d4Environment })

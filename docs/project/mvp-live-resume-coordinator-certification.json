@@ -48,8 +48,8 @@
     "authoritativeReconciliation": "PASS",
     "planner": "PASS",
     "objectStorage": "PASS",
-    "truthPlaneRoles": "BLOCKED_AUTHENTICATION_IN_CURRENT_EXECUTION_ENVIRONMENT",
-    "servingPublisherRole": "BLOCKED_ROLE_MISMATCH_IN_CURRENT_EXECUTION_ENVIRONMENT",
+    "truthPlaneRoles": "PASS_INTEGRATED_D2_D3_AND_ISOLATED_D4",
+    "servingPublisherRole": "PASS",
     "secretValuesExposed": false
   },
   "environmentBindings": {
@@ -60,14 +60,10 @@
     "archiveAvailability": "PASS_18_OF_18",
     "fundingAvailability": "PASS_6_OF_6",
     "concretePortContract": "CERTIFIED",
-    "liveComposition": "ENVIRONMENT_BOOTSTRAP_BLOCKED"
+    "liveComposition": "AUTHENTICATED_PREFLIGHT_PASSED"
   },
-  "status": "BLOCKED",
-  "blockerReasonCodes": [
-    "LIVE_RESUME_ENVIRONMENT_PORT_BOOTSTRAP_REQUIRED",
-    "LOCAL_TRUTH_PLANE_AUTHENTICATION_REQUIRED",
-    "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED"
-  ],
+  "status": "READY_FOR_EXPLICIT_LIVE_RESUME",
+  "blockerReasonCodes": [],
   "productionMutation": false,
   "neonMutation": false,
   "vercelMutation": false

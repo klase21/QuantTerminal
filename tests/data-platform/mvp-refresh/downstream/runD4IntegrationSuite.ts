@@ -7,7 +7,7 @@ import { createIntegratedBackfillClientsFromEnvironment } from "@/lib/data-platf
 
 let failures = 0
 const check = (name: string, condition: boolean) => { console.log(`${condition ? "PASS" : "FAIL"} ${name}`); if (!condition) failures += 1 }
-const environment = (): D4Environment => ({ D4_ISOLATED_POSTGRES_URL: process.env.D4_ISOLATED_POSTGRES_URL, D2_ISOLATED_POSTGRES_URL: process.env.D2_ISOLATED_POSTGRES_URL, D3_ISOLATED_POSTGRES_URL: process.env.D3_ISOLATED_POSTGRES_URL, DATABASE_URL: process.env.DATABASE_URL })
+const environment = (): D4Environment => ({ D4_ISOLATED_POSTGRES_URL: process.env.D4_ISOLATED_POSTGRES_URL, D2_CANONICAL_POSTGRES_URL: process.env.D2_CANONICAL_POSTGRES_URL, D3_POPULATION_POSTGRES_URL: process.env.D3_POPULATION_POSTGRES_URL, D2_ISOLATED_POSTGRES_URL: process.env.D2_ISOLATED_POSTGRES_URL, D3_ISOLATED_POSTGRES_URL: process.env.D3_ISOLATED_POSTGRES_URL, MVP_REFRESH_ISOLATED_POSTGRES_URL: process.env.MVP_REFRESH_ISOLATED_POSTGRES_URL, MVP_SERVING_ISOLATED_POSTGRES_URL: process.env.MVP_SERVING_ISOLATED_POSTGRES_URL, DATABASE_URL: process.env.DATABASE_URL })
 const runtime = (roleIntent: "CONSISTENCY_WORKER" | "EVIDENCE_ASSEMBLER" | "PROJECTION_BUILDER" | "READ_ONLY", applicationName: string) => new ConsistencyPostgresRuntime({ connectionString: environment().D4_ISOLATED_POSTGRES_URL!, roleIntent, maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, statementTimeoutMs: 30_000, applicationName, environment: environment() })
 
 async function counts(reader: ConsistencyPostgresRuntime) {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 
 import {
   LIVE_RESUME_REQUIRED_BINDING_NAMES,
@@ -36,6 +37,23 @@ async function main() {
   const inspectFactory = await createLocalLiveResumeEnvironment({ mode: "INSPECT", environment: {} as NodeJS.ProcessEnv })
   assert.equal(inspectFactory.ports, null)
   assert.equal(inspectFactory.passed, true)
+
+  const certificationOnly = inspectLocalLiveResumeEnvironment({ D2_ISOLATED_POSTGRES_URL: "configured", D3_ISOLATED_POSTGRES_URL: "configured" } as unknown as NodeJS.ProcessEnv)
+  assert.equal(certificationOnly.find((value) => value.bindingName === "d2-canonical-persistence")?.diagnostic, "VARIABLE_MISSING")
+  assert.equal(certificationOnly.find((value) => value.bindingName === "d3-candidate-persistence")?.diagnostic, "VARIABLE_MISSING")
+  const hybrid = inspectLocalLiveResumeEnvironment({ D2_CANONICAL_POSTGRES_URL: "configured", D3_POPULATION_POSTGRES_URL: "configured" } as unknown as NodeJS.ProcessEnv)
+  assert.equal(hybrid.find((value) => value.bindingName === "d2-canonical-persistence")?.limitationReason, "PREFLIGHT_REQUIRED")
+  assert.equal(hybrid.find((value) => value.bindingName === "d3-candidate-persistence")?.limitationReason, "PREFLIGHT_REQUIRED")
+  const bootstrapSource = readFileSync("lib/data-platform/mvp-refresh/liveResumeLocalBootstrap.ts", "utf8")
+  const environmentSource = readFileSync("lib/data-platform/mvp-refresh/liveResumeEnvironment.ts", "utf8")
+  const workerSource = readFileSync("workers/data-platform/runMvpLiveResume.ts", "utf8")
+  assert.equal(bootstrapSource.includes("createIntegratedBackfillClientsFromEnvironment"), true)
+  assert.equal(bootstrapSource.includes('required(input.environment, "D2_ISOLATED_POSTGRES_URL")'), false)
+  assert.equal(bootstrapSource.includes('required(input.environment, "D3_ISOLATED_POSTGRES_URL")'), false)
+  assert.equal(environmentSource.includes('["D2_CANONICAL_POSTGRES_URL", "quantterminal_backfill", "qt_d2_backfill_owner"'), true)
+  assert.equal(environmentSource.includes('["D3_POPULATION_POSTGRES_URL", "quantterminal_backfill", "qt_d3_backfill_owner"'), true)
+  assert.equal(workerSource.includes("D2_ISOLATED_POSTGRES_URL"), false)
+  assert.equal(workerSource.includes("D3_ISOLATED_POSTGRES_URL"), false)
 
   const ports = Object.freeze({}) as LiveResumeCoordinatorPorts
   const complete = LIVE_RESUME_REQUIRED_BINDING_NAMES.map((name) => capability(name))

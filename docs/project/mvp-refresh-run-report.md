@@ -64,6 +64,12 @@ The process-environment factory now owns concrete D2, D3, D4, refresh-control, o
 
 The actual no-write preflight still fails closed before port construction because D2, D3, and D4 return sanitized SQLSTATE `28P01`, while the isolated serving target reports `WRONG_ROLE`. Refresh control, object storage, the authoritative recovery record, the 1+23 planner, all 18 archive checks, and all six Funding checks pass. No target-day unit, payload, Fact, watermark, downstream record, candidate, exposure, or external system was changed.
 
+## MVP-8A.2L Integrated Durable Bootstrap Correction
+
+The 8A.2K authentication findings were caused by an incorrect live topology contract: isolated D2/D3 certification URLs were passed to guards that correctly require the integrated durable profile. The live bootstrap now uses the existing integrated client factory with `D2_CANONICAL_POSTGRES_URL`, `D3_POPULATION_POSTGRES_URL`, and `D3_BACKFILL_OBJECT_ROOT`. D2 and D3 share `quantterminal_backfill` under distinct approved roles; D4, refresh, and serving remain isolated.
+
+The corrected authenticated no-write preflight passed all 26 mandatory bindings, all five database/runtime identities, durable object storage cleanup, one authoritative recovery record, the exact 1+23 planner, all 18 archive checks, and all six Funding checks. No target-day unit, payload, Fact, watermark, downstream record, candidate, exposure, Neon, Vercel, or Production write occurred.
+
 ## Reproducible commands
 
 ```powershell

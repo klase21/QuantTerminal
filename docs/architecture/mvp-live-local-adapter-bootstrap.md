@@ -2,7 +2,7 @@
 
 ## Boundary
 
-`createLiveResumeEnvironmentFromProcessEnv` is the sole worker bootstrap for the bounded live-resume coordinator. The worker supplies the exact interval and certified planner identity; it never supplies individual adapters. The factory owns construction and disposal of D2, D3, D4, refresh-control, serving-publisher, and bounded object-storage clients.
+`createLiveResumeEnvironmentFromProcessEnv` is the sole worker bootstrap for the bounded live-resume coordinator. The worker supplies the exact interval and certified planner identity; it never supplies individual adapters. The factory owns construction and disposal of integrated durable D2/D3, isolated D4, refresh-control, serving-publisher, and bounded object-storage clients.
 
 The factory supports `INSPECT`, `PREFLIGHT`, `CERTIFICATION`, and `LIVE`. Inspection opens no connections. Preflight admits only verified local database and role identities and performs disposable transaction and object-store probes. Certification permits fixture or rollback work. Live construction remains behind the coordinator's explicit confirmation gate.
 
@@ -16,4 +16,6 @@ The downstream composition uses bounded D2 window reads, D4 Consistency and Evid
 
 Database and role mismatches fail before writable ports are returned. Partial construction closes resources in reverse order. Preflight database writes are rolled back, the object probe is removed, and no target-day unit or payload is acquired. Diagnostics are restricted to stable classifications and sanitized SQLSTATE.
 
-The current environment still requires operational credential repair for three truth-plane targets and the isolated serving publisher role. No repository code reconstructs credentials, creates roles, changes grants, or selects a substitute target.
+The durable D2/D3 topology is the certified integrated profile: `D2_CANONICAL_POSTGRES_URL` and `D3_POPULATION_POSTGRES_URL` resolve to `quantterminal_backfill` under distinct `qt_d2_backfill_owner` and `qt_d3_backfill_owner` roles. `D3_BACKFILL_OBJECT_ROOT` is the durable local object root. The isolated D2/D3 variables remain certification-only and cannot satisfy live durable preflight.
+
+D4 remains on `D4_ISOLATED_POSTGRES_URL`; refresh and inactive candidate serving remain on their isolated targets. The authenticated no-write preflight passed this hybrid topology. No repository code reconstructs credentials, creates roles, changes grants, selects a substitute target, or exposes activation.

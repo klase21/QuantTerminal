@@ -6,7 +6,7 @@ import { permitsCertifiedSnapshotFallback, resolveMvpServingMode } from "@/lib/d
 import { withCertifiedSnapshotFacade, withServingPostgresFacade, type MvpServingRequestContext } from "@/lib/data-platform/mvp-serving/server"
 import { MvpConsumerProjectionFacade, type MvpConsumerProjectionSource } from "./facade"
 
-function environment(): D4Environment { return { D4_ISOLATED_POSTGRES_URL: process.env.D4_ISOLATED_POSTGRES_URL, D2_ISOLATED_POSTGRES_URL: process.env.D2_ISOLATED_POSTGRES_URL, D3_ISOLATED_POSTGRES_URL: process.env.D3_ISOLATED_POSTGRES_URL, DATABASE_URL: process.env.DATABASE_URL } }
+function environment(): D4Environment { return { D4_ISOLATED_POSTGRES_URL: process.env.D4_ISOLATED_POSTGRES_URL, D2_CANONICAL_POSTGRES_URL: process.env.D2_CANONICAL_POSTGRES_URL, D3_POPULATION_POSTGRES_URL: process.env.D3_POPULATION_POSTGRES_URL, D2_ISOLATED_POSTGRES_URL: process.env.D2_ISOLATED_POSTGRES_URL, D3_ISOLATED_POSTGRES_URL: process.env.D3_ISOLATED_POSTGRES_URL, MVP_REFRESH_ISOLATED_POSTGRES_URL: process.env.MVP_REFRESH_ISOLATED_POSTGRES_URL, MVP_SERVING_ISOLATED_POSTGRES_URL: process.env.MVP_SERVING_ISOLATED_POSTGRES_URL, DATABASE_URL: process.env.DATABASE_URL } }
 
 export async function withMvpConsumerProjectionFacade<T>(work: (facade: MvpConsumerProjectionFacade, context: MvpServingRequestContext) => Promise<T>): Promise<T> {
   const mode = resolveMvpServingMode()

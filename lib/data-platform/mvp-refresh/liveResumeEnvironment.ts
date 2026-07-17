@@ -1,6 +1,7 @@
 import postgres from "postgres"
 
 import { inspectFilesystemObjectRoot } from "@/lib/data-platform/population/backfill/filesystemObjectStorage"
+import { inspectIntegratedBackfillTarget } from "@/lib/data-platform/population/backfill/integratedTargetSafety"
 import { inspectMvpServingIsolatedTarget } from "@/lib/data-platform/mvp-serving/safety"
 import type { LiveResumeCoordinatorPorts } from "./liveResumeCoordinator"
 
@@ -83,9 +84,9 @@ const datasetBindings = Object.freeze([
 ] as const)
 
 const databaseRequirements = Object.freeze([
-  ["D2_ISOLATED_POSTGRES_URL", "quantterminal_d2_isolated", "qt_d2_owner", "d2-canonical-persistence", "READ_WRITE"],
-  ["D3_ISOLATED_POSTGRES_URL", "quantterminal_d3_isolated", "qt_d2_owner", "d3-candidate-persistence", "READ_WRITE"],
-  ["D4_ISOLATED_POSTGRES_URL", "quantterminal_d4_isolated", "qt_d2_owner", "d4-downstream-persistence", "READ_WRITE"],
+  ["D2_CANONICAL_POSTGRES_URL", "quantterminal_backfill", "qt_d2_backfill_owner", "d2-canonical-persistence", "READ_WRITE"],
+  ["D3_POPULATION_POSTGRES_URL", "quantterminal_backfill", "qt_d3_backfill_owner", "d3-candidate-persistence", "READ_WRITE"],
+  ["D4_ISOLATED_POSTGRES_URL", "quantterminal_d4_isolated", null, "d4-downstream-persistence", "READ_WRITE"],
   ["MVP_REFRESH_ISOLATED_POSTGRES_URL", "quantterminal_mvp_refresh_isolated", "qt_d2_owner", "refresh-control-plane", "APPEND_ONLY"],
   ["MVP_SERVING_ISOLATED_POSTGRES_URL", "quantterminal_mvp_serving_isolated", "mvp_serving_publisher", "inactive-candidate-serving", "APPEND_ONLY"],
 ] as const)
@@ -151,7 +152,7 @@ async function databaseCapability(environment: NodeJS.ProcessEnv, requirement: t
         "SELECT current_database()=$1 database_ok,current_user=$2 role_ok,current_setting('server_version_num')::int BETWEEN 160000 AND 169999 version_ok",
         [expectedDatabase, expectedRole],
       )
-      connected = Boolean(rows[0]?.version_ok); database = Boolean(rows[0]?.database_ok); role = Boolean(rows[0]?.role_ok)
+      connected = Boolean(rows[0]?.version_ok); database = Boolean(rows[0]?.database_ok); role = expectedRole === null ? connected : Boolean(rows[0]?.role_ok)
     } catch (error) { code = errorCode(error) } finally { await sql.end({ timeout: 2 }) }
   }
   const state = diagnostic({ configured, localOnly, connected, database, role, code })
@@ -169,7 +170,16 @@ function combineCapabilities(bindingName: string, sources: readonly LiveResumeBi
 }
 
 export async function preflightLocalLiveResumeEnvironment(environment: NodeJS.ProcessEnv = process.env): Promise<LiveResumeEnvironmentPreflight> {
-  const databases = await Promise.all(databaseRequirements.map((value) => databaseCapability(environment, value)))
+  const [databaseResults, integratedInspection] = await Promise.all([
+    Promise.all(databaseRequirements.map((value) => databaseCapability(environment, value))),
+    inspectIntegratedBackfillTarget({ d2Url: environment.D2_CANONICAL_POSTGRES_URL, d3Url: environment.D3_POPULATION_POSTGRES_URL, objectRoot: environment.D3_BACKFILL_OBJECT_ROOT, repositoryRoot: process.cwd() }),
+  ])
+  const integratedTopologyReasons = integratedInspection.reasons.filter((reason) => !reason.startsWith("D3_BACKFILL_OBJECT_ROOT") && !reason.startsWith("OBJECT_ROOT"))
+  const databases = databaseResults.map((value) => {
+    if (!integratedTopologyReasons.length || !["d2-canonical-persistence", "d3-candidate-persistence"].includes(value.bindingName)) return value
+    const topologyDiagnostic: LiveResumeDiagnostic = integratedTopologyReasons.some((reason) => reason.includes("ROLE")) ? "WRONG_ROLE" : integratedTopologyReasons.some((reason) => reason.includes("DATABASE")) ? "WRONG_DATABASE" : "NON_LOCAL_TARGET"
+    return Object.freeze({ ...value, callable: false, expectedDatabase: topologyDiagnostic !== "WRONG_DATABASE" && value.expectedDatabase, expectedRole: topologyDiagnostic !== "WRONG_ROLE" && value.expectedRole, diagnostic: topologyDiagnostic, limitationReason: `INTEGRATED_D2_D3_${topologyDiagnostic}` })
+  })
   const byName = new Map(databases.map((value) => [value.bindingName, value]))
   const refresh = byName.get("refresh-control-plane")!, d2 = byName.get("d2-canonical-persistence")!, d3 = byName.get("d3-candidate-persistence")!, d4 = byName.get("d4-downstream-persistence")!, serving = byName.get("inactive-candidate-serving")!
   const objectConfigured = Boolean(environment.D3_BACKFILL_OBJECT_ROOT)

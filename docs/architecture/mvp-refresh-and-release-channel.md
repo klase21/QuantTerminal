@@ -60,9 +60,9 @@ Page-ready states are `CURRENT`, `DELAYED`, `STALE`, `UNAVAILABLE`, `INCONSISTEN
 
 The bounded release foundation now includes a strict 24-slot coordinator contract. It accepts only the certified one-day reconciliation graph, reuses the attributable BTCUSDT OHLCV authority without a new unit, and resolves at most 23 unit intents. Seventeen append-only stages carry deterministic input/output checksums, previous-stage linkage, and fence identity. Dataset and common watermarks derive from unique logical slots, never attempt counts.
 
-The coordinator, dry-run worker, confirmation gate, checkpoint recovery, and fault policy are fixture-certified. Live execution remains fail-closed until environment-backed OHLCV, Open Interest, and AggTrades provenance-to-canonical executor bindings are extracted from their broad workers. The legacy initial-cycle route is not an allowed substitute.
+The coordinator, dry-run worker, confirmation gate, checkpoint recovery, fault policy, and concrete bounded executor bindings are certified. The legacy initial-cycle route is not an allowed substitute.
 
-The local environment binding contract now centralizes sanitized database/role diagnostics and capability metadata for all mandatory ports. Provider readiness is green for the target day (18 archives and six Funding checks), while local D2/D3/D4 authentication and the isolated serving publisher role remain blocked. This preflight creates no units and retains no payloads.
+The local environment binding contract now centralizes sanitized database/role diagnostics and capability metadata for all mandatory ports. Durable D2/D3 use the integrated `quantterminal_backfill` profile under distinct owner roles and durable object storage; D4, refresh, and serving remain isolated. Provider readiness is green for the target day (18 archives and six Funding checks), and the authenticated no-write preflight passes without creating units or retaining payloads.
 
 `/api/health/mvp-freshness` is a local read-only foundation endpoint. It emits corpus and governance identities but no URL, hostname, credential, Raw Artifact path, or Parquet path.
 

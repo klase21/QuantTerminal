@@ -49,21 +49,18 @@
     "archiveAvailability": "PASS_18_OF_18",
     "fundingAvailability": "PASS_6_OF_6",
     "planner": "PASS_1_REUSE_23_CREATE_0_CONFLICT",
-    "d2Canonical": "AUTHENTICATION_FAILED_28P01",
-    "d3Candidate": "AUTHENTICATION_FAILED_28P01",
-    "d4Downstream": "AUTHENTICATION_FAILED_28P01",
-    "inactiveServing": "WRONG_ROLE",
-    "passed": false
+    "d2Canonical": "READY_INTEGRATED_DURABLE",
+    "d3Candidate": "READY_INTEGRATED_DURABLE",
+    "d4Downstream": "READY_ISOLATED",
+    "inactiveServing": "READY_PUBLISHER",
+    "passed": true
   },
-  "status": "CODE_COMPLETE_LOCAL_AUTH_BLOCKED",
-  "blockerReasonCodes": [
-    "LOCAL_D2_AUTHENTICATION_REQUIRED",
-    "LOCAL_D3_AUTHENTICATION_REQUIRED",
-    "LOCAL_D4_AUTHENTICATION_REQUIRED",
-    "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED"
-  ],
+  "status": "AUTHENTICATED_PREFLIGHT_PASSED",
+  "blockerReasonCodes": [],
   "environmentBootstrap": {
     "processEnvironmentFactory": "COMPLETE",
+    "durableTopology": "INTEGRATED_D2_D3",
+    "isolatedD2D3LiveFallback": false,
     "workerAdapterInjectionRequired": false,
     "bootstrapRequiredSentinelPresent": false,
     "activationAvailable": false

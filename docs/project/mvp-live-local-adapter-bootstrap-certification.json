@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-live-local-adapter-bootstrap-certification/1.0.0",
-  "certifiedAt": "2026-07-17T00:00:00.000Z",
+  "certifiedAt": "2026-07-17T04:45:52.493Z",
   "targetInterval": {
     "start": "2026-07-15T00:00:00.000Z",
     "end": "2026-07-16T00:00:00.000Z"
@@ -15,6 +15,10 @@
   },
   "realBindings": {
     "databaseClients": 5,
+    "topology": "INTEGRATED_D2_D3_ISOLATED_D4_REFRESH_SERVING",
+    "d2EnvironmentVariable": "D2_CANONICAL_POSTGRES_URL",
+    "d3EnvironmentVariable": "D3_POPULATION_POSTGRES_URL",
+    "isolatedD2D3LiveFallback": false,
     "objectStorage": "LOCAL_IMMUTABLE_ADAPTER",
     "ohlcv": "BOUNDED_EXISTING_SERVICE",
     "openInterest": "BOUNDED_EXISTING_SERVICE",
@@ -34,15 +38,15 @@
   "actualEnvironment": {
     "refreshControl": "READY",
     "objectStorage": "READY",
-    "d2": "AUTHENTICATION_FAILED_28P01",
-    "d3": "AUTHENTICATION_FAILED_28P01",
-    "d4": "AUTHENTICATION_FAILED_28P01",
-    "serving": "WRONG_ROLE",
-    "authenticatedPreflightPassed": false
+    "d2": "READY_INTEGRATED_DURABLE",
+    "d3": "READY_INTEGRATED_DURABLE",
+    "d4": "READY_ISOLATED",
+    "serving": "READY_PUBLISHER",
+    "authenticatedPreflightPassed": true
   },
   "codeBootstrapComplete": true,
   "productionMutation": false,
   "neonMutation": false,
   "vercelMutation": false,
-  "status": "LOCAL_AUTH_RESTORATION_REQUIRED"
+  "status": "AUTHENTICATED_PREFLIGHT_PASSED"
 }
