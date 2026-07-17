@@ -57,3 +57,11 @@ The first durable payload attempt exposed a missing integrated D2 provider-snaps
 Status and resume now prefer the persisted execution over rebuilding a pre-setup plan. The retained execution is one plan, one deterministic run, and 23 `PENDING` units. Its append-only failure event identifies `SOURCES_ACQUIRED`, its lease is released, and no refresh artifact, Candidate, common watermark, or inactive serving candidate exists. The persisted run remains resumable; status reports an effective `BLOCKED` state from the failure event.
 
 The worker accepts the immutable 1+23 action contract before setup and the persisted 23-unit outcome contract afterward. Resume therefore reuses the same run and units and continues at the first incomplete checkpoint. No live resume was executed during this repair.
+
+## MVP-8A.2O Retrieval-Candidate Lineage
+
+The Funding/DOGEUSDT failure was a D3 lineage defect: Candidate persistence used the provider retrieval identity rather than the persisted D3 population Retrieval attempt. D3 owns `control.retrieval_attempts` and `population.candidates`; D2 owns `raw.objects` in the same integrated backfill database under a separate approved role.
+
+`persistBoundedAcquisitionResult` now atomically injects the persisted D3 Retrieval attempt as the Candidate parent within D3. D2 Raw Object persistence stays a separate immutable role boundary. Exact replay is `DUPLICATE`; incompatible lineage is an exact conflict and fails closed. Authenticated preflight passed governance 16/16, archives 18/18, and Funding 6/6, including rollback-only D2 Raw Artifact object and D3 Retrieval/Candidate probes with zero retained state.
+
+The existing live run remains unchanged: 23 `PENDING` units, a `SOURCES_ACQUIRED` failure, and no common watermark or refresh candidate corpus. D3 retains expired `RAW_PERSISTED` partials for Funding/DOGEUSDT (one attempt, one object, zero Candidates) and Open Interest/ETHUSDT (one attempt, one object, two Candidates). No live resume or Production change occurred.

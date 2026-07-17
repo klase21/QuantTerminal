@@ -94,11 +94,18 @@ export interface LiveSlotCommitResult {
   readonly duplicateCount: number
   readonly conflictCount: number
 }
+export interface LiveSlotResumeResult {
+  readonly stage: "SOURCE_ACQUISITION" | "CANDIDATE_LINEAGE" | "CANONICAL_COMMIT"
+  readonly source?: LiveSlotSourceResult
+  readonly artifact?: LiveSlotArtifactResult
+  readonly candidate?: LiveSlotCandidateResult
+}
 
 export interface BoundedLiveSlotAdapter {
   readonly dataset: RefreshLogicalDataset
   readonly sourceContractId: string
   readonly supportedInstruments: readonly RefreshLogicalInstrument[]
+  reconcileResume?(input: LiveExecutorInvocation): Promise<LiveSlotResumeResult | null>
   inspectFinalization(input: LiveExecutorInvocation): Promise<LiveSlotSourceResult>
   persistArtifact(input: LiveExecutorInvocation, source: LiveSlotSourceResult): Promise<LiveSlotArtifactResult>
   normalizeAndPersistCandidates(input: LiveExecutorInvocation, source: LiveSlotSourceResult, artifact: LiveSlotArtifactResult): Promise<LiveSlotCandidateResult>
@@ -140,14 +147,15 @@ export function createBoundedLiveSlotExecutor(adapter: BoundedLiveSlotAdapter): 
   return async (input) => {
     const startedAt = Date.now()
     validateInvocation(input, adapter)
-    const source = await adapter.inspectFinalization(input)
+    const resume = await adapter.reconcileResume?.(input) ?? null
+    const source = resume?.source ?? await adapter.inspectFinalization(input)
     if (source.status !== "AVAILABLE") return terminal(input, source.status === "SOURCE_NOT_FINALIZED" ? "SOURCE_NOT_FINALIZED" : "INELIGIBLE", source.limitations, startedAt)
     if (!source.bytes?.byteLength || !source.retrievalIdentity || !source.sourceChecksum || !source.contentType) return terminal(input, "BLOCKED_PRECONDITION", ["SOURCE_RESULT_INCOMPLETE"], startedAt)
     checksum64(source.sourceChecksum, "LIVE_EXECUTOR_SOURCE_CHECKSUM_INVALID")
-    const artifact = await adapter.persistArtifact(input, source)
+    const artifact = resume?.artifact ?? await adapter.persistArtifact(input, source)
     checksum64(artifact.artifactChecksum, "LIVE_EXECUTOR_ARTIFACT_CHECKSUM_INVALID")
     if (artifact.artifactChecksum !== source.sourceChecksum) return terminal(input, "CONFLICT", ["RAW_ARTIFACT_CHECKSUM_MISMATCH"], startedAt)
-    const candidate = await adapter.normalizeAndPersistCandidates(input, source, artifact)
+    const candidate = resume?.candidate ?? await adapter.normalizeAndPersistCandidates(input, source, artifact)
     checksum64(candidate.candidateChecksum, "LIVE_EXECUTOR_CANDIDATE_CHECKSUM_INVALID")
     if (candidate.status === "CONFLICT") return terminal(input, "CONFLICT", ["CANDIDATE_IMMUTABLE_CONFLICT"], startedAt)
     const commit = await adapter.commit(input, candidate)

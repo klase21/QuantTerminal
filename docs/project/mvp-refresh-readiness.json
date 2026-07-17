@@ -159,6 +159,8 @@
         "databaseRunState": "PLANNED",
         "effectiveExecutionState": "BLOCKED",
         "currentCompletedStage": "UNITS_RESOLVED",
+        "durablePopulationStage": "CANDIDATE_LINEAGE",
+        "effectiveCoordinatorStage": "CANDIDATE_LINEAGE",
         "failureStage": "SOURCES_ACQUIRED",
         "leaseState": "RELEASED",
         "refreshArtifacts": 0,
@@ -166,7 +168,28 @@
         "commonWatermark": null,
         "inactiveCandidate": null,
         "statusCommand": "PASS_AFTER_PARTIAL_FAILURE",
-        "sameRunResume": "READY_NOT_EXECUTED"
+        "sameRunResume": "IMPLEMENTATION_REPAIRED_NOT_EXECUTED"
+      },
+      "retrievalCandidateLineage": {
+        "status": "CERTIFIED_MVP_8A_2O",
+        "candidateParent": "PERSISTED_D3_POPULATION_RETRIEVAL_ATTEMPT",
+        "atomicPersistence": "persistBoundedAcquisitionResult",
+        "exactReplay": "DUPLICATE",
+        "incompatibleLineage": "CONFLICT_FAIL_CLOSED",
+        "authenticatedPreflight": "PASS_GOVERNANCE_16_ARCHIVES_18_FUNDING_6",
+        "rollbackD2RawObjectProbe": "PASS_ZERO_RETAINED",
+        "rollbackD3RetrievalCandidateProbe": "PASS_ZERO_RETAINED",
+        "populationResumeReconciliation": {
+          "dogeFunding": "CANDIDATE_LINEAGE",
+          "ethOpenInterest": "CANONICAL_COMMIT",
+          "fenceScopedEvents": true,
+          "exactEventReplay": "DUPLICATE",
+          "immutableEventMismatch": "CONFLICT",
+          "failureLeaseCheckpointAtomic": true,
+          "rollbackRuns": 2,
+          "retainedRows": 0
+        },
+        "productionChanged": false
       }
     }
   },

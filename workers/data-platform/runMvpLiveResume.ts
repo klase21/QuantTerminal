@@ -22,6 +22,7 @@ import {
 import { createBoundedFundingSourceUrl } from "@/lib/data-platform/mvp-refresh/boundedFunding"
 import { createCanonicalPersistenceAdapter } from "@/lib/data-platform/persistence/postgres"
 import { createIntegratedBackfillClientsFromEnvironment } from "@/lib/data-platform/population/backfill"
+import { createPopulationPostgresAdapter } from "@/lib/data-platform/population/postgres"
 
 const INSTRUMENTS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const
 const DATASETS = ["ohlcv", "open-interest", "funding", "agg-trade"] as const
@@ -39,10 +40,12 @@ async function loadPlan(start: string, end: string) {
   } finally { await client.shutdown() }
 }
 
-async function withIntegratedD2<T>(work: (client: Awaited<ReturnType<typeof createIntegratedBackfillClientsFromEnvironment>>["d2"]) => Promise<T>): Promise<T> {
+async function withIntegrated<T>(work: (clients: Awaited<ReturnType<typeof createIntegratedBackfillClientsFromEnvironment>>) => Promise<T>): Promise<T> {
   const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-governance" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-live-governance-read" } })
-  try { return await work(integrated.d2) } finally { await integrated.shutdown() }
+  try { return await work(integrated) } finally { await integrated.shutdown() }
 }
+
+async function withIntegratedD2<T>(work: (client: Awaited<ReturnType<typeof createIntegratedBackfillClientsFromEnvironment>>["d2"]) => Promise<T>): Promise<T> { return withIntegrated((clients) => work(clients.d2)) }
 
 async function governanceInventory(start: string) {
   return withIntegratedD2((client) => inspectIntegratedMvpGovernancePrerequisites(client, start))
@@ -50,6 +53,10 @@ async function governanceInventory(start: string) {
 
 async function bootstrapGovernance(start: string) {
   return withIntegratedD2((client) => ensureIntegratedMvpGovernancePrerequisites({ client, adapter: createCanonicalPersistenceAdapter(client), effectiveAt: start }))
+}
+
+async function lineageInventory(start: string, end: string) {
+  return withIntegrated(async (clients) => createPopulationPostgresAdapter(clients.d3).auditBoundedAcquisitionLineage(start, end, "mvp-live-resume"))
 }
 
 async function preflight(start: string, end: string) {
@@ -113,8 +120,11 @@ async function main() {
     const client = createMvpRefreshClientFromEnvironment()
     try {
       await client.verify()
-      const [status, governance] = await Promise.all([new PostgresLiveResumeExecutionStore(client).statusForWindow(options.start, options.end), governanceInventory(options.start)])
-      return print({ command: options.command, status, governance: { ready: governance.filter((entry) => entry.state === "READY").length, missing: governance.filter((entry) => entry.state === "MISSING").map((entry) => entry.identity), conflicts: governance.filter((entry) => entry.state === "CHECKSUM_CONFLICT" || entry.state === "VERSION_MISMATCH").map((entry) => entry.identity) }, productionMutation: false })
+      const [status, governance, lineage] = await Promise.all([new PostgresLiveResumeExecutionStore(client).statusForWindow(options.start, options.end), governanceInventory(options.start), lineageInventory(options.start, options.end)])
+      const lineageBlockers = lineage.units.filter((unit) => unit.retrievalAttempts > 0 && unit.candidates === 0).map((unit) => ({ unitId: unit.unitId, dataset: unit.dataset, instrument: unit.instrument, reason: "CANDIDATE_LINEAGE_INCOMPLETE" }))
+      const lineageUnits = lineage.units.map(({ fencingToken, ...unit }) => ({ ...unit, fence: fencingToken }))
+      const durablePopulationStage = lineage.units.some((unit) => unit.resumeStage === "CANDIDATE_LINEAGE") ? "CANDIDATE_LINEAGE" : lineage.units.some((unit) => unit.resumeStage === "CANONICAL_COMMIT") ? "CANONICAL_COMMIT" : lineage.units.every((unit) => unit.resumeStage === "COMPLETE") ? "COMPLETE" : "SOURCE_ACQUISITION"
+      return print({ command: options.command, status: status ? { ...status, durablePopulationStage, effectiveCoordinatorStage: status.currentCoordinatorStage === "UNITS_RESOLVED" ? durablePopulationStage : status.currentCoordinatorStage } : null, lineage: { ...lineage, units: lineageUnits, unattributedPayloadCount: Math.max(0, (status?.retainedArtifacts ?? 0) - lineage.rawObjects), blockers: lineageBlockers }, governance: { ready: governance.filter((entry) => entry.state === "READY").length, missing: governance.filter((entry) => entry.state === "MISSING").map((entry) => entry.identity), conflicts: governance.filter((entry) => entry.state === "CHECKSUM_CONFLICT" || entry.state === "VERSION_MISMATCH").map((entry) => entry.identity) }, productionMutation: false })
     } finally { await client.shutdown() }
   }
   const loaded = await loadPlan(options.start, options.end)

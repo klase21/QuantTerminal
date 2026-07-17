@@ -66,6 +66,7 @@ interface SlotState {
   candidates?: readonly PopulationCandidate[]
   segment?: Awaited<ReturnType<typeof buildBoundedAggTradesSegment>>
   commitOutputs?: readonly { readonly identity: string; readonly checksum: string }[]
+  resumeStage?: "SOURCE_ACQUISITION" | "CANDIDATE_LINEAGE" | "CANONICAL_COMMIT"
 }
 
 class ResourceScope {
@@ -126,13 +127,64 @@ async function objectStorageProbe(storage: ObjectStoragePort, root: string): Pro
   }
 }
 
+async function boundedLineageProbe(adapter: PopulationPostgresAdapter, client: D3PostgresClient, intervalStart: string, intervalEnd: string): Promise<void> {
+  const rows = await client.sql<Array<Record<string, unknown>>>`
+    SELECT c.*,a.run_id,a.provider_id attempt_provider_id,a.provider_snapshot_id attempt_provider_snapshot_id,
+      a.raw_manifest_id attempt_raw_manifest_id
+    FROM population.candidates c
+    JOIN control.retrieval_attempts a ON a.attempt_id=c.retrieval_attempt_id
+    JOIN control.population_units u ON u.unit_id=c.unit_id
+    WHERE u.window_start=${intervalStart} AND u.window_end=${intervalEnd}
+    ORDER BY c.created_at,c.candidate_id LIMIT 1`
+  const row = rows[0]
+  if (!row) throw new Error("LIVE_LINEAGE_PREFLIGHT_TEMPLATE_MISSING")
+  const nonce = randomUUID(), at = new Date().toISOString(), attemptId = `retrieval-attempt-probe:${nonce}`, candidateId = `population-candidate-probe:${nonce}`
+  const candidate = Object.freeze({
+    kind: String(row.candidate_kind), candidateId, unitId: String(row.unit_id), retrievalAttemptId: attemptId,
+    rawManifestId: String(row.raw_manifest_id), datasetId: String(row.dataset_id), providerId: String(row.provider_id),
+    providerSnapshotId: String(row.provider_snapshot_id), sourceObservationId: `lineage-probe:${nonce}`,
+    sourceObservedAt: at, effectiveAt: at, parserVersion: String(row.parser_version), candidateSchemaVersion: String(row.candidate_schema_version),
+    payload: Object.freeze({ lineageProbe: true }), candidateChecksum: canonicalChecksum({ candidateId, attemptId }), validationStatus: "NOT_EVALUATED",
+    qualityEligibility: "NOT_EVALUATED", normalizationEligibility: "NOT_EVALUATED", createdAt: at,
+  }) as unknown as PopulationCandidate
+  const result = await adapter.probeBoundedAcquisitionLineage({
+    retrievalAttempt: { attemptId, unitId: String(row.unit_id), runId: String(row.run_id), providerId: String(row.attempt_provider_id), providerSnapshotId: String(row.attempt_provider_snapshot_id), requestFingerprint: `lineage-probe:${nonce}`, startedAt: at, completedAt: at, outcome: "SUCCESS", statusCode: 200, retryAfter: null, responseMediaType: "application/octet-stream", rawByteCount: 0, rawManifestId: String(row.attempt_raw_manifest_id), errorClass: null, errorCode: null, retryClassificationId: null },
+    rawObjectChecksum: String(row.candidate_checksum), candidates: Object.freeze([candidate]),
+  })
+  if (!result.passed || result.retainedRows !== 0) throw new Error("LIVE_LINEAGE_PREFLIGHT_FAILED")
+}
+
+async function boundedRawObjectProbe(client: IsolatedPostgresClient, intervalStart: string, intervalEnd: string): Promise<void> {
+  const nonce = randomUUID(), checksum = createHash("sha256").update(`mvp-lineage-raw-probe:${nonce}`).digest("hex"), objectId = `raw_${checksum}`
+  const manifest: RawObjectManifest = Object.freeze({ objectId, datasetId: "ohlcv", providerId: "binance-public-archive", venue: "binance-usdm-futures", symbolOrSubject: "BTCUSDT", windowStart: intervalStart, windowEnd: intervalEnd, contentHash: checksum, sizeBytes: 0, mediaType: "application/octet-stream", compression: "NONE", retrievedAt: intervalEnd, providerSnapshotId: GOVERNANCE.ohlcv.providerRegistry, retentionClass: "STANDARD", verificationState: "VERIFIED", objectStorageKey: `_preflight/${objectId}.probe`, createdAt: intervalEnd })
+  try {
+    await client.transaction(async (sql) => {
+      const transactionClient = { ...client, sql, transaction: async <T>(work: (value: typeof sql) => Promise<T>) => work(sql) } as unknown as IsolatedPostgresClient
+      const result = await createCanonicalPersistenceAdapter(transactionClient).registerRawObjectManifest(manifest)
+      if (result.status !== "SUCCESS") throw new Error("LIVE_RAW_OBJECT_LINEAGE_PROBE_FAILED")
+      throw new Error("LIVE_RAW_OBJECT_LINEAGE_PROBE_ROLLBACK")
+    })
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "LIVE_RAW_OBJECT_LINEAGE_PROBE_ROLLBACK") throw error
+  }
+  const retained = await client.sql<{ readonly count: number }[]>`SELECT count(*)::int count FROM raw.objects WHERE object_id=${objectId}`
+  if (retained[0]?.count !== 0) throw new Error("LIVE_RAW_OBJECT_LINEAGE_PROBE_RETAINED_ROW")
+}
+
 const GOVERNANCE = LIVE_MVP_DATASET_GOVERNANCE
 
 function stream(bytes: Uint8Array): AsyncIterable<Uint8Array> { return { async *[Symbol.asyncIterator]() { yield bytes } } }
+async function readObjectBytes(storage: ObjectStoragePort, key: string): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = []; let length = 0
+  for await (const chunk of storage.read(key)) { chunks.push(chunk); length += chunk.byteLength }
+  const bytes = new Uint8Array(length); let offset = 0
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+  return bytes
+}
 function canonicalInstrument(symbol: string): string { return `binance-usdm-perpetual:${symbol.slice(0, -4)}-USDT` }
 function rawTransportProvider(dataset: RefreshLogicalDataset): string { return dataset === "funding" ? GOVERNANCE.funding.providerId : "binance-public-archive" }
 
-async function preparePopulation(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], adapter: PopulationPostgresAdapter, at: string): Promise<PopulationContext> {
+function populationDefinition(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], at: string) {
   const profile: PopulationJobProfile = Object.freeze({ profileId: `mvp-live-${input.dataset}`, profileVersion: "1.0.0", kind: "INCREMENTAL", requiredDimensions: Object.freeze(["venue", "subjectOrSymbol", "windowStart", "windowEnd", "resolution", "partitionKey"] as const), rawRetrievalRequired: true, mayReuseVerifiedManifest: true, retryPolicyId: "mvp-live-bounded-retry", retryPolicyVersion: "1.0.0", watermarkPolicyId: `mvp-live-${input.dataset}`, watermarkPolicyVersion: "1.0.0" })
   const dimensions = Object.freeze({ venue: "binance-usdm-futures", subjectOrSymbol: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, resolution: input.dataset === "agg-trade" ? "tick" : input.dataset === "funding" ? "event" : "5m", partitionKey: input.logicalSlotId })
   const base = { profile, datasetId: input.dataset, providerId: GOVERNANCE[input.dataset].providerId, dimensions }
@@ -140,14 +192,22 @@ async function preparePopulation(input: Parameters<BoundedLiveSlotAdapter["persi
   const request: PopulationJobRequest = Object.freeze({ ...base, requestIdentity, occurrenceIdentity: input.logicalSlotId, intentionalRerunIdentity: null, requestedAt: at, requestedBy: "mvp-live-resume" })
   const jobId = createPopulationJobId(requestIdentity, request.occurrenceIdentity, null)
   const job: PopulationJob = Object.freeze({ jobId, request, currentState: "QUEUED", currentEventId: `population-event:job-created:${jobId}`, createdAt: at, updatedAt: at })
-  await adapter.createJob(request)
-  const run = await adapter.createRun(jobId, 1, at)
   const units = expandPopulationUnits(job, [{ profileId: profile.profileId, profileVersion: profile.profileVersion, datasetId: input.dataset, providerId: base.providerId, providerSnapshotId: GOVERNANCE[input.dataset].providerRegistry, policyVersionId: GOVERNANCE[input.dataset].policy, venue: dimensions.venue, subjectOrSymbol: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, resolution: dimensions.resolution, partitionKey: input.logicalSlotId, requestFingerprint: requestIdentity, requestParameters: { sourceContractId: input.sourceContractId }, required: true }], at)
+  return Object.freeze({ request, jobId, units })
+}
+
+async function preparePopulation(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], adapter: PopulationPostgresAdapter, at: string): Promise<PopulationContext> {
+  const definition = populationDefinition(input, at)
+  await adapter.createJob(definition.request)
+  const run = await adapter.createRun(definition.jobId, 1, at)
+  const units = definition.units
   await adapter.expandUnits(units)
-  const claimed = await adapter.claimUnit("mvp-live-resume", run.runId, at, new Date(Date.parse(at) + 300_000).toISOString())
+  const expiresAt = new Date(Date.parse(at) + 300_000).toISOString()
+  const claimed = await adapter.claimUnit("mvp-live-resume", run.runId, at, expiresAt) ?? await adapter.recoverPopulationUnitLease({ unitId: units[0]!.unitId, runId: run.runId, ownerId: "mvp-live-resume", now: at, expiresAt })
   if (!claimed) throw new Error("LIVE_POPULATION_UNIT_LEASE_UNAVAILABLE")
-  await adapter.advanceUnit(claimed.unitId, claimed.leaseId, "mvp-live-resume", claimed.fencingToken, "RETRIEVING", `live-retrieving:${input.logicalSlotId}`, at)
-  return Object.freeze({ jobId, runId: run.runId, unitId: claimed.unitId, leaseId: claimed.leaseId, fencingToken: claimed.fencingToken, retrievalAttemptId: createRetrievalAttemptId(claimed.unitId, run.runId, 1) })
+  const transition = await adapter.transitionUnitIdempotently({ eventId: `live-retrieving:${input.logicalSlotId}:fence:${claimed.fencingToken}`, unitId: claimed.unitId, runId: run.runId, eventType: "STATE_ADVANCED", previousState: "LEASED", nextState: "RETRIEVING", fencingToken: claimed.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: {}, leaseId: claimed.leaseId, ownerId: "mvp-live-resume" })
+  if (transition.status === "CONFLICT") throw new Error("LIVE_POPULATION_RETRIEVING_EVENT_CONFLICT")
+  return Object.freeze({ jobId: definition.jobId, runId: run.runId, unitId: claimed.unitId, leaseId: claimed.leaseId, fencingToken: claimed.fencingToken, retrievalAttemptId: createRetrievalAttemptId(claimed.unitId, run.runId, 1) })
 }
 
 function rawManifest(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], state: SlotState, objectId: string, objectStorageKey: string, at: string): RawObjectManifest {
@@ -175,13 +235,41 @@ function buildCandidate(input: Parameters<BoundedLiveSlotAdapter["normalizeAndPe
   return Object.freeze({ kind: "STREAM_MANIFEST", candidateId, unitId: context.unitId, retrievalAttemptId: context.retrievalAttemptId, rawManifestId: raw.objectId, datasetId: "agg-trade", providerId: canonicalProviderId, providerSnapshotId: governance.providerRegistry, sourceObservationId, sourceObservedAt: built.eventTimeMaximum, effectiveAt: input.intervalStart, parserVersion: governance.parser, candidateSchemaVersion: governance.schema, payload, candidateChecksum: canonicalChecksum({ rawObjectId: raw.objectId, sourceObservationId, payload }), validationStatus: "ELIGIBLE", qualityEligibility: "ELIGIBLE", normalizationEligibility: "ELIGIBLE", createdAt: raw.createdAt })
 }
 
-function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; readonly storage: ObjectStoragePort; readonly objectRoot: string; readonly d2: CanonicalPersistenceAdapter; readonly d3: PopulationPostgresAdapter; readonly canonical: CanonicalCommitPort; readonly refresh: MvpRefreshStore }): BoundedLiveSlotAdapter {
+function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; readonly storage: ObjectStoragePort; readonly objectRoot: string; readonly d2Client: IsolatedPostgresClient; readonly d2: CanonicalPersistenceAdapter; readonly d3: PopulationPostgresAdapter; readonly canonical: CanonicalCommitPort; readonly refresh: MvpRefreshStore }): BoundedLiveSlotAdapter {
   const states = new Map<string, SlotState>()
   const state = (id: string) => { const value = states.get(id); if (!value) throw new Error("LIVE_SLOT_STATE_MISSING"); return value }
   return Object.freeze({
     dataset: input.dataset,
     sourceContractId: SOURCE_CONTRACTS[input.dataset],
     supportedInstruments: input.dataset === "ohlcv" ? INSTRUMENTS.filter((value) => value !== "BTCUSDT") : INSTRUMENTS,
+    async reconcileResume(invocation) {
+      const definition = populationDefinition(invocation, new Date().toISOString())
+      const unitId = definition.units[0]!.unitId
+      const now = new Date().toISOString()
+      const resolution = await input.d3.reconcileBoundedAcquisitionResume({ unitId, ownerId: "mvp-live-resume", now, expiresAt: new Date(Date.parse(now) + 300_000).toISOString() })
+      if (!resolution) return null
+      if (!resolution.rawObjectId || !resolution.retrievalAttempt) return Object.freeze({ stage: resolution.stage as "SOURCE_ACQUISITION" })
+      const rawRows = await input.d2Client.sql<Array<Record<string, unknown>>>`SELECT object_id,dataset_id,provider_id,venue,symbol_or_subject,window_start,window_end,content_hash,size_bytes,media_type,compression,retrieved_at,provider_snapshot_id,retention_class,verification_state,object_storage_key,created_at FROM raw.objects WHERE object_id=${resolution.rawObjectId}`
+      if (!rawRows[0]) throw new Error("LIVE_RESUME_RAW_OBJECT_MISSING")
+      const rawRow = rawRows[0]
+      const raw = Object.freeze({ objectId: String(rawRow.object_id), datasetId: String(rawRow.dataset_id), providerId: String(rawRow.provider_id), venue: String(rawRow.venue), symbolOrSubject: String(rawRow.symbol_or_subject), windowStart: String(rawRow.window_start), windowEnd: String(rawRow.window_end), contentHash: String(rawRow.content_hash), sizeBytes: Number(rawRow.size_bytes), mediaType: String(rawRow.media_type), compression: String(rawRow.compression), retrievedAt: String(rawRow.retrieved_at), providerSnapshotId: String(rawRow.provider_snapshot_id), retentionClass: String(rawRow.retention_class), verificationState: String(rawRow.verification_state), objectStorageKey: String(rawRow.object_storage_key), createdAt: String(rawRow.created_at) }) as RawObjectManifest
+      const bytes = await readObjectBytes(input.storage, raw.objectStorageKey)
+      const checksum = createHash("sha256").update(bytes).digest("hex")
+      if (checksum !== raw.contentHash || bytes.byteLength !== raw.sizeBytes) throw new Error("LIVE_RESUME_RETAINED_RAW_CONFLICT")
+      const archiveRequest = input.dataset === "funding" ? null : createBoundedArchiveRequest({ dataset: input.dataset as Exclude<RefreshLogicalDataset, "funding">, provider: "binance-vision", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, sourceContractVersion: invocation.sourceContractId, maximumRecordCount: input.dataset === "ohlcv" ? 288 : input.dataset === "open-interest" ? 10_000 : 10_000_000 })
+      const retrievalIdentity = `mrret_${canonicalChecksum({ logicalSlotId: invocation.logicalSlotId, sourceChecksum: checksum })}`
+      const fundingRequest = input.dataset === "funding" ? createBoundedFundingRequest({ provider: "binance-official-rest-funding-rate", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, maximumEventCount: 1_000, requestedAt: now }) : null
+      const rows = fundingRequest ? parseBoundedFundingEvents({ bytes, request: fundingRequest, retrievalIdentity, rawArtifactIdentity: raw.objectId, observedAt: raw.retrievedAt }) : archiveRequest!.dataset === "ohlcv" ? parseBoundedOhlcvArchive(archiveRequest!, bytes).rows : archiveRequest!.dataset === "open-interest" ? parseBoundedOpenInterestArchive(archiveRequest!, bytes).rows : (await parseBoundedAggTradesArchive(archiveRequest!, bytes)).rows
+      const observedThrough = fundingRequest ? (rows.at(-1) as ProviderNativeFundingEvent | undefined)?.providerEventTimestamp ?? invocation.intervalStart : archiveRequest!.dataset === "ohlcv" ? (rows.at(-1) as BoundedOhlcvRow).closeTime : archiveRequest!.dataset === "open-interest" ? (rows.at(-1) as OpenInterestSourceRow).observedAt : (rows.at(-1) as Awaited<ReturnType<typeof parseBoundedAggTradesArchive>>["rows"][number]).tradeTime
+      const population = Object.freeze({ jobId: resolution.jobId, runId: resolution.runId, unitId: resolution.unitId, leaseId: resolution.lease.leaseId, fencingToken: resolution.lease.fencingToken, retrievalAttemptId: resolution.retrievalAttempt.attemptId })
+      const value: SlotState = { bytes, contentType: raw.mediaType, sourceChecksum: checksum, observedThrough, rows, raw, population, candidates: resolution.candidates, resumeStage: resolution.stage as "CANDIDATE_LINEAGE" | "CANONICAL_COMMIT" }
+      states.set(invocation.logicalSlotId, value)
+      const source = Object.freeze({ status: "AVAILABLE" as const, retrievalIdentity, bytes, sourceChecksum: checksum, contentType: raw.mediaType, observedThrough, limitations: Object.freeze([]) })
+      const artifact = Object.freeze({ artifactIdentity: `mra_${canonicalChecksum({ logicalSlotId: invocation.logicalSlotId, rawObjectId: raw.objectId })}`, artifactChecksum: checksum, retainedBytes: 0, status: "DUPLICATE" as const })
+      if (resolution.stage === "CANDIDATE_LINEAGE") return Object.freeze({ stage: resolution.stage, source, artifact })
+      const candidateChecksum = canonicalChecksum(resolution.candidates.map((candidate) => [candidate.candidateId, candidate.candidateChecksum]))
+      return Object.freeze({ stage: "CANONICAL_COMMIT" as const, source, artifact, candidate: Object.freeze({ candidateIdentity: `mrcs_${candidateChecksum}`, candidateChecksum, status: "DUPLICATE" as const, payload: resolution.candidates }) })
+    },
     async inspectFinalization(invocation) {
       const request = input.dataset === "funding" ? null : createBoundedArchiveRequest({ dataset: input.dataset as Exclude<RefreshLogicalDataset, "funding">, provider: "binance-vision", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, sourceContractVersion: invocation.sourceContractId, maximumRecordCount: input.dataset === "ohlcv" ? 288 : input.dataset === "open-interest" ? 10_000 : 10_000_000 })
       const fundingRequest = input.dataset === "funding" ? createBoundedFundingRequest({ provider: "binance-official-rest-funding-rate", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, maximumEventCount: 1_000, requestedAt: new Date().toISOString() }) : null
@@ -202,8 +290,6 @@ function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; 
       const registered = await input.d2.registerRawObjectManifest(value.raw)
       if (registered.status === "CONFLICT" || registered.status === "REJECTED") throw new Error("LIVE_RAW_ARTIFACT_CONFLICT")
       value.population = await preparePopulation(invocation, input.d3, at)
-      await input.d3.appendRetrievalAttempt({ attemptId: value.population.retrievalAttemptId, unitId: value.population.unitId, runId: value.population.runId, providerId: GOVERNANCE[input.dataset].providerId, providerSnapshotId: value.raw.providerSnapshotId, requestFingerprint: invocation.logicalSlotId, startedAt: at, completedAt: at, outcome: "SUCCESS", statusCode: 200, retryAfter: null, responseMediaType: value.contentType, rawByteCount: value.bytes.byteLength, rawManifestId: value.raw.objectId, errorClass: null, errorCode: null, retryClassificationId: null })
-      await input.d3.advanceUnit(value.population.unitId, value.population.leaseId, "mvp-live-resume", value.population.fencingToken, "RAW_PERSISTED", `live-raw:${stored.rawObjectId}`, at)
       const artifactIdentity = `mra_${canonicalChecksum({ logicalSlotId: invocation.logicalSlotId, rawObjectId: stored.rawObjectId })}`
       const status = await input.refresh.recordArtifact({ unitId: invocation.unitId, artifactId: artifactIdentity, artifactKind: `BOUNDED_${input.dataset.toUpperCase()}_RAW`, contentChecksum: value.sourceChecksum, byteCount: value.bytes.byteLength, lineage: { retrievalIdentity: source.retrievalIdentity, sourceContractVersion: invocation.sourceContractId, rawObjectId: stored.rawObjectId } })
       return Object.freeze({ artifactIdentity, artifactChecksum: value.sourceChecksum, retainedBytes: value.bytes.byteLength, status: status === "INSERTED" ? "CREATED" as const : "DUPLICATE" as const })
@@ -213,16 +299,37 @@ function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; 
       if (input.dataset === "agg-trade") value.segment = await buildBoundedAggTradesSegment({ batch: { request: createBoundedArchiveRequest({ dataset: "agg-trade", provider: "binance-vision", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, sourceContractVersion: invocation.sourceContractId, maximumRecordCount: 10_000_000 }), sourceChecksum: value.sourceChecksum, rows: value.rows as Awaited<ReturnType<typeof parseBoundedAggTradesArchive>>["rows"], observedThrough: value.observedThrough, batchIdentity: `mbab_${canonicalChecksum({ logicalSlotId: invocation.logicalSlotId, sourceChecksum: value.sourceChecksum })}` }, rawObjectId: value.raw!.objectId, storage: input.storage, objectRoot: input.objectRoot })
       const rows = input.dataset === "agg-trade" ? [value.rows[0]!] : value.rows
       const candidates = rows.map((row, ordinal) => buildCandidate(invocation, row, ordinal, value))
-      let created = 0
-      for (const candidate of candidates) { const result = await input.d3.persistCandidate(candidate); if (result.status === "CONFLICT") return Object.freeze({ candidateIdentity: candidate.candidateId, candidateChecksum: candidate.candidateChecksum, status: "CONFLICT" as const, payload: candidates }); if (result.status === "CREATED") created++ }
-      value.candidates = Object.freeze(candidates)
-      await input.d3.advanceUnit(value.population!.unitId, value.population!.leaseId, "mvp-live-resume", value.population!.fencingToken, "CANDIDATES_READY", `live-candidates:${invocation.logicalSlotId}`, new Date().toISOString())
-      const candidateChecksum = canonicalChecksum(candidates.map((candidate) => [candidate.candidateId, candidate.candidateChecksum]))
-      return Object.freeze({ candidateIdentity: `mrcs_${candidateChecksum}`, candidateChecksum, status: created ? "CREATED" as const : "DUPLICATE" as const, payload: candidates })
+      const at = new Date().toISOString(), population = value.population!, raw = value.raw!
+      try {
+        const result = await input.d3.persistBoundedAcquisitionResult({
+          retrievalAttempt: { attemptId: population.retrievalAttemptId, unitId: population.unitId, runId: population.runId, providerId: GOVERNANCE[input.dataset].providerId, providerSnapshotId: raw.providerSnapshotId, requestFingerprint: invocation.logicalSlotId, startedAt: raw.createdAt, completedAt: raw.createdAt, outcome: "SUCCESS", statusCode: 200, retryAfter: null, responseMediaType: value.contentType, rawByteCount: value.bytes.byteLength, rawManifestId: raw.objectId, errorClass: null, errorCode: null, retryClassificationId: null },
+          rawObjectChecksum: raw.contentHash,
+          candidates,
+        })
+        if (result.transactionOutcome === "CONFLICT") {
+          await input.d3.recordRecoverableLineageFailure({ unitId: population.unitId, leaseId: population.leaseId, ownerId: "mvp-live-resume", fencingToken: population.fencingToken, classification: "RETRIEVAL_CANDIDATE_LINEAGE_CONFLICT", at })
+          return Object.freeze({ candidateIdentity: candidates[0]!.candidateId, candidateChecksum: candidates[0]!.candidateChecksum, status: "CONFLICT" as const, payload: candidates })
+        }
+        value.population = Object.freeze({ ...population, retrievalAttemptId: result.persistedRetrievalAttemptId })
+        value.candidates = Object.freeze(candidates.map((candidate) => Object.freeze({ ...candidate, retrievalAttemptId: result.persistedRetrievalAttemptId })) as PopulationCandidate[])
+        if (value.resumeStage !== "CANDIDATE_LINEAGE") {
+          const rawTransition = await input.d3.transitionUnitIdempotently({ eventId: `live-raw:${raw.objectId}:fence:${population.fencingToken}`, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "RETRIEVING", nextState: "RAW_PERSISTED", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: {}, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
+          if (rawTransition.status === "CONFLICT") throw new Error("LIVE_POPULATION_RAW_EVENT_CONFLICT")
+        }
+        const candidateTransition = await input.d3.transitionUnitIdempotently({ eventId: `live-candidates:${invocation.logicalSlotId}:fence:${population.fencingToken}`, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "RAW_PERSISTED", nextState: "CANDIDATES_READY", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: {}, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
+        if (candidateTransition.status === "CONFLICT") throw new Error("LIVE_POPULATION_CANDIDATE_EVENT_CONFLICT")
+        const candidateChecksum = canonicalChecksum(value.candidates.map((candidate) => [candidate.candidateId, candidate.candidateChecksum]))
+        return Object.freeze({ candidateIdentity: `mrcs_${candidateChecksum}`, candidateChecksum, status: result.transactionOutcome, payload: value.candidates })
+      } catch (error) {
+        await input.d3.recordRecoverableLineageFailure({ unitId: population.unitId, leaseId: population.leaseId, ownerId: "mvp-live-resume", fencingToken: population.fencingToken, classification: "RETRIEVAL_CANDIDATE_LINEAGE_FAILED", at }).catch(() => undefined)
+        throw error
+      }
     },
     async commit(invocation) {
       const value = state(invocation.logicalSlotId), outputs: Array<{ identity: string; checksum: string }> = [], normalizer = new ProductionNormalizerRegistry(), governance = GOVERNANCE[input.dataset]
-      await input.d3.advanceUnit(value.population!.unitId, value.population!.leaseId, "mvp-live-resume", value.population!.fencingToken, "PROCESSING", `live-processing:${invocation.logicalSlotId}`, new Date().toISOString())
+      const processingAt = new Date().toISOString(), population = value.population!
+      const processing = await input.d3.transitionUnitIdempotently({ eventId: `live-processing:${invocation.logicalSlotId}:fence:${population.fencingToken}`, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "CANDIDATES_READY", nextState: "PROCESSING", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: processingAt, details: {}, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
+      if (processing.status === "CONFLICT") throw new Error("LIVE_POPULATION_PROCESSING_EVENT_CONFLICT")
       let createdCount = 0, duplicateCount = 0, conflictCount = 0
       for (const candidate of value.candidates!) {
         const command = candidate.kind === "STREAM_MANIFEST" ? buildCanonicalStreamSegmentCommand({ operationType: "INITIAL_VERSION", initiatedAt: candidate.createdAt, sourceDatasetId: "agg-trade", streamKind: "AGG_TRADE", providerId: candidate.providerId, venue: "BINANCE", symbol: invocation.instrument, canonicalInstrumentId: canonicalInstrument(invocation.instrument), sourcePartitionKey: invocation.logicalSlotId, windowStart: invocation.intervalStart, windowEnd: invocation.intervalEnd, firstSequence: candidate.payload.firstSequence, lastSequence: candidate.payload.lastSequence, recordCount: candidate.payload.recordCount, segmentObjectKey: candidate.payload.segmentObjectKey, segmentContentChecksum: candidate.payload.segmentContentChecksum, columnarFormat: "PARQUET", compressionFormat: "SNAPPY", segmentByteLength: candidate.payload.segmentByteLength, eventTimeMin: candidate.payload.eventTimeMin, eventTimeMax: candidate.payload.eventTimeMax, validationStatus: "VALIDATED", eventOrderPolicy: AGG_TRADES_SEGMENT_ORDER_POLICY, governance: { datasetRegistrySnapshotId: governance.datasetRegistry, providerRegistrySnapshotId: governance.providerRegistry, providerCertificationSnapshotId: governance.certification, policyVersionId: governance.policy, schemaVersion: governance.schema, normalizationVersion: AGG_TRADES_SEGMENT_NORMALIZER_VERSION }, sourceRawObject: value.raw!, predecessor: null }) : normalizer.normalize({ candidate: candidate as Exclude<PopulationCandidate, { kind: "STREAM_MANIFEST" }>, datasetRegistrySnapshotId: governance.datasetRegistry, providerRegistrySnapshotId: governance.providerRegistry, providerCertificationSnapshotId: governance.certification, policyVersionId: governance.policy, schemaVersion: governance.schema, normalizationVersion: PRODUCTION_NORMALIZER_VERSION, rawManifestId: value.raw!.objectId, rawObject: value.raw! })
@@ -359,6 +466,10 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
     const objectRoot = required(input.environment, "D3_BACKFILL_OBJECT_ROOT")
     const storage = await createFilesystemObjectStorage({ root: objectRoot, repositoryRoot: process.cwd(), createRoot: false })
 
+    const d2Adapter = createCanonicalPersistenceAdapter(d2)
+    const d3Adapter = createPopulationPostgresAdapter(d3)
+    const canonical = createD3ToD2CanonicalCommitPort(d2Adapter)
+
     if (input.mode === "PREFLIGHT" || input.mode === "CERTIFICATION") {
       await expectRollback(() => d2.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
       await expectRollback(() => d3.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
@@ -366,20 +477,16 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
       await expectRollback(() => refresh.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
       await expectRollback(() => serving.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
       await objectStorageProbe(storage, objectRoot)
+      await boundedRawObjectProbe(d2, start, end)
+      await boundedLineageProbe(d3Adapter, d3, start, end)
     }
-
-    // Construct the existing persistence adapters here. Their construction is
-    // part of the bootstrap contract even when PREFLIGHT does not retain data.
-    const d2Adapter = createCanonicalPersistenceAdapter(d2)
-    const d3Adapter = createPopulationPostgresAdapter(d3)
-    const canonical = createD3ToD2CanonicalCommitPort(d2Adapter)
 
     const refreshStore = new MvpRefreshStore(refresh), recovery = new ControlledOhlcvRecoveryStore(refresh), control = new PostgresLiveResumeCoordinatorControlPlane(refresh), execution = new PostgresLiveResumeExecutionStore(refresh)
     const authorities = await recovery.readAuthoritiesForWindow(start, end)
     if (authorities.length !== 1) throw new Error("LIVE_AUTHORITATIVE_RECOVERY_REQUIRED")
     const authority = authorities[0]!
     const candidateService = new LocalInactiveCandidateAssemblyService(serving)
-    const adapterInput = (dataset: RefreshLogicalDataset) => ({ dataset, storage, objectRoot, d2: d2Adapter, d3: d3Adapter, canonical, refresh: refreshStore })
+    const adapterInput = (dataset: RefreshLogicalDataset) => ({ dataset, storage, objectRoot, d2Client: d2, d2: d2Adapter, d3: d3Adapter, canonical, refresh: refreshStore })
     const executorPorts = createLiveExecutorPortSet({ ohlcv: createDatasetAdapter(adapterInput("ohlcv")), "open-interest": createDatasetAdapter(adapterInput("open-interest")), funding: createDatasetAdapter(adapterInput("funding")), "agg-trade": createDatasetAdapter(adapterInput("agg-trade")) })
     const ports = composeConcreteLiveResumePorts({
       targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },

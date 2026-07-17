@@ -105,6 +105,20 @@ async function main() {
     const failing = createLiveExecutorPortSet({ ohlcv: adapter("ohlcv", [], { dataset: null, stage }), "open-interest": adapter("open-interest", [], { dataset: null }), funding: adapter("funding", [], { dataset: null }), "agg-trade": adapter("agg-trade", [], { dataset: null }) })
     await assert.rejects(() => failing.executeBoundedOhlcvSlot({ intervalStart: start, intervalEnd: end, logicalSlotId: "slot", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts.ohlcv, unitId: "unit", dataset: "ohlcv", instrument: "ETHUSDT", fencingToken: 1, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" }), /INJECTED/)
   }
+  const skipped = { inspect: 0, artifact: 0, candidate: 0, commit: 0 }
+  const bytes = new TextEncoder().encode("durable"), checksum = canonicalChecksum(Array.from(bytes)), candidateChecksum = canonicalChecksum({ durable: true })
+  const resumedAdapter: BoundedLiveSlotAdapter = Object.freeze({
+    dataset: "open-interest", sourceContractId: contracts["open-interest"], supportedInstruments: instruments,
+    reconcileResume: async () => ({ stage: "CANONICAL_COMMIT" as const, source: { status: "AVAILABLE" as const, retrievalIdentity: "durable-retrieval", bytes, sourceChecksum: checksum, contentType: "application/octet-stream", observedThrough: end, limitations: [] }, artifact: { artifactIdentity: "durable-object", artifactChecksum: checksum, retainedBytes: 0, status: "DUPLICATE" as const }, candidate: { candidateIdentity: "durable-candidates", candidateChecksum, status: "DUPLICATE" as const, payload: [] } }),
+    inspectFinalization: async () => { skipped.inspect++; throw new Error("RESUME_REPEATED_RETRIEVAL") },
+    persistArtifact: async () => { skipped.artifact++; throw new Error("RESUME_REPEATED_OBJECT") },
+    normalizeAndPersistCandidates: async () => { skipped.candidate++; throw new Error("RESUME_REPEATED_CANDIDATE") },
+    commit: async () => { skipped.commit++; return { status: "DUPLICATE" as const, outputs: [{ identity: "canonical-output", checksum: "c".repeat(64) }], createdCount: 0, duplicateCount: 1, conflictCount: 0 } },
+    validate: async () => [],
+  })
+  const resumed = createLiveExecutorPortSet({ ohlcv: adapter("ohlcv", [], { dataset: null }), "open-interest": resumedAdapter, funding: adapter("funding", [], { dataset: null }), "agg-trade": adapter("agg-trade", [], { dataset: null }) })
+  await resumed.executeBoundedOpenInterestSlot({ intervalStart: start, intervalEnd: end, logicalSlotId: "durable-slot", plannerIdentity: "plan", plannerChecksum: "a".repeat(64), sourceContractId: contracts["open-interest"], unitId: "unit", dataset: "open-interest", instrument: "ETHUSDT", fencingToken: 3, checkpointInputChecksum: "b".repeat(64), allowedDatasets: datasets, allowedInstruments: instruments, requiredUpstream: [], mode: "CERTIFICATION" })
+  assert.deepEqual(skipped, { inspect: 0, artifact: 0, candidate: 0, commit: 1 })
   console.log(JSON.stringify({ status: "PASS", executorCalls: value.calls.length, btcusdtOhlcvAcquisitions: 0, downstreamStages: value.downstream.length, candidateExposed: false, exactRerun: "PASS" }))
 }
 

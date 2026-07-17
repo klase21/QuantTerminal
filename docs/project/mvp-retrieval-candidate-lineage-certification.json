@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "mvp-retrieval-candidate-lineage-certification/1.1.0",
+  "mvp": "MVP-8A.2O",
+  "scope": "BOUNDED_D3_RETRIEVAL_CANDIDATE_LINEAGE",
+  "rootCause": {
+    "dataset": "Funding",
+    "instrument": "DOGEUSDT",
+    "child": "population.candidates.retrieval_attempt_id",
+    "parent": "control.retrieval_attempts.attempt_id",
+    "attemptedMissingParentId": "mrret_2b43e457668768b6eda39a1070d25dbad246ec388bf5b3cd73bd71007ce48088",
+    "persistedParentId": "retrieval-attempt-v1:828671b8a5233190abf38bdac1f8f833107ec0ac0538a283589ec5085cbf121f",
+    "incorrectCandidateParent": "PROVIDER_RETRIEVAL_IDENTITY",
+    "requiredCandidateParent": "PERSISTED_D3_POPULATION_RETRIEVAL_ATTEMPT",
+    "firstDiscardPoint": "bounded Funding Candidate construction retained the provider retrieval identity before D3 Candidate persistence"
+  },
+  "integratedDurableOwnership": {
+    "d3": [
+      "control.retrieval_attempts",
+      "population.candidates"
+    ],
+    "d2": [
+      "raw.objects"
+    ],
+    "samePhysicalDatabase": true,
+    "separateApprovedRoles": true
+  },
+  "atomicPersistence": {
+    "operation": "persistBoundedAcquisitionResult",
+    "persistedParentInjected": true,
+    "exactReplay": "DUPLICATE",
+    "incompatibleLineage": "CONFLICT_FAIL_CLOSED",
+    "d2RawObjectTransactionSeparate": true,
+    "crossDatabaseForeignKeyAssumed": false
+  },
+  "authenticatedPreflight": {
+    "governance": "PASS_16_OF_16",
+    "archives": "PASS_18_OF_18",
+    "funding": "PASS_6_OF_6",
+    "rollbackD2RawObjectProbe": "PASS_ZERO_RETAINED",
+    "rollbackD3RetrievalCandidateProbe": "PASS_ZERO_RETAINED"
+  },
+  "retainedLiveRefresh": {
+    "unitStates": { "PENDING": 23 },
+    "failureStage": "SOURCES_ACQUIRED",
+    "commonWatermark": null,
+    "runScopedCandidate": null,
+    "d3Partials": {
+      "Funding/DOGEUSDT": {
+        "refreshUnitId": "mru_8a6d205899d4b173fda083c519dbab931aad6de330eed9a704152c44ab6d60b5",
+        "populationUnitId": "population-unit-v1:9e1556e26606d8a9c205b962765f32c7cf27b17e442b6c44969c224fb0f76c96",
+        "state": "RAW_PERSISTED",
+        "attempts": 1,
+        "objects": 1,
+        "candidates": 0,
+        "leaseState": "EXPIRED"
+      },
+      "Open Interest/ETHUSDT": {
+        "refreshUnitId": "mru_bb4bc4d8da30a41f54fe95cd9babb2e654f027a1201252331aa6ac147049cb19",
+        "populationUnitId": "population-unit-v1:dcd56a945d51892fbe96a939621508af693df072a3041aac3248bcfb95a91d59",
+        "state": "RAW_PERSISTED",
+        "attempts": 1,
+        "objects": 1,
+        "candidates": 2,
+        "leaseState": "EXPIRED"
+      }
+    }
+  },
+  "statusCommand": {
+    "partialFailureReadable": true,
+    "retainedRetrievalAttempts": 2,
+    "retainedRawObjects": 2,
+    "retainedCandidates": 2,
+    "unattributedPayloads": 0,
+    "lineageBlocker": "CANDIDATE_LINEAGE_INCOMPLETE",
+    "refreshCoordinatorStage": "UNITS_RESOLVED",
+    "durablePopulationStage": "CANDIDATE_LINEAGE",
+    "effectiveCoordinatorStage": "CANDIDATE_LINEAGE"
+  },
+  "populationResumeCorrection": {
+    "dogeFunding": {
+      "resumeStage": "CANDIDATE_LINEAGE",
+      "collidingEventId": "live-retrieving:mrsl_1712e9c7e14d0c53c5e54cc3a38be69673318ce3691ced371521efc87eac9902",
+      "existingFence": 1,
+      "attemptedFence": 2,
+      "existingChecksum": "b468e5bc046427b01d4085222c0ac5f82cbaf8ccd419cb0ac7663e0785681125",
+      "attemptedChecksum": "0cf96d84bfb7fbe25c98591b6484c43065b761c34f76d9e86076355f86c6d9d9",
+      "classification": "CONFLICT"
+    },
+    "ethOpenInterest": {
+      "resumeStage": "CANONICAL_COMMIT",
+      "collidingEventId": "live-retrieving:mrsl_1a47d778320865997dd440b8ed47ebc29d7b869ee1e079e6bb00d645019ffc80",
+      "existingFence": 1,
+      "attemptedFence": 2,
+      "existingChecksum": "27a48a45951f844daf11b34d7279b9fee070ad42230c7d6294b8a15b9ab6dde1",
+      "attemptedChecksum": "53bb96b1f419f011415691184493332847a6564b12d35d3d2ae2e5b45a027596",
+      "classification": "CONFLICT"
+    },
+    "eventIdPolicy": "FENCE_SCOPED",
+    "exactImmutableReplay": "DUPLICATE",
+    "immutableMismatch": "CONFLICT",
+    "failureTransaction": ["STAGE_FAILURE_EVENT", "DURABLE_BOUNDARY_CHECKPOINT", "LEASE_RELEASE", "RETRYABLE_STATE"],
+    "rollbackReconciliationRuns": 2,
+    "retainedDisposableRows": 0
+  },
+  "tests": {
+    "typeScript": "PASS",
+    "focusedLineagePostgres": "PASS_ROLLBACK_ZERO_RETAINED",
+    "expiredLeaseRecovery": "PASS_ROLLBACK",
+    "staleFenceAdvance": "PASS_ROLLBACK",
+    "populationResumeReconciliation": "PASS_TWICE_ROLLBACK_ZERO_RETAINED",
+    "liveResumeCoordinator": "PASS",
+    "refreshPostgres": "PASS"
+  },
+  "migrationStatus": "NO_SCHEMA_MIGRATION_REQUIRED",
+  "productionChanged": false
+}

@@ -142,3 +142,19 @@ The first live durable object registration failed because integrated D2 did not 
 The failed setup remains intact as one plan, one run, and 23 `PENDING` units. No refresh artifact, Candidate, watermark, downstream record, Replay, or serving candidate is attributable to the run. Two immutable local object payloads were retained before the D2 failure; exact object retry remains content-addressed and canonical manifest conflicts fail closed. No payload was added to Git.
 
 Status now reads the persisted execution first and no longer rejects its post-setup unit shape. It reports the last completed coordinator stage as `UNITS_RESOLVED`, the lease as `RELEASED`, and effective execution state as `BLOCKED` from the append-only source-acquisition failure event. The authenticated no-write preflight passes governance 16/16, archives 18/18, Funding 6/6, the authoritative recovery, the 1+23 planner, and all rollback-only port checks. The live resume itself was not executed.
+
+## MVP-8A.2O Retrieval-Candidate Lineage Certification
+
+The Funding/DOGEUSDT Candidate failure was traced to its parent identity: the bounded path supplied the provider retrieval identity, while the D3 Candidate parent must be the persisted population Retrieval attempt. D3 owns `control.retrieval_attempts` and `population.candidates`; D2 owns `raw.objects` in the same integrated backfill database under a separate approved role.
+
+`persistBoundedAcquisitionResult` now atomically persists the D3 Retrieval/Candidate boundary with the persisted D3 Retrieval attempt injected as the Candidate parent. D2 Raw Object persistence remains a separate immutable role boundary. Exact replay returns `DUPLICATE`; an incompatible persisted lineage is a conflict and fails closed. Authenticated preflight passed governance 16/16, archives 18/18, and Funding 6/6. Its rollback-only D2 Raw Artifact object probe and D3 Retrieval/Candidate probe each retained zero state.
+
+The existing live refresh execution is preserved with 23 `PENDING` units and an append-only `SOURCES_ACQUIRED` failure. It has no common watermark and no refresh candidate corpus. D3 partials are retained with expired leases: Funding/DOGEUSDT is `RAW_PERSISTED` with one attempt, one object, and zero Candidates; Open Interest/ETHUSDT is `RAW_PERSISTED` with one attempt, one object, and two Candidates. No live resume, downstream stage, candidate publication, or Production change occurred.
+
+## Population Event And Resume Reconciliation Correction
+
+The next retry was not executed to completion. Read-only audit found two expired fence-2 Population leases. The retry reused fence-1 `live-retrieving` primary keys, while the attempted immutable payloads carried fence 2; both collisions therefore classify as `CONFLICT`, not `DUPLICATE`. No fence-2 retrieving event, checkpoint, Candidate for DOGE, watermark, downstream output, or serving candidate was retained.
+
+The Population resume path now derives its boundary from durable D3 lineage rather than the Refresh coordinator checkpoint alone. DOGE Funding resumes at missing Candidate lineage. ETH Open Interest reuses its two durable Candidates and resumes at canonical commit. Fence-scoped event identities prevent cross-fence collisions, exact immutable event replay returns `DUPLICATE`, and immutable mismatch returns `CONFLICT`. Failure handling atomically appends the failure event, records the last durable checkpoint, releases the lease, and marks the unit retryable.
+
+Rollback-only certification ran the exact DOGE/ETH partial-state reconciliation twice. Both second passes used higher fences, injected failures released leases, Retrieval/Object/Candidate counts remained 2/2/2, and rollback retained zero rows. Read-only status now reports Refresh stage `UNITS_RESOLVED`, durable Population stage `CANDIDATE_LINEAGE`, and effective coordinator stage `CANDIDATE_LINEAGE`. The live resume command was not run.
