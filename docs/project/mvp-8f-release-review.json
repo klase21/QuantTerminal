@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "mvp-8f-release-review/1.0.0",
+  "candidateId": "mvp8e-candidate:79e758cc38eab5bb31503dc95700fe39e7c63d02bd65d2f07c1e56ed7c905ec8",
+  "reviewedCommit": "7f0a69d642ed2b172e8fbef5a84aaecbf1d1cb03",
+  "reviewedAt": "2026-07-18T02:23:17+09:00",
+  "resourceFingerprints": {
+    "core": "quantterminal_backfill",
+    "d4": "quantterminal_mvp8e_d4_7f0a69d8e1",
+    "refresh": "quantterminal_mvp8e_refresh_7f0a69d8e1",
+    "serving": "quantterminal_mvp8e_serving_7f0a69d8e1"
+  },
+  "readOnlyEnforcement": {
+    "databaseSessions": "default_transaction_read_only=on",
+    "writesAttempted": 0,
+    "externalSideEffects": 0
+  },
+  "candidate": {
+    "lifecycle": "WITHHELD",
+    "exposure": "INTERNAL_ONLY",
+    "governedThrough": "2026-07-16T00:00:00.000Z",
+    "activationAvailable": false,
+    "activeExposureCount": 0,
+    "manifestCount": 1,
+    "memberCount": 74,
+    "manifestChecksum": "d6178010742abbde4a8e65b9b12c32d27cf51f61583f1c65f0fcdfd2df985649"
+  },
+  "expectedAndActualCounts": {
+    "core": {
+      "ohlcv": { "expected": 1728, "actual": 1728 },
+      "openInterest": { "expected": 1728, "actual": 1728 },
+      "funding": { "expected": 18, "actual": 18 },
+      "aggTradeManifests": { "expected": 6, "actual": 6 },
+      "canonicalCommits": { "expected": 3480, "actual": 3480 },
+      "candidates": { "expected": 3480, "actual": 3480 },
+      "rawObjects": { "expected": 24, "actual": 24 },
+      "candidateConflicts": { "expected": 0, "actual": 0 }
+    },
+    "d4": {
+      "coverage": { "expected": 24, "actual": 24 },
+      "consistencyRuns": { "expected": 6, "actual": 6 },
+      "consistencyResults": { "expected": 30, "actual": 30 },
+      "evidencePackets": { "expected": 6, "actual": 6 },
+      "evidenceAssessments": { "expected": 6, "actual": 6 },
+      "instrumentProjections": { "expected": 54, "actual": 54 },
+      "aggregateProjections": { "expected": 8, "actual": 8 },
+      "totalProjections": { "expected": 62, "actual": 62 },
+      "projectionConflicts": { "expected": 0, "actual": 0 }
+    },
+    "refresh": {
+      "datasetWatermarks": { "expected": 4, "actual": 4 },
+      "commonWatermarks": { "expected": 1, "actual": 1 }
+    },
+    "serving": {
+      "projectionMembers": { "expected": 62, "actual": 62 },
+      "evidenceMembers": { "expected": 6, "actual": 6 },
+      "replayMembers": { "expected": 6, "actual": 6 },
+      "projectionPayloadRows": { "expected": 62, "actual": 0 },
+      "evidencePayloadRows": { "expected": 6, "actual": 0 },
+      "replayPayloadRows": { "expected": 6, "actual": 0 }
+    }
+  },
+  "lineageVerification": {
+    "projectionMemberIdsResolvedInD4": 62,
+    "replayMemberChecksumsMatchCommonWatermark": true,
+    "servingPayloadResolution": "FAILED",
+    "manifestHasImmutableCommonWatermarkIdentity": false
+  },
+  "projectionContentSummary": {
+    "knownKinds": 9,
+    "unknownKinds": 0,
+    "emptyPayloads": 0,
+    "invalidWindows": 0,
+    "fullContentReview": "NOT_COMPLETED_FAIL_CLOSED"
+  },
+  "replaySummary": {
+    "memberReferences": 6,
+    "durableServingSnapshots": 0,
+    "checksumSetMatchesCommonWatermark": true,
+    "payloadReview": "BLOCKED_MISSING_DURABLE_PAYLOADS"
+  },
+  "applicationSmokeSummary": {
+    "activeCorpusMatches": 0,
+    "readerResult": "SERVING_CORPUS_UNAVAILABLE",
+    "dashboard": "BLOCKED",
+    "replay": "BLOCKED",
+    "scanner": "BLOCKED",
+    "trade": "BLOCKED",
+    "noDataUnavailableContract": "STATIC_CONTRACT_PRESENT_NOT_RUNTIME_CERTIFIED"
+  },
+  "isolationSummary": {
+    "candidateMutated": false,
+    "coreMutated": false,
+    "productionMutated": false,
+    "neonMutated": false,
+    "vercelMutated": false,
+    "protectedFilesMutatedByReview": false
+  },
+  "approvalDecision": "SAFE_BLOCKED",
+  "blockers": [
+    "INACTIVE_CANDIDATE_SERVING_PROJECTION_PAYLOADS_MISSING",
+    "INACTIVE_CANDIDATE_SERVING_EVIDENCE_PAYLOADS_MISSING",
+    "INACTIVE_CANDIDATE_SERVING_REPLAY_PAYLOADS_MISSING",
+    "APPLICATION_READ_CONTRACT_CANNOT_LOAD_CANDIDATE",
+    "MANIFEST_COMMON_WATERMARK_IDENTITY_NOT_BOUND"
+  ]
+}

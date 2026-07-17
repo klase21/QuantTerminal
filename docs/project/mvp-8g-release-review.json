@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "mvp-8g-release-review/1.0.0",
+  "reviewedCommit": "7f0a69d642ed2b172e8fbef5a84aaecbf1d1cb03",
+  "recordedAt": "2026-07-18T02:36:16+09:00",
+  "candidateId": null,
+  "candidateCreated": false,
+  "reviewExecuted": false,
+  "approvalDecision": "SAFE_BLOCKED",
+  "blockers": [
+    "DURABLE_REPLAY_SOURCE_PAYLOADS_MISSING",
+    "FULL_COUNT_DISPOSABLE_CERTIFICATION_NOT_POSSIBLE",
+    "COMMON_WATERMARK_MANIFEST_BINDING_NOT_IMPLEMENTED"
+  ],
+  "sourceIntegrity": {
+    "mvp8eCoreMutated": false,
+    "mvp8eD4Mutated": false,
+    "failedCandidateMutated": false
+  },
+  "externalIntegrity": {
+    "productionMutated": false,
+    "neonMutated": false,
+    "vercelMutated": false,
+    "activeExposureChanged": false
+  }
+}

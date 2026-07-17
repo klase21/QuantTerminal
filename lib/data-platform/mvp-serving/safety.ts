@@ -16,7 +16,8 @@ export function inspectMvpServingIsolatedTarget(connectionString: string | undef
     const reasons: string[] = []
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
     const expectedDatabase = expected?.database ?? "quantterminal_mvp_serving_isolated", expectedRole = expected?.role
-    if (expectedDatabase !== "quantterminal_mvp_serving_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?serving_/.test(expectedDatabase)) reasons.push("SERVING_EXPECTED_DATABASE_NAME_UNSAFE")
+    const certifiedLocalDatabase = /^quantterminal_mvp8[c-e]_(?:canary_)?serving_/.test(expectedDatabase) || /^quantterminal_mvp8h_(?:canary_)?replay_/.test(expectedDatabase)
+    if (expectedDatabase !== "quantterminal_mvp_serving_isolated" && !certifiedLocalDatabase) reasons.push("SERVING_EXPECTED_DATABASE_NAME_UNSAFE")
     if (database !== expectedDatabase) reasons.push("SERVING_ISOLATED_DATABASE_NAME_MISMATCH")
     if (!['localhost', '127.0.0.1', '::1'].includes(url.hostname.toLowerCase())) reasons.push("MVP7A_LOCAL_HOST_REQUIRED")
     if (expectedRole ? role !== expectedRole : role !== "mvp_serving_publisher" && role !== "mvp_serving_reader") reasons.push("SERVING_ROLE_INVALID")

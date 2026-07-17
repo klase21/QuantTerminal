@@ -34,6 +34,53 @@ export class MvpServingStore {
   }
 }
 
+export interface DurableReplaySourceInput {
+  readonly commonWatermarkId: string
+  readonly commonWatermarkValue: string
+  readonly commonWatermarkChecksum: string
+  readonly snapshots: readonly ServingReplaySnapshot[]
+}
+
+export class MvpDurableReplayStore {
+  constructor(private readonly client: MvpServingPostgresClient) { if (client.roleIntent !== "PUBLISHER") throw new Error("MVP_SERVING_PUBLISHER_REQUIRED") }
+
+  async persist(input: DurableReplaySourceInput): Promise<{ readonly status: "CREATED" | "DUPLICATE"; readonly corpusId: string; readonly replaySourceChecksum: string }> {
+    const symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"]
+    if (!/^.+$/.test(input.commonWatermarkId) || !/^[0-9a-f]{64}$/.test(input.commonWatermarkChecksum) || new Date(input.commonWatermarkValue).toISOString() !== input.commonWatermarkValue) throw new Error("MVP_REPLAY_SOURCE_WATERMARK_INVALID")
+    if (input.snapshots.length !== symbols.length || new Set(input.snapshots.map((value) => value.instrument)).size !== symbols.length || input.snapshots.map((value) => value.instrument).sort().join(",") !== symbols.sort().join(",")) throw new Error("MVP_REPLAY_SOURCE_SYMBOL_SET_INVALID")
+    for (const value of input.snapshots) if (!verifyReplaySnapshot(value) || value.payload.modelChecksum !== value.modelChecksum || value.eventTimeEnd !== input.commonWatermarkValue) throw new Error(`MVP_REPLAY_SOURCE_SNAPSHOT_INVALID:${value.instrument}`)
+    const ordered = [...input.snapshots].sort((left, right) => left.instrument.localeCompare(right.instrument))
+    const replaySourceChecksum = canonicalChecksum({ schemaVersion: "mvp-durable-replay-source/1.0.0", commonWatermarkId: input.commonWatermarkId, commonWatermarkValue: input.commonWatermarkValue, commonWatermarkChecksum: input.commonWatermarkChecksum, snapshots: ordered.map((value) => ({ instrument: value.instrument, replaySnapshotId: value.replaySnapshotId, snapshotChecksum: value.snapshotChecksum, modelChecksum: value.modelChecksum })) })
+    const corpusId = `mvp-replay-source:${replaySourceChecksum}`
+    return this.client.transaction(async (sql) => {
+      await sql.unsafe("SELECT pg_advisory_xact_lock(hashtext($1))", [corpusId])
+      const existing = await sql.unsafe<Array<{ serving_checksum: string; lifecycle: string; exposure: string; replay_snapshot_count: number }>>("SELECT serving_checksum,lifecycle,exposure,replay_snapshot_count FROM serving.serving_corpus WHERE corpus_id=$1", [corpusId])
+      if (existing[0]) {
+        if (existing[0].serving_checksum !== replaySourceChecksum || existing[0].lifecycle !== "WITHHELD" || existing[0].exposure !== "INTERNAL_ONLY" || Number(existing[0].replay_snapshot_count) !== ordered.length) throw new Error("MVP_REPLAY_SOURCE_CONFLICT")
+        const rows = await sql.unsafe<Array<{ instrument: string; model_checksum: string }>>("SELECT instrument,model_checksum FROM serving.serving_replay_sequence WHERE serving_corpus_id=$1 ORDER BY instrument", [corpusId])
+        if (rows.length !== ordered.length || rows.some((row, index) => row.instrument !== ordered[index]!.instrument || row.model_checksum !== ordered[index]!.modelChecksum)) throw new Error("MVP_REPLAY_SOURCE_READBACK_CONFLICT")
+        return Object.freeze({ status: "DUPLICATE" as const, corpusId, replaySourceChecksum })
+      }
+      await sql.unsafe("INSERT INTO serving.serving_corpus VALUES($1,'mvp-durable-replay-source/1.0.0',$2,$3,$4,'mvp-serving/1.0.0',$5,$5,'WITHHELD','INTERNAL_ONLY',0,0,$6,0,0,0)", [corpusId, input.commonWatermarkId, input.commonWatermarkChecksum, replaySourceChecksum, input.commonWatermarkValue, ordered.length])
+      for (const value of ordered) await insertReplay(sql, { corpusId, generatedAt: input.commonWatermarkValue } as ServingCorpusRecord, value)
+      const count = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_replay_sequence WHERE serving_corpus_id=$1", [corpusId])
+      if (count[0]?.count !== ordered.length) throw new Error("MVP_REPLAY_SOURCE_PERSISTENCE_INCOMPLETE")
+      return Object.freeze({ status: "CREATED" as const, corpusId, replaySourceChecksum })
+    })
+  }
+}
+
+export class PostgresMvpDurableReplayReadPort {
+  constructor(private readonly client: MvpServingPostgresClient) { if (client.roleIntent !== "READER" && client.roleIntent !== "PUBLISHER") throw new Error("MVP_SERVING_READ_ROLE_REQUIRED") }
+  async replaySourceSnapshot(corpusId: string, input: { readonly instrument: string; readonly start: string; readonly end: string }): Promise<ServingReplaySnapshot | null> {
+    const corpus = await this.client.sql.unsafe<Array<{ lifecycle: string; exposure: string; corpus_version: string }>>("SELECT lifecycle,exposure,corpus_version FROM serving.serving_corpus WHERE corpus_id=$1", [corpusId])
+    if (!corpus[0] || corpus[0].lifecycle !== "WITHHELD" || corpus[0].exposure !== "INTERNAL_ONLY" || corpus[0].corpus_version !== "mvp-durable-replay-source/1.0.0") throw new Error("MVP_REPLAY_SOURCE_CORPUS_INVALID")
+    const rows = await this.client.sql.unsafe<Record<string, unknown>[]>("SELECT * FROM serving.serving_replay_sequence WHERE serving_corpus_id=$1 AND instrument=$2 AND event_time_start=$3 AND event_time_end=$4 LIMIT 2", [corpusId, input.instrument, input.start, input.end])
+    if (rows.length > 1) throw new Error("MVP_REPLAY_SOURCE_AMBIGUOUS")
+    return rows[0] ? mapReplay(rows[0]) : null
+  }
+}
+
 export class PostgresMvpServingReadPort {
   constructor(private readonly client: MvpServingPostgresClient) { if (client.roleIntent !== "READER" && client.roleIntent !== "PUBLISHER") throw new Error("MVP_SERVING_READ_ROLE_REQUIRED") }
 

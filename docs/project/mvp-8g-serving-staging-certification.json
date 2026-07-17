@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "mvp-8g-serving-staging-certification/1.0.0",
+  "reviewedCommit": "7f0a69d642ed2b172e8fbef5a84aaecbf1d1cb03",
+  "recordedAt": "2026-07-18T02:36:16+09:00",
+  "sourceCandidateId": "mvp8e-candidate:79e758cc38eab5bb31503dc95700fe39e7c63d02bd65d2f07c1e56ed7c905ec8",
+  "sourceAudit": {
+    "projectionSources": 62,
+    "evidenceSources": 6,
+    "replayMemberReferences": 6,
+    "durableReplayPayloads": 0,
+    "d4ReplayRelations": 0,
+    "retainedReplayFiles": 0,
+    "replayMemberMetadataKeys": ["sampleCounts"],
+    "commonWatermarkPayloadType": "string",
+    "commonWatermarkReplayChecksums": 6
+  },
+  "certification": {
+    "disposableResourcesCreated": false,
+    "fullCountStagingExecuted": false,
+    "applicationReadbackExecuted": false,
+    "status": "BLOCKED_PRECONDITION"
+  },
+  "blocker": "DURABLE_REPLAY_SOURCE_PAYLOADS_MISSING",
+  "prohibitedFallback": "REBUILD_REPLAY_FROM_CORE_AND_D4",
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}

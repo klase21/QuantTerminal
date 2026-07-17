@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "mvp-8g-resource-receipt/1.0.0",
+  "recordedAt": "2026-07-18T02:36:16+09:00",
+  "resourcesCreated": [],
+  "resourcesRetained": [
+    "verified-mvp8e-core",
+    "verified-mvp8e-d4",
+    "verified-mvp8e-refresh",
+    "failed-mvp8e-serving-candidate-evidence"
+  ],
+  "disposableResourcesRemoved": [],
+  "temporaryCredentialsCreated": false,
+  "candidateCreated": false,
+  "activeExposureCountChanged": false
+}
