@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "mvp-8h-replay-certification/1.0.0",
+  "reviewedCommit": "3d1de9c78c1429d2b3352ab3fa52a10e15af1347",
+  "certifiedAt": "2026-07-18T03:20:01+09:00",
+  "sourceFingerprints": {
+    "core": "quantterminal_backfill",
+    "d4": "quantterminal_mvp8e_d4_7f0a69d8e1",
+    "refresh": "quantterminal_mvp8e_refresh_7f0a69d8e1",
+    "expectedReplayMetadata": "quantterminal_mvp8e_serving_7f0a69d8e1"
+  },
+  "targetFingerprint": "quantterminal_mvp8h_replay_3d1de9c8h1",
+  "replaySourceCorpusId": "mvp-replay-source:6a2903a60d274f05a88eb9dd501d07aa927918115d4688ef1914b6351b86a6d7",
+  "replaySourceChecksum": "6a2903a60d274f05a88eb9dd501d07aa927918115d4688ef1914b6351b86a6d7",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "checksums": {
+    "BTCUSDT": { "expected": "edd61567c627a50fc0060303b894792bb31f38fab33e117a72e8003deb4d85a1", "actual": "edd61567c627a50fc0060303b894792bb31f38fab33e117a72e8003deb4d85a1" },
+    "ETHUSDT": { "expected": "7582f9e36be842848bd74bc40933e751944fc02f1462436bc31e57e66bcda02d", "actual": "7582f9e36be842848bd74bc40933e751944fc02f1462436bc31e57e66bcda02d" },
+    "SOLUSDT": { "expected": "c43629c93333a2b1417d525253c765ad126de090be720e93dc3ae1225b6b2939", "actual": "c43629c93333a2b1417d525253c765ad126de090be720e93dc3ae1225b6b2939" },
+    "BNBUSDT": { "expected": "5f315624b77d39b04b1f916a89fc935613c5b85eec4a9dca7ad6b4d214cf97b0", "actual": "5f315624b77d39b04b1f916a89fc935613c5b85eec4a9dca7ad6b4d214cf97b0" },
+    "XRPUSDT": { "expected": "806d8374b3b4301e7e461db678a42dfecf243e3b36d45cd8d3d99ba383f2858b", "actual": "806d8374b3b4301e7e461db678a42dfecf243e3b36d45cd8d3d99ba383f2858b" },
+    "DOGEUSDT": { "expected": "ddeababb082b73f177860dae435b15f420779024fee36ce2104b0bdcd8c6d4ea", "actual": "ddeababb082b73f177860dae435b15f420779024fee36ce2104b0bdcd8c6d4ea" }
+  },
+  "sourceCountsPerSymbol": { "ohlcv": 288, "openInterest": 288, "funding": 3, "aggTradeFlowBuckets": 48 },
+  "persistence": { "durableRows": 6, "uniqueSymbols": 6, "uniqueReplayIdentities": 6, "checksumMismatches": 0 },
+  "readerResults": { "successes": 6, "failures": 0, "schemaVersion": "mvp-replay-sequence/1.0.0" },
+  "isolation": {
+    "coreMutated": false,
+    "d4Mutated": false,
+    "failedCandidateMutated": false,
+    "candidateManifestCreated": false,
+    "exposureCreated": false,
+    "productionMutated": false,
+    "neonMutated": false,
+    "vercelMutated": false
+  },
+  "status": "PASS",
+  "blockers": []
+}

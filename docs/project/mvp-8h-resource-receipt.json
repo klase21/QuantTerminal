@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "mvp-8h-resource-receipt/1.0.0",
+  "recordedAt": "2026-07-18T03:20:01+09:00",
+  "retained": {
+    "database": "quantterminal_mvp8h_replay_3d1de9c8h1",
+    "role": "qt_mvp8h_replay_3d1de9c8h1",
+    "replaySourceCorpusId": "mvp-replay-source:6a2903a60d274f05a88eb9dd501d07aa927918115d4688ef1914b6351b86a6d7",
+    "durableReplayRows": 6,
+    "containerVolumePreserved": true,
+    "networkPreserved": true
+  },
+  "removed": {
+    "disposableDatabase": true,
+    "disposableRole": true,
+    "disposableMetadata": true,
+    "temporaryScripts": true
+  },
+  "temporaryCredentialFilesRemaining": 0,
+  "candidateManifestCreated": false,
+  "activeExposureCreated": false
+}
