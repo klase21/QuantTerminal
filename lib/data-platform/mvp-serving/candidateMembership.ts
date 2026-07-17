@@ -89,6 +89,33 @@ export class LocalInactiveCandidateAssemblyService {
     return Object.freeze({ corpusId: corpus[0].corpus_id, servingChecksum: corpus[0].serving_checksum, governedThrough: new Date(corpus[0].governed_through).toISOString(), members: await readPhysicalMembers(this.client.sql, corpus[0].corpus_id) })
   }
 
+  async assembleGenesis(input: { readonly candidate: CandidateCorpusDescriptor }): Promise<{ readonly status: "CREATED" | "DUPLICATE"; readonly servingChecksum: string; readonly manifestChecksum: string; readonly exposureUnchanged: true }> {
+    const members = canonicalizeServingCorpusMembers(input.candidate.members)
+    const servingChecksum = computeCandidateServingChecksum({ governedThrough: input.candidate.governedThrough, schemaVersion: input.candidate.schemaVersion, members })
+    const genesisChecksum = canonicalChecksum({ kind: "MVP8B_FRESH_SERVING_GENESIS", governedThrough: input.candidate.governedThrough, schemaVersion: input.candidate.schemaVersion })
+    const genesisId = `mvp-serving-genesis:${genesisChecksum}`
+    return this.client.transaction(async (sql) => {
+      if (await activeExposure(sql)) throw new Error("FRESH_SERVING_EXPOSURE_MUST_BE_EMPTY")
+      const existing = await sql.unsafe<Array<{ serving_checksum: string; lifecycle: string; exposure: string }>>("SELECT serving_checksum,lifecycle,exposure FROM serving.serving_corpus WHERE corpus_id=$1", [input.candidate.corpusId])
+      if (existing[0]) {
+        if (existing[0].serving_checksum !== servingChecksum || existing[0].lifecycle !== "WITHHELD" || existing[0].exposure !== "INTERNAL_ONLY") throw new Error("SERVING_CANDIDATE_IMMUTABLE_CONFLICT")
+        const stored = await readStoredMembers(sql, input.candidate.corpusId)
+        if (canonicalChecksum(stored) !== canonicalChecksum(members)) throw new Error("SERVING_CANDIDATE_MEMBERSHIP_CONFLICT")
+        return Object.freeze({ status: "DUPLICATE" as const, servingChecksum, manifestChecksum: await storedManifestChecksum(sql, input.candidate.corpusId), exposureUnchanged: true as const })
+      }
+      const generatedAt = input.candidate.generatedAt
+      await sql.unsafe("INSERT INTO serving.serving_corpus VALUES($1,'mvp-serving-genesis/1.0.0',$1,$2,$2,$3,$4,$5,'WITHHELD','INTERNAL_ONLY',0,0,0,0,0,0)", [genesisId, genesisChecksum, input.candidate.schemaVersion, generatedAt, input.candidate.governedThrough])
+      const count = (kind: ServingCorpusMemberKind) => members.filter((member) => member.memberKind === kind).length
+      await sql.unsafe("INSERT INTO serving.serving_corpus VALUES($1,'mvp-serving-candidate/1.0.0',$2,$3,$4,$5,$6,$7,'WITHHELD','INTERNAL_ONLY',$8,$9,$10,$11,$12,0)", [input.candidate.corpusId, genesisId, genesisChecksum, servingChecksum, input.candidate.schemaVersion, generatedAt, input.candidate.governedThrough, count("PROJECTION") + count("SUPPLEMENTAL_CONTEXT"), count("EVIDENCE_SUMMARY"), count("REPLAY_SNAPSHOT"), count("DEMO_PROFILE"), count("RELEASE_INVENTORY")])
+      for (const member of members) await sql.unsafe("INSERT INTO serving.serving_corpus_member VALUES($1,$2,$3,$4,$5,$6,$7,$8::text::jsonb,$9)", [input.candidate.corpusId, member.memberKind, member.memberId, member.memberChecksum, member.canonicalSortKey, member.inheritedSourceCorpusId, member.schemaVersion, JSON.stringify(member.metadata), generatedAt])
+      const manifest = { corpusId: input.candidate.corpusId, servingChecksum, previousCorpusId: genesisId, previousServingChecksum: genesisChecksum, governedThrough: input.candidate.governedThrough, schemaVersion: input.candidate.schemaVersion, memberCount: members.length, memberDigest: canonicalChecksum(members), limitations: input.candidate.limitations }
+      const manifestChecksum = canonicalChecksum(manifest), manifestId = `mvp-candidate-manifest:${manifestChecksum}`
+      await sql.unsafe("INSERT INTO serving.serving_candidate_manifest VALUES($1,$2,$3,$4,$5,$6,'CANDIDATE','ELIGIBLE',$7::text::jsonb,$8)", [manifestId, input.candidate.corpusId, genesisId, genesisChecksum, manifestChecksum, input.candidate.schemaVersion, JSON.stringify(manifest), generatedAt])
+      if (await activeExposure(sql)) throw new Error("CANDIDATE_EXPOSURE_CHANGED")
+      return Object.freeze({ status: "CREATED" as const, servingChecksum, manifestChecksum, exposureUnchanged: true as const })
+    })
+  }
+
   async assemble(input: { readonly candidate: CandidateCorpusDescriptor; readonly expectedActiveCorpusId: string; readonly expectedActiveChecksum: string; readonly requiredActiveMemberKeys?: readonly string[]; readonly injectFailureAfter?: "HEADER" | "MEMBERS" | "MANIFEST" }): Promise<{ readonly status: "CREATED" | "DUPLICATE"; readonly servingChecksum: string; readonly manifestChecksum: string; readonly comparison: CandidateMembershipComparison; readonly exposureUnchanged: true }> {
     const members = canonicalizeServingCorpusMembers(input.candidate.members)
     const servingChecksum = computeCandidateServingChecksum({ governedThrough: input.candidate.governedThrough, schemaVersion: input.candidate.schemaVersion, members })

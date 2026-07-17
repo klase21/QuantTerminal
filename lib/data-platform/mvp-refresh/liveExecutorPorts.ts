@@ -114,6 +114,7 @@ export interface BoundedLiveSlotAdapter {
   readonly dataset: RefreshLogicalDataset
   readonly sourceContractId: string
   readonly supportedInstruments: readonly RefreshLogicalInstrument[]
+  readonly allowBtcOhlcvAcquisition?: boolean
   reconcileResume?(input: LiveExecutorInvocation): Promise<LiveSlotResumeResult | null>
   inspectFinalization(input: LiveExecutorInvocation): Promise<LiveSlotSourceResult>
   persistArtifact(input: LiveExecutorInvocation, source: LiveSlotSourceResult): Promise<LiveSlotArtifactResult>
@@ -145,7 +146,7 @@ function validateInvocation(input: LiveExecutorInvocation, adapter: BoundedLiveS
   if (input.dataset !== adapter.dataset || input.sourceContractVersion !== adapter.sourceContractId || input.sourceContractId !== adapter.sourceContractId) throw new Error("LIVE_EXECUTOR_SOURCE_CONTRACT_MISMATCH")
   const expectedSlot = createRefreshLogicalSlot({ provider: input.providerBinding, dataset: input.dataset, instrument: input.instrument, intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, contractVersion: input.sourceContractVersion })
   if (expectedSlot.logicalSlotId !== input.logicalSlotId) throw new Error("LIVE_EXECUTOR_PREWRITE_LOGICAL_SLOT_MISMATCH")
-  if (input.dataset === "ohlcv" && input.instrument === "BTCUSDT") throw new Error("LIVE_EXECUTOR_BTCUSDT_OHLCV_REUSE_ONLY")
+  if (input.dataset === "ohlcv" && input.instrument === "BTCUSDT" && !adapter.allowBtcOhlcvAcquisition) throw new Error("LIVE_EXECUTOR_BTCUSDT_OHLCV_REUSE_ONLY")
   if (!input.allowedDatasets.includes(input.dataset) || !input.allowedInstruments.includes(input.instrument) || !adapter.supportedInstruments.includes(input.instrument)) throw new Error("LIVE_EXECUTOR_ALLOWLIST_REJECTED")
   for (const upstream of input.requiredUpstream) { if (!upstream.identity) throw new Error("LIVE_EXECUTOR_UPSTREAM_IDENTITY_MISSING"); checksum64(upstream.checksum, "LIVE_EXECUTOR_UPSTREAM_CHECKSUM_INVALID") }
 }

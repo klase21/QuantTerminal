@@ -286,14 +286,16 @@ function canonicalFailureClassification(error: unknown): string {
   return "CANONICAL_COMMIT_FAILED"
 }
 
-function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; readonly storage: ObjectStoragePort; readonly objectRoot: string; readonly d2Client: IsolatedPostgresClient; readonly d2: CanonicalPersistenceAdapter; readonly d3: PopulationPostgresAdapter; readonly canonical: CanonicalCommitPort; readonly refresh: MvpRefreshStore }): BoundedLiveSlotAdapter {
+export function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; readonly storage: ObjectStoragePort; readonly objectRoot: string; readonly d2Client: IsolatedPostgresClient; readonly d2: CanonicalPersistenceAdapter; readonly d3: PopulationPostgresAdapter; readonly canonical: CanonicalCommitPort; readonly refresh: MvpRefreshStore; readonly allowBtcOhlcvAcquisition?: boolean; readonly enableResumeReconciliation?: boolean }): BoundedLiveSlotAdapter {
   const states = new Map<string, SlotState>()
   const state = (id: string) => { const value = states.get(id); if (!value) throw new Error("LIVE_SLOT_STATE_MISSING"); return value }
   return Object.freeze({
     dataset: input.dataset,
     sourceContractId: SOURCE_CONTRACTS[input.dataset],
-    supportedInstruments: input.dataset === "ohlcv" ? INSTRUMENTS.filter((value) => value !== "BTCUSDT") : INSTRUMENTS,
+    allowBtcOhlcvAcquisition: input.allowBtcOhlcvAcquisition,
+    supportedInstruments: input.dataset === "ohlcv" && !input.allowBtcOhlcvAcquisition ? INSTRUMENTS.filter((value) => value !== "BTCUSDT") : INSTRUMENTS,
     async reconcileResume(invocation) {
+      if (input.enableResumeReconciliation === false) return null
       const definition = populationDefinition(invocation, new Date().toISOString())
       const unitId = definition.units[0]!.unitId
       const now = new Date().toISOString()
@@ -421,7 +423,7 @@ function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; 
   })
 }
 
-function createWatermarkAudit(store: MvpRefreshStore): LiveWatermarkAuditPort {
+export function createWatermarkAudit(store: MvpRefreshStore): LiveWatermarkAuditPort {
   return Object.freeze({
     async append(input) {
       const value = sanitizedIdentity(input.scope === "DATASET" ? "mrdw" : "mrcw", input)
@@ -433,7 +435,7 @@ function createWatermarkAudit(store: MvpRefreshStore): LiveWatermarkAuditPort {
 
 function toConsumerProjection(value: MvpProjectionVersion): ConsumerProjection { return Object.freeze({ projectionId: value.projectionId, projectionVersionId: value.projectionVersionId, projectionKind: value.projectionKind, subjectId: value.subjectId, eventTimeStart: value.eventTimeStart, eventTimeEnd: value.eventTimeEnd, knowledgeTimeCutoff: value.knowledgeTimeCutoff, payload: value.structuredPayload, completeness: value.completeness, limitations: value.limitations, lifecycleState: value.lifecycleState, effectiveExposure: "CONSUMER_VISIBLE", projectionChecksum: value.projectionChecksum }) }
 
-function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresClient; readonly d3: D3PostgresClient; readonly objectRoot: string; readonly refresh: MvpRefreshStore; readonly consistency: ConsistencyPostgresRuntime; readonly evidence: ConsistencyPostgresRuntime; readonly projection: ConsistencyPostgresRuntime }): LiveDownstreamExecutor {
+export function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresClient; readonly d3: D3PostgresClient; readonly objectRoot: string; readonly refresh: MvpRefreshStore; readonly consistency: ConsistencyPostgresRuntime; readonly evidence: ConsistencyPostgresRuntime; readonly projection: ConsistencyPostgresRuntime }): LiveDownstreamExecutor {
   let windows: readonly MvpEvidenceWindowData[] = Object.freeze([]), projections: readonly MvpProjectionVersion[] = Object.freeze([])
   const corpus = (slots: readonly LiveResumeSlotResult[]) => Object.freeze({ corpusId: `mvp-refresh-window:${canonicalChecksum(slots.map((slot) => slot.logicalSlotId))}`, corpusChecksum: canonicalChecksum(slots.map((slot) => [slot.logicalSlotId, slot.candidateChecksum])) })
   const committed = (window: MvpEvidenceWindowData) => Object.freeze(window.resultInputs.map((value) => Object.freeze({ identity: value.canonicalRecordId, checksum: value.checksum })))
@@ -478,7 +480,7 @@ function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresClient; 
   })
 }
 
-function createCandidateExecutor(service: LocalInactiveCandidateAssemblyService): LiveCandidateExecutor {
+export function createCandidateExecutor(service: LocalInactiveCandidateAssemblyService): LiveCandidateExecutor {
   let candidate: { corpusId: string; checksum: string; comparisonChecksum: string } | null = null
   return Object.freeze({
     async assemble(input) {
