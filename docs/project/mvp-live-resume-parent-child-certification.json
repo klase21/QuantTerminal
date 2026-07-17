@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "mvp-live-resume-parent-child-certification/1.0.0",
+  "certifiedAt": "2026-07-17T05:20:53.7968311Z",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "rootCause": {
+    "classification": "UNIT_RUN_ID_DID_NOT_REFERENCE_PERSISTED_REFRESH_RUN",
+    "firstMismatch": "SYNTHETIC_COORDINATOR_RUN_ID_USED_FOR_REFRESH_UNIT",
+    "planPersistedBeforeRun": false,
+    "runPersistedBeforeUnit": false,
+    "failedAttemptRowsRetained": 0
+  },
+  "repair": {
+    "operation": "resolveOrCreateLiveResumeExecution",
+    "isolation": "SERIALIZABLE",
+    "planBeforeRun": true,
+    "runBeforeUnits": true,
+    "persistedRunIdPropagated": true,
+    "unitCount": 23,
+    "btcusdtOhlcvAcquisitionUnits": 0,
+    "exactResume": "DUPLICATE_RUN_RESUMED_UNITS",
+    "concurrentResolution": "ONE_RUN_23_UNITS",
+    "historicalRunSelection": "EXCLUDED_BY_DETERMINISTIC_LIVE_PROFILE_IDENTITY"
+  },
+  "rollbackCertification": {
+    "afterPlan": "PASS_ZERO_RETAINED_ROWS",
+    "afterRun": "PASS_ZERO_RETAINED_ROWS",
+    "afterFirstUnit": "PASS_ZERO_RETAINED_ROWS",
+    "appendOnlyCheckpointMutation": "REJECTED",
+    "retainedRows": 0
+  },
+  "databaseAudit": {
+    "orphanUnits": 0,
+    "retainedLive23SlotRun": false,
+    "targetWatermarkCreatedByFailedAttempt": false,
+    "authoritativeRecoveryValid": true,
+    "historicalRowsModified": false
+  },
+  "statusCommand": {
+    "source": "PERSISTED_LIVE_STATE",
+    "persistedRunId": null,
+    "authoritativeReuse": 1,
+    "missingSlots": 23,
+    "leaseState": "ABSENT",
+    "candidateState": null,
+    "commonWatermark": null
+  },
+  "liveAcquisitionExecuted": false,
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false,
+  "status": "READY_FOR_LIVE_RESUME"
+}

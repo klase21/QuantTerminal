@@ -25,7 +25,7 @@ import { boundedArchiveSourceUrl, buildBoundedAggTradesSegment, createBoundedArc
 import { createBoundedFundingCandidate, createBoundedFundingRequest, createBoundedFundingSourceUrl, parseBoundedFundingEvents, type ProviderNativeFundingEvent } from "./boundedFunding"
 import { ControlledOhlcvRecoveryStore } from "./controlledOhlcvRecovery"
 import { createLiveExecutorPortSet, composeConcreteLiveResumePorts, type BoundedLiveSlotAdapter, type LiveCandidateExecutor, type LiveDownstreamExecutor, type LiveWatermarkAuditPort } from "./liveExecutorPorts"
-import { PostgresLiveResumeCoordinatorControlPlane } from "./liveResumePostgres"
+import { PostgresLiveResumeCoordinatorControlPlane, PostgresLiveResumeExecutionStore } from "./liveResumePostgres"
 import { MvpRefreshStore } from "./store"
 import type { LiveResumeLocalBindingSet, LiveResumeBindingCapability, LiveResumeEnvironmentMode } from "./liveResumeEnvironment"
 import type { LiveResumeSlotResult, LiveResumeStageOutput } from "./liveResumeCoordinator"
@@ -377,7 +377,7 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
     const d3Adapter = createPopulationPostgresAdapter(d3)
     const canonical = createD3ToD2CanonicalCommitPort(d2Adapter)
 
-    const refreshStore = new MvpRefreshStore(refresh), recovery = new ControlledOhlcvRecoveryStore(refresh), control = new PostgresLiveResumeCoordinatorControlPlane(refresh)
+    const refreshStore = new MvpRefreshStore(refresh), recovery = new ControlledOhlcvRecoveryStore(refresh), control = new PostgresLiveResumeCoordinatorControlPlane(refresh), execution = new PostgresLiveResumeExecutionStore(refresh)
     const authorities = await recovery.readAuthoritiesForWindow(start, end)
     if (authorities.length !== 1) throw new Error("LIVE_AUTHORITATIVE_RECOVERY_REQUIRED")
     const authority = authorities[0]!
@@ -386,15 +386,9 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
     const executorPorts = createLiveExecutorPortSet({ ohlcv: createDatasetAdapter(adapterInput("ohlcv")), "open-interest": createDatasetAdapter(adapterInput("open-interest")), funding: createDatasetAdapter(adapterInput("funding")), "agg-trade": createDatasetAdapter(adapterInput("agg-trade")) })
     const ports = composeConcreteLiveResumePorts({
       targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
+      execution,
       lease: control,
       checkpoints: control,
-      units: { resolve: async (slot, context) => {
-        const unitId = `mru_${canonicalChecksum({ runId: context.runId, logicalSlotId: slot.logicalSlotId })}`
-        const checksum = canonicalChecksum({ unitId, runId: context.runId, logicalSlotId: slot.logicalSlotId, sourceContractId: SOURCE_CONTRACTS[slot.dataset] })
-        const existing = (await refreshStore.auditUnitsForWindow(start, end)).find((item) => item.unitId === unitId)
-        if (!existing) await refreshStore.putUnits([{ unitId, runId: context.runId, instrument: slot.instrument, datasetId: slot.dataset, intervalStart: start, intervalEnd: end, checksum }])
-        return Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, action: existing ? "REUSED_UNIT" as const : "CREATED_UNIT" as const, unitId, sourceContractId: SOURCE_CONTRACTS[slot.dataset], checkpointStartStage: existing?.state === "COMPLETE" ? "COMPLETE" as const : "PENDING" as const, fencingToken: context.fencingToken, reason: existing ? "EXISTING_DETERMINISTIC_UNIT" : "NEW_DETERMINISTIC_UNIT" })
-      } },
       authoritativeOhlcv: { reuse: async (slot) => authoritativeResult(slot, authority) },
       executorPorts,
       watermarkAudit: createWatermarkAudit(refreshStore),

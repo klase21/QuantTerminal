@@ -70,6 +70,14 @@ The 8A.2K authentication findings were caused by an incorrect live topology cont
 
 The corrected authenticated no-write preflight passed all 26 mandatory bindings, all five database/runtime identities, durable object storage cleanup, one authoritative recovery record, the exact 1+23 planner, all 18 archive checks, and all six Funding checks. No target-day unit, payload, Fact, watermark, downstream record, candidate, exposure, Neon, Vercel, or Production write occurred.
 
+## MVP-8A.2M Parent-Child Transaction Repair
+
+The first live setup failed before lease acquisition because a synthetic coordinator execution identity was used as `refresh_unit.run_id` without a persisted `refresh_run` parent. PostgreSQL enforced the foreign key and retained no invalid child row. Read-only audit found no orphan unit, no retained live 23-slot run, no failed-attempt watermark, and one intact authoritative BTCUSDT OHLCV recovery record.
+
+Plan, run, and 23 units are now resolved in one serializable transaction. Unit persistence can use only the persisted run identity returned by the transaction. Exact resume reuses the same run and unit identities; `run` refuses a second equivalent execution. Certification injected failures after plan, run, and first-unit insertion and retained zero rows in every case.
+
+The status command now reads persisted live state. Current status is no persisted live run, one authoritative reuse, 23 missing acquisition slots, no lease, no coordinator checkpoint, no run-scoped candidate, and no common watermark. No acquisition, downstream generation, candidate assembly, exposure change, or external-system mutation occurred.
+
 ## Reproducible commands
 
 ```powershell

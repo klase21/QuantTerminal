@@ -253,9 +253,9 @@ export function composeConcreteLiveResumePorts(input: ConcreteLiveResumePortComp
   } })
   return Object.freeze({
     targets: input.targets,
+    execution: input.execution,
     lease: input.lease,
     checkpoints: input.checkpoints,
-    units: input.units,
     authoritativeOhlcv: input.authoritativeOhlcv,
     executors: Object.freeze({ ohlcv: execute("ohlcv", input.executorPorts.executeBoundedOhlcvSlot), "open-interest": execute("open-interest", input.executorPorts.executeBoundedOpenInterestSlot), funding: execute("funding", input.executorPorts.executeBoundedFundingSlot), "agg-trade": execute("agg-trade", input.executorPorts.executeBoundedAggTradesSlot) }),
     watermarks: createLiveWatermarkPorts(input.watermarkAudit),

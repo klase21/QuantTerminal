@@ -6,6 +6,7 @@ import {
   LIVE_EXECUTOR_PORT_NAMES,
   composeConcreteLiveResumePorts,
   createCertifiedLiveResumePlan,
+  createDryRunLiveResumeExecutionSetup,
   createLiveExecutorPortSet,
   createMandatoryRefreshLogicalSlots,
   liveResumeStageOutput,
@@ -68,9 +69,9 @@ function fixture(failDataset: string | null = null) {
   let fence = 1
   const base: Omit<LiveResumeCoordinatorPorts, "executors" | "watermarks" | "downstream" | "candidate"> = {
     targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
+    execution: { resolveOrCreate: async ({ plan: value }) => createDryRunLiveResumeExecutionSetup(value) },
     lease: { acquire: async () => ({ fencingToken: fence }), assert: async (_runId, token) => { if (token !== fence) throw new Error("STALE_WORKER") }, release: async () => undefined },
     checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? null, append: async (value) => { const key = `${value.coordinatorRunId}:${value.stage}`, prior = checkpoints.get(key); if (prior && prior.checksum !== value.checksum) throw new Error("CHECKPOINT_CONFLICT"); if (prior) return "DUPLICATE"; checkpoints.set(key, value); return "CREATED" }, appendFailure: async (value) => { checkpoints.set(`${value.coordinatorRunId}:failure:${value.stage}:${value.checksum}`, value); return "CREATED" } },
-    units: { resolve: async (slot, input) => Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, action: "CREATED_UNIT" as const, unitId: `unit:${canonicalChecksum({ run: input.runId, slot: slot.logicalSlotId })}`, sourceContractId: contracts[slot.dataset], checkpointStartStage: "PENDING" as const, fencingToken: input.fencingToken, reason: "MISSING" }) },
     authoritativeOhlcv: { reuse: async (slot) => authority(slot) },
   }
   const ports = composeConcreteLiveResumePorts({ ...base, executorPorts, watermarkAudit, downstreamExecutor, candidateExecutor, plannerIdentity: certified.planIdentity, plannerChecksum: certified.planChecksum, intervalStart: start, intervalEnd: end, allowedDatasets: datasets, allowedInstruments: instruments })

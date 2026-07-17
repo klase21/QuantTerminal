@@ -62,6 +62,17 @@
     "concretePortContract": "CERTIFIED",
     "liveComposition": "AUTHENTICATED_PREFLIGHT_PASSED"
   },
+  "parentChildTransaction": {
+    "certifiedAt": "2026-07-17T05:20:53.7968311Z",
+    "rootCause": "SYNTHETIC_UNIT_RUN_ID_WITHOUT_PERSISTED_REFRESH_RUN",
+    "planRunUnitsAtomic": true,
+    "persistedRunIdPropagated": true,
+    "exactResume": "PASS",
+    "concurrentResolution": "ONE_RUN_23_UNITS",
+    "rollbackFailurePoints": ["AFTER_PLAN", "AFTER_RUN", "AFTER_FIRST_UNIT"],
+    "retainedCertificationRows": 0,
+    "statusReadsPersistedState": true
+  },
   "status": "READY_FOR_EXPLICIT_LIVE_RESUME",
   "blockerReasonCodes": [],
   "productionMutation": false,

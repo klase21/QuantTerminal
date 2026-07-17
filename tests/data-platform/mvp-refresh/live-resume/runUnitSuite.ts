@@ -6,6 +6,7 @@ import {
   MvpLiveResumeCoordinator,
   assertSanitizedLiveResumeOutput,
   createCertifiedLiveResumePlan,
+  createDryRunLiveResumeExecutionSetup,
   createMandatoryRefreshLogicalSlots,
   liveResumeStageOutput,
   parseLiveResumeWorkerOptions,
@@ -46,9 +47,13 @@ function fixture() {
   let fence = 1, candidateAssembled = false, candidateExposed = false
   const ports: LiveResumeCoordinatorPorts = {
     targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
+    execution: { resolveOrCreate: async ({ plan: value, mode }) => {
+      const setup = createDryRunLiveResumeExecutionSetup(value)
+      if (mode !== "DRY_RUN" && createdUnits.length === 0) createdUnits.push(...setup.unitOutcomes.map((unit) => unit.unitId!))
+      return setup
+    } },
     lease: { acquire: async () => ({ fencingToken: fence }), assert: async (_runId, token) => { if (token !== fence) throw new Error("STALE") }, release: async () => undefined },
     checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? null, append: async (value) => { const key = `${value.coordinatorRunId}:${value.stage}`, existing = checkpoints.get(key); if (existing && existing.checksum !== value.checksum) throw new Error("CONFLICT"); if (existing) return "DUPLICATE"; checkpoints.set(key, value); return "CREATED" }, appendFailure: async (value) => { checkpoints.set(`${value.coordinatorRunId}:failure:${value.stage}:${value.checksum}`, value); return "CREATED" } },
-    units: { resolve: async (slot, input) => { const unitId = `unit:${canonicalChecksum({ runId: input.runId, slot: slot.logicalSlotId })}`; if (input.mode !== "DRY_RUN") createdUnits.push(unitId); return { logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, action: input.mode === "DRY_RUN" ? "CREATED_UNIT" : "CREATED_UNIT", unitId, sourceContractId: contracts[slot.dataset], checkpointStartStage: "PENDING", fencingToken: input.fencingToken, reason: "MISSING_LOGICAL_SLOT" } } },
     authoritativeOhlcv: { reuse: async (slot) => slotResult(slot, null) },
     executors: Object.fromEntries(Object.keys(contracts).map((dataset) => [dataset, { execute: async (slot: ReturnType<typeof plan>["slots"][number], unit: { unitId: string | null }) => { executorCalls.push(`${slot.dataset}:${slot.instrument}`); return slotResult(slot, unit.unitId) } }])) as unknown as LiveResumeCoordinatorPorts["executors"],
     watermarks: { persistDataset: async (dataset, through, slots) => liveResumeStageOutput({ dataset, through, logicalSlots: slots.length }, [`watermark:${dataset}:${through}`]), persistCommon: async (through, datasets) => liveResumeStageOutput({ through, datasets: datasets.length }, [`watermark:common:${through}`]) },

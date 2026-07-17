@@ -39,3 +39,13 @@ MVP-8A.2I adds a shared local-only capability and diagnostic contract. The worke
 The environment-backed run remains blocked: the current D2/D3/D4 credentials fail authentication, the serving target does not authenticate as the publisher, and the final concrete live executor port composition is not yet installed. The worker does not substitute fixture ports or broad workers for a live run.
 
 The typed port composition itself is now implemented and fixture-certified. It validates exact slot contracts, executes the shared bounded stage sequence, derives watermarks from logical slots, and propagates checksummed identities to downstream and candidate stages. The remaining code gap is limited to constructing that composition from real environment-backed adapter instances in the worker bootstrap.
+
+## Parent-Child Transaction Correction
+
+The environment bootstrap and authenticated preflight are complete. A subsequent first live setup exposed a control-plane persistence defect before acquisition: the coordinator supplied a synthetic run identity directly to `refresh_unit` persistence without first inserting the required `refresh_plan` and `refresh_run` parents. PostgreSQL rejected the child insert and retained no live setup rows.
+
+The coordinator now delegates setup to one authoritative serializable operation. It resolves the immutable plan, resolves one deterministic live run, and resolves all 23 acquisition units inside one transaction. Every unit is bound to the actual persisted run identity returned by that operation. The public coordinator port no longer permits independent per-unit run identity derivation.
+
+`run` creates only the first exact live execution and refuses an existing equivalent run. `resume` selects the same eligible live run or creates it only when no transaction committed parent-child state. Historical certification and recovery runs are excluded by the live execution profile and deterministic checksum. The status command now reads persisted plan, run, unit, checkpoint, lease, candidate, and watermark state instead of returning a certification placeholder.
+
+Rollback-only PostgreSQL certification covers failures after plan creation, run creation, and first-unit creation. Each failure retained zero rows. Exact resume and concurrent identical resolution converge on one run and 23 units; no BTCUSDT OHLCV acquisition unit is created. This correction did not execute target-day acquisition or mutate Production, Neon, Vercel, serving exposure, or historical control-plane rows.

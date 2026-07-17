@@ -1,4 +1,3 @@
-import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import {
   ControlledOhlcvRecoveryStore,
   MvpLiveResumeCoordinator,
@@ -9,10 +8,12 @@ import {
   createMvpRefreshClientFromEnvironment,
   createBoundedArchiveRequest,
   createBoundedFundingRequest,
+  createDryRunLiveResumeExecutionSetup,
   createLiveResumeEnvironmentFromProcessEnv,
   inspectBoundedArchiveAvailability,
   liveResumeStageOutput,
   parseLiveResumeWorkerOptions,
+  PostgresLiveResumeExecutionStore,
   type LiveResumeCoordinatorPorts,
   type LiveResumeStageCheckpoint,
 } from "@/lib/data-platform/mvp-refresh"
@@ -61,9 +62,9 @@ function dryRunPorts(gate: Awaited<ReturnType<typeof preflight>>): LiveResumeCoo
   const checkpoints = new Map<string, LiveResumeStageCheckpoint>()
   return {
     targets: { classify: async () => ({ refreshLocal: gate.environment.passed, truthPlaneLocal: gate.environment.passed, servingLocal: gate.environment.passed, objectStorageLocal: gate.environment.passed, servingPublisher: gate.environment.passed, managedOrProductionTarget: gate.productionOrNeonWriteTarget }) },
+    execution: { resolveOrCreate: async ({ plan }) => createDryRunLiveResumeExecutionSetup(plan) },
     lease: { acquire: async () => ({ fencingToken: 1 }), assert: async () => undefined, release: async () => undefined },
     checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? null, append: async (checkpoint) => { const key = `${checkpoint.coordinatorRunId}:${checkpoint.stage}`, existing = checkpoints.get(key); if (existing && existing.checksum !== checkpoint.checksum) throw new Error("LIVE_RESUME_DRY_RUN_CHECKPOINT_CONFLICT"); if (existing) return "DUPLICATE"; checkpoints.set(key, checkpoint); return "CREATED" }, appendFailure: async () => "CREATED" },
-    units: { resolve: async (slot, input) => ({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, action: "CREATED_UNIT", unitId: `intent_${canonicalChecksum({ runId: input.runId, logicalSlotId: slot.logicalSlotId })}`, sourceContractId: slot.dataset === "ohlcv" ? "mvp-bounded-ohlcv/1.0.0" : slot.dataset === "open-interest" ? "mvp-bounded-open-interest/1.0.0" : slot.dataset === "funding" ? "binance-official-rest-funding-rate/1.0.0" : "mvp-bounded-agg-trade/1.0.0", checkpointStartStage: "PENDING", fencingToken: input.fencingToken, reason: "DRY_RUN_UNIT_INTENT" }) },
     authoritativeOhlcv: { reuse: async () => { throw new Error("DRY_RUN_MUST_NOT_EXECUTE_AUTHORITY") } },
     executors: Object.fromEntries(DATASETS.map((dataset) => [dataset, { execute: async () => { throw new Error("DRY_RUN_MUST_NOT_EXECUTE_DATASET") } }])) as unknown as LiveResumeCoordinatorPorts["executors"],
     watermarks: { persistDataset: async () => { throw new Error("DRY_RUN_MUST_NOT_WRITE_WATERMARK") }, persistCommon: async () => { throw new Error("DRY_RUN_MUST_NOT_WRITE_WATERMARK") } },
@@ -80,9 +81,13 @@ async function main() {
   }
   const loaded = await loadPlan(options.start, options.end)
   if (options.command === "plan") return print({ command: options.command, plan: { planIdentity: loaded.plan.planIdentity, planChecksum: loaded.plan.planChecksum, logicalSlots: 24, reuseAuthoritative: 1, createNew: 23, conflicts: 0 } })
+  if (options.command === "status") {
+    const client = createMvpRefreshClientFromEnvironment()
+    try { await client.verify(); return print({ command: options.command, status: await new PostgresLiveResumeExecutionStore(client).status(loaded.plan), productionMutation: false }) }
+    finally { await client.shutdown() }
+  }
   const gate = await preflight(options.start, options.end)
   if (options.command === "preflight") return print({ command: options.command, result: gate })
-  if (options.command === "status") return print({ command: options.command, status: "CERTIFICATION_ONLY", liveUnitsCreated: 0, candidateBuilt: false, productionMutation: false })
   if (options.command === "dry-run" || options.command === "verify") {
     if (!gate.passed) throw new Error("LIVE_RESUME_PREFLIGHT_FAILED")
     const result = await new MvpLiveResumeCoordinator(dryRunPorts(gate)).execute({ plan: loaded.plan, allowedInstruments: INSTRUMENTS, allowedDatasets: DATASETS, mode: "DRY_RUN" })
@@ -93,7 +98,7 @@ async function main() {
     const environment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "LIVE", intervalStart: options.start, intervalEnd: options.end, plannerIdentity: loaded.plan.planIdentity, plannerChecksum: loaded.plan.planChecksum })
     try {
       if (!environment.ports) throw new Error("LIVE_RESUME_LOCAL_PREFLIGHT_FAILED")
-      const result = await new MvpLiveResumeCoordinator(environment.ports).execute({ plan: loaded.plan, allowedInstruments: INSTRUMENTS, allowedDatasets: DATASETS, mode: "LIVE" })
+      const result = await new MvpLiveResumeCoordinator(environment.ports).execute({ plan: loaded.plan, allowedInstruments: INSTRUMENTS, allowedDatasets: DATASETS, mode: "LIVE", intent: options.command === "resume" ? "RESUME" : "RUN" })
       return print({ command: options.command, result })
     } finally { await environment.close() }
   }

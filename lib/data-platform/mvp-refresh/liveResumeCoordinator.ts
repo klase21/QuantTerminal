@@ -59,6 +59,17 @@ export interface LiveResumeUnitResolution {
   readonly reason: string
 }
 
+export type LiveResumeExecutionIntent = "DRY_RUN" | "RUN" | "RESUME"
+export interface LiveResumeExecutionSetup {
+  readonly planStatus: "CREATED" | "DUPLICATE" | "DRY_RUN"
+  readonly persistedPlanId: string
+  readonly runStatus: "CREATED" | "DUPLICATE" | "DRY_RUN"
+  readonly persistedRunId: string
+  readonly unitOutcomes: readonly LiveResumeUnitResolution[]
+  readonly transactionChecksum: string
+  readonly resumeClassification: "NEW_EXECUTION" | "EXISTING_INCOMPLETE_EXECUTION" | "EXISTING_COMPLETE_EXECUTION" | "DRY_RUN"
+}
+
 export interface LiveResumeSlotResult {
   readonly logicalSlotId: string
   readonly dataset: RefreshLogicalDataset
@@ -104,6 +115,9 @@ export interface LiveResumeStageCheckpoint {
 
 export interface LiveResumeCoordinatorPorts {
   readonly targets: { classify(): Promise<LiveResumeTargetClassification> }
+  readonly execution: {
+    resolveOrCreate(input: { readonly plan: CertifiedLiveResumePlan; readonly mode: LiveResumeExecutionMode; readonly intent: LiveResumeExecutionIntent }): Promise<LiveResumeExecutionSetup>
+  }
   readonly lease: {
     acquire(runId: string): Promise<{ readonly fencingToken: number }>
     assert(runId: string, fencingToken: number): Promise<void>
@@ -113,9 +127,6 @@ export interface LiveResumeCoordinatorPorts {
     read(runId: string, stage: LiveResumeStage): Promise<LiveResumeStageCheckpoint | null>
     append(checkpoint: LiveResumeStageCheckpoint): Promise<"CREATED" | "DUPLICATE">
     appendFailure(checkpoint: LiveResumeStageCheckpoint): Promise<"CREATED" | "DUPLICATE">
-  }
-  readonly units: {
-    resolve(slot: RefreshSlotResumePlanEntry, input: { readonly runId: string; readonly mode: LiveResumeExecutionMode; readonly fencingToken: number }): Promise<LiveResumeUnitResolution>
   }
   readonly authoritativeOhlcv: {
     reuse(slot: RefreshSlotResumePlanEntry): Promise<LiveResumeSlotResult>
@@ -138,6 +149,7 @@ export interface LiveResumeCoordinatorInput {
   readonly allowedInstruments: readonly RefreshLogicalInstrument[]
   readonly allowedDatasets: readonly RefreshLogicalDataset[]
   readonly mode: LiveResumeExecutionMode
+  readonly intent?: Exclude<LiveResumeExecutionIntent, "DRY_RUN">
   readonly maxConcurrency?: number
   readonly failAfterStage?: LiveResumeStage
 }
@@ -286,7 +298,8 @@ export class MvpLiveResumeCoordinator {
     verifyAllowed(input)
     const target = await this.ports.targets.classify()
     if (!target.refreshLocal || !target.truthPlaneLocal || !target.servingLocal || !target.objectStorageLocal || !target.servingPublisher || target.managedOrProductionTarget) throw new Error("LIVE_RESUME_TARGET_BOUNDARY_REJECTED")
-    const coordinatorRunId = `mrlr_${canonicalChecksum({ version: LIVE_RESUME_COORDINATOR_VERSION, planIdentity: input.plan.planIdentity, planChecksum: input.plan.planChecksum })}`
+    const execution = await this.ports.execution.resolveOrCreate({ plan: input.plan, mode: input.mode, intent: input.mode === "DRY_RUN" ? "DRY_RUN" : input.intent ?? "RUN" })
+    const coordinatorRunId = execution.persistedRunId
     const lease = await this.ports.lease.acquire(coordinatorRunId)
     const checkpoints: LiveResumeStageCheckpoint[] = []
     const concurrency = input.maxConcurrency ?? LIVE_RESUME_MAX_CONCURRENCY
@@ -323,13 +336,14 @@ export class MvpLiveResumeCoordinator {
     }
 
     try {
-      await stage("PLAN_VERIFIED", { planChecksum: input.plan.planChecksum }, async () => makeOutput({ logicalSlots: 24, reuse: 1, create: 23, conflicts: 0 }, [input.plan.planIdentity]))
+      await stage("PLAN_VERIFIED", { planChecksum: input.plan.planChecksum, persistedPlanId: execution.persistedPlanId, persistedRunId: execution.persistedRunId, transactionChecksum: execution.transactionChecksum }, async () => makeOutput({ logicalSlots: 24, reuse: 1, create: 23, conflicts: 0, planStatus: execution.planStatus, runStatus: execution.runStatus, resumeClassification: execution.resumeClassification }, [execution.persistedPlanId, execution.persistedRunId]))
       const resolutionsBySlot = new Map<string, LiveResumeUnitResolution>()
       await stage("UNITS_RESOLVED", { slots: input.plan.slots.map(slotBasis), mode: input.mode }, async () => {
-        const resolved = await mapBounded(input.plan.slots, concurrency, async (slot) => {
-          if (slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT") return Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, action: "REUSED_AUTHORITATIVE_OUTPUT", unitId: null, sourceContractId: SOURCE_CONTRACT_BY_DATASET.ohlcv, checkpointStartStage: "VALIDATED", fencingToken: null, reason: "CERTIFIED_AUTHORITATIVE_RECOVERY" }) satisfies LiveResumeUnitResolution
-          return this.ports.units.resolve(slot, { runId: coordinatorRunId, mode: input.mode, fencingToken: lease.fencingToken })
-        })
+        const byLogicalSlot = new Map(execution.unitOutcomes.map((value) => [value.logicalSlotId, value]))
+        const resolved = input.plan.slots.map((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT"
+          ? Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, action: "REUSED_AUTHORITATIVE_OUTPUT", unitId: null, sourceContractId: SOURCE_CONTRACT_BY_DATASET.ohlcv, checkpointStartStage: "VALIDATED", fencingToken: null, reason: "CERTIFIED_AUTHORITATIVE_RECOVERY" }) satisfies LiveResumeUnitResolution
+          : byLogicalSlot.get(slot.logicalSlotId)!)
+        if (resolved.some((value) => !value)) throw new Error("LIVE_RESUME_EXECUTION_UNIT_OUTCOME_MISSING")
         if (resolved.length !== 24 || resolved.filter((value) => value.action === "REUSED_AUTHORITATIVE_OUTPUT").length !== 1 || resolved.filter((value) => value.unitId !== null).length > 23 || resolved.some((value) => value.action === "BLOCKED")) throw new Error("LIVE_RESUME_UNIT_RESOLUTION_INVALID")
         for (const value of resolved) resolutionsBySlot.set(value.logicalSlotId, value)
         return makeOutput({ resolutions: resolved }, resolved.map((value) => value.unitId ?? value.logicalSlotId))

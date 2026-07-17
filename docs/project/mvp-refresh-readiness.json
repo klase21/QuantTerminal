@@ -129,6 +129,19 @@
         "d4Downstream": "READY_ISOLATED",
         "inactiveServing": "READY_PUBLISHER",
         "passed": true
+      },
+      "parentChildTransaction": {
+        "status": "CERTIFIED",
+        "planBeforeRun": true,
+        "runBeforeUnits": true,
+        "persistedRunIdForAllUnits": true,
+        "unitCount": 23,
+        "btcusdtOhlcvAcquisitionUnits": 0,
+        "exactResume": "PASS",
+        "atomicRollback": "PASS",
+        "retainedCertificationRows": 0,
+        "persistedLiveRun": false,
+        "statusCommand": "READ_ONLY_PERSISTED_STATE"
       }
     }
   },
