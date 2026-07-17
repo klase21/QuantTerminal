@@ -206,3 +206,11 @@ The original operator action committed the immutable Refresh disposition, then t
 Quarantine now executes as an idempotent cross-database saga: Refresh intent, Population fencing, verification, then Refresh completion receipt. Population event details use the existing native JSON object binding. Status and preflight expose `quarantineSagaState`, `missingQuarantineSteps`, and `quarantineReceiptId`.
 
 The real generation remains at `INTENT_RECORDED`. It has zero active leases, four missing Population fencing events, and no completion receipt. The guarded `reconcile-quarantine` preview performed zero writes. Disposable committed certification recovered failures after intent, Population fencing, and completion; exact retries were `DUPLICATE`, changed incident checksum was `CONFLICT`, and cleanup retained no databases, roles, or artifacts. Operator reconciliation remains required; the original quarantine and live resume commands were not rerun.
+
+## MVP-8A.2T Clean Generation Population Event Repair
+
+The first clean-generation failure was an immutable Population `RETRIEVING` event collision. Its legacy identity used Logical Slot and fence but omitted execution generation and Population attempt identity. BTCUSDT AggTrades therefore collided with a predecessor-generation fence-1 event before any Retrieval, Raw Object, Candidate, or Fact was written for that clean slot.
+
+Population stage event identities now include execution generation, Logical Slot, Population run and unit attempts, fence, stage, source contract, and provider binding. Exact immutable replay remains `DUPLICATE`; changed content remains `CONFLICT`. Successor preflight now evaluates durable lease eligibility for the successor generation instead of skipping Population units.
+
+The clean generation retains one DOGEUSDT Funding Retrieval, Raw Object, and three Candidates, plus one ETHUSDT Open Interest Retrieval, Raw Object, and 288 Candidates. Those units continue at Canonical Commit; BTCUSDT AggTrades continues at source acquisition. Failure handling retains zero active leases and no watermark, Replay, or candidate manifest progression.

@@ -76,8 +76,8 @@ async function main() {
 
     const adapter = createPopulationPostgresAdapter(integrated.d3)
     const beforeRecovery = await adapter.auditBoundedAcquisitionLineage(START, END, "mvp-live-resume")
-    const doge = beforeRecovery.units.find((unit) => unit.dataset === "funding" && unit.instrument === "DOGEUSDT")
-    const eth = beforeRecovery.units.find((unit) => unit.dataset === "open-interest" && unit.instrument === "ETHUSDT")
+    const doge = beforeRecovery.units.find((unit) => unit.dataset === "funding" && unit.instrument === "DOGEUSDT" && unit.candidates === 3)
+    const eth = beforeRecovery.units.find((unit) => unit.dataset === "open-interest" && unit.instrument === "ETHUSDT" && unit.candidates === 2)
     assert.ok(doge && !doge.activeLease && doge.retrievalAttempts === 1 && doge.candidates === 3)
     assert.ok(eth && !eth.activeLease && eth.retrievalAttempts === 1 && eth.candidates === 2)
     const beforeCounts = await integrated.d3.sql<{ readonly events: number; readonly checkpoints: number; readonly attempts: number; readonly candidates: number }[]>`SELECT (SELECT count(*)::int FROM control.population_unit_events WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) events,(SELECT count(*)::int FROM control.population_checkpoints WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) checkpoints,(SELECT count(*)::int FROM control.retrieval_attempts WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) attempts,(SELECT count(*)::int FROM population.candidates WHERE unit_id=ANY(${integrated.d3.sql.array([doge.unitId,eth.unitId])})) candidates`

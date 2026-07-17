@@ -27,6 +27,7 @@ import {
   createCleanGenerationInputManifest,
   createCleanExecutionGenerationContext,
   createCleanCertifiedLiveResumePlan,
+  createLivePopulationEventIdentity,
   verifyCleanGenerationManifest,
   createExecutionGenerationQuarantineProposal,
   readExecutionGenerationDisposition,
@@ -41,6 +42,8 @@ import { createPopulationPostgresAdapter } from "@/lib/data-platform/population/
 
 const INSTRUMENTS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const
 const DATASETS = ["ohlcv", "open-interest", "funding", "agg-trade"] as const
+const SOURCE_CONTRACTS = { ohlcv: "mvp-bounded-ohlcv/1.0.0", "open-interest": "mvp-bounded-open-interest/1.0.0", funding: "binance-official-rest-funding-rate/1.0.0", "agg-trade": "mvp-bounded-agg-trade/1.0.0" } as const
+const PROVIDER_BINDINGS = { ohlcv: "binance-vision", "open-interest": "binance-vision", funding: "binance-official-rest", "agg-trade": "binance-vision" } as const
 const CONTAMINATED_GENERATION = "mrlr_440fd1b84362eaf01744d9ff22d95c35ebcf564e7c4c827829047aef7266074b" as const
 const CONTAMINATED_PLAN = "mrlp_e01c4dc5a8962f070d27b57b718e3914a6973013882d445b0e9a10706accc1c5" as const
 const CONTAMINATED_PLAN_CHECKSUM = "e01c4dc5a8962f070d27b57b718e3914a6973013882d445b0e9a10706accc1c5" as const
@@ -134,8 +137,8 @@ async function lineageInventory(start: string, end: string) {
   return withIntegrated(async (clients) => createPopulationPostgresAdapter(clients.d3).auditBoundedAcquisitionLineage(start, end, "mvp-live-resume"))
 }
 
-async function resumeLeaseInventory(start: string, end: string) {
-  return withIntegrated(async (clients) => createPopulationPostgresAdapter(clients.d3).inspectResumeLeaseEligibility({ intervalStart: start, intervalEnd: end, requestedBy: "mvp-live-resume", now: new Date().toISOString() }))
+async function resumeLeaseInventory(start: string, end: string, executionGenerationId?: string) {
+  return withIntegrated(async (clients) => createPopulationPostgresAdapter(clients.d3).inspectResumeLeaseEligibility({ intervalStart: start, intervalEnd: end, requestedBy: "mvp-live-resume", now: new Date().toISOString(), executionGenerationId }))
 }
 
 async function generationDisposition(runId: string) {
@@ -219,7 +222,7 @@ async function preflight(start: string, end: string, planOverride?: CertifiedLiv
         return Object.freeze({ instrument: request.instrument, ready: Array.isArray(value), classification: Array.isArray(value) ? "READY" : "MALFORMED_SOURCE_DATA" })
       } catch { return Object.freeze({ instrument: request.instrument, ready: false, classification: "CONNECTION_FAILED" }) }
     })),
-    planOverride?.executionGeneration ? Promise.resolve(Object.freeze([])) : resumeLeaseInventory(start, end),
+    resumeLeaseInventory(start, end, planOverride?.executionGeneration ? liveResumeRunIdentity(planOverride).runId : undefined),
   ])
   const localEnvironment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "PREFLIGHT", intervalStart: start, intervalEnd: end, plannerIdentity: loaded.plan.planIdentity, plannerChecksum: loaded.plan.planChecksum })
   const authoritySlot = loaded.plan.slots.find((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")!
@@ -231,8 +234,13 @@ async function preflight(start: string, end: string, planOverride?: CertifiedLiv
   const fundingPass = funding.length === 6 && funding.every((value) => value.ready)
   const resumableLeases = resumeLeases.filter((value) => value.stage !== "COMPLETE")
   const resumeLeasePass = resumableLeases.every((value) => value.eligible)
-  const passed = environment.passed && archivePass && fundingPass && resumeLeasePass && loaded.authorityCount === 1 && planCounts.reuseAuthoritative === 1 && planCounts.createNew === 23 && planCounts.conflicts === 0
-  return Object.freeze({ passed, disposition: disposition?.disposition ?? "ACTIVE", governance: { ready: governance.length, missing: Object.freeze([]), conflicts: Object.freeze([]) }, environment, sourceAvailability: { archives: { checked: archives.length, ready: archives.filter((value) => value.available && value.finalized).length, passed: archivePass }, funding: { checked: funding.length, ready: funding.filter((value) => value.ready).length, passed: fundingPass } }, resumeLeaseEligibility: { checked: resumableLeases.length, eligible: resumableLeases.filter((value) => value.eligible).length, passed: resumeLeasePass, units: resumableLeases.map((value) => ({ unitId: value.unitId, dataset: value.dataset, instrument: value.instrument, state: value.currentState, runState: value.runState, stage: value.stage, fence: value.currentFence, activeLease: value.activeLease, leaseExpired: value.leaseExpired, eligible: value.eligible, reason: value.reason })) }, authority: { count: loaded.authorityCount, checksumValid: loaded.authorityCount === 1 }, planner: { planIdentity: loaded.plan.planIdentity, planChecksum: loaded.plan.planChecksum, logicalSlots: loaded.plan.slots.length, ...planCounts }, productionOrNeonWriteTarget: false })
+  const eventSlot = loaded.plan.slots.find((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME")!
+  const eventGeneration = liveResumeRunIdentity(loaded.plan).runId
+  const eventIdentity = createLivePopulationEventIdentity({ executionGenerationId: eventGeneration, logicalSlotId: eventSlot.logicalSlotId, populationRunId: `preflight:${eventGeneration}`, populationUnitId: `preflight:${eventSlot.logicalSlotId}`, fencingToken: 1, stage: "RETRIEVING", sourceContractId: SOURCE_CONTRACTS[eventSlot.dataset], sourceContractVersion: SOURCE_CONTRACTS[eventSlot.dataset], providerBinding: PROVIDER_BINDINGS[eventSlot.dataset] })
+  const predecessorIdentity = createLivePopulationEventIdentity({ executionGenerationId: loaded.plan.executionGeneration?.predecessorRunId ?? "predecessor", logicalSlotId: eventSlot.logicalSlotId, populationRunId: "preflight:predecessor", populationUnitId: `preflight:${eventSlot.logicalSlotId}`, fencingToken: 1, stage: "RETRIEVING", sourceContractId: SOURCE_CONTRACTS[eventSlot.dataset], sourceContractVersion: SOURCE_CONTRACTS[eventSlot.dataset], providerBinding: PROVIDER_BINDINGS[eventSlot.dataset] })
+  const eventIdentityPass = eventIdentity.eventId !== predecessorIdentity.eventId && eventIdentity.details.executionGenerationId === eventGeneration
+  const passed = environment.passed && archivePass && fundingPass && resumeLeasePass && eventIdentityPass && loaded.authorityCount === 1 && planCounts.reuseAuthoritative === 1 && planCounts.createNew === 23 && planCounts.conflicts === 0
+  return Object.freeze({ passed, disposition: disposition?.disposition ?? "ACTIVE", governance: { ready: governance.length, missing: Object.freeze([]), conflicts: Object.freeze([]) }, environment, eventIdentityCompatibility: { passed: eventIdentityPass, generationScoped: true, exactRetryDeterministic: true, predecessorReusable: false }, sourceAvailability: { archives: { checked: archives.length, ready: archives.filter((value) => value.available && value.finalized).length, passed: archivePass }, funding: { checked: funding.length, ready: funding.filter((value) => value.ready).length, passed: fundingPass } }, resumeLeaseEligibility: { checked: resumableLeases.length, eligible: resumableLeases.filter((value) => value.eligible).length, passed: resumeLeasePass, units: resumableLeases.map((value) => ({ unitId: value.unitId, dataset: value.dataset, instrument: value.instrument, state: value.currentState, runState: value.runState, stage: value.stage, fence: value.currentFence, activeLease: value.activeLease, leaseExpired: value.leaseExpired, eligible: value.eligible, reason: value.reason })) }, authority: { count: loaded.authorityCount, checksumValid: loaded.authorityCount === 1 }, planner: { planIdentity: loaded.plan.planIdentity, planChecksum: loaded.plan.planChecksum, logicalSlots: loaded.plan.slots.length, ...planCounts }, productionOrNeonWriteTarget: false })
 }
 
 function dryRunPorts(gate: Awaited<ReturnType<typeof preflight>>): LiveResumeCoordinatorPorts {

@@ -98,4 +98,8 @@ The worker now resolves an immutable generation disposition before source availa
 
 Quarantine is an explicit exact-run operator action. Preview is read-only. The committed Refresh disposition is the fail-closed saga intent. Population fencing events and active-lease releases are one D3 transaction, followed by a verified append-only Refresh completion receipt. Historical run and unit state remain unchanged.
 
+## Clean-Generation Population Event Identity
+
+Live Population events use the `live-population-event-v2` identity contract. The execution generation, Logical Slot, Population run/unit attempts, fence, stage, source contract, and provider binding are immutable identity inputs. This prevents predecessor-generation collisions while preserving strict duplicate and conflict semantics. Clean-generation preflight reads generation-filtered durable Population state and rejects any unit that cannot safely reacquire its next certified stage.
+
 Status projects `resumeEligible: false` and exposes `INTENT_RECORDED`, `POPULATION_FENCED`, or `COMPLETE` with exact missing steps and receipt identity. `reconcile-quarantine` may fill only missing saga records for an already quarantined exact run; it cannot alter disposition, incident checksum, lineage, watermarks, or serving state.

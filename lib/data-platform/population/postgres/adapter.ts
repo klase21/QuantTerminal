@@ -93,7 +93,7 @@ export interface PopulationPostgresAdapter {
   persistBoundedAcquisitionResult(input: PersistBoundedAcquisitionInput): Promise<PersistBoundedAcquisitionResult>
   transitionUnitIdempotently(input: PopulationUnitEventInput & { readonly leaseId: string; readonly ownerId: string }): Promise<PopulationUnitEventResult>
   reconcileBoundedAcquisitionResume(input: { readonly unitId: string; readonly ownerId: string; readonly now: string; readonly expiresAt: string }): Promise<PopulationResumeResolution | null>
-  inspectResumeLeaseEligibility(input: { readonly intervalStart: string; readonly intervalEnd: string; readonly requestedBy: string; readonly now: string }): Promise<readonly PopulationResumeLeaseEligibility[]>
+  inspectResumeLeaseEligibility(input: { readonly intervalStart: string; readonly intervalEnd: string; readonly requestedBy: string; readonly now: string; readonly executionGenerationId?: string }): Promise<readonly PopulationResumeLeaseEligibility[]>
   recoverPopulationUnitLease(input: { readonly unitId: string; readonly runId: string; readonly ownerId: string; readonly now: string; readonly expiresAt: string }): Promise<LeaseClaim | null>
   recordRecoverableLineageFailure(input: { readonly unitId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly classification: string; readonly at: string }): Promise<PopulationUnitEventResult>
   recordCanonicalCommitFailure(input: { readonly unitId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly classification: string; readonly at: string }): Promise<PopulationUnitEventResult>
@@ -288,6 +288,7 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
         JOIN LATERAL (SELECT x.run_id,x.current_state FROM control.population_runs x WHERE x.job_id=u.job_id ORDER BY x.attempt_number DESC LIMIT 1) r ON true
         LEFT JOIN control.population_leases l ON l.lease_id=u.active_lease_id
         WHERE j.requested_by=${input.requestedBy} AND u.window_start=${input.intervalStart} AND u.window_end=${input.intervalEnd}
+          AND (${input.executionGenerationId ?? null}::text IS NULL OR j.intentional_rerun_identity=${input.executionGenerationId ?? null})
         ORDER BY u.dataset_id,u.subject_or_symbol,u.unit_id`
       return Object.freeze(rows.map((row) => {
         const retrievalAttempts = Number(row.retrieval_attempts), candidates = Number(row.candidates), committed = Number(row.committed_candidates)

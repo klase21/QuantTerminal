@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "mvp-clean-generation-population-event-certification/1.0.0",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "incidentClassification": "EVENT_ID_NOT_GENERATION_SCOPED",
+  "eventIdentityVersion": "live-population-event-v2",
+  "invariants": {
+    "generationExplicit": true,
+    "logicalSlotStable": true,
+    "attemptAndFenceSeparate": true,
+    "exactReplay": "DUPLICATE",
+    "immutableMismatch": "CONFLICT",
+    "predecessorEventReusable": false,
+    "timestampOrRandomIdentity": false,
+    "nativeJsonDetails": true
+  },
+  "partialState": {
+    "sourceAcquisitionUnits": 1,
+    "canonicalCommitUnits": 2,
+    "activeLeases": 0,
+    "watermarks": 0,
+    "replay": false,
+    "manifest": false
+  },
+  "certification": {
+    "commitBearing": true,
+    "exactResumeTwice": true,
+    "duplicateImmutableLineage": 0,
+    "postFailureActiveLeases": 0,
+    "disposableResourcesRetained": 0
+  },
+  "productionMutation": false
+}

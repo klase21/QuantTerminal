@@ -274,6 +274,16 @@
       }
     }
   },
+  "cleanGenerationPopulationEventRepair": {
+    "incidentClassification": "EVENT_ID_NOT_GENERATION_SCOPED",
+    "eventIdentityVersion": "live-population-event-v2",
+    "generationScoped": true,
+    "exactRetry": "DUPLICATE",
+    "immutableMismatch": "CONFLICT",
+    "successorLeaseEligibilityInPreflight": true,
+    "activeLeases": 0,
+    "productionChanged": false
+  },
   "remainingMvp8bBlockers": [
     "OPERATOR_RECONCILE_APPEND_ONLY_QUARANTINE_SAGA",
     "CREATE_CLEAN_EXECUTION_GENERATION_WITH_REPAIRED_IDENTITY_CONTRACT",

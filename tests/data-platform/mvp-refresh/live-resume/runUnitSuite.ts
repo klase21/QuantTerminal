@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
+import { createLivePopulationEventIdentity } from "@/lib/data-platform/mvp-refresh/liveResumeLocalBootstrap"
 import {
   LIVE_RESUME_STAGES,
   MvpLiveResumeCoordinator,
@@ -69,6 +70,10 @@ function fixture() {
 }
 
 async function main() {
+  const populationEvent = createLivePopulationEventIdentity({ executionGenerationId: "clean-generation", logicalSlotId: "logical-slot", populationRunId: "population-run-1", populationUnitId: "population-unit-1", fencingToken: 1, stage: "RETRIEVING", sourceContractId: "source-contract", sourceContractVersion: "1.0.0", providerBinding: "provider" })
+  assert.deepEqual(createLivePopulationEventIdentity({ executionGenerationId: "clean-generation", logicalSlotId: "logical-slot", populationRunId: "population-run-1", populationUnitId: "population-unit-1", fencingToken: 1, stage: "RETRIEVING", sourceContractId: "source-contract", sourceContractVersion: "1.0.0", providerBinding: "provider" }), populationEvent)
+  assert.notEqual(createLivePopulationEventIdentity({ executionGenerationId: "predecessor-generation", logicalSlotId: "logical-slot", populationRunId: "population-run-0", populationUnitId: "population-unit-0", fencingToken: 1, stage: "RETRIEVING", sourceContractId: "source-contract", sourceContractVersion: "1.0.0", providerBinding: "provider" }).eventId, populationEvent.eventId)
+  assert.notEqual(createLivePopulationEventIdentity({ executionGenerationId: "clean-generation", logicalSlotId: "logical-slot", populationRunId: "population-run-2", populationUnitId: "population-unit-1", fencingToken: 2, stage: "RETRIEVING", sourceContractId: "source-contract", sourceContractVersion: "1.0.0", providerBinding: "provider" }).eventId, populationEvent.eventId)
   const certified = plan()
   assert.equal(certified.slots.length, 24)
   assert.equal(certified.slots.filter((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT").length, 1)

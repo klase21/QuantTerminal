@@ -55,6 +55,32 @@ interface OpenResource { close(): Promise<void> }
 
 type ArchiveRow = BoundedOhlcvRow | OpenInterestSourceRow | Awaited<ReturnType<typeof parseBoundedAggTradesArchive>>["rows"][number]
 interface PopulationContext { readonly jobId: string; readonly runId: string; readonly unitId: string; readonly leaseId: string; readonly fencingToken: number; readonly retrievalAttemptId: string }
+type LivePopulationStage = "RETRIEVING" | "RAW_PERSISTED" | "CANDIDATES_READY" | "PROCESSING"
+
+export function createLivePopulationEventIdentity(input: {
+  readonly executionGenerationId: string
+  readonly logicalSlotId: string
+  readonly populationRunId: string
+  readonly populationUnitId: string
+  readonly fencingToken: number
+  readonly stage: LivePopulationStage
+  readonly sourceContractId: string
+  readonly sourceContractVersion: string
+  readonly providerBinding: string
+}): { readonly eventId: string; readonly details: Readonly<Record<string, unknown>> } {
+  const details = Object.freeze({
+    executionGenerationId: input.executionGenerationId,
+    logicalSlotId: input.logicalSlotId,
+    populationRunId: input.populationRunId,
+    populationUnitId: input.populationUnitId,
+    fencingToken: input.fencingToken,
+    stage: input.stage,
+    sourceContractId: input.sourceContractId,
+    sourceContractVersion: input.sourceContractVersion,
+    providerBinding: input.providerBinding,
+  })
+  return Object.freeze({ eventId: `live-population-event-v2:${canonicalChecksum(details)}`, details })
+}
 interface SlotState {
   readonly bytes: Uint8Array
   readonly contentType: string
@@ -205,7 +231,8 @@ async function preparePopulation(input: Parameters<BoundedLiveSlotAdapter["persi
   const expiresAt = new Date(Date.parse(at) + 300_000).toISOString()
   const claimed = await adapter.claimUnit("mvp-live-resume", run.runId, at, expiresAt) ?? await adapter.recoverPopulationUnitLease({ unitId: units[0]!.unitId, runId: run.runId, ownerId: "mvp-live-resume", now: at, expiresAt })
   if (!claimed) throw new Error("LIVE_POPULATION_UNIT_LEASE_UNAVAILABLE")
-  const transition = await adapter.transitionUnitIdempotently({ eventId: `live-retrieving:${input.logicalSlotId}:fence:${claimed.fencingToken}`, unitId: claimed.unitId, runId: run.runId, eventType: "STATE_ADVANCED", previousState: "LEASED", nextState: "RETRIEVING", fencingToken: claimed.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: {}, leaseId: claimed.leaseId, ownerId: "mvp-live-resume" })
+  const identity = createLivePopulationEventIdentity({ executionGenerationId: input.executionGenerationId, logicalSlotId: input.logicalSlotId, populationRunId: run.runId, populationUnitId: claimed.unitId, fencingToken: claimed.fencingToken, stage: "RETRIEVING", sourceContractId: input.sourceContractId, sourceContractVersion: input.sourceContractVersion, providerBinding: input.providerBinding })
+  const transition = await adapter.transitionUnitIdempotently({ eventId: identity.eventId, unitId: claimed.unitId, runId: run.runId, eventType: "STATE_ADVANCED", previousState: "LEASED", nextState: "RETRIEVING", fencingToken: claimed.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: identity.details, leaseId: claimed.leaseId, ownerId: "mvp-live-resume" })
   if (transition.status === "CONFLICT") throw new Error("LIVE_POPULATION_RETRIEVING_EVENT_CONFLICT")
   return Object.freeze({ jobId: definition.jobId, runId: run.runId, unitId: claimed.unitId, leaseId: claimed.leaseId, fencingToken: claimed.fencingToken, retrievalAttemptId: createRetrievalAttemptId(claimed.unitId, input.executionGenerationId, 1) })
 }
@@ -337,10 +364,12 @@ function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; 
         value.population = Object.freeze({ ...population, retrievalAttemptId: result.persistedRetrievalAttemptId })
         value.candidates = Object.freeze(candidates.map((candidate) => Object.freeze({ ...candidate, retrievalAttemptId: result.persistedRetrievalAttemptId })) as PopulationCandidate[])
         if (value.resumeStage !== "CANDIDATE_LINEAGE") {
-          const rawTransition = await input.d3.transitionUnitIdempotently({ eventId: `live-raw:${raw.objectId}:fence:${population.fencingToken}`, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "RETRIEVING", nextState: "RAW_PERSISTED", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: {}, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
+          const rawIdentity = createLivePopulationEventIdentity({ executionGenerationId: invocation.executionGenerationId, logicalSlotId: invocation.logicalSlotId, populationRunId: population.runId, populationUnitId: population.unitId, fencingToken: population.fencingToken, stage: "RAW_PERSISTED", sourceContractId: invocation.sourceContractId, sourceContractVersion: invocation.sourceContractVersion, providerBinding: invocation.providerBinding })
+          const rawTransition = await input.d3.transitionUnitIdempotently({ eventId: rawIdentity.eventId, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "RETRIEVING", nextState: "RAW_PERSISTED", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: rawIdentity.details, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
           if (rawTransition.status === "CONFLICT") throw new Error("LIVE_POPULATION_RAW_EVENT_CONFLICT")
         }
-        const candidateTransition = await input.d3.transitionUnitIdempotently({ eventId: `live-candidates:${invocation.logicalSlotId}:fence:${population.fencingToken}`, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "RAW_PERSISTED", nextState: "CANDIDATES_READY", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: {}, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
+        const candidateIdentity = createLivePopulationEventIdentity({ executionGenerationId: invocation.executionGenerationId, logicalSlotId: invocation.logicalSlotId, populationRunId: population.runId, populationUnitId: population.unitId, fencingToken: population.fencingToken, stage: "CANDIDATES_READY", sourceContractId: invocation.sourceContractId, sourceContractVersion: invocation.sourceContractVersion, providerBinding: invocation.providerBinding })
+        const candidateTransition = await input.d3.transitionUnitIdempotently({ eventId: candidateIdentity.eventId, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "RAW_PERSISTED", nextState: "CANDIDATES_READY", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: candidateIdentity.details, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
         if (candidateTransition.status === "CONFLICT") throw new Error("LIVE_POPULATION_CANDIDATE_EVENT_CONFLICT")
         const candidateChecksum = canonicalChecksum(value.candidates.map((candidate) => [candidate.candidateId, candidate.candidateChecksum]))
         return Object.freeze({ candidateIdentity: `mrcs_${candidateChecksum}`, candidateChecksum, status: result.transactionOutcome, payload: value.candidates })
@@ -353,7 +382,8 @@ function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; 
       const value = state(invocation.logicalSlotId), outputs: Array<{ identity: string; checksum: string }> = [], normalizer = new ProductionNormalizerRegistry(), governance = GOVERNANCE[input.dataset]
       const processingAt = new Date().toISOString(), population = value.population!
       try {
-        const processing = await input.d3.transitionUnitIdempotently({ eventId: `live-processing:${invocation.logicalSlotId}:fence:${population.fencingToken}`, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "CANDIDATES_READY", nextState: "PROCESSING", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: processingAt, details: {}, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
+        const processingIdentity = createLivePopulationEventIdentity({ executionGenerationId: invocation.executionGenerationId, logicalSlotId: invocation.logicalSlotId, populationRunId: population.runId, populationUnitId: population.unitId, fencingToken: population.fencingToken, stage: "PROCESSING", sourceContractId: invocation.sourceContractId, sourceContractVersion: invocation.sourceContractVersion, providerBinding: invocation.providerBinding })
+        const processing = await input.d3.transitionUnitIdempotently({ eventId: processingIdentity.eventId, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "CANDIDATES_READY", nextState: "PROCESSING", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: processingAt, details: processingIdentity.details, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
         if (processing.status === "CONFLICT") throw new Error("LIVE_POPULATION_PROCESSING_EVENT_CONFLICT")
         let createdCount = 0, duplicateCount = 0, conflictCount = 0
         for (const candidate of value.candidates!) {

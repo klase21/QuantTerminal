@@ -34,7 +34,7 @@ function interval(row: CandidateRow): { start: string; end: string | null; polic
 async function main(): Promise<void> {
   const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-canonical-scope-cert-d2" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-canonical-scope-cert-d3" } })
   try {
-    const candidates = await integrated.d3.sql<CandidateRow[]>`
+    const allCandidates = await integrated.d3.sql<CandidateRow[]>`
       SELECT u.unit_id,u.dataset_id,u.subject_or_symbol instrument,u.current_state::text,
         u.current_fencing_token,u.active_lease_id,c.candidate_id,c.raw_manifest_id,c.provider_id,
         c.provider_snapshot_id,c.parser_version,c.candidate_checksum,c.source_observed_at::text,c.bounded_payload
@@ -44,6 +44,15 @@ async function main(): Promise<void> {
           OR (u.dataset_id='open-interest' AND u.subject_or_symbol IN ('ETHUSDT','SOLUSDT'))
           OR (u.dataset_id='agg-trade' AND u.subject_or_symbol='BTCUSDT'))
       ORDER BY u.dataset_id,u.subject_or_symbol,c.created_at,c.candidate_id`
+    const byUnit = new Map<string, CandidateRow[]>()
+    for (const candidate of allCandidates) byUnit.set(candidate.unit_id, [...(byUnit.get(candidate.unit_id) ?? []), candidate])
+    const expected = new Map([["funding:DOGEUSDT", 3], ["open-interest:SOLUSDT", 288], ["open-interest:ETHUSDT", 2], ["agg-trade:BTCUSDT", 1]])
+    const selected = new Map<string, CandidateRow[]>()
+    for (const rows of byUnit.values()) {
+      const key = `${rows[0]!.dataset_id}:${rows[0]!.instrument}`
+      if (!selected.has(key) && rows.length === expected.get(key)) selected.set(key, rows)
+    }
+    const candidates = [...selected.values()].flat()
     const rawIds = [...new Set(candidates.map((value) => value.raw_manifest_id))]
     const rawRows = await integrated.d2.sql.unsafe<Record<string, unknown>[]>("SELECT * FROM raw.objects WHERE object_id=ANY($1::text[])", [rawIds])
     const rawById = new Map(rawRows.map((value) => [String(value.object_id), raw(value)]))

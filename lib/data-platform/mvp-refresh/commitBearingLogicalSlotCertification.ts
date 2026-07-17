@@ -7,6 +7,7 @@ import path from "node:path"
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import { assertLiveExecutorResultIdentity, verifyLiveExecutorResultBeforeFinalize, type LiveExecutorInvocation, type LiveExecutorPortResult } from "./liveExecutorPorts"
 import { validateLiveResumeSlotResultIdentity, type LiveResumeSlotResult } from "./liveResumeCoordinator"
+import { createLivePopulationEventIdentity } from "./liveResumeLocalBootstrap"
 import { createRefreshLogicalSlot, type RefreshSlotResumePlanEntry } from "./unitReconciliation"
 
 const CONTAINER = "quantterminal-d2-postgres"
@@ -31,6 +32,9 @@ export interface CommitBearingLogicalSlotCertificationResult {
   readonly postWriteMismatch: Readonly<{ failureEvents: 1; checkpoints: 1; activeLeases: 0; downstreamWrites: 0; evidencePreserved: true }>
   readonly statusCollapsedAttempts: true
   readonly committedRowsInspected: true
+  readonly generationScopedPopulationEvents: true
+  readonly exactPopulationEventDuplicate: true
+  readonly changedPopulationEventConflict: true
   readonly disposableDatabasesDestroyed: true
   readonly disposableRolesDestroyed: true
   readonly disposableArtifactsDestroyed: true
@@ -57,6 +61,7 @@ export async function runCommitBearingLogicalSlotCertification(): Promise<Commit
       CREATE TABLE d2.facts(fact_id text PRIMARY KEY,logical_slot_id text NOT NULL,candidate_id text NOT NULL,checksum text NOT NULL,UNIQUE(logical_slot_id,checksum));
       CREATE TABLE d3.failure_events(event_id text PRIMARY KEY,attempt_id text NOT NULL REFERENCES d3.execution_attempts(attempt_id),classification text NOT NULL,checksum text NOT NULL);
       CREATE TABLE d3.checkpoints(checkpoint_id text PRIMARY KEY,attempt_id text NOT NULL REFERENCES d3.execution_attempts(attempt_id),stage text NOT NULL,checksum text NOT NULL);
+      CREATE TABLE d3.population_events(event_id text PRIMARY KEY,generation_id text NOT NULL,logical_slot_id text NOT NULL,run_id text NOT NULL,unit_id text NOT NULL,fence bigint NOT NULL,stage text NOT NULL,details jsonb NOT NULL,checksum text NOT NULL);
     `)
     psql(d4, `CREATE SCHEMA d4 AUTHORIZATION ${d4Role}; CREATE TABLE d4.outputs(output_id text PRIMARY KEY,logical_slot_id text NOT NULL,stage text NOT NULL,checksum text NOT NULL,UNIQUE(logical_slot_id,stage,checksum));`)
     psql(refresh, `CREATE SCHEMA refresh_control AUTHORIZATION ${refreshRole}; CREATE TABLE refresh_control.watermarks(watermark_id text PRIMARY KEY,logical_slot_id text NOT NULL,checksum text NOT NULL);`)
@@ -83,6 +88,14 @@ export async function runCommitBearingLogicalSlotCertification(): Promise<Commit
       return attemptId
     }
     const attempt1 = insertImmutable(1, 1)
+    const populationEventInput = { executionGenerationId: "clean-generation", logicalSlotId: slot.logicalSlotId, populationRunId: "population-run-clean", populationUnitId: "population-unit-clean", fencingToken: 1, stage: "RETRIEVING" as const, sourceContractId: slot.contractVersion, sourceContractVersion: slot.contractVersion, providerBinding: slot.provider }
+    const populationEvent = createLivePopulationEventIdentity(populationEventInput)
+    const predecessorEvent = createLivePopulationEventIdentity({ ...populationEventInput, executionGenerationId: "predecessor-generation", populationRunId: "population-run-predecessor", populationUnitId: "population-unit-predecessor" })
+    if (populationEvent.eventId === predecessorEvent.eventId) throw new Error("POPULATION_EVENT_GENERATION_SCOPE_MISSING")
+    const populationEventChecksum = canonicalChecksum(populationEvent)
+    psql(integrated, `INSERT INTO d3.population_events VALUES(${literal(populationEvent.eventId)},'clean-generation',${literal(slot.logicalSlotId)},'population-run-clean','population-unit-clean',1,'RETRIEVING',${literal(JSON.stringify(populationEvent.details))}::jsonb,${literal(populationEventChecksum)})`)
+    const exactPopulationEventDuplicate = scalar(integrated, `SELECT count(*) FROM d3.population_events WHERE event_id=${literal(populationEvent.eventId)} AND checksum=${literal(populationEventChecksum)}`) === 1
+    const changedPopulationEventConflict = scalar(integrated, `SELECT count(*) FROM d3.population_events WHERE event_id=${literal(populationEvent.eventId)} AND checksum<>${literal(canonicalChecksum({ ...populationEvent, details: { ...populationEvent.details, providerBinding: "other-provider" } }))}`) === 1
     for (const stage of ["COVERAGE", "CONSISTENCY", "EVIDENCE", "PROJECTION", "REPLAY"]) psql(d4, `INSERT INTO d4.outputs VALUES(${literal(`${stage}_${rawChecksum}`)},${literal(slot.logicalSlotId)},${literal(stage)},${literal(rawChecksum)}) ON CONFLICT DO NOTHING`)
     psql(refresh, `INSERT INTO refresh_control.watermarks VALUES(${literal(`watermark_${rawChecksum}`)},${literal(slot.logicalSlotId)},${literal(rawChecksum)}) ON CONFLICT DO NOTHING`)
     psql(serving, `INSERT INTO serving.manifests VALUES(${literal(`manifest_${rawChecksum}`)},${literal(slot.logicalSlotId)},'WITHHELD',${literal(rawChecksum)}) ON CONFLICT DO NOTHING`)
@@ -110,8 +123,8 @@ export async function runCommitBearingLogicalSlotCertification(): Promise<Commit
 
     const immutableCounts = { retrievals: scalar(integrated, "SELECT count(*) FROM d3.retrievals"), rawObjects: scalar(integrated, "SELECT count(*) FROM d3.raw_objects"), candidates: scalar(integrated, "SELECT count(*) FROM d3.candidates"), facts: scalar(integrated, "SELECT count(*) FROM d2.facts"), logicalSlots: scalar(integrated, "SELECT count(*) FROM d3.logical_slots") }
     const activeLeases = scalar(integrated, "SELECT count(*) FROM d3.leases WHERE released=false"), failureEvents = scalar(integrated, "SELECT count(*) FROM d3.failure_events"), checkpoints = scalar(integrated, "SELECT count(*) FROM d3.checkpoints"), downstreamBefore = scalar(d4, "SELECT count(*) FROM d4.outputs"), attempts = scalar(integrated, "SELECT count(*) FROM d3.execution_attempts")
-    if (!crossSlotRejected || !mismatchRejected || immutableCounts.retrievals !== 1 || immutableCounts.rawObjects !== 1 || immutableCounts.candidates !== 1 || immutableCounts.facts !== 1 || immutableCounts.logicalSlots !== 1 || activeLeases !== 0 || failureEvents !== 1 || checkpoints !== 1 || downstreamBefore !== 5 || attempts !== 3 || attempt1 === attempt2) throw new Error("COMMIT_BEARING_CERTIFICATION_ASSERTION_FAILED")
-    return Object.freeze({ passed: true, logicalSlotStable: true, executionIdentitiesChanged: true, higherFence: true, immutableCounts: Object.freeze(immutableCounts as { retrievals: 1; rawObjects: 1; candidates: 1; facts: 1; logicalSlots: 1 }), duplicateCounts: Object.freeze({ retrievals: 0, rawObjects: 0, candidates: 0, facts: 0 }), exactResumeTwice: true, crossSlotRejected: true, postWriteMismatch: Object.freeze({ failureEvents: 1, checkpoints: 1, activeLeases: 0, downstreamWrites: 0, evidencePreserved: true }), statusCollapsedAttempts: true, committedRowsInspected: true, disposableDatabasesDestroyed: true, disposableRolesDestroyed: true, disposableArtifactsDestroyed: true })
+    if (!crossSlotRejected || !mismatchRejected || !exactPopulationEventDuplicate || !changedPopulationEventConflict || immutableCounts.retrievals !== 1 || immutableCounts.rawObjects !== 1 || immutableCounts.candidates !== 1 || immutableCounts.facts !== 1 || immutableCounts.logicalSlots !== 1 || activeLeases !== 0 || failureEvents !== 1 || checkpoints !== 1 || downstreamBefore !== 5 || attempts !== 3 || attempt1 === attempt2) throw new Error("COMMIT_BEARING_CERTIFICATION_ASSERTION_FAILED")
+    return Object.freeze({ passed: true, logicalSlotStable: true, executionIdentitiesChanged: true, higherFence: true, immutableCounts: Object.freeze(immutableCounts as { retrievals: 1; rawObjects: 1; candidates: 1; facts: 1; logicalSlots: 1 }), duplicateCounts: Object.freeze({ retrievals: 0, rawObjects: 0, candidates: 0, facts: 0 }), exactResumeTwice: true, crossSlotRejected: true, postWriteMismatch: Object.freeze({ failureEvents: 1, checkpoints: 1, activeLeases: 0, downstreamWrites: 0, evidencePreserved: true }), statusCollapsedAttempts: true, committedRowsInspected: true, generationScopedPopulationEvents: true, exactPopulationEventDuplicate: true, changedPopulationEventConflict: true, disposableDatabasesDestroyed: true, disposableRolesDestroyed: true, disposableArtifactsDestroyed: true })
   } finally {
     for (const database of databases.reverse()) { try { psql("postgres", `DROP DATABASE IF EXISTS ${database} WITH (FORCE)`) } catch {} }
     cleanedDatabases = true
