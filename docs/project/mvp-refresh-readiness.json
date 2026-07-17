@@ -111,7 +111,7 @@
       "deterministicResume": "PASS",
       "candidateActivationAvailable": false,
       "liveAcquisitionExecuted": false,
-      "environmentExecutorBindings": "CONCRETE_PORT_CONTRACT_CERTIFIED_ENVIRONMENT_BOOTSTRAP_BLOCKED",
+      "environmentExecutorBindings": "REAL_LOCAL_ADAPTER_BOOTSTRAP_COMPLETE_AUTHENTICATION_BLOCKED",
       "liveExecutorPorts": {
         "version": "mvp-live-executor-ports/1.0.0",
         "requiredPortCount": 14,
@@ -132,7 +132,6 @@
     }
   },
   "remainingMvp8bBlockers": [
-    "LIVE_RESUME_ENVIRONMENT_PORT_BOOTSTRAP_REQUIRED",
     "RESTORE_CERTIFIED_LOCAL_TRUTH_AND_SERVING_ROLE_BINDINGS",
     "EXECUTE_REMAINING_23_MANDATORY_SLOTS",
     "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",

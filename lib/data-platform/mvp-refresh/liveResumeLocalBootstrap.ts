@@ -1,0 +1,411 @@
+import { createHash } from "node:crypto"
+import { randomUUID } from "node:crypto"
+import { rm } from "node:fs/promises"
+import path from "node:path"
+
+import { canonicalChecksum } from "@/lib/data-platform/contracts"
+import type { RawObjectManifest } from "@/lib/data-platform/persistence"
+import { buildCanonicalStreamSegmentCommand, createCanonicalPersistenceAdapter, createDurableCanonicalPostgresClient, type CanonicalPersistenceAdapter } from "@/lib/data-platform/persistence/postgres"
+import { createCandidateId, createJobRequestIdentity, createPopulationJobId, createRetrievalAttemptId, expandPopulationUnits, type PopulationCandidate, type PopulationJob, type PopulationJobProfile, type PopulationJobRequest } from "@/lib/data-platform/population"
+import { createDurableD3PostgresClient, createPopulationPostgresAdapter, type D3PostgresClient, type PopulationPostgresAdapter } from "@/lib/data-platform/population/postgres"
+import { AGG_TRADES_SEGMENT_NORMALIZER_VERSION, AGG_TRADES_SEGMENT_ORDER_POLICY, AGG_TRADES_SEGMENT_SCHEMA_VERSION, createD3ToD2CanonicalCommitPort, createFilesystemObjectStorage, ProductionNormalizerRegistry, PRODUCTION_NORMALIZER_VERSION, type OpenInterestSourceRow } from "@/lib/data-platform/population/backfill"
+import type { CanonicalCommitPort, ObjectStoragePort } from "@/lib/data-platform/population/contracts"
+import { ConsistencyPostgresRuntime } from "@/lib/data-platform/consistency-evidence/postgres"
+import { loadMvpProjectionEvidenceInputs, MvpProjectionStore } from "@/lib/data-platform/consistency-evidence/postgres"
+import { persistMvpConsistencyWindow, persistMvpEvidenceWindow, readMvpEvidenceWindows, type MvpEvidenceWindowData } from "@/lib/data-platform/consistency"
+import { MVP_PROJECTION_DEFINITIONS, type MvpProjectionVersion } from "@/lib/data-platform/evidence-platform"
+import { persistBoundedMvpProjections } from "@/lib/data-platform/consistency-evidence/postgres"
+import { MvpServingPostgresClient } from "@/lib/data-platform/mvp-serving"
+import { canonicalizeServingCorpusMembers, compareServingCorpusMembership, computeCandidateServingChecksum, LocalInactiveCandidateAssemblyService } from "@/lib/data-platform/mvp-serving/candidateMembership"
+import type { ServingCorpusMember } from "@/lib/data-platform/mvp-serving/candidateMembership"
+import { materializeMvpReplaySequence } from "@/lib/replay-sequence"
+import type { ConsumerProjection } from "@/lib/data-platform/consumer-projections"
+import { MvpRefreshPostgresClient } from "./client"
+import { boundedArchiveSourceUrl, buildBoundedAggTradesSegment, createBoundedArchiveRequest, parseBoundedAggTradesArchive, parseBoundedOhlcvArchive, parseBoundedOpenInterestArchive, type BoundedArchiveBatch, type BoundedOhlcvRow } from "./boundedAdapters"
+import { createBoundedFundingCandidate, createBoundedFundingRequest, createBoundedFundingSourceUrl, parseBoundedFundingEvents, type ProviderNativeFundingEvent } from "./boundedFunding"
+import { ControlledOhlcvRecoveryStore } from "./controlledOhlcvRecovery"
+import { createLiveExecutorPortSet, composeConcreteLiveResumePorts, type BoundedLiveSlotAdapter, type LiveCandidateExecutor, type LiveDownstreamExecutor, type LiveWatermarkAuditPort } from "./liveExecutorPorts"
+import { PostgresLiveResumeCoordinatorControlPlane } from "./liveResumePostgres"
+import { MvpRefreshStore } from "./store"
+import type { LiveResumeLocalBindingSet, LiveResumeBindingCapability, LiveResumeEnvironmentMode } from "./liveResumeEnvironment"
+import type { LiveResumeSlotResult, LiveResumeStageOutput } from "./liveResumeCoordinator"
+import type { RefreshLogicalDataset, RefreshLogicalInstrument, RefreshSlotResumePlanEntry } from "./unitReconciliation"
+
+const INSTRUMENTS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const)
+const DATASETS = Object.freeze(["ohlcv", "open-interest", "funding", "agg-trade"] as const)
+const SOURCE_CONTRACTS: Readonly<Record<RefreshLogicalDataset, string>> = Object.freeze({
+  ohlcv: "mvp-bounded-ohlcv/1.0.0",
+  "open-interest": "mvp-bounded-open-interest/1.0.0",
+  funding: "binance-official-rest-funding-rate/1.0.0",
+  "agg-trade": "mvp-bounded-agg-trade/1.0.0",
+})
+
+export interface ProcessLiveResumeBootstrapInput {
+  readonly mode: Exclude<LiveResumeEnvironmentMode, "INSPECT">
+  readonly environment: NodeJS.ProcessEnv
+  readonly capabilities: readonly LiveResumeBindingCapability[]
+  readonly intervalStart?: string
+  readonly intervalEnd?: string
+  readonly plannerIdentity?: string
+  readonly plannerChecksum?: string
+}
+
+interface OpenResource { close(): Promise<void> }
+
+type ArchiveRow = BoundedOhlcvRow | OpenInterestSourceRow | Awaited<ReturnType<typeof parseBoundedAggTradesArchive>>["rows"][number]
+interface PopulationContext { readonly jobId: string; readonly runId: string; readonly unitId: string; readonly leaseId: string; readonly fencingToken: number; readonly retrievalAttemptId: string }
+interface SlotState {
+  readonly bytes: Uint8Array
+  readonly contentType: string
+  readonly sourceChecksum: string
+  readonly observedThrough: string
+  readonly rows: readonly ArchiveRow[] | readonly ProviderNativeFundingEvent[]
+  raw?: RawObjectManifest
+  population?: PopulationContext
+  candidates?: readonly PopulationCandidate[]
+  segment?: Awaited<ReturnType<typeof buildBoundedAggTradesSegment>>
+  commitOutputs?: readonly { readonly identity: string; readonly checksum: string }[]
+}
+
+class ResourceScope {
+  private readonly resources: OpenResource[] = []
+  add<T extends OpenResource>(resource: T): T { this.resources.push(resource); return resource }
+  async close(): Promise<void> {
+    const resources = this.resources.splice(0).reverse()
+    await Promise.allSettled(resources.map((resource) => resource.close()))
+  }
+}
+
+function required(environment: NodeJS.ProcessEnv, name: string): string {
+  const value = environment[name]
+  if (!value) throw new Error(`${name}_VARIABLE_MISSING`)
+  return value
+}
+
+function exactDay(start: string, end: string): void {
+  if (Date.parse(end) - Date.parse(start) !== 86_400_000 || new Date(Date.parse(start)).toISOString() !== start || new Date(Date.parse(end)).toISOString() !== end) throw new Error("LIVE_RESUME_EXACT_DAY_REQUIRED")
+}
+
+function sanitizedIdentity(prefix: string, value: unknown): { readonly identity: string; readonly checksum: string } {
+  const checksum = canonicalChecksum(value)
+  return Object.freeze({ identity: `${prefix}_${checksum}`, checksum })
+}
+
+function stageOutput(prefix: string, value: unknown): LiveResumeStageOutput {
+  const output = sanitizedIdentity(prefix, value)
+  return Object.freeze({ identities: Object.freeze([output.identity]), checksum: output.checksum })
+}
+
+async function rollbackProbe(execute: (sql: string) => Promise<unknown>): Promise<void> {
+  await execute("CREATE TEMP TABLE mvp_live_resume_preflight_probe(value integer) ON COMMIT DROP")
+  await execute("INSERT INTO mvp_live_resume_preflight_probe(value) VALUES(1)")
+  await execute("SELECT value FROM mvp_live_resume_preflight_probe")
+  throw new Error("LIVE_PREFLIGHT_ROLLBACK")
+}
+
+async function expectRollback(work: () => Promise<unknown>): Promise<void> {
+  try { await work(); throw new Error("LIVE_PREFLIGHT_ROLLBACK_NOT_ENFORCED") }
+  catch (error) { if (!(error instanceof Error) || error.message !== "LIVE_PREFLIGHT_ROLLBACK") throw error }
+}
+
+async function objectStorageProbe(storage: ObjectStoragePort, root: string): Promise<void> {
+  const bytes = new TextEncoder().encode("mvp-live-resume-preflight")
+  const checksum = createHash("sha256").update(bytes).digest("hex")
+  const key = `_preflight/${randomUUID()}/${checksum}.probe`
+  try {
+    await storage.putImmutable({ objectStorageKey: key, contentHash: checksum, mediaType: "application/octet-stream", byteLength: bytes.byteLength, content: stream(bytes) })
+    const stat = await storage.stat(key)
+    if (!stat.exists || stat.contentHash !== checksum || stat.byteLength !== bytes.byteLength) throw new Error("LIVE_OBJECT_STORAGE_PREFLIGHT_FAILED")
+    let readBytes = 0
+    for await (const chunk of storage.read(key)) readBytes += chunk.byteLength
+    if (readBytes !== bytes.byteLength) throw new Error("LIVE_OBJECT_STORAGE_PREFLIGHT_FAILED")
+  } finally {
+    const target = path.resolve(root, key)
+    await Promise.allSettled([rm(target, { force: true }), rm(`${target}.metadata.json`, { force: true }), rm(path.dirname(target), { recursive: true, force: true })])
+  }
+}
+
+const GOVERNANCE: Readonly<Record<RefreshLogicalDataset, { datasetRegistry: string; providerRegistry: string; certification: string; policy: string; parser: string; schema: string }>> = Object.freeze({
+  ohlcv: { datasetRegistry: "d3-phase3-dataset-registry-v1", providerRegistry: "d3-phase3-binance-archive-provider-v1", certification: "d3-phase3-binance-archive-ohlcv-certification-v1", policy: "d3-phase3-ohlcv-canary-policy-v1", parser: "binance-vision-ohlcv-csv-v1", schema: "1" },
+  "open-interest": { datasetRegistry: "d3-phase3-open-interest-dataset-registry-v1", providerRegistry: "d3-phase3-binance-vision-open-interest-provider-v1", certification: "d3-phase3-binance-vision-open-interest-certification-v1", policy: "d3-phase3-open-interest-policy-v1", parser: "binance-vision-open-interest-csv-v1", schema: "1" },
+  funding: { datasetRegistry: "d3-phase3-funding-dataset-registry-v1", providerRegistry: "d3-phase3-binance-futures-api-provider-v1", certification: "d3-phase3-binance-funding-certification-v1", policy: "d3-phase3-funding-policy-v1", parser: "mvp-bounded-funding-json/1.0.0", schema: "1" },
+  "agg-trade": { datasetRegistry: "d3-phase3-agg-trade-segment-dataset-v2", providerRegistry: "d3-phase3-binance-vision-agg-trade-provider-v1", certification: "d3-phase3-binance-vision-agg-trade-segment-certification-v2", policy: "d3-phase3-agg-trade-segment-policy-v2", parser: "binance-vision-agg-trades-segment-v2", schema: AGG_TRADES_SEGMENT_SCHEMA_VERSION },
+})
+
+function stream(bytes: Uint8Array): AsyncIterable<Uint8Array> { return { async *[Symbol.asyncIterator]() { yield bytes } } }
+function canonicalInstrument(symbol: string): string { return `binance-usdm-perpetual:${symbol.slice(0, -4)}-USDT` }
+
+async function preparePopulation(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], adapter: PopulationPostgresAdapter, at: string): Promise<PopulationContext> {
+  const profile: PopulationJobProfile = Object.freeze({ profileId: `mvp-live-${input.dataset}`, profileVersion: "1.0.0", kind: "INCREMENTAL", requiredDimensions: Object.freeze(["venue", "subjectOrSymbol", "windowStart", "windowEnd", "resolution", "partitionKey"] as const), rawRetrievalRequired: true, mayReuseVerifiedManifest: true, retryPolicyId: "mvp-live-bounded-retry", retryPolicyVersion: "1.0.0", watermarkPolicyId: `mvp-live-${input.dataset}`, watermarkPolicyVersion: "1.0.0" })
+  const dimensions = Object.freeze({ venue: "binance-usdm-futures", subjectOrSymbol: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, resolution: input.dataset === "agg-trade" ? "tick" : input.dataset === "funding" ? "event" : "5m", partitionKey: input.logicalSlotId })
+  const base = { profile, datasetId: input.dataset, providerId: input.dataset === "funding" ? "binance-official-rest-funding-rate" : "binance-public-archive", dimensions }
+  const requestIdentity = createJobRequestIdentity(base)
+  const request: PopulationJobRequest = Object.freeze({ ...base, requestIdentity, occurrenceIdentity: input.logicalSlotId, intentionalRerunIdentity: null, requestedAt: at, requestedBy: "mvp-live-resume" })
+  const jobId = createPopulationJobId(requestIdentity, request.occurrenceIdentity, null)
+  const job: PopulationJob = Object.freeze({ jobId, request, currentState: "QUEUED", currentEventId: `population-event:job-created:${jobId}`, createdAt: at, updatedAt: at })
+  await adapter.createJob(request)
+  const run = await adapter.createRun(jobId, 1, at)
+  const units = expandPopulationUnits(job, [{ profileId: profile.profileId, profileVersion: profile.profileVersion, datasetId: input.dataset, providerId: base.providerId, providerSnapshotId: GOVERNANCE[input.dataset].providerRegistry, policyVersionId: GOVERNANCE[input.dataset].policy, venue: dimensions.venue, subjectOrSymbol: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, resolution: dimensions.resolution, partitionKey: input.logicalSlotId, requestFingerprint: requestIdentity, requestParameters: { sourceContractId: input.sourceContractId }, required: true }], at)
+  await adapter.expandUnits(units)
+  const claimed = await adapter.claimUnit("mvp-live-resume", run.runId, at, new Date(Date.parse(at) + 300_000).toISOString())
+  if (!claimed) throw new Error("LIVE_POPULATION_UNIT_LEASE_UNAVAILABLE")
+  await adapter.advanceUnit(claimed.unitId, claimed.leaseId, "mvp-live-resume", claimed.fencingToken, "RETRIEVING", `live-retrieving:${input.logicalSlotId}`, at)
+  return Object.freeze({ jobId, runId: run.runId, unitId: claimed.unitId, leaseId: claimed.leaseId, fencingToken: claimed.fencingToken, retrievalAttemptId: createRetrievalAttemptId(claimed.unitId, run.runId, 1) })
+}
+
+function rawManifest(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], state: SlotState, objectId: string, objectStorageKey: string, at: string): RawObjectManifest {
+  return Object.freeze({ objectId, datasetId: input.dataset, providerId: input.dataset === "funding" ? "binance-official-rest-funding-rate" : "binance-public-archive", venue: "binance-usdm-futures", symbolOrSubject: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, contentHash: state.sourceChecksum, sizeBytes: state.bytes.byteLength, mediaType: state.contentType, compression: input.dataset === "funding" ? "NONE" : "ZIP", retrievedAt: at, providerSnapshotId: GOVERNANCE[input.dataset].providerRegistry, retentionClass: "ARCHIVE", verificationState: "VERIFIED", objectStorageKey, createdAt: at })
+}
+
+function buildCandidate(input: Parameters<BoundedLiveSlotAdapter["normalizeAndPersistCandidates"]>[0], row: ArchiveRow | ProviderNativeFundingEvent, ordinal: number, state: SlotState): PopulationCandidate {
+  const raw = state.raw!, context = state.population!, governance = GOVERNANCE[input.dataset]
+  if (input.dataset === "funding") return createBoundedFundingCandidate(row as ProviderNativeFundingEvent, context.unitId, raw.objectId, raw.createdAt)
+  if (input.dataset === "ohlcv") {
+    const value = row as BoundedOhlcvRow, sourceObservationId = `${raw.providerId}:${input.instrument}:5m:${value.openTime}`
+    const payload = Object.freeze({ symbol: input.instrument, resolution: "5m", open: value.open, high: value.high, low: value.low, close: value.close, volume: value.volume, closeTime: value.closeTime })
+    const candidateId = createCandidateId({ rawManifestId: raw.objectId, sourceObservationId, parserVersion: governance.parser, candidateOrdinal: String(ordinal) })
+    return Object.freeze({ kind: "OHLCV", candidateId, unitId: context.unitId, retrievalAttemptId: context.retrievalAttemptId, rawManifestId: raw.objectId, datasetId: "ohlcv", providerId: raw.providerId, providerSnapshotId: governance.providerRegistry, sourceObservationId, sourceObservedAt: value.openTime, effectiveAt: value.openTime, parserVersion: governance.parser, candidateSchemaVersion: governance.schema, payload, candidateChecksum: canonicalChecksum({ rawObjectId: raw.objectId, sourceObservationId, parserVersion: governance.parser, payload }), validationStatus: "ELIGIBLE", qualityEligibility: "ELIGIBLE", normalizationEligibility: "ELIGIBLE", createdAt: raw.createdAt })
+  }
+  if (input.dataset === "open-interest") {
+    const value = row as OpenInterestSourceRow, sourceObservationId = `${raw.providerId}:${input.instrument}:5m:${value.observedAt}`
+    const payload = Object.freeze({ symbol: input.instrument, canonicalInstrumentId: canonicalInstrument(input.instrument), marketType: "USD_M_FUTURES", openInterest: value.openInterest, unit: "PROVIDER_NATIVE" as const, openInterestValue: value.openInterestValue, valueUnit: "PROVIDER_NATIVE_QUOTE_VALUE" as const, window: "5m" as const })
+    const candidateId = createCandidateId({ rawManifestId: raw.objectId, sourceObservationId, parserVersion: governance.parser, candidateOrdinal: String(value.sourceOrdinal) })
+    return Object.freeze({ kind: "OPEN_INTEREST", candidateId, unitId: context.unitId, retrievalAttemptId: context.retrievalAttemptId, rawManifestId: raw.objectId, datasetId: "open-interest", providerId: raw.providerId, providerSnapshotId: governance.providerRegistry, sourceObservationId, sourceObservedAt: value.observedAt, effectiveAt: value.observedAt, parserVersion: governance.parser, candidateSchemaVersion: governance.schema, payload, candidateChecksum: canonicalChecksum({ rawObjectId: raw.objectId, sourceObservationId, parserVersion: governance.parser, payload }), validationStatus: "ELIGIBLE", qualityEligibility: "ELIGIBLE", normalizationEligibility: "ELIGIBLE", createdAt: raw.createdAt })
+  }
+  const built = state.segment!, sourceObservationId = `${input.logicalSlotId}:${built.segmentChecksum}`
+  const payload = Object.freeze({ symbol: input.instrument, streamKind: "AGG_TRADE" as const, rawObjectId: raw.objectId, windowStart: input.intervalStart, windowEnd: input.intervalEnd, firstSequence: built.firstAggregateTradeId, lastSequence: built.lastAggregateTradeId, recordCount: built.eventCount, segmentContractVersion: "2" as const, canonicalInstrumentId: canonicalInstrument(input.instrument), sourcePartitionKey: input.logicalSlotId, segmentObjectKey: built.segmentObjectKey, segmentContentChecksum: built.segmentChecksum, segmentByteLength: built.byteLength, columnarFormat: "PARQUET" as const, compressionFormat: "SNAPPY" as const, eventTimeMin: built.eventTimeMinimum, eventTimeMax: built.eventTimeMaximum, eventOrderPolicy: built.eventOrderPolicy, acceptedCount: built.acceptedCount, rejectedCount: built.rejectedCount, duplicateCount: built.duplicateCount })
+  const candidateId = createCandidateId({ rawManifestId: raw.objectId, sourceObservationId, parserVersion: governance.parser, candidateOrdinal: "0" })
+  return Object.freeze({ kind: "STREAM_MANIFEST", candidateId, unitId: context.unitId, retrievalAttemptId: context.retrievalAttemptId, rawManifestId: raw.objectId, datasetId: "agg-trade", providerId: raw.providerId, providerSnapshotId: governance.providerRegistry, sourceObservationId, sourceObservedAt: built.eventTimeMaximum, effectiveAt: input.intervalStart, parserVersion: governance.parser, candidateSchemaVersion: governance.schema, payload, candidateChecksum: canonicalChecksum({ rawObjectId: raw.objectId, sourceObservationId, payload }), validationStatus: "ELIGIBLE", qualityEligibility: "ELIGIBLE", normalizationEligibility: "ELIGIBLE", createdAt: raw.createdAt })
+}
+
+function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; readonly storage: ObjectStoragePort; readonly objectRoot: string; readonly d2: CanonicalPersistenceAdapter; readonly d3: PopulationPostgresAdapter; readonly canonical: CanonicalCommitPort; readonly refresh: MvpRefreshStore }): BoundedLiveSlotAdapter {
+  const states = new Map<string, SlotState>()
+  const state = (id: string) => { const value = states.get(id); if (!value) throw new Error("LIVE_SLOT_STATE_MISSING"); return value }
+  return Object.freeze({
+    dataset: input.dataset,
+    sourceContractId: SOURCE_CONTRACTS[input.dataset],
+    supportedInstruments: input.dataset === "ohlcv" ? INSTRUMENTS.filter((value) => value !== "BTCUSDT") : INSTRUMENTS,
+    async inspectFinalization(invocation) {
+      const request = input.dataset === "funding" ? null : createBoundedArchiveRequest({ dataset: input.dataset as Exclude<RefreshLogicalDataset, "funding">, provider: "binance-vision", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, sourceContractVersion: invocation.sourceContractId, maximumRecordCount: input.dataset === "ohlcv" ? 288 : input.dataset === "open-interest" ? 10_000 : 10_000_000 })
+      const fundingRequest = input.dataset === "funding" ? createBoundedFundingRequest({ provider: "binance-official-rest-funding-rate", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, maximumEventCount: 1_000, requestedAt: new Date().toISOString() }) : null
+      const response = await fetch(request ? boundedArchiveSourceUrl(request) : createBoundedFundingSourceUrl(fundingRequest!), { cache: "no-store", signal: AbortSignal.timeout(180_000) })
+      if (response.status === 404) return Object.freeze({ status: "SOURCE_NOT_FINALIZED" as const, retrievalIdentity: null, bytes: null, sourceChecksum: null, contentType: null, observedThrough: null, limitations: Object.freeze(["SOURCE_NOT_FINALIZED"]) })
+      if (!response.ok) return Object.freeze({ status: "INELIGIBLE" as const, retrievalIdentity: null, bytes: null, sourceChecksum: null, contentType: null, observedThrough: null, limitations: Object.freeze([`SOURCE_HTTP_${response.status}`]) })
+      const bytes = new Uint8Array(await response.arrayBuffer()), sourceChecksum = createHash("sha256").update(bytes).digest("hex"), observedAt = new Date().toISOString()
+      const rows = fundingRequest ? parseBoundedFundingEvents({ bytes, request: fundingRequest, retrievalIdentity: `mrret_${canonicalChecksum({ requestIdentity: fundingRequest.requestIdentity, sourceChecksum })}`, rawArtifactIdentity: `raw_${sourceChecksum}`, observedAt }) : request!.dataset === "ohlcv" ? parseBoundedOhlcvArchive(request!, bytes).rows : request!.dataset === "open-interest" ? parseBoundedOpenInterestArchive(request!, bytes).rows : (await parseBoundedAggTradesArchive(request!, bytes)).rows
+      const observedThrough = fundingRequest ? (rows.at(-1) as ProviderNativeFundingEvent | undefined)?.providerEventTimestamp ?? invocation.intervalStart : request!.dataset === "ohlcv" ? (rows.at(-1) as BoundedOhlcvRow).closeTime : request!.dataset === "open-interest" ? (rows.at(-1) as OpenInterestSourceRow).observedAt : (rows.at(-1) as Awaited<ReturnType<typeof parseBoundedAggTradesArchive>>["rows"][number]).tradeTime
+      const retrievalIdentity = `mrret_${canonicalChecksum({ logicalSlotId: invocation.logicalSlotId, sourceChecksum })}`
+      states.set(invocation.logicalSlotId, { bytes, contentType: response.headers.get("content-type")?.split(";", 1)[0] ?? (fundingRequest ? "application/json" : "application/zip"), sourceChecksum, observedThrough, rows })
+      return Object.freeze({ status: "AVAILABLE" as const, retrievalIdentity, bytes, sourceChecksum, contentType: states.get(invocation.logicalSlotId)!.contentType, observedThrough, limitations: Object.freeze([]) })
+    },
+    async persistArtifact(invocation, source) {
+      const value = state(invocation.logicalSlotId), at = new Date().toISOString(), objectStorageKey = `raw/${value.sourceChecksum.slice(0, 2)}/${value.sourceChecksum}.${input.dataset === "funding" ? "json" : "zip"}`
+      const stored = await input.storage.putImmutable({ objectStorageKey, contentHash: value.sourceChecksum, mediaType: value.contentType, byteLength: value.bytes.byteLength, content: stream(value.bytes) })
+      value.raw = rawManifest(invocation, value, stored.rawObjectId, objectStorageKey, at)
+      const registered = await input.d2.registerRawObjectManifest(value.raw)
+      if (registered.status === "CONFLICT" || registered.status === "REJECTED") throw new Error("LIVE_RAW_ARTIFACT_CONFLICT")
+      value.population = await preparePopulation(invocation, input.d3, at)
+      await input.d3.appendRetrievalAttempt({ attemptId: value.population.retrievalAttemptId, unitId: value.population.unitId, runId: value.population.runId, providerId: value.raw.providerId, providerSnapshotId: value.raw.providerSnapshotId, requestFingerprint: invocation.logicalSlotId, startedAt: at, completedAt: at, outcome: "SUCCESS", statusCode: 200, retryAfter: null, responseMediaType: value.contentType, rawByteCount: value.bytes.byteLength, rawManifestId: value.raw.objectId, errorClass: null, errorCode: null, retryClassificationId: null })
+      await input.d3.advanceUnit(value.population.unitId, value.population.leaseId, "mvp-live-resume", value.population.fencingToken, "RAW_PERSISTED", `live-raw:${stored.rawObjectId}`, at)
+      const artifactIdentity = `mra_${canonicalChecksum({ logicalSlotId: invocation.logicalSlotId, rawObjectId: stored.rawObjectId })}`
+      const status = await input.refresh.recordArtifact({ unitId: invocation.unitId, artifactId: artifactIdentity, artifactKind: `BOUNDED_${input.dataset.toUpperCase()}_RAW`, contentChecksum: value.sourceChecksum, byteCount: value.bytes.byteLength, lineage: { retrievalIdentity: source.retrievalIdentity, sourceContractVersion: invocation.sourceContractId, rawObjectId: stored.rawObjectId } })
+      return Object.freeze({ artifactIdentity, artifactChecksum: value.sourceChecksum, retainedBytes: value.bytes.byteLength, status: status === "INSERTED" ? "CREATED" as const : "DUPLICATE" as const })
+    },
+    async normalizeAndPersistCandidates(invocation) {
+      const value = state(invocation.logicalSlotId)
+      if (input.dataset === "agg-trade") value.segment = await buildBoundedAggTradesSegment({ batch: { request: createBoundedArchiveRequest({ dataset: "agg-trade", provider: "binance-vision", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, sourceContractVersion: invocation.sourceContractId, maximumRecordCount: 10_000_000 }), sourceChecksum: value.sourceChecksum, rows: value.rows as Awaited<ReturnType<typeof parseBoundedAggTradesArchive>>["rows"], observedThrough: value.observedThrough, batchIdentity: `mbab_${canonicalChecksum({ logicalSlotId: invocation.logicalSlotId, sourceChecksum: value.sourceChecksum })}` }, rawObjectId: value.raw!.objectId, storage: input.storage, objectRoot: input.objectRoot })
+      const rows = input.dataset === "agg-trade" ? [value.rows[0]!] : value.rows
+      const candidates = rows.map((row, ordinal) => buildCandidate(invocation, row, ordinal, value))
+      let created = 0
+      for (const candidate of candidates) { const result = await input.d3.persistCandidate(candidate); if (result.status === "CONFLICT") return Object.freeze({ candidateIdentity: candidate.candidateId, candidateChecksum: candidate.candidateChecksum, status: "CONFLICT" as const, payload: candidates }); if (result.status === "CREATED") created++ }
+      value.candidates = Object.freeze(candidates)
+      await input.d3.advanceUnit(value.population!.unitId, value.population!.leaseId, "mvp-live-resume", value.population!.fencingToken, "CANDIDATES_READY", `live-candidates:${invocation.logicalSlotId}`, new Date().toISOString())
+      const candidateChecksum = canonicalChecksum(candidates.map((candidate) => [candidate.candidateId, candidate.candidateChecksum]))
+      return Object.freeze({ candidateIdentity: `mrcs_${candidateChecksum}`, candidateChecksum, status: created ? "CREATED" as const : "DUPLICATE" as const, payload: candidates })
+    },
+    async commit(invocation) {
+      const value = state(invocation.logicalSlotId), outputs: Array<{ identity: string; checksum: string }> = [], normalizer = new ProductionNormalizerRegistry(), governance = GOVERNANCE[input.dataset]
+      await input.d3.advanceUnit(value.population!.unitId, value.population!.leaseId, "mvp-live-resume", value.population!.fencingToken, "PROCESSING", `live-processing:${invocation.logicalSlotId}`, new Date().toISOString())
+      let createdCount = 0, duplicateCount = 0, conflictCount = 0
+      for (const candidate of value.candidates!) {
+        const command = candidate.kind === "STREAM_MANIFEST" ? buildCanonicalStreamSegmentCommand({ operationType: "INITIAL_VERSION", initiatedAt: candidate.createdAt, sourceDatasetId: "agg-trade", streamKind: "AGG_TRADE", providerId: candidate.providerId, venue: "BINANCE", symbol: invocation.instrument, canonicalInstrumentId: canonicalInstrument(invocation.instrument), sourcePartitionKey: invocation.logicalSlotId, windowStart: invocation.intervalStart, windowEnd: invocation.intervalEnd, firstSequence: candidate.payload.firstSequence, lastSequence: candidate.payload.lastSequence, recordCount: candidate.payload.recordCount, segmentObjectKey: candidate.payload.segmentObjectKey, segmentContentChecksum: candidate.payload.segmentContentChecksum, columnarFormat: "PARQUET", compressionFormat: "SNAPPY", segmentByteLength: candidate.payload.segmentByteLength, eventTimeMin: candidate.payload.eventTimeMin, eventTimeMax: candidate.payload.eventTimeMax, validationStatus: "VALIDATED", eventOrderPolicy: AGG_TRADES_SEGMENT_ORDER_POLICY, governance: { datasetRegistrySnapshotId: governance.datasetRegistry, providerRegistrySnapshotId: governance.providerRegistry, providerCertificationSnapshotId: governance.certification, policyVersionId: governance.policy, schemaVersion: governance.schema, normalizationVersion: AGG_TRADES_SEGMENT_NORMALIZER_VERSION }, sourceRawObject: value.raw!, predecessor: null }) : normalizer.normalize({ candidate: candidate as Exclude<PopulationCandidate, { kind: "STREAM_MANIFEST" }>, datasetRegistrySnapshotId: governance.datasetRegistry, providerRegistrySnapshotId: governance.providerRegistry, providerCertificationSnapshotId: governance.certification, policyVersionId: governance.policy, schemaVersion: governance.schema, normalizationVersion: PRODUCTION_NORMALIZER_VERSION, rawManifestId: value.raw!.objectId, rawObject: value.raw! })
+        const result = await input.canonical.execute(command)
+        if (result.status === "SUCCESS") { createdCount++; outputs.push({ identity: result.fact.canonicalRecordId, checksum: command.fact.checksum }) }
+        else if (result.status === "DUPLICATE") { duplicateCount++; outputs.push({ identity: result.canonicalRecordId, checksum: result.checksum }) }
+        else conflictCount++
+      }
+      value.commitOutputs = Object.freeze(outputs)
+      return Object.freeze({ status: conflictCount ? "CONFLICT" as const : createdCount ? "CREATED" as const : "DUPLICATE" as const, outputs: value.commitOutputs, createdCount, duplicateCount, conflictCount })
+    },
+    async validate(invocation) {
+      const value = state(invocation.logicalSlotId)
+      if (!value.commitOutputs?.length) throw new Error("LIVE_CANONICAL_ATTRIBUTION_MISSING")
+      if (input.dataset === "ohlcv" && value.rows.length !== 288) throw new Error("LIVE_OHLCV_COUNT_INVALID")
+      await input.d3.releaseLease(value.population!.unitId, value.population!.leaseId, "mvp-live-resume", value.population!.fencingToken, new Date().toISOString(), "COMPLETED")
+      await input.d3.completeRun(value.population!.runId, "SUCCEEDED", new Date().toISOString())
+      states.delete(invocation.logicalSlotId)
+      return Object.freeze([])
+    },
+  })
+}
+
+function createWatermarkAudit(store: MvpRefreshStore): LiveWatermarkAuditPort {
+  return Object.freeze({
+    async append(input) {
+      const value = sanitizedIdentity(input.scope === "DATASET" ? "mrdw" : "mrcw", input)
+      const status = await store.appendEvent(null, "live_resume_watermark", value.identity, input.scope, null, "VALIDATED", { dataset: input.dataset, through: input.through, inputIdentities: input.inputIdentities, inputChecksum: input.inputChecksum })
+      return Object.freeze({ status: status ? "CREATED" as const : "DUPLICATE" as const, ...value })
+    },
+  })
+}
+
+function toConsumerProjection(value: MvpProjectionVersion): ConsumerProjection { return Object.freeze({ projectionId: value.projectionId, projectionVersionId: value.projectionVersionId, projectionKind: value.projectionKind, subjectId: value.subjectId, eventTimeStart: value.eventTimeStart, eventTimeEnd: value.eventTimeEnd, knowledgeTimeCutoff: value.knowledgeTimeCutoff, payload: value.structuredPayload, completeness: value.completeness, limitations: value.limitations, lifecycleState: value.lifecycleState, effectiveExposure: "CONSUMER_VISIBLE", projectionChecksum: value.projectionChecksum }) }
+
+function createDownstreamExecutor(input: { readonly d2: ReturnType<typeof createDurableCanonicalPostgresClient>; readonly d3: D3PostgresClient; readonly objectRoot: string; readonly refresh: MvpRefreshStore; readonly consistency: ConsistencyPostgresRuntime; readonly evidence: ConsistencyPostgresRuntime; readonly projection: ConsistencyPostgresRuntime }): LiveDownstreamExecutor {
+  let windows: readonly MvpEvidenceWindowData[] = Object.freeze([]), projections: readonly MvpProjectionVersion[] = Object.freeze([])
+  const corpus = (slots: readonly LiveResumeSlotResult[]) => Object.freeze({ corpusId: `mvp-refresh-window:${canonicalChecksum(slots.map((slot) => slot.logicalSlotId))}`, corpusChecksum: canonicalChecksum(slots.map((slot) => [slot.logicalSlotId, slot.candidateChecksum])) })
+  const committed = (window: MvpEvidenceWindowData) => Object.freeze(window.resultInputs.map((value) => Object.freeze({ identity: value.canonicalRecordId, checksum: value.checksum })))
+  return Object.freeze({
+    async execute(value) {
+      if (value.slots.length !== 24 || !value.upstream.length) throw new Error("LIVE_DOWNSTREAM_INPUT_INCOMPLETE")
+      if (value.stage === "coverage") {
+        windows = await readMvpEvidenceWindows({ d2: input.d2, objectRoot: input.objectRoot, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, instruments: INSTRUMENTS })
+        if (windows.length !== 6 || windows.some((window) => window.measurement.completeness !== "COMPLETE")) throw new Error("LIVE_BOUNDED_COVERAGE_INCOMPLETE")
+        const outputs = windows.map((window) => sanitizedIdentity("mrl_coverage", { instrument: window.measurement.instrument, start: value.intervalStart, end: value.intervalEnd, coverage: window.measurement.coverage }))
+        for (const output of outputs) await input.refresh.appendEvent(null, "live_resume_coverage", output.identity, "BOUNDED_COVERAGE_VALIDATED", null, "COMPLETE", { checksum: output.checksum })
+        return Object.freeze({ identities: Object.freeze(outputs.map((output) => output.identity)), checksum: canonicalChecksum(outputs) })
+      }
+      if (!windows.length) windows = await readMvpEvidenceWindows({ d2: input.d2, objectRoot: input.objectRoot, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, instruments: INSTRUMENTS })
+      const sourceCorpus = corpus(value.slots)
+      if (value.stage === "consistency") {
+        const results = await Promise.all(windows.map((window) => persistMvpConsistencyWindow({ corpus: sourceCorpus, data: window, worker: input.consistency, contract: { instrument: window.measurement.instrument, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, committedInputIdentities: committed(window), modelVersion: "mvp-bounded-consistency/1.0.0", modelChecksum: canonicalChecksum({ model: "mvp-bounded-consistency/1.0.0" }) } })))
+        if (results.some((result) => result.status === "CONFLICT" || result.status === "INELIGIBLE")) throw new Error("LIVE_BOUNDED_CONSISTENCY_INELIGIBLE")
+        const identities = results.flatMap((result) => result.results.map((item) => item.resultId))
+        return Object.freeze({ identities: Object.freeze(identities), checksum: canonicalChecksum(results.map((result) => [result.runId, result.status, result.results.map((item) => item.checksum)])) })
+      }
+      if (value.stage === "evidence") {
+        const results = await Promise.all(windows.map((window) => persistMvpEvidenceWindow({ corpus: sourceCorpus, data: window, worker: input.consistency, assembler: input.evidence, contract: { instrument: window.measurement.instrument, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, committedInputIdentities: committed(window), modelVersion: "mvp-bounded-evidence/1.0.0", modelChecksum: canonicalChecksum({ model: "mvp-bounded-evidence/1.0.0" }) } })))
+        if (results.some((result) => result.status === "CONFLICT" || result.status === "INELIGIBLE" || !result.packet)) throw new Error("LIVE_BOUNDED_EVIDENCE_INELIGIBLE")
+        return Object.freeze({ identities: Object.freeze(results.map((result) => result.packet!.packetVersionId)), checksum: canonicalChecksum(results.map((result) => [result.packet!.packetVersionId, result.packet!.packetChecksum])) })
+      }
+      if (value.stage === "projections") {
+        const evidenceInputs = await loadMvpProjectionEvidenceInputs({ corpus: sourceCorpus, d4: input.evidence, d2: input.d2, d3: input.d3, objectRoot: input.objectRoot, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, instruments: INSTRUMENTS })
+        if (evidenceInputs.length !== 6) throw new Error("LIVE_BOUNDED_PROJECTION_INPUTS_INCOMPLETE")
+        const store = new MvpProjectionStore(input.projection), kinds = MVP_PROJECTION_DEFINITIONS.map((definition) => definition.projectionKind)
+        const persisted = await Promise.all(evidenceInputs.map((evidence) => persistBoundedMvpProjections({ evidence, store, request: { instrument: evidence.assessment.instrument, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, evidenceIdentity: evidence.packetVersionId, evidenceChecksum: evidence.packetChecksum, requestedProjectionKinds: kinds, modelVersion: "mvp-bounded-projection/1.0.0", modelChecksum: canonicalChecksum(MVP_PROJECTION_DEFINITIONS), schemaVersion: "1.0.0" } })))
+        if (persisted.some((result) => result.status === "CONFLICT" || result.status === "INELIGIBLE")) throw new Error("LIVE_BOUNDED_PROJECTION_INELIGIBLE")
+        projections = Object.freeze(persisted.flatMap((result) => result.projections))
+        return Object.freeze({ identities: Object.freeze(projections.map((projection) => projection.projectionVersionId)), checksum: canonicalChecksum(projections.map((projection) => [projection.projectionVersionId, projection.projectionChecksum])) })
+      }
+      if (!projections.length) throw new Error("LIVE_REPLAY_PROJECTION_INPUT_MISSING")
+      const replaySources = projections.filter((projection) => projection.projectionKind === "ReplayTimelineProjection")
+      const models = await Promise.all(replaySources.map((projection) => materializeMvpReplaySequence(toConsumerProjection(projection))))
+      if (models.length !== 6 || models.some((model) => model.sampleCounts.price !== 288 || model.sampleCounts.openInterest !== 288 || model.sampleCounts.flow !== 48)) throw new Error("LIVE_BOUNDED_REPLAY_INELIGIBLE")
+      return Object.freeze({ identities: Object.freeze(models.map((model) => model.sourceProjectionVersionId)), checksum: canonicalChecksum(models.map((model) => [model.sourceProjectionVersionId, model.modelChecksum])) })
+    },
+  })
+}
+
+function createCandidateExecutor(service: LocalInactiveCandidateAssemblyService): LiveCandidateExecutor {
+  let candidate: { corpusId: string; checksum: string; comparisonChecksum: string } | null = null
+  return Object.freeze({
+    async assemble(input) {
+      const baseline = await service.activeBaseline()
+      const additions: ServingCorpusMember[] = input.upstream.map((item, index) => Object.freeze({ memberKind: "RELEASE_MANIFEST" as const, memberId: item.identity, memberChecksum: item.checksum, canonicalSortKey: `TARGET_WINDOW:${String(index).padStart(4, "0")}:${item.identity}`, inheritedSourceCorpusId: null, schemaVersion: "mvp-live-resume/1.0.0", metadata: Object.freeze({ targetWindow: true }) }))
+      const members = canonicalizeServingCorpusMembers([...baseline.members, ...additions])
+      const corpusChecksum = computeCandidateServingChecksum({ governedThrough: input.intervalEnd, schemaVersion: "mvp-serving/1.0.0", members })
+      const corpusId = `mvp-serving-candidate:${corpusChecksum}`
+      const result = await service.assemble({ candidate: { corpusId, sourceCorpusId: baseline.corpusId, sourceCorpusChecksum: baseline.servingChecksum, governedThrough: input.intervalEnd, schemaVersion: "mvp-serving/1.0.0", generatedAt: new Date().toISOString(), members, limitations: Object.freeze(["INACTIVE_LOCAL_CANDIDATE"]) }, expectedActiveCorpusId: baseline.corpusId, expectedActiveChecksum: baseline.servingChecksum })
+      candidate = { corpusId, checksum: result.servingChecksum, comparisonChecksum: result.comparison.checksum }
+      return stageOutput("mrl_candidate", { corpusId, checksum: result.servingChecksum, status: result.status, exposureUnchanged: result.exposureUnchanged })
+    },
+    async persistManifest(input) {
+      if (!candidate) throw new Error("LIVE_CANDIDATE_ASSEMBLY_REQUIRED")
+      return stageOutput("mrl_manifest", { candidate, upstream: input.upstream })
+    },
+    async compare(input) {
+      if (!candidate) throw new Error("LIVE_CANDIDATE_ASSEMBLY_REQUIRED")
+      return stageOutput("mrl_comparison", { candidate, upstream: input.upstream, exposure: "INTERNAL_ONLY" })
+    },
+  })
+}
+
+function authoritativeResult(slot: RefreshSlotResumePlanEntry, authority: Awaited<ReturnType<ControlledOhlcvRecoveryStore["readAuthoritiesForWindow"]>>[number]): LiveResumeSlotResult {
+  if (slot.dataset !== "ohlcv" || slot.instrument !== "BTCUSDT" || authority.logicalSlotId !== slot.logicalSlotId) throw new Error("LIVE_AUTHORITATIVE_SLOT_MISMATCH")
+  const checksum = authority.canonicalFactSetDigest
+  return Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, unitId: authority.authoritativeUnitId, sourceContractId: authority.sourceContractId, retrievalIdentity: authority.retrievalId, rawArtifactIdentity: authority.artifactId, rawArtifactChecksum: checksum, candidateIdentity: authority.candidateSetId, candidateChecksum: checksum, canonicalCommitResult: "DUPLICATE", canonicalFactIdentities: Object.freeze([{ identity: authority.commitSetId, checksum }]), validationStatus: "PASSED", limitations: Object.freeze([]), durationMs: 0, retainedBytes: 0 })
+}
+
+export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBootstrapInput): Promise<LiveResumeLocalBindingSet> {
+  const scope = new ResourceScope()
+  try {
+    const start = input.intervalStart ?? "2026-07-15T00:00:00.000Z", end = input.intervalEnd ?? "2026-07-16T00:00:00.000Z"
+    exactDay(start, end)
+    const plannerIdentity = input.plannerIdentity ?? "preflight-plan"
+    const plannerChecksum = input.plannerChecksum ?? canonicalChecksum({ plannerIdentity, start, end })
+
+    const d2 = createDurableCanonicalPostgresClient({ connectionString: required(input.environment, "D2_ISOLATED_POSTGRES_URL"), roleIntent: "MIGRATION_OWNER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-d2" }, "INTEGRATED_BACKFILL")
+    scope.add({ close: () => d2.shutdown() })
+    const d3 = createDurableD3PostgresClient({ connectionString: required(input.environment, "D3_ISOLATED_POSTGRES_URL"), roleIntent: "MIGRATION_OWNER", maxConnections: 1, applicationName: "mvp-live-resume-d3" }, "INTEGRATED_BACKFILL")
+    scope.add({ close: () => d3.shutdown() })
+    const d4Environment = { D4_ISOLATED_POSTGRES_URL: input.environment.D4_ISOLATED_POSTGRES_URL, D2_ISOLATED_POSTGRES_URL: input.environment.D2_ISOLATED_POSTGRES_URL, D3_ISOLATED_POSTGRES_URL: input.environment.D3_ISOLATED_POSTGRES_URL }
+    const d4 = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "MIGRATION_OWNER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-d4", environment: d4Environment })
+    await d4.connect(); scope.add({ close: () => d4.shutdown() })
+    const consistency = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "CONSISTENCY_WORKER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-consistency", environment: d4Environment })
+    await consistency.connect(); scope.add({ close: () => consistency.shutdown() })
+    const evidence = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "EVIDENCE_ASSEMBLER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-evidence", environment: d4Environment })
+    await evidence.connect(); scope.add({ close: () => evidence.shutdown() })
+    const projection = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "PROJECTION_BUILDER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-projection", environment: d4Environment })
+    await projection.connect(); scope.add({ close: () => projection.shutdown() })
+    const refresh = new MvpRefreshPostgresClient(required(input.environment, "MVP_REFRESH_ISOLATED_POSTGRES_URL"), input.environment); await refresh.verify(); scope.add({ close: () => refresh.shutdown() })
+    const serving = new MvpServingPostgresClient(required(input.environment, "MVP_SERVING_ISOLATED_POSTGRES_URL"), "PUBLISHER", input.environment, "LOCAL_ISOLATED")
+    await serving.verify(); scope.add({ close: () => serving.shutdown() })
+    const objectRoot = required(input.environment, "D3_BACKFILL_OBJECT_ROOT")
+    const storage = await createFilesystemObjectStorage({ root: objectRoot, repositoryRoot: process.cwd(), createRoot: false })
+
+    if (input.mode === "PREFLIGHT" || input.mode === "CERTIFICATION") {
+      await expectRollback(() => d2.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
+      await expectRollback(() => d3.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
+      await expectRollback(() => d4.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
+      await expectRollback(() => refresh.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
+      await expectRollback(() => serving.transaction(async (sql) => rollbackProbe((statement) => sql.unsafe(statement))))
+      await objectStorageProbe(storage, objectRoot)
+    }
+
+    // Construct the existing persistence adapters here. Their construction is
+    // part of the bootstrap contract even when PREFLIGHT does not retain data.
+    const d2Adapter = createCanonicalPersistenceAdapter(d2)
+    const d3Adapter = createPopulationPostgresAdapter(d3)
+    const canonical = createD3ToD2CanonicalCommitPort(d2Adapter)
+
+    const refreshStore = new MvpRefreshStore(refresh), recovery = new ControlledOhlcvRecoveryStore(refresh), control = new PostgresLiveResumeCoordinatorControlPlane(refresh)
+    const authorities = await recovery.readAuthoritiesForWindow(start, end)
+    if (authorities.length !== 1) throw new Error("LIVE_AUTHORITATIVE_RECOVERY_REQUIRED")
+    const authority = authorities[0]!
+    const candidateService = new LocalInactiveCandidateAssemblyService(serving)
+    const adapterInput = (dataset: RefreshLogicalDataset) => ({ dataset, storage, objectRoot, d2: d2Adapter, d3: d3Adapter, canonical, refresh: refreshStore })
+    const executorPorts = createLiveExecutorPortSet({ ohlcv: createDatasetAdapter(adapterInput("ohlcv")), "open-interest": createDatasetAdapter(adapterInput("open-interest")), funding: createDatasetAdapter(adapterInput("funding")), "agg-trade": createDatasetAdapter(adapterInput("agg-trade")) })
+    const ports = composeConcreteLiveResumePorts({
+      targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
+      lease: control,
+      checkpoints: control,
+      units: { resolve: async (slot, context) => {
+        const unitId = `mru_${canonicalChecksum({ runId: context.runId, logicalSlotId: slot.logicalSlotId })}`
+        const checksum = canonicalChecksum({ unitId, runId: context.runId, logicalSlotId: slot.logicalSlotId, sourceContractId: SOURCE_CONTRACTS[slot.dataset] })
+        const existing = (await refreshStore.auditUnitsForWindow(start, end)).find((item) => item.unitId === unitId)
+        if (!existing) await refreshStore.putUnits([{ unitId, runId: context.runId, instrument: slot.instrument, datasetId: slot.dataset, intervalStart: start, intervalEnd: end, checksum }])
+        return Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, action: existing ? "REUSED_UNIT" as const : "CREATED_UNIT" as const, unitId, sourceContractId: SOURCE_CONTRACTS[slot.dataset], checkpointStartStage: existing?.state === "COMPLETE" ? "COMPLETE" as const : "PENDING" as const, fencingToken: context.fencingToken, reason: existing ? "EXISTING_DETERMINISTIC_UNIT" : "NEW_DETERMINISTIC_UNIT" })
+      } },
+      authoritativeOhlcv: { reuse: async (slot) => authoritativeResult(slot, authority) },
+      executorPorts,
+      watermarkAudit: createWatermarkAudit(refreshStore),
+      downstreamExecutor: createDownstreamExecutor({ d2, d3, objectRoot, refresh: refreshStore, consistency, evidence, projection }),
+      candidateExecutor: createCandidateExecutor(candidateService),
+      plannerIdentity, plannerChecksum, intervalStart: start, intervalEnd: end, allowedDatasets: DATASETS, allowedInstruments: INSTRUMENTS,
+    })
+    return Object.freeze({ ports, capabilities: input.capabilities, close: () => scope.close() })
+  } catch (error) {
+    await scope.close()
+    throw error
+  }
+}

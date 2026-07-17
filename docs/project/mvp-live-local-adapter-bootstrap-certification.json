@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "mvp-live-local-adapter-bootstrap-certification/1.0.0",
+  "certifiedAt": "2026-07-17T00:00:00.000Z",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "factory": {
+    "processEnvironmentOwned": true,
+    "workerAdapterInjectionRequired": false,
+    "modes": ["INSPECT", "PREFLIGHT", "CERTIFICATION", "LIVE"],
+    "mandatoryCallablePortCount": 14,
+    "activationAvailable": false,
+    "closeLifecycle": "CERTIFIED"
+  },
+  "realBindings": {
+    "databaseClients": 5,
+    "objectStorage": "LOCAL_IMMUTABLE_ADAPTER",
+    "ohlcv": "BOUNDED_EXISTING_SERVICE",
+    "openInterest": "BOUNDED_EXISTING_SERVICE",
+    "funding": "BOUNDED_PROVIDER_NATIVE_REST",
+    "aggTrades": "BOUNDED_SEGMENT_SERVICE",
+    "downstream": "BOUNDED_D4_AND_REPLAY_SERVICES",
+    "candidate": "LOCAL_INACTIVE_SERVING_PUBLISHER"
+  },
+  "noWriteCertification": {
+    "databaseTransactions": "ROLLBACK_ONLY",
+    "objectProbeCleanup": "REQUIRED",
+    "targetDayPayloadAcquired": false,
+    "targetDayUnitsCreated": 0,
+    "watermarkAdvanced": false,
+    "candidateBuilt": false
+  },
+  "actualEnvironment": {
+    "refreshControl": "READY",
+    "objectStorage": "READY",
+    "d2": "AUTHENTICATION_FAILED_28P01",
+    "d3": "AUTHENTICATION_FAILED_28P01",
+    "d4": "AUTHENTICATION_FAILED_28P01",
+    "serving": "WRONG_ROLE",
+    "authenticatedPreflightPassed": false
+  },
+  "codeBootstrapComplete": true,
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false,
+  "status": "LOCAL_AUTH_RESTORATION_REQUIRED"
+}

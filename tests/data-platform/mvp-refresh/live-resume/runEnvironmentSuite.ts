@@ -4,6 +4,7 @@ import {
   LIVE_RESUME_REQUIRED_BINDING_NAMES,
   composeLocalLiveResumeEnvironment,
   createLocalLiveResumeEnvironment,
+  createLiveResumeEnvironmentFromProcessEnv,
   inspectLocalLiveResumeEnvironment,
   preflightLocalLiveResumeEnvironment,
   type LiveResumeBindingCapability,
@@ -46,7 +47,39 @@ async function main() {
   await certification.close()
   await assert.rejects(() => createLocalLiveResumeEnvironment({ mode: "CERTIFICATION" }), /CERTIFICATION_BINDINGS_REQUIRED/)
 
-  console.log(JSON.stringify({ status: "PASS", requiredBindings: LIVE_RESUME_REQUIRED_BINDING_NAMES.length, factoryModes: 4, activationCapable: false, externalMutation: false }))
+  let factoryCalls = 0, closeCalls = 0
+  const authenticated = await createLiveResumeEnvironmentFromProcessEnv({
+    mode: "CERTIFICATION",
+    environment: {} as NodeJS.ProcessEnv,
+    preflight: async () => Object.freeze({ version: "mvp-live-resume-environment/1.0.0", passed: true, capabilities: Object.freeze([...complete, capability("candidate-activation", false)]), productionOrNeonWriteTarget: false }),
+    createBindings: async () => { factoryCalls++; return { ports, capabilities: [...complete, capability("candidate-activation", false)], close: async () => { closeCalls++ } } },
+  })
+  assert.equal(authenticated.ports, ports)
+  assert.equal(factoryCalls, 1)
+  await authenticated.close()
+  assert.equal(closeCalls, 1)
+
+  let partialCloseCalls = 0
+  await assert.rejects(() => createLiveResumeEnvironmentFromProcessEnv({
+    mode: "CERTIFICATION",
+    environment: {} as NodeJS.ProcessEnv,
+    preflight: async () => Object.freeze({ version: "mvp-live-resume-environment/1.0.0", passed: true, capabilities: Object.freeze([...complete, capability("candidate-activation", true)]), productionOrNeonWriteTarget: false }),
+    createBindings: async () => ({ ports, capabilities: complete, close: async () => { partialCloseCalls++ } }),
+  }), /ACTIVATION_BINDING_FORBIDDEN/)
+  assert.equal(partialCloseCalls, 1)
+
+  let blockedFactoryCalls = 0
+  const authBlocked = await createLiveResumeEnvironmentFromProcessEnv({
+    mode: "PREFLIGHT",
+    environment: {} as NodeJS.ProcessEnv,
+    preflight: async () => Object.freeze({ version: "mvp-live-resume-environment/1.0.0", passed: false, capabilities: Object.freeze([capability("d2-canonical-persistence", false)]), productionOrNeonWriteTarget: false }),
+    createBindings: async () => { blockedFactoryCalls++; return { ports, capabilities: complete } },
+  })
+  assert.equal(authBlocked.passed, false)
+  assert.equal(authBlocked.ports, null)
+  assert.equal(blockedFactoryCalls, 0)
+
+  console.log(JSON.stringify({ status: "PASS", requiredBindings: LIVE_RESUME_REQUIRED_BINDING_NAMES.length, factoryModes: 4, authoritativeFactory: true, activationCapable: false, externalMutation: false }))
 }
 
 void main().catch((error) => { console.error(error); process.exitCode = 1 })

@@ -58,6 +58,12 @@ The new concrete port layer implements fourteen callable dataset, watermark, dow
 
 Environment factory modes and close lifecycle are certified. The environment-backed worker bootstrap is still missing, so `run` and `resume` remain fail closed after the explicit confirmation gate. Current D2/D3/D4 authentication and serving publisher role diagnostics are unchanged. No live target-day work occurred.
 
+## MVP-8A.2K Local Adapter Bootstrap
+
+The process-environment factory now owns concrete D2, D3, D4, refresh-control, object-storage, bounded dataset, downstream, Replay, and inactive serving-publisher bindings. Worker `run` and `resume` no longer contain the bootstrap-required failure and cannot inject partial bindings. Database capability probes are rollback-only, object-store probes require cleanup, and activation is absent.
+
+The actual no-write preflight still fails closed before port construction because D2, D3, and D4 return sanitized SQLSTATE `28P01`, while the isolated serving target reports `WRONG_ROLE`. Refresh control, object storage, the authoritative recovery record, the 1+23 planner, all 18 archive checks, and all six Funding checks pass. No target-day unit, payload, Fact, watermark, downstream record, candidate, exposure, or external system was changed.
+
 ## Reproducible commands
 
 ```powershell

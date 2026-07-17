@@ -55,14 +55,19 @@
     "inactiveServing": "WRONG_ROLE",
     "passed": false
   },
-  "status": "BLOCKED",
+  "status": "CODE_COMPLETE_LOCAL_AUTH_BLOCKED",
   "blockerReasonCodes": [
-    "LIVE_RESUME_ENVIRONMENT_PORT_BOOTSTRAP_REQUIRED",
     "LOCAL_D2_AUTHENTICATION_REQUIRED",
     "LOCAL_D3_AUTHENTICATION_REQUIRED",
     "LOCAL_D4_AUTHENTICATION_REQUIRED",
     "LOCAL_SERVING_PUBLISHER_ROLE_REQUIRED"
   ],
+  "environmentBootstrap": {
+    "processEnvironmentFactory": "COMPLETE",
+    "workerAdapterInjectionRequired": false,
+    "bootstrapRequiredSentinelPresent": false,
+    "activationAvailable": false
+  },
   "targetDayAcquisitionExecuted": false,
   "targetDayUnitsCreated": 0,
   "productionMutation": false,

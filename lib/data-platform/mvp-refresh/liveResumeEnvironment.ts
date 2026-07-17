@@ -54,6 +54,26 @@ export interface LocalLiveResumeEnvironment {
   close(): Promise<void>
 }
 
+export interface LiveResumeEnvironmentFactoryInput {
+  readonly mode: LiveResumeEnvironmentMode
+  readonly environment?: NodeJS.ProcessEnv
+  readonly intervalStart?: string
+  readonly intervalEnd?: string
+  readonly plannerIdentity?: string
+  readonly plannerChecksum?: string
+  /** Test-only seam for authenticated local-client certification. Workers do not supply it. */
+  readonly preflight?: (environment: NodeJS.ProcessEnv) => Promise<LiveResumeEnvironmentPreflight>
+  readonly createBindings?: (input: {
+    readonly mode: Exclude<LiveResumeEnvironmentMode, "INSPECT">
+    readonly environment: NodeJS.ProcessEnv
+    readonly capabilities: readonly LiveResumeBindingCapability[]
+    readonly intervalStart?: string
+    readonly intervalEnd?: string
+    readonly plannerIdentity?: string
+    readonly plannerChecksum?: string
+  }) => Promise<LiveResumeLocalBindingSet>
+}
+
 const instruments = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"])
 const datasetBindings = Object.freeze([
   ["ohlcv-executor", ["ohlcv"], instruments.filter((value) => value !== "BTCUSDT")],
@@ -198,4 +218,29 @@ export async function createLocalLiveResumeEnvironment(input: { readonly mode: L
   if (!input.bindings) throw new Error("LIVE_RESUME_LIVE_BINDINGS_REQUIRED")
   const ports = composeLocalLiveResumeEnvironment({ ...input.bindings, capabilities: preflight.capabilities })
   return Object.freeze({ mode: input.mode, capabilities: preflight.capabilities, diagnostics: Object.freeze(preflight.capabilities.map((value) => Object.freeze({ bindingName: value.bindingName, diagnostic: value.diagnostic, sanitizedErrorCode: value.sanitizedErrorCode }))), ports, passed: true, close: input.bindings.close ?? (async () => undefined) })
+}
+
+/**
+ * Process-environment entry point used by the worker. The binding constructor is
+ * resolved inside the environment layer so callers never inject individual
+ * adapters or partially composed ports.
+ */
+export async function createLiveResumeEnvironmentFromProcessEnv(input: LiveResumeEnvironmentFactoryInput): Promise<LocalLiveResumeEnvironment> {
+  const environment = input.environment ?? process.env
+  if (input.mode === "INSPECT") return createLocalLiveResumeEnvironment({ mode: "INSPECT", environment })
+
+  const preflight = await (input.preflight ?? preflightLocalLiveResumeEnvironment)(environment)
+  const diagnostics = Object.freeze(preflight.capabilities.map((value) => Object.freeze({ bindingName: value.bindingName, diagnostic: value.diagnostic, sanitizedErrorCode: value.sanitizedErrorCode })))
+  if (!preflight.passed) return Object.freeze({ mode: input.mode, capabilities: preflight.capabilities, diagnostics, ports: null, passed: false, close: async () => undefined })
+
+  const createBindings = input.createBindings ?? (await import("./liveResumeLocalBootstrap")).createProcessLiveResumeBindings
+  let bindings: LiveResumeLocalBindingSet | null = null
+  try {
+    bindings = await createBindings({ mode: input.mode, environment, capabilities: preflight.capabilities, intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, plannerIdentity: input.plannerIdentity, plannerChecksum: input.plannerChecksum })
+    const ports = composeLocalLiveResumeEnvironment({ ...bindings, capabilities: preflight.capabilities })
+    return Object.freeze({ mode: input.mode, capabilities: preflight.capabilities, diagnostics, ports, passed: true, close: bindings.close ?? (async () => undefined) })
+  } catch (error) {
+    await bindings?.close?.().catch(() => undefined)
+    throw error
+  }
 }

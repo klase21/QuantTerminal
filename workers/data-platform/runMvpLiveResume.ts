@@ -9,7 +9,7 @@ import {
   createMvpRefreshClientFromEnvironment,
   createBoundedArchiveRequest,
   createBoundedFundingRequest,
-  createLocalLiveResumeEnvironment,
+  createLiveResumeEnvironmentFromProcessEnv,
   inspectBoundedArchiveAvailability,
   liveResumeStageOutput,
   parseLiveResumeWorkerOptions,
@@ -35,8 +35,7 @@ async function loadPlan(start: string, end: string) {
 async function preflight(start: string, end: string) {
   const archiveRequests = DATASETS.filter((value) => value !== "funding").flatMap((dataset) => INSTRUMENTS.map((instrument) => createBoundedArchiveRequest({ dataset, provider: "binance-vision", instrument, eventTimeStart: start, eventTimeEnd: end, sourceContractVersion: dataset === "ohlcv" ? "mvp-bounded-ohlcv/1.0.0" : dataset === "open-interest" ? "mvp-bounded-open-interest/1.0.0" : "mvp-bounded-agg-trade/1.0.0", maximumRecordCount: dataset === "ohlcv" ? 288 : dataset === "open-interest" ? 10_000 : 10_000_000 })))
   const fundingRequests = INSTRUMENTS.map((instrument) => createBoundedFundingRequest({ provider: "binance-official-rest-funding-rate", instrument, eventTimeStart: start, eventTimeEnd: end, maximumEventCount: 1_000, requestedAt: new Date().toISOString() }))
-  const [localEnvironment, loaded, archives, funding] = await Promise.all([
-    createLocalLiveResumeEnvironment({ mode: "PREFLIGHT" }),
+  const [loaded, archives, funding] = await Promise.all([
     loadPlan(start, end),
     Promise.all(archiveRequests.map((request) => inspectBoundedArchiveAvailability(request))),
     Promise.all(fundingRequests.map(async (request) => {
@@ -48,7 +47,9 @@ async function preflight(start: string, end: string) {
       } catch { return Object.freeze({ instrument: request.instrument, ready: false, classification: "CONNECTION_FAILED" }) }
     })),
   ])
+  const localEnvironment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "PREFLIGHT", intervalStart: start, intervalEnd: end, plannerIdentity: loaded.plan.planIdentity, plannerChecksum: loaded.plan.planChecksum })
   const environment = Object.freeze({ version: "mvp-live-resume-environment/1.0.0", passed: localEnvironment.passed, capabilities: localEnvironment.capabilities, productionOrNeonWriteTarget: false as const })
+  await localEnvironment.close()
   const planCounts = { reuseAuthoritative: loaded.plan.slots.filter((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT").length, createNew: loaded.plan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME").length, conflicts: loaded.plan.slots.filter((slot) => slot.action === "BLOCKED_CONFLICT").length }
   const archivePass = archives.length === 18 && archives.every((value) => value.sourceClassification === "HTTP_SUCCESS" && value.available && value.finalized)
   const fundingPass = funding.length === 6 && funding.every((value) => value.ready)
@@ -74,7 +75,7 @@ function dryRunPorts(gate: Awaited<ReturnType<typeof preflight>>): LiveResumeCoo
 async function main() {
   const options = parseLiveResumeWorkerOptions(process.argv.slice(2))
   if (options.command === "inspect") {
-    const environment = await createLocalLiveResumeEnvironment({ mode: "INSPECT" })
+    const environment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "INSPECT" })
     return print({ command: options.command, coordinatorVersion: "mvp-live-resume-coordinator/1.0.0", environmentVersion: "mvp-live-resume-environment/1.0.0", capabilities: environment.capabilities, commands: ["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify"], liveConfirmationRequired: true })
   }
   const loaded = await loadPlan(options.start, options.end)
@@ -89,7 +90,12 @@ async function main() {
   }
   if (options.command === "run" || options.command === "resume") {
     if (!gate.passed) throw new Error("LIVE_RESUME_PREFLIGHT_FAILED")
-    throw new Error("LIVE_RESUME_ENVIRONMENT_PORT_BOOTSTRAP_REQUIRED")
+    const environment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "LIVE", intervalStart: options.start, intervalEnd: options.end, plannerIdentity: loaded.plan.planIdentity, plannerChecksum: loaded.plan.planChecksum })
+    try {
+      if (!environment.ports) throw new Error("LIVE_RESUME_LOCAL_PREFLIGHT_FAILED")
+      const result = await new MvpLiveResumeCoordinator(environment.ports).execute({ plan: loaded.plan, allowedInstruments: INSTRUMENTS, allowedDatasets: DATASETS, mode: "LIVE" })
+      return print({ command: options.command, result })
+    } finally { await environment.close() }
   }
 }
 
