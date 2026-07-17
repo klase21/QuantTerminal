@@ -26,8 +26,10 @@ interface FactRow {
   readonly canonical_record_id: string;
   readonly business_identity: string;
   readonly record_version: number;
+  readonly commit_id: string;
   readonly dataset_id: string;
   readonly provider_id: string;
+  readonly venue: string;
   readonly symbol: string;
   readonly event_time: Date;
   readonly interval_end: Date | null;
@@ -65,6 +67,8 @@ export interface MvpEvidenceWindowData {
   readonly temporalInputs: readonly AvailableTemporalAlignmentInput[];
   readonly runInputs: readonly ConsistencyInputReference[];
   readonly resultInputs: readonly ConsistencyResultInputReference[];
+  readonly committedInputs: readonly { readonly commitId: string; readonly canonicalRecordId: string; readonly recordVersion: number; readonly checksum: string; readonly datasetId: string; readonly symbol: string }[];
+  readonly coverageInputs: readonly { readonly commitId: string; readonly checksum: string; readonly datasetId: string; readonly providerId: string; readonly providerSnapshotId: string; readonly venue: string; readonly symbol: string }[];
 }
 
 const iso = (value: Date | string) => new Date(value).toISOString();
@@ -181,7 +185,7 @@ function resultInput(
 }
 
 async function loadRows(
-  d2: IsolatedPostgresClient,
+  d2: Pick<IsolatedPostgresClient, "sql">,
   input: {
     readonly factStart: string;
     readonly segmentStart: string;
@@ -192,19 +196,19 @@ async function loadRows(
   const common = `rv.current_publication_state publication_state,rv.registry_snapshot_id,rv.provider_snapshot_id,rv.provider_certification_snapshot_id,rv.policy_version_id,rv.schema_version,rv.normalization_version,le.edge_id lineage_node_id`;
   const [ohlcv, oi, funding, segments] = await Promise.all([
     d2.sql.unsafe<FactRow[]>(
-      `SELECT o.fact_id,o.canonical_record_id,o.business_identity,o.record_version,'ohlcv' dataset_id,o.provider_id,o.symbol,o.open_time event_time,o.close_time interval_end,o.open::text value_a,o.close::text value_b,o.high::text value_c,o.low::text value_d,o.checksum,o.recorded_at,${common},'OHLCV' fact_table FROM canonical.ohlcv o JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=o.canonical_record_id AND le.destination_node_version=o.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE o.open_time >= $1 AND o.open_time < $2 AND o.symbol=ANY($3) ORDER BY o.symbol,o.open_time`,
+      `SELECT o.fact_id,o.canonical_record_id,o.business_identity,o.record_version,o.commit_id,'ohlcv' dataset_id,o.provider_id,o.venue,o.symbol,o.open_time event_time,o.close_time interval_end,o.open::text value_a,o.close::text value_b,o.high::text value_c,o.low::text value_d,o.checksum,o.recorded_at,${common},'OHLCV' fact_table FROM canonical.ohlcv o JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=o.canonical_record_id AND le.destination_node_version=o.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE o.open_time >= $1 AND o.open_time < $2 AND o.symbol=ANY($3) ORDER BY o.symbol,o.open_time`,
       [input.factStart, input.end, input.symbols],
     ),
     d2.sql.unsafe<FactRow[]>(
-      `SELECT o.fact_id,o.canonical_record_id,o.business_identity,o.record_version,'open-interest' dataset_id,o.provider_id,o.symbol,o.observed_at event_time,NULL::timestamptz interval_end,o.open_interest::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,o.checksum,o.recorded_at,${common},'OPEN_INTEREST' fact_table FROM canonical.open_interest o JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=o.canonical_record_id AND le.destination_node_version=o.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE o.observed_at >= $1 AND o.observed_at < $2 AND o.symbol=ANY($3) ORDER BY o.symbol,o.observed_at`,
+      `SELECT o.fact_id,o.canonical_record_id,o.business_identity,o.record_version,o.commit_id,'open-interest' dataset_id,o.provider_id,o.venue,o.symbol,o.observed_at event_time,NULL::timestamptz interval_end,o.open_interest::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,o.checksum,o.recorded_at,${common},'OPEN_INTEREST' fact_table FROM canonical.open_interest o JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=o.canonical_record_id AND le.destination_node_version=o.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE o.observed_at >= $1 AND o.observed_at < $2 AND o.symbol=ANY($3) ORDER BY o.symbol,o.observed_at`,
       [input.factStart, input.end, input.symbols],
     ),
     d2.sql.unsafe<FactRow[]>(
-      `SELECT f.fact_id,f.canonical_record_id,f.business_identity,f.record_version,'funding' dataset_id,f.provider_id,f.symbol,f.funding_time event_time,NULL::timestamptz interval_end,f.funding_rate::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,f.checksum,f.recorded_at,${common},'FUNDING' fact_table FROM canonical.funding f JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=f.canonical_record_id AND le.destination_node_version=f.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE f.funding_time >= $1 AND f.funding_time < $2 AND f.symbol=ANY($3) ORDER BY f.symbol,f.funding_time`,
+      `SELECT f.fact_id,f.canonical_record_id,f.business_identity,f.record_version,f.commit_id,'funding' dataset_id,f.provider_id,f.venue,f.symbol,f.funding_time event_time,NULL::timestamptz interval_end,f.funding_rate::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,f.checksum,f.recorded_at,${common},'FUNDING' fact_table FROM canonical.funding f JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=f.canonical_record_id AND le.destination_node_version=f.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE f.funding_time >= $1 AND f.funding_time < $2 AND f.symbol=ANY($3) ORDER BY f.symbol,f.funding_time`,
       [input.factStart, input.end, input.symbols],
     ),
     d2.sql.unsafe<SegmentRow[]>(
-      `SELECT m.fact_id,m.canonical_record_id,m.business_identity,m.record_version,'agg-trade' dataset_id,m.provider_id,m.symbol,m.window_start event_time,m.window_end interval_end,m.record_count::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,m.checksum,m.recorded_at,${common},'STREAM_MANIFEST' fact_table,m.segment_object_key object_key,m.segment_content_checksum segment_checksum,m.record_count::int record_count,m.event_time_max FROM canonical.stream_manifests m JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=m.canonical_record_id AND le.destination_node_version=m.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE m.source_dataset_id='agg-trade' AND m.segment_contract_version='2' AND m.window_start >= $1 AND m.window_end <= $2 AND m.symbol=ANY($3) ORDER BY m.symbol,m.window_start`,
+      `SELECT m.fact_id,m.canonical_record_id,m.business_identity,m.record_version,m.commit_id,'agg-trade' dataset_id,m.provider_id,m.venue,m.symbol,m.window_start event_time,m.window_end interval_end,m.record_count::text value_a,NULL::text value_b,NULL::text value_c,NULL::text value_d,m.checksum,m.recorded_at,${common},'STREAM_MANIFEST' fact_table,m.segment_object_key object_key,m.segment_content_checksum segment_checksum,m.record_count::int record_count,m.event_time_max FROM canonical.stream_manifests m JOIN repository.record_versions rv USING(canonical_record_id,record_version) JOIN repository.lineage_edges le ON le.destination_node_id=m.canonical_record_id AND le.destination_node_version=m.record_version::text AND le.source_node_type='RAW_OBJECT' WHERE m.source_dataset_id='agg-trade' AND m.segment_contract_version='2' AND m.window_start >= $1 AND m.window_end <= $2 AND m.symbol=ANY($3) ORDER BY m.symbol,m.window_start`,
       [input.segmentStart, input.end, input.symbols],
     ),
   ]);
@@ -212,7 +216,7 @@ async function loadRows(
 }
 
 export async function readMvpEvidenceWindows(input: {
-  readonly d2: IsolatedPostgresClient;
+  readonly d2: Pick<IsolatedPostgresClient, "sql">;
   readonly objectRoot: string;
   readonly eventTimeStart?: string;
   readonly eventTimeEnd?: string;
@@ -466,6 +470,8 @@ export async function readMvpEvidenceWindows(input: {
               resultInput(value, exact[ordinal]!),
             ),
           ),
+          committedInputs: Object.freeze(exact.map((row) => Object.freeze({ commitId: row.commit_id, canonicalRecordId: row.canonical_record_id, recordVersion: row.record_version, checksum: row.checksum, datasetId: row.dataset_id, symbol: row.symbol }))),
+          coverageInputs: Object.freeze([...currentOhlcv, ...currentOi, ...currentFunding, segment].filter((row): row is FactRow => Boolean(row)).map((row) => Object.freeze({ commitId: row.commit_id, checksum: row.checksum, datasetId: row.dataset_id, providerId: row.provider_id, providerSnapshotId: row.provider_snapshot_id, venue: row.venue, symbol: row.symbol }))),
         }),
       );
     }

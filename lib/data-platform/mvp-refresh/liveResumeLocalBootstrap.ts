@@ -438,7 +438,7 @@ function toConsumerProjection(value: MvpProjectionVersion): ConsumerProjection {
 export function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresClient; readonly d3: D3PostgresClient; readonly objectRoot: string; readonly refresh: MvpRefreshStore; readonly consistency: ConsistencyPostgresRuntime; readonly evidence: ConsistencyPostgresRuntime; readonly projection: ConsistencyPostgresRuntime }): LiveDownstreamExecutor {
   let windows: readonly MvpEvidenceWindowData[] = Object.freeze([]), projections: readonly MvpProjectionVersion[] = Object.freeze([])
   const corpus = (slots: readonly LiveResumeSlotResult[]) => Object.freeze({ corpusId: `mvp-refresh-window:${canonicalChecksum(slots.map((slot) => slot.logicalSlotId))}`, corpusChecksum: canonicalChecksum(slots.map((slot) => [slot.logicalSlotId, slot.candidateChecksum])) })
-  const committed = (window: MvpEvidenceWindowData) => Object.freeze(window.resultInputs.map((value) => Object.freeze({ identity: value.canonicalRecordId, checksum: value.checksum })))
+  const committed = (window: MvpEvidenceWindowData) => Object.freeze(window.committedInputs.map((value) => Object.freeze({ identity: value.commitId, checksum: value.checksum })))
   return Object.freeze({
     async execute(value) {
       if (value.slots.length !== 24 || !value.upstream.length) throw new Error("LIVE_DOWNSTREAM_INPUT_INCOMPLETE")

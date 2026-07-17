@@ -60,9 +60,11 @@ export async function discoverCertifiedD2Dependencies(root = D2_DEPENDENCY_MIGRA
 }
 
 async function ensureBootstrapLedger(runtime: ConsistencyPostgresRuntime): Promise<void> {
+  const expectedDatabase = runtime.expectedDatabase
+  if (expectedDatabase !== "quantterminal_d4_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase)) throw new Error("D4_DEPENDENCY_TARGET_UNSAFE")
   await runtime.transaction(async (sql) => {
     await sql.unsafe("CREATE SCHEMA IF NOT EXISTS d4_control")
-    await sql.unsafe("CREATE TABLE IF NOT EXISTS d4_control.dependency_bootstrap_ledger (dependency_owner text NOT NULL CHECK (dependency_owner='D2'), certified_baseline text NOT NULL, source_filename text NOT NULL, sequence text NOT NULL, source_checksum text NOT NULL CHECK (source_checksum ~ '^[0-9a-f]{64}$'), applied_at timestamptz NOT NULL, target_database text NOT NULL CHECK (target_database='quantterminal_d4_isolated'), bootstrap_runner_version text NOT NULL, status text NOT NULL CHECK (status='APPLIED'), PRIMARY KEY (dependency_owner,sequence), UNIQUE (dependency_owner,source_filename))")
+    await sql.unsafe(`CREATE TABLE IF NOT EXISTS d4_control.dependency_bootstrap_ledger (dependency_owner text NOT NULL CHECK (dependency_owner='D2'), certified_baseline text NOT NULL, source_filename text NOT NULL, sequence text NOT NULL, source_checksum text NOT NULL CHECK (source_checksum ~ '^[0-9a-f]{64}$'), applied_at timestamptz NOT NULL, target_database text NOT NULL CHECK (target_database='${expectedDatabase}'), bootstrap_runner_version text NOT NULL, status text NOT NULL CHECK (status='APPLIED'), PRIMARY KEY (dependency_owner,sequence), UNIQUE (dependency_owner,source_filename))`)
   })
 }
 
@@ -98,7 +100,7 @@ export class D2DependencyBootstrapRunner {
         }
         await this.runtime.transaction(async (sql) => {
           await sql.unsafe(artifact.sql)
-          await sql.unsafe("INSERT INTO d4_control.dependency_bootstrap_ledger(dependency_owner,certified_baseline,source_filename,sequence,source_checksum,applied_at,target_database,bootstrap_runner_version,status) VALUES('D2',$1,$2,$3,$4,now(),'quantterminal_d4_isolated',$5,'APPLIED')", [artifact.certifiedBaseline, artifact.filename, artifact.sequence, artifact.checksum, D4_BOOTSTRAP_RUNNER_VERSION])
+          await sql.unsafe("INSERT INTO d4_control.dependency_bootstrap_ledger(dependency_owner,certified_baseline,source_filename,sequence,source_checksum,applied_at,target_database,bootstrap_runner_version,status) VALUES('D2',$1,$2,$3,$4,now(),$5,$6,'APPLIED')", [artifact.certifiedBaseline, artifact.filename, artifact.sequence, artifact.checksum, this.runtime.expectedDatabase, D4_BOOTSTRAP_RUNNER_VERSION])
         })
         results.push({ status: "APPLIED", sequence: artifact.sequence, filename: artifact.filename, checksum: artifact.checksum })
       } catch (cause) {

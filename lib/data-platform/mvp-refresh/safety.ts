@@ -32,14 +32,15 @@ const FORBIDDEN_ALIASES = [
   "DATABASE_URL",
 ] as const
 
-export function inspectMvpRefreshTarget(connectionString: string | undefined, environment: Readonly<Record<string, string | undefined>> = process.env): MvpRefreshTargetInspection {
+export function inspectMvpRefreshTarget(connectionString: string | undefined, environment: Readonly<Record<string, string | undefined>> = process.env, expectedDatabase = "quantterminal_mvp_refresh_isolated"): MvpRefreshTargetInspection {
   if (!connectionString?.trim()) return Object.freeze({ safe: false, database: null, reasons: Object.freeze(["MVP_REFRESH_ISOLATED_POSTGRES_URL_REQUIRED"]) })
   try {
     const url = new URL(connectionString)
     const database = decodeURIComponent(url.pathname.replace(/^\//, "")).toLowerCase()
     const reasons: string[] = []
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
-    if (database !== "quantterminal_mvp_refresh_isolated") reasons.push("REFRESH_ISOLATED_DATABASE_NAME_MISMATCH")
+    if (expectedDatabase !== "quantterminal_mvp_refresh_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?refresh_/.test(expectedDatabase)) reasons.push("REFRESH_EXPECTED_DATABASE_NAME_UNSAFE")
+    if (database !== expectedDatabase) reasons.push("REFRESH_ISOLATED_DATABASE_NAME_MISMATCH")
     if (!["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())) reasons.push("REFRESH_LOCAL_HOST_REQUIRED")
     for (const key of FORBIDDEN_ALIASES) if (environment[key] && environment[key] === connectionString) reasons.push(`MATCHES_${key}`)
     return Object.freeze({ safe: reasons.length === 0, database, reasons: Object.freeze(reasons) })
@@ -48,8 +49,8 @@ export function inspectMvpRefreshTarget(connectionString: string | undefined, en
   }
 }
 
-export function requireMvpRefreshTarget(connectionString: string | undefined, environment: Readonly<Record<string, string | undefined>> = process.env): MvpRefreshTargetInspection {
-  const result = inspectMvpRefreshTarget(connectionString, environment)
+export function requireMvpRefreshTarget(connectionString: string | undefined, environment: Readonly<Record<string, string | undefined>> = process.env, expectedDatabase?: string): MvpRefreshTargetInspection {
+  const result = inspectMvpRefreshTarget(connectionString, environment, expectedDatabase)
   if (!result.safe) throw new Error(`UNSAFE_MVP_REFRESH_TARGET:${result.reasons.join(",")}`)
   return result
 }

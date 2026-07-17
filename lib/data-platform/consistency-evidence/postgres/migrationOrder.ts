@@ -12,4 +12,5 @@ export const D4_MIGRATION_ORDER = Object.freeze([
   "011_mvp_projection_read_grants.sql",
   "012_mvp_projection_exposure_decisions.sql",
   "013_mvp_projection_exposure_invalidations.sql",
+  "014_mvp_bounded_coverage_lineage.sql",
 ] as const)

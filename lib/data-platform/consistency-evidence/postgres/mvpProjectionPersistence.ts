@@ -36,7 +36,8 @@ export async function persistBoundedMvpProjections(input: { readonly request: Bo
   if (evidence.packetVersionId !== request.evidenceIdentity || evidence.packetChecksum !== request.evidenceChecksum || !/^[0-9a-f]{64}$/.test(request.evidenceChecksum)) throw new Error("BOUNDED_PROJECTION_EVIDENCE_INVALID")
   if (!request.requestedProjectionKinds.length || !request.modelVersion || !request.schemaVersion || !/^[0-9a-f]{64}$/.test(request.modelChecksum)) throw new Error("BOUNDED_PROJECTION_CONTRACT_INVALID")
   const generated = generateMvpProjectionCorpus([evidence]).filter((value) => request.requestedProjectionKinds.includes(value.projectionKind))
-  if (generated.length !== request.requestedProjectionKinds.length || generated.some((value) => !verifyMvpProjection(value))) return Object.freeze({ status: "INELIGIBLE" as const, projections: Object.freeze([] as MvpProjectionVersion[]), statuses: Object.freeze([] as string[]), checksum: canonicalChecksum({ request, reason: "REQUESTED_KIND_NOT_GENERATED" }) })
+  const generatedKinds = new Set(generated.map((value) => value.projectionKind))
+  if (request.requestedProjectionKinds.some((kind) => !generatedKinds.has(kind)) || generated.some((value) => !verifyMvpProjection(value))) return Object.freeze({ status: "INELIGIBLE" as const, projections: Object.freeze([] as MvpProjectionVersion[]), statuses: Object.freeze([] as string[]), checksum: canonicalChecksum({ request, reason: "REQUESTED_KIND_NOT_GENERATED" }) })
   const persisted = await persistMvpProjectionBatch(input.store, generated)
   return Object.freeze({ ...persisted, checksum: canonicalChecksum({ request, projections: generated.map((value) => [value.projectionVersionId, value.projectionChecksum]) }) })
 }

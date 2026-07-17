@@ -19,8 +19,8 @@ function sanitizedPostgresError(error: unknown): Pick<MvpRefreshConnectionPrefli
 
 export class MvpRefreshPostgresClient {
   readonly sql: postgres.Sql
-  constructor(readonly connectionString: string, environment: Readonly<Record<string, string | undefined>> = process.env) {
-    requireMvpRefreshTarget(connectionString, environment)
+  constructor(readonly connectionString: string, environment: Readonly<Record<string, string | undefined>> = process.env, private readonly expectedIdentity = { database: "quantterminal_mvp_refresh_isolated", role: "qt_d2_owner" }) {
+    requireMvpRefreshTarget(connectionString, environment, expectedIdentity.database)
     this.sql = postgres(connectionString, { max: 1, prepare: false, connect_timeout: 10, idle_timeout: 30, connection: { application_name: "mvp-refresh-control-plane", statement_timeout: 30_000, lock_timeout: 5_000, idle_in_transaction_session_timeout: 30_000 } })
   }
   async verify(): Promise<void> {
@@ -30,8 +30,8 @@ export class MvpRefreshPostgresClient {
   async preflight(): Promise<MvpRefreshConnectionPreflight> {
     try {
       const rows = await this.sql.unsafe<Array<{ database: string; role: string; version: number }>>("SELECT current_database() database,current_user role,current_setting('server_version_num')::int version")
-      const expectedDatabase = rows[0]?.database === "quantterminal_mvp_refresh_isolated"
-      const expectedRole = rows[0]?.role === "qt_d2_owner"
+      const expectedDatabase = rows[0]?.database === this.expectedIdentity.database
+      const expectedRole = rows[0]?.role === this.expectedIdentity.role
       const postgresMajor16 = rows[0]?.version >= 160000 && rows[0]?.version < 170000
       return Object.freeze({ connectionSucceeded: true, expectedDatabase, expectedRole, postgresMajor16, sanitizedErrorCode: null, sanitizedErrorClass: expectedDatabase && expectedRole && postgresMajor16 ? "NONE" : "TARGET_MISMATCH" })
     } catch (error) {

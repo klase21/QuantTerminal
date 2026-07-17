@@ -38,6 +38,7 @@ export class ConsistencyPostgresRuntime {
   }
   get state(): D4RuntimeLifecycle { return this.lifecycleState }
   get roleIntent(): D4RoleIntent { return this.config.roleIntent }
+  get expectedDatabase(): string { return this.config.environment.D4_EXPECTED_DATABASE_NAME ?? "quantterminal_d4_isolated" }
   get sql(): postgres.Sql {
     if (this.lifecycleState !== "CONNECTED" || !this.client) throw new Error("D4_RUNTIME_NOT_CONNECTED")
     return this.client
@@ -58,7 +59,7 @@ export class ConsistencyPostgresRuntime {
     })
     this.client = sql
     try {
-      const verification = await verifyDatabase(sql)
+      const verification = await verifyDatabase(sql, this.config.environment.D4_EXPECTED_DATABASE_NAME)
       if (role) {
         const session = await sql.unsafe<{ role: string }[]>("SELECT current_user role")
         if (session[0]?.role !== role) throw new Error("D4_DATABASE_ROLE_MISSING")
@@ -94,10 +95,10 @@ function validateTimeout(value: number, minimum: number, maximum: number, error:
   if (!Number.isInteger(value) || value < minimum || value > maximum) throw new Error(error)
 }
 
-export async function verifyDatabase(sql: postgres.Sql): Promise<D4DatabaseVerification> {
+export async function verifyDatabase(sql: postgres.Sql, expectedDatabase = "quantterminal_d4_isolated"): Promise<D4DatabaseVerification> {
   const rows = await sql.unsafe("SELECT current_database() database, current_setting('server_version') server_version, EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='control' AND c.relname='canonical_commits') d2_dependency_present, EXISTS (SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname='population') d3_population_schema_present")
   const row = rows[0] as { database?: string; server_version?: string; d2_dependency_present?: boolean; d3_population_schema_present?: boolean } | undefined
-  if (!row || row.database !== "quantterminal_d4_isolated") throw new Error("D4_DATABASE_VERIFICATION_FAILED")
+  if (!row || row.database !== expectedDatabase) throw new Error("D4_DATABASE_VERIFICATION_FAILED")
   if (row.d3_population_schema_present) throw new Error("D3_SCHEMA_PRESENT_IN_D4_TARGET")
   return Object.freeze({ database: row.database, serverVersion: row.server_version || "UNKNOWN", d2DependencyPresent: Boolean(row.d2_dependency_present), d3PopulationSchemaPresent: false })
 }

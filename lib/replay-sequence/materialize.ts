@@ -1,5 +1,6 @@
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import { createDurableCanonicalPostgresClientFromEnvironment } from "@/lib/data-platform/persistence/postgres"
+import type { IsolatedPostgresClient } from "@/lib/data-platform/persistence/postgres"
 import { createAggTradesSegmentReadPort } from "@/lib/data-platform/population/backfill"
 import type { ConsumerProjection } from "@/lib/data-platform/consumer-projections"
 import type { ReplayFlowBucket, ReplaySequenceModel, ReplaySequenceStep } from "./contracts"
@@ -33,11 +34,20 @@ function buildSequence(projection: ConsumerProjection, priceRows: readonly Price
 }
 
 export async function materializeMvpReplaySequence(projection: ConsumerProjection): Promise<ReplaySequenceModel> {
+  const client = createDurableCanonicalPostgresClientFromEnvironment({ roleIntent: "READ_ONLY", maxConnections: 1, connectTimeoutSeconds: 5, idleTimeoutSeconds: 15, applicationName: "mvp-replay-sequence-materializer", targetPurpose: "INTEGRATED_BACKFILL" })
+  try {
+    const root = process.env.D3_BACKFILL_OBJECT_ROOT
+    if (!root) throw new Error("REPLAY_SEQUENCE_OBJECT_ROOT_REQUIRED")
+    return await materializeMvpReplaySequenceFromCore({ projection, core: client, objectRoot: root })
+  } finally { await client.shutdown() }
+}
+
+export async function materializeMvpReplaySequenceFromCore(input: { readonly projection: ConsumerProjection; readonly core: Pick<IsolatedPostgresClient, "sql">; readonly objectRoot: string }): Promise<ReplaySequenceModel> {
+  const projection = input.projection
   if (projection.projectionKind !== "ReplayTimelineProjection") throw new Error("REPLAY_SEQUENCE_PROJECTION_KIND_INVALID")
   const start = Date.parse(projection.eventTimeStart), end = Date.parse(projection.eventTimeEnd)
   if (!Number.isFinite(start) || !Number.isFinite(end) || end - start !== 86_400_000) throw new Error("REPLAY_SEQUENCE_WINDOW_INVALID")
-  const client = createDurableCanonicalPostgresClientFromEnvironment({ roleIntent: "READ_ONLY", maxConnections: 1, connectTimeoutSeconds: 5, idleTimeoutSeconds: 15, applicationName: "mvp-replay-sequence-materializer", targetPurpose: "INTEGRATED_BACKFILL" })
-  try {
+  const client = input.core
     const [price, openInterest, funding, segment] = await Promise.all([
       client.sql.unsafe<PriceRow[]>("SELECT open_time,open::text,high::text,low::text,close::text,volume::text,checksum FROM canonical.ohlcv WHERE symbol=$1 AND open_time >= $2 AND open_time < $3 ORDER BY open_time", [projection.subjectId, projection.eventTimeStart, projection.eventTimeEnd]),
       client.sql.unsafe<OiRow[]>("SELECT observed_at,open_interest::text,checksum FROM canonical.open_interest WHERE symbol=$1 AND observed_at >= $2 AND observed_at < $3 ORDER BY observed_at", [projection.subjectId, projection.eventTimeStart, projection.eventTimeEnd]),
@@ -45,9 +55,7 @@ export async function materializeMvpReplaySequence(projection: ConsumerProjectio
       client.sql.unsafe<SegmentRow[]>("SELECT segment_object_key,segment_content_checksum,record_count::int FROM canonical.stream_manifests WHERE source_dataset_id='agg-trade' AND segment_contract_version='2' AND symbol=$1 AND window_start=$2 AND window_end=$3", [projection.subjectId, projection.eventTimeStart, projection.eventTimeEnd]),
     ])
     if (price.length !== 288 || openInterest.length !== 288 || funding.length !== 3 || segment.length !== 1) throw new Error("REPLAY_SEQUENCE_REQUIRED_INPUT_MISSING")
-    const root = process.env.D3_BACKFILL_OBJECT_ROOT
-    if (!root) throw new Error("REPLAY_SEQUENCE_OBJECT_ROOT_REQUIRED")
-    const flowSummary = await createAggTradesSegmentReadPort({ objectRoot: root }).summarizeFlowBuckets({ objectKey: segment[0]!.segment_object_key, expectedChecksum: segment[0]!.segment_content_checksum, expectedEventCount: segment[0]!.record_count, windowStart: projection.eventTimeStart, windowEnd: projection.eventTimeEnd, bucketMinutes: 30 })
+    const flowSummary = await createAggTradesSegmentReadPort({ objectRoot: input.objectRoot }).summarizeFlowBuckets({ objectKey: segment[0]!.segment_object_key, expectedChecksum: segment[0]!.segment_content_checksum, expectedEventCount: segment[0]!.record_count, windowStart: projection.eventTimeStart, windowEnd: projection.eventTimeEnd, bucketMinutes: 30 })
     const lanes = record(projection.payload.lanes), marker = record((Array.isArray(record(lanes).evidenceMarkers) ? record(lanes).evidenceMarkers as unknown[] : [])[0])
     const flow = Object.freeze(flowSummary.buckets.map((bucket) => Object.freeze({ bucketId: `flow_${canonicalChecksum({ projection: projection.projectionVersionId, start: bucket.bucketStart })}`, eventTime: bucket.bucketStart, bucketEnd: bucket.bucketEnd, aggressiveBuyQuantity: bucket.aggressiveBuyQuantity, aggressiveSellQuantity: bucket.aggressiveSellQuantity, imbalanceRatio: bucket.imbalanceRatio, tradeCount: bucket.eventCount })))
     const base = {
@@ -60,5 +68,4 @@ export async function materializeMvpReplaySequence(projection: ConsumerProjectio
       sequence: buildSequence(projection, price, openInterest, funding, flow), sampleCounts: Object.freeze({ price: price.length, openInterest: openInterest.length, funding: funding.length, flow: flowSummary.buckets.length }), limitations: Object.freeze([...new Set([...projection.limitations, ...list(projection.payload.unavailableLanes)])].sort()),
     }
     return Object.freeze({ ...base, modelChecksum: canonicalChecksum(base) })
-  } finally { await client.shutdown() }
 }

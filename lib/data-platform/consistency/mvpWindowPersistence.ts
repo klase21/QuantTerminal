@@ -21,6 +21,7 @@ export const MVP_EVIDENCE_POLICY = Object.freeze({
   activation: "mvp-evidence-activation/1.0.0",
 })
 export const MVP_EVIDENCE_RULE_REGISTRY_CHECKSUM = canonicalChecksum(MVP_EVIDENCE_RULES)
+const MVP_EVIDENCE_GOVERNANCE_CREATED_AT = "2026-07-15T00:00:00.000Z"
 
 export const MVP_EVIDENCE_PROFILE: EvidenceAssemblyProfile = Object.freeze({
   profileId: "MVP-MARKET-STATE-CORE-EVIDENCE", profileVersion: "1.0.0", schemaVersion: "1",
@@ -49,17 +50,81 @@ export interface BoundedPersistenceContract {
 
 export type BoundedPersistenceStatus = "CREATED" | "DUPLICATE" | "INELIGIBLE" | "CONFLICT"
 
+export async function seedMvpEvidenceGovernance(runtime: ConsistencyPostgresRuntime): Promise<"CREATED" | "DUPLICATE"> {
+  return runtime.transaction(async (sql) => {
+    let created = false
+    const policies = [
+      [MVP_EVIDENCE_POLICY.temporal, "mvp-evidence-temporal"],
+      [MVP_EVIDENCE_POLICY.comparison, "mvp-evidence-comparison"],
+      [MVP_EVIDENCE_POLICY.severity, "mvp-evidence-severity"],
+      [MVP_EVIDENCE_POLICY.activation, "mvp-evidence-activation"],
+    ] as const
+    for (const [policyId, datasetId] of policies) {
+      const content = Object.freeze({ policyId, policyVersion: "1.0.0", owner: "D4_CONSISTENCY", purpose: datasetId })
+      const checksum = canonicalChecksum(content)
+      const inserted = await sql.unsafe<Array<{ policy_version_id: string }>>(
+        "INSERT INTO control.policy_versions(policy_version_id,dataset_id,policy_version,content_checksum,canonical_content,effective_at,created_at) VALUES($1,$2,'1.0.0',$3,$4::text::jsonb,$5,$5) ON CONFLICT DO NOTHING RETURNING policy_version_id",
+        [policyId, datasetId, checksum, JSON.stringify(content), MVP_EVIDENCE_GOVERNANCE_CREATED_AT],
+      )
+      created ||= inserted.length === 1
+      const existing = await sql.unsafe<Array<{ content_checksum: string }>>(
+        "SELECT content_checksum FROM control.policy_versions WHERE policy_version_id=$1",
+        [policyId],
+      )
+      if (existing[0]?.content_checksum !== checksum) throw new Error("MVP_EVIDENCE_POLICY_CONFLICT")
+    }
+
+    const ruleSet = await sql.unsafe<Array<{ rule_set_id: string }>>(
+      "INSERT INTO consistency.rule_sets(rule_set_id,rule_set_version,policy_version_id,state,definition_checksum,created_at) VALUES($1,$2,$3,'APPROVED',$4,$5) ON CONFLICT DO NOTHING RETURNING rule_set_id",
+      [MVP_EVIDENCE_RULE_SET_ID, MVP_EVIDENCE_RULE_SET_VERSION, MVP_EVIDENCE_POLICY.activation, MVP_EVIDENCE_RULE_REGISTRY_CHECKSUM, MVP_EVIDENCE_GOVERNANCE_CREATED_AT],
+    )
+    created ||= ruleSet.length === 1
+    const existingRuleSet = await sql.unsafe<Array<{ definition_checksum: string }>>(
+      "SELECT definition_checksum FROM consistency.rule_sets WHERE rule_set_id=$1 AND rule_set_version=$2",
+      [MVP_EVIDENCE_RULE_SET_ID, MVP_EVIDENCE_RULE_SET_VERSION],
+    )
+    if (existingRuleSet[0]?.definition_checksum !== MVP_EVIDENCE_RULE_REGISTRY_CHECKSUM) throw new Error("MVP_EVIDENCE_RULE_SET_CONFLICT")
+
+    for (const rule of MVP_EVIDENCE_RULES) {
+      const checksum = canonicalChecksum(rule)
+      const inserted = await sql.unsafe<Array<{ rule_id: string }>>(
+        "INSERT INTO consistency.rules(rule_id,rule_version,rule_set_id,rule_set_version,category,semantic_class,diagnostics_schema_version,policy_version_id,default_severity,definition_checksum,created_at) VALUES($1,$2,$3,$4,'DATASET_AGREEMENT','FACTUAL','1',$5,'ADVISORY',$6,$7) ON CONFLICT DO NOTHING RETURNING rule_id",
+        [rule.ruleId, rule.ruleVersion, MVP_EVIDENCE_RULE_SET_ID, MVP_EVIDENCE_RULE_SET_VERSION, MVP_EVIDENCE_POLICY.activation, checksum, MVP_EVIDENCE_GOVERNANCE_CREATED_AT],
+      )
+      created ||= inserted.length === 1
+      const existing = await sql.unsafe<Array<{ definition_checksum: string }>>(
+        "SELECT definition_checksum FROM consistency.rules WHERE rule_id=$1 AND rule_version=$2",
+        [rule.ruleId, rule.ruleVersion],
+      )
+      if (existing[0]?.definition_checksum !== checksum) throw new Error("MVP_EVIDENCE_RULE_CONFLICT")
+    }
+
+    const profileChecksum = canonicalChecksum(MVP_EVIDENCE_PROFILE)
+    const profile = await sql.unsafe<Array<{ profile_id: string }>>(
+      "INSERT INTO evidence.core_assembly_profiles(profile_id,profile_version,schema_version,assembly_policy_id,assembly_policy_version,selection_policy_references,conclusion_policy_id,conclusion_policy_version,role_rules,required_roles,optional_roles,definition_checksum,created_at) VALUES($1,$2,$3,$4,$5,$6::text::jsonb,$7,$8,$9::text::jsonb,$10,$11,$12,$13) ON CONFLICT DO NOTHING RETURNING profile_id",
+      [MVP_EVIDENCE_PROFILE.profileId, MVP_EVIDENCE_PROFILE.profileVersion, MVP_EVIDENCE_PROFILE.schemaVersion, MVP_EVIDENCE_PROFILE.assemblyPolicyId, MVP_EVIDENCE_PROFILE.assemblyPolicyVersion, JSON.stringify(MVP_EVIDENCE_PROFILE.selectionPolicyReferences), MVP_EVIDENCE_PROFILE.conclusionPolicyId, MVP_EVIDENCE_PROFILE.conclusionPolicyVersion, JSON.stringify(MVP_EVIDENCE_PROFILE.roleRules), MVP_EVIDENCE_PROFILE.requiredRoles, MVP_EVIDENCE_PROFILE.optionalRoles, profileChecksum, MVP_EVIDENCE_GOVERNANCE_CREATED_AT],
+    )
+    created ||= profile.length === 1
+    const existingProfile = await sql.unsafe<Array<{ definition_checksum: string }>>(
+      "SELECT definition_checksum FROM evidence.core_assembly_profiles WHERE profile_id=$1 AND profile_version=$2",
+      [MVP_EVIDENCE_PROFILE.profileId, MVP_EVIDENCE_PROFILE.profileVersion],
+    )
+    if (existingProfile[0]?.definition_checksum !== profileChecksum) throw new Error("MVP_EVIDENCE_PROFILE_CONFLICT")
+    return created ? "CREATED" : "DUPLICATE"
+  })
+}
+
 function temporalPolicy(): TemporalAlignmentPolicy {
   return Object.freeze({ policyId: MVP_EVIDENCE_POLICY.temporal, policyVersion: "1.0.0", mode: "WINDOW_CONTAINMENT", noLookahead: true, boundary: "START_INCLUSIVE_END_EXCLUSIVE", maximumGapMs: null, nearestDirection: "PRIOR_ONLY", tieBreak: "LOWEST_CANONICAL_ID", missingBehavior: "BLOCK", unsupportedBehavior: "BLOCK", allowMultipleWindowMappings: true, interpolationAllowed: false, forwardFillAllowed: false, aggregationPolicy: null, resolutionPolicy: { policyId: MVP_EVIDENCE_POLICY.comparison, policyVersion: "1.0.0" }, cadencePolicy: { policyId: MVP_EVIDENCE_POLICY.comparison, policyVersion: "1.0.0" }, eligiblePublicationStates: ["PENDING", "CERTIFIED", "PUBLISHED"] as const, diagnosticsSchemaVersion: "mvp-evidence-diagnostics/1.0.0" })
 }
 
-function validateContract(data: MvpEvidenceWindowData, contract?: BoundedPersistenceContract): void {
+export function validateMvpBoundedPersistenceContract(data: MvpEvidenceWindowData, contract?: BoundedPersistenceContract): void {
   if (!contract) return
   if (data.measurement.instrument !== contract.instrument || data.measurement.eventTimeStart !== contract.eventTimeStart || data.measurement.eventTimeEnd !== contract.eventTimeEnd) throw new Error("BOUNDED_EVIDENCE_WINDOW_MISMATCH")
   if (!contract.committedInputIdentities.length || contract.committedInputIdentities.some((value) => !value.identity || !/^[0-9a-f]{64}$/.test(value.checksum))) throw new Error("BOUNDED_EVIDENCE_INPUT_INVALID")
   if (!contract.modelVersion || !/^[0-9a-f]{64}$/.test(contract.modelChecksum)) throw new Error("BOUNDED_EVIDENCE_MODEL_INVALID")
-  const available = new Set(data.resultInputs.map((value) => `${value.canonicalRecordId}:${value.recordVersion}:${value.checksum}`))
-  if (contract.committedInputIdentities.some((value) => !available.has(`${value.identity}:${value.checksum}`) && !available.has(value.identity))) throw new Error("BOUNDED_EVIDENCE_COMMITTED_INPUT_MISSING")
+  const available = new Set(data.committedInputs.map((value) => `${value.commitId}:${value.checksum}`))
+  if (contract.committedInputIdentities.some((value) => !available.has(`${value.identity}:${value.checksum}`))) throw new Error("BOUNDED_EVIDENCE_COMMITTED_INPUT_MISSING")
 }
 
 function outcome(evaluation: MvpRuleEvaluation): "CONSISTENT" | "INCONSISTENT" | "BLOCKED_MISSING_INPUT" { return evaluation.state === "TRIGGERED" ? "CONSISTENT" : evaluation.state === "NOT_TRIGGERED" ? "INCONSISTENT" : "BLOCKED_MISSING_INPUT" }
@@ -74,7 +139,7 @@ function completionSummary(runId: string, evaluations: readonly MvpRuleEvaluatio
 }
 
 export async function persistMvpConsistencyWindow(input: { readonly corpus: MvpEvidenceCorpusReference; readonly data: MvpEvidenceWindowData; readonly worker: ConsistencyPostgresRuntime; readonly contract?: BoundedPersistenceContract }) {
-  validateContract(input.data, input.contract)
+  validateMvpBoundedPersistenceContract(input.data, input.contract)
   const assessment = createMvpMarketAssessment({ corpusId: input.corpus.corpusId, corpusChecksum: input.corpus.corpusChecksum, measurement: input.data.measurement })
   const policies = { temporalPolicyId: MVP_EVIDENCE_POLICY.temporal, temporalPolicyVersion: "1.0.0", comparisonPolicyReferences: [{ policyId: MVP_EVIDENCE_POLICY.comparison, policyVersion: "1.0.0" }], severityPolicyId: MVP_EVIDENCE_POLICY.severity, severityPolicyVersion: "1.0.0", retryPolicyReference: null }
   const spec = createConsistencyRunSpecification({ ruleSetId: MVP_EVIDENCE_RULE_SET_ID, ruleSetVersion: MVP_EVIDENCE_RULE_SET_VERSION, subjectId: assessment.instrument, eventTimeStart: assessment.eventTimeStart, eventTimeEnd: assessment.eventTimeEnd, knowledgeMode: "RETROSPECTIVE", knowledgeTimeCutoff: assessment.knowledgeTimeCutoff, orderedInputs: input.data.runInputs, ruleRegistryChecksum: MVP_EVIDENCE_RULE_REGISTRY_CHECKSUM, policyBindings: policies, executionProfile: "mvp-bounded-corpus", createdAt: assessment.createdAt })
