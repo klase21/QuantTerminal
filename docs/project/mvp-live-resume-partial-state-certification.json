@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "mvp-live-resume-partial-state-certification/1.0.0",
+  "certifiedAt": "2026-07-17T06:01:01.423Z",
+  "targetInterval": {
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-07-16T00:00:00.000Z"
+  },
+  "persistedExecution": {
+    "planCount": 1,
+    "runCount": 1,
+    "unitCount": 23,
+    "runState": "PLANNED",
+    "effectiveExecutionState": "BLOCKED",
+    "unitStates": { "PENDING": 23 },
+    "currentCompletedStage": "UNITS_RESOLVED",
+    "failureStage": "SOURCES_ACQUIRED",
+    "leaseState": "RELEASED",
+    "refreshArtifacts": 0,
+    "refreshCandidates": 0,
+    "commonWatermark": null,
+    "inactiveCandidate": null
+  },
+  "stageAwareValidation": "CERTIFIED",
+  "statusAfterPartialFailure": "PASS",
+  "sameRunResume": "CERTIFIED_WITHOUT_LIVE_EXECUTION",
+  "historicalRowsModified": false,
+  "productionMutation": false
+}

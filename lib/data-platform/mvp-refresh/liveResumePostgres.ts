@@ -2,7 +2,7 @@ import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import type postgres from "postgres"
 import type { MvpRefreshPostgresClient } from "./client"
 import { ACTIVE_MVP_SERVING_BASELINE, DEFAULT_MVP_REFRESH_POLICY } from "./service"
-import { verifyCertifiedLiveResumePlan, type CertifiedLiveResumePlan, type LiveResumeExecutionIntent, type LiveResumeExecutionSetup, type LiveResumeStage, type LiveResumeStageCheckpoint, type LiveResumeUnitResolution } from "./liveResumeCoordinator"
+import { verifyCertifiedLiveResumePlan, verifyStageAwareLiveResumePlan, type CertifiedLiveResumePlan, type LiveResumeExecutionIntent, type LiveResumeExecutionSetup, type LiveResumeStage, type LiveResumeStageCheckpoint, type LiveResumeUnitResolution } from "./liveResumeCoordinator"
 import { MvpRefreshStore } from "./store"
 import type { RefreshLogicalDataset, RefreshLogicalInstrument, RefreshSlotResumePlanEntry } from "./unitReconciliation"
 
@@ -48,6 +48,36 @@ export interface LiveResumeStatusSnapshot {
   readonly candidateState: string | null
   readonly commonWatermark: string | null
   readonly blockers: readonly string[]
+  readonly persistedUnitCount: number
+  readonly recoverableSlots: number
+  readonly blockedSlots: number
+  readonly retainedArtifacts: number
+  readonly retainedCandidates: number
+  readonly effectiveExecutionState: "NOT_STARTED" | "ACTIVE" | "BLOCKED" | "COMPLETE"
+}
+
+export interface PersistedLiveResumeExecution {
+  readonly plan: CertifiedLiveResumePlan
+  readonly runId: string
+  readonly runState: string
+  readonly runChecksum: string
+  readonly blockerCodes: readonly string[]
+  readonly units: readonly { readonly unitId: string; readonly logicalSlotId: string; readonly dataset: RefreshLogicalDataset; readonly instrument: RefreshLogicalInstrument; readonly state: string; readonly checkpoint: Readonly<Record<string, unknown>> }[]
+}
+
+function parsePlanPayload(value: unknown): { readonly certifiedPlan: CertifiedLiveResumePlan } {
+  let parsed = value
+  for (let index = 0; index < 2 && typeof parsed === "string"; index += 1) parsed = JSON.parse(parsed)
+  if (!parsed || typeof parsed !== "object" || !("certifiedPlan" in parsed)) throw new Error("LIVE_RESUME_PERSISTED_PLAN_INVALID")
+  const payload = parsed as { readonly certifiedPlan: CertifiedLiveResumePlan }
+  verifyCertifiedLiveResumePlan(payload.certifiedPlan)
+  return payload
+}
+
+function checkpointRecord(value: unknown): Readonly<Record<string, unknown>> {
+  let parsed = value
+  if (typeof parsed === "string") parsed = JSON.parse(parsed)
+  return Object.freeze(parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {})
 }
 
 export class PostgresLiveResumeExecutionStore {
@@ -80,14 +110,44 @@ export class PostgresLiveResumeExecutionStore {
     const leases = run ? await this.client.sql.unsafe<Array<{ active: boolean; released: boolean }>>("SELECT expires_at>now() AND released_at IS NULL active,released_at IS NOT NULL released FROM refresh_control.refresh_lease WHERE lease_key=$1", [`live-resume:${runId}`]) : []
     const candidates = run ? await this.client.sql.unsafe<Array<{ lifecycle: string }>>("SELECT lifecycle FROM refresh_control.refresh_candidate WHERE run_id=$1 ORDER BY created_at DESC LIMIT 1", [runId]) : []
     const watermarks = run ? await this.client.sql.unsafe<Array<{ common_watermark: string | null }>>("SELECT min(observed_through)::text common_watermark FROM refresh_control.source_watermark WHERE run_id=$1 AND mandatory", [runId]) : []
+    const retained = run ? await this.client.sql.unsafe<Array<{ artifacts: number; candidates: number }>>("SELECT (SELECT count(*)::int FROM refresh_control.refresh_artifact a JOIN refresh_control.refresh_unit u ON u.unit_id=a.unit_id WHERE u.run_id=$1) artifacts,(SELECT count(*)::int FROM refresh_control.refresh_candidate WHERE run_id=$1) candidates", [runId]) : []
+    const failures = run ? await this.client.sql.unsafe<Array<{ event_kind: string }>>("SELECT event_kind FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='live_resume_coordinator' AND event_kind LIKE 'STAGE_FAILURE_%' ORDER BY occurred_at DESC,event_id DESC LIMIT 1", [runId]) : []
     const byState: Record<string, number> = {}, byDataset: Record<string, number> = {}
     for (const unit of units) { byState[unit.state] = (byState[unit.state] ?? 0) + 1; byDataset[unit.dataset_id] = (byDataset[unit.dataset_id] ?? 0) + 1 }
-    const createdSlots = units.filter((unit) => unit.state === "PENDING").length
+    const createdSlots = 0
     const reusedSlots = units.filter((unit) => unit.state === "COMPLETE").length
-    const resumableSlots = units.filter((unit) => unit.state !== "PENDING" && unit.state !== "COMPLETE" && RECOVERABLE_UNIT_STATES.has(unit.state)).length
+    const resumableSlots = units.filter((unit) => unit.state !== "COMPLETE" && RECOVERABLE_UNIT_STATES.has(unit.state)).length
     const terminalBlockers = units.filter((unit) => !RECOVERABLE_UNIT_STATES.has(unit.state) && unit.state !== "COMPLETE").map((unit) => `UNIT_${unit.dataset_id}_${unit.state}`)
     const lease = leases[0]
-    return Object.freeze({ planId: plan.planIdentity, planChecksum: plan.planChecksum, persistedRunId: run ? runId : null, runState: run?.state ?? null, unitCountsByState: Object.freeze(byState), unitCountsByDataset: Object.freeze(byDataset), authoritativeReuse: 1, createdSlots, reusedSlots, resumableSlots, missingSlots: Math.max(0, 23 - units.length), currentCoordinatorStage: stageRows[0]?.event_kind.replace(/^STAGE_/, "") ?? null, leaseState: !lease ? "ABSENT" : lease.active ? "ACTIVE" : lease.released ? "RELEASED" : "EXPIRED", candidateState: candidates[0]?.lifecycle ?? null, commonWatermark: watermarks[0]?.common_watermark ? new Date(watermarks[0].common_watermark).toISOString() : null, blockers: Object.freeze([...(run?.blocker_codes ?? []), ...terminalBlockers].sort()) })
+    const blockedSlots = units.filter((unit) => ["BLOCKED", "FAILED", "UNAVAILABLE"].includes(unit.state)).length
+    const effectiveExecutionState = !run ? "NOT_STARTED" : run.state === "READY_FOR_RELEASE_REVIEW" ? "COMPLETE" : failures.length || blockedSlots ? "BLOCKED" : "ACTIVE"
+    return Object.freeze({ planId: plan.planIdentity, planChecksum: plan.planChecksum, persistedRunId: run ? runId : null, runState: run?.state ?? null, unitCountsByState: Object.freeze(byState), unitCountsByDataset: Object.freeze(byDataset), authoritativeReuse: 1, createdSlots, reusedSlots, resumableSlots, missingSlots: Math.max(0, 23 - units.length), currentCoordinatorStage: stageRows[0]?.event_kind.replace(/^STAGE_/, "") ?? null, leaseState: !lease ? "ABSENT" : lease.active ? "ACTIVE" : lease.released ? "RELEASED" : "EXPIRED", candidateState: candidates[0]?.lifecycle ?? null, commonWatermark: watermarks[0]?.common_watermark ? new Date(watermarks[0].common_watermark).toISOString() : null, blockers: Object.freeze([...(run?.blocker_codes ?? []), ...terminalBlockers, ...failures.map((value) => value.event_kind.replace(/^STAGE_FAILURE_/, "STAGE_FAILURE:"))].sort()), persistedUnitCount: units.length, recoverableSlots: units.filter((unit) => RECOVERABLE_UNIT_STATES.has(unit.state)).length, blockedSlots, retainedArtifacts: retained[0]?.artifacts ?? 0, retainedCandidates: retained[0]?.candidates ?? 0, effectiveExecutionState })
+  }
+
+  async readPersistedExecution(intervalStart: string, intervalEnd: string): Promise<PersistedLiveResumeExecution | null> {
+    const rows = await this.client.sql.unsafe<Array<{ plan_id: string; plan: unknown; plan_checksum: string; run_id: string; run_state: string; run_checksum: string; blocker_codes: string[] }>>("SELECT p.plan_id,p.plan,p.checksum plan_checksum,r.run_id,r.state run_state,r.checksum run_checksum,r.blocker_codes FROM refresh_control.refresh_plan p JOIN refresh_control.refresh_run r ON r.plan_id=p.plan_id WHERE p.requested_start=$1 AND p.requested_end=$2 ORDER BY r.created_at DESC", [intervalStart, intervalEnd])
+    const candidates: PersistedLiveResumeExecution[] = []
+    for (const row of rows) {
+      let payload: { readonly certifiedPlan: CertifiedLiveResumePlan }
+      try { payload = parsePlanPayload(row.plan) } catch { continue }
+      const expected = liveResumeRunIdentity(payload.certifiedPlan)
+      if (row.plan_id !== payload.certifiedPlan.planIdentity || row.plan_checksum !== payload.certifiedPlan.planChecksum || row.run_id !== expected.runId || row.run_checksum !== expected.checksum) continue
+      const unitRows = await this.client.sql.unsafe<Array<{ unit_id: string; dataset_id: RefreshLogicalDataset; instrument: RefreshLogicalInstrument; state: string; interval_start: string; interval_end: string; checkpoint: unknown }>>("SELECT unit_id,dataset_id,instrument,state,interval_start::text,interval_end::text,checkpoint FROM refresh_control.refresh_unit WHERE run_id=$1 ORDER BY dataset_id,instrument", [row.run_id])
+      const units = Object.freeze(unitRows.map((unit) => {
+        const slot = payload.certifiedPlan.slots.find((value) => value.dataset === unit.dataset_id && value.instrument === unit.instrument && value.intervalStart === new Date(unit.interval_start).toISOString() && value.intervalEnd === new Date(unit.interval_end).toISOString())
+        if (!slot || slot.action !== "CREATE_NEW_ON_LIVE_RESUME") throw new Error("LIVE_RESUME_PERSISTED_UNIT_GRAPH_INVALID")
+        return Object.freeze({ unitId: unit.unit_id, logicalSlotId: slot.logicalSlotId, dataset: unit.dataset_id, instrument: unit.instrument, state: unit.state, checkpoint: checkpointRecord(unit.checkpoint) })
+      }))
+      verifyStageAwareLiveResumePlan({ plan: payload.certifiedPlan, stage: units.length === 23 ? "AFTER_EXECUTION_SETUP" : "DURING_EXECUTION", persistedUnits: units })
+      candidates.push(Object.freeze({ plan: payload.certifiedPlan, runId: row.run_id, runState: row.run_state, runChecksum: row.run_checksum, blockerCodes: Object.freeze(row.blocker_codes ?? []), units }))
+    }
+    if (candidates.length > 1) throw new Error("LIVE_RESUME_MULTIPLE_PERSISTED_EXECUTIONS")
+    return candidates[0] ?? null
+  }
+
+  async statusForWindow(intervalStart: string, intervalEnd: string): Promise<LiveResumeStatusSnapshot | null> {
+    const execution = await this.readPersistedExecution(intervalStart, intervalEnd)
+    return execution ? this.status(execution.plan) : null
   }
 
   private async resolveSql(sql: postgres.TransactionSql, plan: CertifiedLiveResumePlan, identity: { readonly runId: string; readonly checksum: string }, intent: Exclude<LiveResumeExecutionIntent, "DRY_RUN">, failurePoint?: "AFTER_PLAN" | "AFTER_RUN" | "AFTER_FIRST_UNIT"): Promise<LiveResumeExecutionSetup> {

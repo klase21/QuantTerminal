@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "mvp-integrated-governance-prerequisites-certification/1.0.0",
+  "certifiedAt": "2026-07-17T06:01:01.423Z",
+  "targetProfile": "INTEGRATED_DURABLE_D2",
+  "incidentForeignKey": "objects_provider_snapshot_id_fkey",
+  "incidentMissingSnapshotId": "d3-phase3-binance-futures-api-provider-v1",
+  "rootCause": "LEGACY_FUNDING_GOVERNANCE_BOUND_TO_BOUNDED_EXECUTOR_AND_PREREQUISITE_NOT_PROVISIONED",
+  "requiredDefinitions": 16,
+  "readyDefinitions": 16,
+  "createdDefinitions": [
+    "mvp-bounded-funding-provider:binance-official-rest-funding-rate/1.0.0",
+    "mvp-bounded-funding-certification-v1",
+    "mvp-bounded-funding-policy-v1"
+  ],
+  "exactReapplication": "DUPLICATE",
+  "checksumConflicts": 0,
+  "isolatedDatabaseCopyUsed": false,
+  "directSqlGovernanceWriteUsed": false,
+  "preflightOrdering": "GOVERNANCE_BEFORE_EXECUTION_SETUP_AND_ACQUISITION",
+  "productionMutation": false
+}

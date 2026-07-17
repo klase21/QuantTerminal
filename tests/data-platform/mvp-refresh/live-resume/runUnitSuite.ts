@@ -9,7 +9,9 @@ import {
   createDryRunLiveResumeExecutionSetup,
   createMandatoryRefreshLogicalSlots,
   liveResumeStageOutput,
+  integratedMvpGovernanceDefinitions,
   parseLiveResumeWorkerOptions,
+  verifyStageAwareLiveResumePlan,
   type LiveResumeCoordinatorPorts,
   type LiveResumeSlotResult,
   type LiveResumeStageCheckpoint,
@@ -68,6 +70,15 @@ async function main() {
   assert.equal(certified.slots.length, 24)
   assert.equal(certified.slots.filter((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT").length, 1)
   assert.equal(certified.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME").length, 23)
+  const persistedUnits = certified.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME").map((slot) => ({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, state: "PENDING" }))
+  assert.doesNotThrow(() => verifyStageAwareLiveResumePlan({ plan: certified, stage: "AFTER_EXECUTION_SETUP", persistedUnits }))
+  assert.throws(() => verifyStageAwareLiveResumePlan({ plan: certified, stage: "AFTER_EXECUTION_SETUP", persistedUnits: persistedUnits.slice(1) }), /EXECUTION_SETUP_INCOMPLETE/)
+  assert.doesNotThrow(() => verifyStageAwareLiveResumePlan({ plan: certified, stage: "DURING_EXECUTION", persistedUnits: persistedUnits.slice(1) }))
+  const governance = integratedMvpGovernanceDefinitions(start)
+  assert.equal(governance.length, 16)
+  assert.equal(governance.filter((value) => value.dataset === "funding").length, 4)
+  assert.ok(governance.some((value) => value.identity === "mvp-bounded-funding-provider:binance-official-rest-funding-rate/1.0.0"))
+  assert.ok(governance.every((value) => /^[0-9a-f]{64}$/.test(value.input.contentChecksum)))
 
   const dry = fixture(), dryResult = await new MvpLiveResumeCoordinator(dry.ports).execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "DRY_RUN" })
   assert.equal(dryResult.status, "DRY_RUN")
@@ -125,6 +136,7 @@ async function main() {
   await assert.rejects(() => conflictCoordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION" }), /STAGE_CHECKSUM_CONFLICT/)
 
   assert.deepEqual(parseLiveResumeWorkerOptions(["dry-run", `--start=${start}`, `--end=${end}`]), { command: "dry-run", start, end, executionMode: "dry-run", confirmLocalInactiveCandidate: false })
+  assert.equal(parseLiveResumeWorkerOptions(["bootstrap-governance", `--start=${start}`, `--end=${end}`]).command, "bootstrap-governance")
   assert.throws(() => parseLiveResumeWorkerOptions(["run", `--start=${start}`, `--end=${end}`]), /EXPLICIT_CONFIRMATION_REQUIRED/)
   assert.equal(parseLiveResumeWorkerOptions(["run", `--start=${start}`, `--end=${end}`, "--execution-mode=live", "--confirm-local-inactive-candidate=true"]).confirmLocalInactiveCandidate, true)
   assert.doesNotThrow(() => assertSanitizedLiveResumeOutput({ configured: true, planChecksum: certified.planChecksum }))

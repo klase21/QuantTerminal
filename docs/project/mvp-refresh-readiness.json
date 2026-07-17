@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-refresh-readiness/1.0.0",
-  "assessedAt": "2026-07-16T23:21:05.688Z",
+  "assessedAt": "2026-07-17T06:01:01.423Z",
   "activeProduction": {
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -140,8 +140,33 @@
         "exactResume": "PASS",
         "atomicRollback": "PASS",
         "retainedCertificationRows": 0,
-        "persistedLiveRun": false,
+        "persistedLiveRun": true,
         "statusCommand": "READ_ONLY_PERSISTED_STATE"
+      },
+      "integratedGovernancePrerequisites": {
+        "required": 16,
+        "ready": 16,
+        "missing": 0,
+        "checksumConflicts": 0,
+        "explicitBootstrap": "CREATED_THEN_DUPLICATE",
+        "verifiedBeforeExecutionSetup": true
+      },
+      "partialExecution": {
+        "persistedPlanCount": 1,
+        "persistedRunCount": 1,
+        "persistedUnitCount": 23,
+        "unitState": "PENDING",
+        "databaseRunState": "PLANNED",
+        "effectiveExecutionState": "BLOCKED",
+        "currentCompletedStage": "UNITS_RESOLVED",
+        "failureStage": "SOURCES_ACQUIRED",
+        "leaseState": "RELEASED",
+        "refreshArtifacts": 0,
+        "refreshCandidates": 0,
+        "commonWatermark": null,
+        "inactiveCandidate": null,
+        "statusCommand": "PASS_AFTER_PARTIAL_FAILURE",
+        "sameRunResume": "READY_NOT_EXECUTED"
       }
     }
   },

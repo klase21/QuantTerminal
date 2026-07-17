@@ -49,3 +49,11 @@ The coordinator now delegates setup to one authoritative serializable operation.
 `run` creates only the first exact live execution and refuses an existing equivalent run. `resume` selects the same eligible live run or creates it only when no transaction committed parent-child state. Historical certification and recovery runs are excluded by the live execution profile and deterministic checksum. The status command now reads persisted plan, run, unit, checkpoint, lease, candidate, and watermark state instead of returning a certification placeholder.
 
 Rollback-only PostgreSQL certification covers failures after plan creation, run creation, and first-unit creation. Each failure retained zero rows. Exact resume and concurrent identical resolution converge on one run and 23 units; no BTCUSDT OHLCV acquisition unit is created. This correction did not execute target-day acquisition or mutate Production, Neon, Vercel, serving exposure, or historical control-plane rows.
+
+## Governance And Partial-State Repair
+
+The first durable payload attempt exposed a missing integrated D2 provider-snapshot prerequisite. Governance verification now precedes execution setup and acquisition, and the explicit `bootstrap-governance` command provisions only approved missing immutable definitions through the canonical adapter. All sixteen definitions are READY and exact reapplication is `DUPLICATE`.
+
+Status and resume now prefer the persisted execution over rebuilding a pre-setup plan. The retained execution is one plan, one deterministic run, and 23 `PENDING` units. Its append-only failure event identifies `SOURCES_ACQUIRED`, its lease is released, and no refresh artifact, Candidate, common watermark, or inactive serving candidate exists. The persisted run remains resumable; status reports an effective `BLOCKED` state from the failure event.
+
+The worker accepts the immutable 1+23 action contract before setup and the persisted 23-unit outcome contract afterward. Resume therefore reuses the same run and units and continues at the first incomplete checkpoint. No live resume was executed during this repair.

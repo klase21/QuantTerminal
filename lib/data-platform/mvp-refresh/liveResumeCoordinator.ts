@@ -168,7 +168,7 @@ export interface LiveResumeCoordinatorResult {
   readonly candidateExposed: false
 }
 
-export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify"
+export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify" | "bootstrap-governance"
 export interface LiveResumeWorkerOptions {
   readonly command: LiveResumeWorkerCommand
   readonly start: string
@@ -179,7 +179,7 @@ export interface LiveResumeWorkerOptions {
 
 export function parseLiveResumeWorkerOptions(argv: readonly string[]): LiveResumeWorkerOptions {
   const command = argv[0] as LiveResumeWorkerCommand | undefined
-  if (!command || !["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify"].includes(command)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
+  if (!command || !["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify", "bootstrap-governance"].includes(command)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
   const option = (name: string) => argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3)
   const start = option("start"), end = option("end")
   if (!start || !end) throw new Error("LIVE_RESUME_EXACT_INTERVAL_REQUIRED")
@@ -248,6 +248,29 @@ export function verifyCertifiedLiveResumePlan(plan: CertifiedLiveResumePlan): vo
   const actual = new Set(plan.slots.map((slot) => `${slot.dataset}:${slot.instrument}`))
   if (actual.size !== 24 || [...expected].some((key) => !actual.has(key))) throw new Error("LIVE_RESUME_PLAN_GRAPH_INVALID")
   if (plan.slots.some((slot) => slot.intervalStart !== plan.intervalStart || slot.intervalEnd !== plan.intervalEnd || slot.sourceFinalizationState !== "SOURCE_AVAILABLE" || slot.blockers.length)) throw new Error("LIVE_RESUME_PLAN_SLOT_INELIGIBLE")
+}
+
+export type LiveResumePlanValidationStage = "BEFORE_EXECUTION_SETUP" | "AFTER_EXECUTION_SETUP" | "DURING_EXECUTION" | "COMPLETE"
+
+export interface PersistedLiveResumeUnitOutcome {
+  readonly logicalSlotId: string
+  readonly dataset: RefreshLogicalDataset
+  readonly instrument: RefreshLogicalInstrument
+  readonly state: string
+}
+
+export function verifyStageAwareLiveResumePlan(input: { readonly plan: CertifiedLiveResumePlan; readonly stage: LiveResumePlanValidationStage; readonly persistedUnits?: readonly PersistedLiveResumeUnitOutcome[] }): void {
+  verifyCertifiedLiveResumePlan(input.plan)
+  if (input.stage === "BEFORE_EXECUTION_SETUP") {
+    if (input.persistedUnits?.length) throw new Error("LIVE_RESUME_PRE_SETUP_UNITS_PRESENT")
+    return
+  }
+  const units = input.persistedUnits ?? []
+  const createSlots = input.plan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME")
+  const unitKeys = new Set(units.map((unit) => unit.logicalSlotId))
+  if (units.length > 23 || unitKeys.size !== units.length || units.some((unit) => !createSlots.some((slot) => slot.logicalSlotId === unit.logicalSlotId && slot.dataset === unit.dataset && slot.instrument === unit.instrument))) throw new Error("LIVE_RESUME_PERSISTED_UNIT_GRAPH_INVALID")
+  if (input.stage === "AFTER_EXECUTION_SETUP" && units.length !== 23) throw new Error("LIVE_RESUME_EXECUTION_SETUP_INCOMPLETE")
+  if (input.stage === "COMPLETE" && (units.length !== 23 || units.some((unit) => unit.state !== "COMPLETE"))) throw new Error("LIVE_RESUME_EXECUTION_NOT_COMPLETE")
 }
 
 function verifyAllowed(input: LiveResumeCoordinatorInput): void {

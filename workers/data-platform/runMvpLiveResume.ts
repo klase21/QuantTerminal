@@ -11,6 +11,8 @@ import {
   createDryRunLiveResumeExecutionSetup,
   createLiveResumeEnvironmentFromProcessEnv,
   inspectBoundedArchiveAvailability,
+  inspectIntegratedMvpGovernancePrerequisites,
+  ensureIntegratedMvpGovernancePrerequisites,
   liveResumeStageOutput,
   parseLiveResumeWorkerOptions,
   PostgresLiveResumeExecutionStore,
@@ -18,6 +20,8 @@ import {
   type LiveResumeStageCheckpoint,
 } from "@/lib/data-platform/mvp-refresh"
 import { createBoundedFundingSourceUrl } from "@/lib/data-platform/mvp-refresh/boundedFunding"
+import { createCanonicalPersistenceAdapter } from "@/lib/data-platform/persistence/postgres"
+import { createIntegratedBackfillClientsFromEnvironment } from "@/lib/data-platform/population/backfill"
 
 const INSTRUMENTS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const
 const DATASETS = ["ohlcv", "open-interest", "funding", "agg-trade"] as const
@@ -26,14 +30,35 @@ async function loadPlan(start: string, end: string) {
   const client = createMvpRefreshClientFromEnvironment()
   try {
     await client.verify()
+    const persisted = await new PostgresLiveResumeExecutionStore(client).readPersistedExecution(start, end)
+    if (persisted) return Object.freeze({ plan: persisted.plan, authorityCount: 1, persistedExecution: true })
     const attempts = await new MvpRefreshStore(client).auditUnitsForWindow(start, end)
     const authorities = await new ControlledOhlcvRecoveryStore(client).readAuthoritiesForWindow(start, end)
     const slots = buildRefreshSlotResumePlan({ intervalStart: start, intervalEnd: end, attempts, authoritativeResolutions: authorities, sourceFinalizationState: "SOURCE_AVAILABLE" })
-    return Object.freeze({ plan: createCertifiedLiveResumePlan({ intervalStart: start, intervalEnd: end, slots }), authorityCount: authorities.length })
+    return Object.freeze({ plan: createCertifiedLiveResumePlan({ intervalStart: start, intervalEnd: end, slots }), authorityCount: authorities.length, persistedExecution: false })
   } finally { await client.shutdown() }
 }
 
+async function withIntegratedD2<T>(work: (client: Awaited<ReturnType<typeof createIntegratedBackfillClientsFromEnvironment>>["d2"]) => Promise<T>): Promise<T> {
+  const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-governance" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-live-governance-read" } })
+  try { return await work(integrated.d2) } finally { await integrated.shutdown() }
+}
+
+async function governanceInventory(start: string) {
+  return withIntegratedD2((client) => inspectIntegratedMvpGovernancePrerequisites(client, start))
+}
+
+async function bootstrapGovernance(start: string) {
+  return withIntegratedD2((client) => ensureIntegratedMvpGovernancePrerequisites({ client, adapter: createCanonicalPersistenceAdapter(client), effectiveAt: start }))
+}
+
 async function preflight(start: string, end: string) {
+  const governance = await governanceInventory(start)
+  const governanceReady = governance.every((entry) => entry.state === "READY")
+  if (!governanceReady) {
+    const conflicts = governance.filter((entry) => entry.state === "CHECKSUM_CONFLICT" || entry.state === "VERSION_MISMATCH").map((entry) => entry.identity)
+    return Object.freeze({ passed: false, blocker: conflicts.length ? "GOVERNANCE_PREREQUISITE_CONFLICT" : "GOVERNANCE_PREREQUISITE_MISSING", governance: { ready: governance.filter((entry) => entry.state === "READY").length, missing: governance.filter((entry) => entry.state === "MISSING").map((entry) => entry.identity), conflicts }, productionOrNeonWriteTarget: false as const })
+  }
   const archiveRequests = DATASETS.filter((value) => value !== "funding").flatMap((dataset) => INSTRUMENTS.map((instrument) => createBoundedArchiveRequest({ dataset, provider: "binance-vision", instrument, eventTimeStart: start, eventTimeEnd: end, sourceContractVersion: dataset === "ohlcv" ? "mvp-bounded-ohlcv/1.0.0" : dataset === "open-interest" ? "mvp-bounded-open-interest/1.0.0" : "mvp-bounded-agg-trade/1.0.0", maximumRecordCount: dataset === "ohlcv" ? 288 : dataset === "open-interest" ? 10_000 : 10_000_000 })))
   const fundingRequests = INSTRUMENTS.map((instrument) => createBoundedFundingRequest({ provider: "binance-official-rest-funding-rate", instrument, eventTimeStart: start, eventTimeEnd: end, maximumEventCount: 1_000, requestedAt: new Date().toISOString() }))
   const [loaded, archives, funding] = await Promise.all([
@@ -55,10 +80,11 @@ async function preflight(start: string, end: string) {
   const archivePass = archives.length === 18 && archives.every((value) => value.sourceClassification === "HTTP_SUCCESS" && value.available && value.finalized)
   const fundingPass = funding.length === 6 && funding.every((value) => value.ready)
   const passed = environment.passed && archivePass && fundingPass && loaded.authorityCount === 1 && planCounts.reuseAuthoritative === 1 && planCounts.createNew === 23 && planCounts.conflicts === 0
-  return Object.freeze({ passed, environment, sourceAvailability: { archives: { checked: archives.length, ready: archives.filter((value) => value.available && value.finalized).length, passed: archivePass }, funding: { checked: funding.length, ready: funding.filter((value) => value.ready).length, passed: fundingPass } }, authority: { count: loaded.authorityCount, checksumValid: loaded.authorityCount === 1 }, planner: { planIdentity: loaded.plan.planIdentity, planChecksum: loaded.plan.planChecksum, logicalSlots: loaded.plan.slots.length, ...planCounts }, productionOrNeonWriteTarget: false })
+  return Object.freeze({ passed, governance: { ready: governance.length, missing: Object.freeze([]), conflicts: Object.freeze([]) }, environment, sourceAvailability: { archives: { checked: archives.length, ready: archives.filter((value) => value.available && value.finalized).length, passed: archivePass }, funding: { checked: funding.length, ready: funding.filter((value) => value.ready).length, passed: fundingPass } }, authority: { count: loaded.authorityCount, checksumValid: loaded.authorityCount === 1 }, planner: { planIdentity: loaded.plan.planIdentity, planChecksum: loaded.plan.planChecksum, logicalSlots: loaded.plan.slots.length, ...planCounts }, productionOrNeonWriteTarget: false })
 }
 
 function dryRunPorts(gate: Awaited<ReturnType<typeof preflight>>): LiveResumeCoordinatorPorts {
+  if (!("environment" in gate)) throw new Error("GOVERNANCE_PREREQUISITE_MISSING")
   const checkpoints = new Map<string, LiveResumeStageCheckpoint>()
   return {
     targets: { classify: async () => ({ refreshLocal: gate.environment.passed, truthPlaneLocal: gate.environment.passed, servingLocal: gate.environment.passed, objectStorageLocal: gate.environment.passed, servingPublisher: gate.environment.passed, managedOrProductionTarget: gate.productionOrNeonWriteTarget }) },
@@ -77,15 +103,22 @@ async function main() {
   const options = parseLiveResumeWorkerOptions(process.argv.slice(2))
   if (options.command === "inspect") {
     const environment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "INSPECT" })
-    return print({ command: options.command, coordinatorVersion: "mvp-live-resume-coordinator/1.0.0", environmentVersion: "mvp-live-resume-environment/1.0.0", capabilities: environment.capabilities, commands: ["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify"], liveConfirmationRequired: true })
+    return print({ command: options.command, coordinatorVersion: "mvp-live-resume-coordinator/1.0.0", environmentVersion: "mvp-live-resume-environment/1.0.0", capabilities: environment.capabilities, commands: ["inspect", "plan", "preflight", "bootstrap-governance", "dry-run", "run", "resume", "status", "verify"], liveConfirmationRequired: true })
+  }
+  if (options.command === "bootstrap-governance") {
+    const result = await bootstrapGovernance(options.start)
+    return print({ command: options.command, status: result.status, entries: result.entries.map((entry) => ({ kind: entry.kind, dataset: entry.dataset, identity: entry.identity, checksum: entry.expectedChecksum, state: entry.state })), productionMutation: false })
+  }
+  if (options.command === "status") {
+    const client = createMvpRefreshClientFromEnvironment()
+    try {
+      await client.verify()
+      const [status, governance] = await Promise.all([new PostgresLiveResumeExecutionStore(client).statusForWindow(options.start, options.end), governanceInventory(options.start)])
+      return print({ command: options.command, status, governance: { ready: governance.filter((entry) => entry.state === "READY").length, missing: governance.filter((entry) => entry.state === "MISSING").map((entry) => entry.identity), conflicts: governance.filter((entry) => entry.state === "CHECKSUM_CONFLICT" || entry.state === "VERSION_MISMATCH").map((entry) => entry.identity) }, productionMutation: false })
+    } finally { await client.shutdown() }
   }
   const loaded = await loadPlan(options.start, options.end)
   if (options.command === "plan") return print({ command: options.command, plan: { planIdentity: loaded.plan.planIdentity, planChecksum: loaded.plan.planChecksum, logicalSlots: 24, reuseAuthoritative: 1, createNew: 23, conflicts: 0 } })
-  if (options.command === "status") {
-    const client = createMvpRefreshClientFromEnvironment()
-    try { await client.verify(); return print({ command: options.command, status: await new PostgresLiveResumeExecutionStore(client).status(loaded.plan), productionMutation: false }) }
-    finally { await client.shutdown() }
-  }
   const gate = await preflight(options.start, options.end)
   if (options.command === "preflight") return print({ command: options.command, result: gate })
   if (options.command === "dry-run" || options.command === "verify") {

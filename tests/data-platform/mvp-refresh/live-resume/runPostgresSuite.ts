@@ -13,7 +13,7 @@ import {
   type MvpRefreshPostgresClient,
 } from "@/lib/data-platform/mvp-refresh"
 
-const start = "2026-07-15T00:00:00.000Z", end = "2026-07-16T00:00:00.000Z"
+const start = "2025-01-15T00:00:00.000Z", end = "2025-01-16T00:00:00.000Z"
 
 function certifiedPlan() {
   const slots = createMandatoryRefreshLogicalSlots(start, end).map((slot) => Object.freeze({
@@ -65,6 +65,15 @@ async function main() {
       assert.equal(status.authoritativeReuse, 1)
       assert.equal(status.missingSlots, 0)
       assert.equal(status.unitCountsByState.PENDING, 23)
+      assert.equal(status.persistedUnitCount, 23)
+      assert.equal(status.recoverableSlots, 23)
+      assert.equal(status.createdSlots, 0)
+      assert.equal(status.resumableSlots, 23)
+      assert.equal(status.effectiveExecutionState, "ACTIVE")
+      const persisted = await execution.readPersistedExecution(start, end)
+      assert.equal(persisted?.runId, setup.persistedRunId)
+      assert.equal(persisted?.units.length, 23)
+      assert.equal((await execution.statusForWindow(start, end))?.persistedRunId, setup.persistedRunId)
       statusVerified = true
 
       const control = new PostgresLiveResumeCoordinatorControlPlane(transactionClient, 300)

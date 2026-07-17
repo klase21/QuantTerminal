@@ -134,3 +134,11 @@ Only the first four commands are environment-independent. `migrate` and `run` re
 - Controlled authority rollback injections: PASS before insertion and after insertion-before-verification.
 - Controlled stale-fence rejection: PASS.
 - Controlled recovery watermark/downstream/serving/exposure writes: 0 / 0 / 0 / 0.
+
+## MVP-8A.2N Governance And Partial-State Repair
+
+The first live durable object registration failed because integrated D2 did not contain the provider snapshot referenced by the live Funding path. The live binding was also using broad Funding governance rather than the committed bounded provider-native contract. The explicit governance service created the missing bounded provider, certification, and policy definitions through the canonical adapter. All sixteen prerequisites are READY; exact bootstrap reapplication returned `DUPLICATE`.
+
+The failed setup remains intact as one plan, one run, and 23 `PENDING` units. No refresh artifact, Candidate, watermark, downstream record, Replay, or serving candidate is attributable to the run. Two immutable local object payloads were retained before the D2 failure; exact object retry remains content-addressed and canonical manifest conflicts fail closed. No payload was added to Git.
+
+Status now reads the persisted execution first and no longer rejects its post-setup unit shape. It reports the last completed coordinator stage as `UNITS_RESOLVED`, the lease as `RELEASED`, and effective execution state as `BLOCKED` from the append-only source-acquisition failure event. The authenticated no-write preflight passes governance 16/16, archives 18/18, Funding 6/6, the authoritative recovery, the 1+23 planner, and all rollback-only port checks. The live resume itself was not executed.
