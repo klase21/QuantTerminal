@@ -1,0 +1,46 @@
+{
+  "certificationVersion": "mvp-canonical-scope-failure/1.0.0",
+  "scope": "ROLLBACK_ONLY",
+  "liveResumeExecuted": false,
+  "incident": {
+    "dataset": "agg-trade",
+    "instrument": "BTCUSDT",
+    "candidateKind": "STREAM_MANIFEST",
+    "rawObjectCount": 1,
+    "candidateCount": 1,
+    "rootCause": "PROVIDER_NATIVE_VENUE_COMPARED_TO_CANONICAL_VENUE",
+    "producerScopeWrong": false
+  },
+  "scopeContract": {
+    "datasetMatch": true,
+    "instrumentMatch": true,
+    "providerSnapshotMatch": true,
+    "sourceContractMatch": true,
+    "containedIntervalRequired": true,
+    "providerNativeVenueComparedToCanonicalVenue": false,
+    "nonContainedFailClosed": true,
+    "crossInstrumentFailClosed": true
+  },
+  "certifiedShapes": {
+    "fundingSegments": 3,
+    "openInterestSegments": 288,
+    "aggTradesSegments": 1,
+    "retainedEthOpenInterestPartial": 2
+  },
+  "runs": 2,
+  "canonicalCommitPerRun": [
+    "SUCCESS",
+    "DUPLICATE"
+  ],
+  "duplicateFacts": 0,
+  "failureUnitsPerRun": 2,
+  "failureEventsAtomic": true,
+  "resumeCheckpointsAtomic": true,
+  "leasesReleasedPerRun": 2,
+  "downstreamStagesAfterFailure": 0,
+  "retainedRows": 0,
+  "retainedArtifacts": 0,
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}

@@ -4,7 +4,7 @@ import { rm } from "node:fs/promises"
 import path from "node:path"
 
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
-import type { RawObjectManifest } from "@/lib/data-platform/persistence"
+import { validateRawObjectScope, type RawObjectManifest } from "@/lib/data-platform/persistence"
 import { buildCanonicalStreamSegmentCommand, createCanonicalPersistenceAdapter, type CanonicalPersistenceAdapter, type IsolatedPostgresClient } from "@/lib/data-platform/persistence/postgres"
 import { createCandidateId, createJobRequestIdentity, createPopulationJobId, createRetrievalAttemptId, expandPopulationUnits, type PopulationCandidate, type PopulationJob, type PopulationJobProfile, type PopulationJobRequest } from "@/lib/data-platform/population"
 import { createPopulationPostgresAdapter, type D3PostgresClient, type PopulationPostgresAdapter } from "@/lib/data-platform/population/postgres"
@@ -235,6 +235,27 @@ function buildCandidate(input: Parameters<BoundedLiveSlotAdapter["normalizeAndPe
   return Object.freeze({ kind: "STREAM_MANIFEST", candidateId, unitId: context.unitId, retrievalAttemptId: context.retrievalAttemptId, rawManifestId: raw.objectId, datasetId: "agg-trade", providerId: canonicalProviderId, providerSnapshotId: governance.providerRegistry, sourceObservationId, sourceObservedAt: built.eventTimeMaximum, effectiveAt: input.intervalStart, parserVersion: governance.parser, candidateSchemaVersion: governance.schema, payload, candidateChecksum: canonicalChecksum({ rawObjectId: raw.objectId, sourceObservationId, payload }), validationStatus: "ELIGIBLE", qualityEligibility: "ELIGIBLE", normalizationEligibility: "ELIGIBLE", createdAt: raw.createdAt })
 }
 
+function candidateScope(candidate: PopulationCandidate, invocation: Parameters<BoundedLiveSlotAdapter["commit"]>[0], raw: RawObjectManifest, expectedParserVersion: string): readonly string[] {
+  const interval = candidate.kind === "STREAM_MANIFEST"
+    ? { start: candidate.payload.windowStart, end: candidate.payload.windowEnd, policy: "EXACT" as const }
+    : candidate.kind === "OHLCV"
+      ? { start: candidate.sourceObservedAt, end: candidate.payload.closeTime, policy: "CONTAINED" as const }
+      : candidate.kind === "FUNDING"
+        ? { start: candidate.payload.fundingTime, end: null, policy: "CONTAINED" as const }
+        : candidate.kind === "OPEN_INTEREST"
+          ? { start: candidate.sourceObservedAt, end: null, policy: "CONTAINED" as const }
+          : { start: candidate.sourceObservedAt, end: null, policy: "CONTAINED" as const }
+  const contractErrors = candidate.parserVersion === expectedParserVersion && invocation.sourceContractId === SOURCE_CONTRACTS[invocation.dataset] ? [] : ["SOURCE_CONTRACT_MISMATCH"]
+  return Object.freeze([...contractErrors, ...validateRawObjectScope({ datasetId: invocation.dataset, providerId: candidate.providerId, providerSnapshotId: candidate.providerSnapshotId, instrument: invocation.instrument, sourceContractVersion: invocation.sourceContractId, expectedSourceContractVersion: SOURCE_CONTRACTS[invocation.dataset], intervalStart: interval.start, intervalEnd: interval.end, intervalPolicy: interval.policy, rawObject: raw })])
+}
+
+function canonicalFailureClassification(error: unknown): string {
+  const message = error instanceof Error ? error.message : ""
+  if (message.includes("RAW_OBJECT") || message.includes("SOURCE_CONTRACT")) return "CANONICAL_SCOPE_VALIDATION_FAILED"
+  if (message.includes("CONFLICT")) return "CANONICAL_IMMUTABLE_CONFLICT"
+  return "CANONICAL_COMMIT_FAILED"
+}
+
 function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; readonly storage: ObjectStoragePort; readonly objectRoot: string; readonly d2Client: IsolatedPostgresClient; readonly d2: CanonicalPersistenceAdapter; readonly d3: PopulationPostgresAdapter; readonly canonical: CanonicalCommitPort; readonly refresh: MvpRefreshStore }): BoundedLiveSlotAdapter {
   const states = new Map<string, SlotState>()
   const state = (id: string) => { const value = states.get(id); if (!value) throw new Error("LIVE_SLOT_STATE_MISSING"); return value }
@@ -328,18 +349,26 @@ function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; 
     async commit(invocation) {
       const value = state(invocation.logicalSlotId), outputs: Array<{ identity: string; checksum: string }> = [], normalizer = new ProductionNormalizerRegistry(), governance = GOVERNANCE[input.dataset]
       const processingAt = new Date().toISOString(), population = value.population!
-      const processing = await input.d3.transitionUnitIdempotently({ eventId: `live-processing:${invocation.logicalSlotId}:fence:${population.fencingToken}`, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "CANDIDATES_READY", nextState: "PROCESSING", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: processingAt, details: {}, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
-      if (processing.status === "CONFLICT") throw new Error("LIVE_POPULATION_PROCESSING_EVENT_CONFLICT")
-      let createdCount = 0, duplicateCount = 0, conflictCount = 0
-      for (const candidate of value.candidates!) {
-        const command = candidate.kind === "STREAM_MANIFEST" ? buildCanonicalStreamSegmentCommand({ operationType: "INITIAL_VERSION", initiatedAt: candidate.createdAt, sourceDatasetId: "agg-trade", streamKind: "AGG_TRADE", providerId: candidate.providerId, venue: "BINANCE", symbol: invocation.instrument, canonicalInstrumentId: canonicalInstrument(invocation.instrument), sourcePartitionKey: invocation.logicalSlotId, windowStart: invocation.intervalStart, windowEnd: invocation.intervalEnd, firstSequence: candidate.payload.firstSequence, lastSequence: candidate.payload.lastSequence, recordCount: candidate.payload.recordCount, segmentObjectKey: candidate.payload.segmentObjectKey, segmentContentChecksum: candidate.payload.segmentContentChecksum, columnarFormat: "PARQUET", compressionFormat: "SNAPPY", segmentByteLength: candidate.payload.segmentByteLength, eventTimeMin: candidate.payload.eventTimeMin, eventTimeMax: candidate.payload.eventTimeMax, validationStatus: "VALIDATED", eventOrderPolicy: AGG_TRADES_SEGMENT_ORDER_POLICY, governance: { datasetRegistrySnapshotId: governance.datasetRegistry, providerRegistrySnapshotId: governance.providerRegistry, providerCertificationSnapshotId: governance.certification, policyVersionId: governance.policy, schemaVersion: governance.schema, normalizationVersion: AGG_TRADES_SEGMENT_NORMALIZER_VERSION }, sourceRawObject: value.raw!, predecessor: null }) : normalizer.normalize({ candidate: candidate as Exclude<PopulationCandidate, { kind: "STREAM_MANIFEST" }>, datasetRegistrySnapshotId: governance.datasetRegistry, providerRegistrySnapshotId: governance.providerRegistry, providerCertificationSnapshotId: governance.certification, policyVersionId: governance.policy, schemaVersion: governance.schema, normalizationVersion: PRODUCTION_NORMALIZER_VERSION, rawManifestId: value.raw!.objectId, rawObject: value.raw! })
-        const result = await input.canonical.execute(command)
-        if (result.status === "SUCCESS") { createdCount++; outputs.push({ identity: result.fact.canonicalRecordId, checksum: command.fact.checksum }) }
-        else if (result.status === "DUPLICATE") { duplicateCount++; outputs.push({ identity: result.canonicalRecordId, checksum: result.checksum }) }
-        else conflictCount++
+      try {
+        const processing = await input.d3.transitionUnitIdempotently({ eventId: `live-processing:${invocation.logicalSlotId}:fence:${population.fencingToken}`, unitId: population.unitId, runId: population.runId, eventType: "STATE_ADVANCED", previousState: "CANDIDATES_READY", nextState: "PROCESSING", fencingToken: population.fencingToken, actorId: "mvp-live-resume", occurredAt: processingAt, details: {}, leaseId: population.leaseId, ownerId: "mvp-live-resume" })
+        if (processing.status === "CONFLICT") throw new Error("LIVE_POPULATION_PROCESSING_EVENT_CONFLICT")
+        let createdCount = 0, duplicateCount = 0, conflictCount = 0
+        for (const candidate of value.candidates!) {
+          const scopeErrors = candidateScope(candidate, invocation, value.raw!, governance.parser)
+          if (scopeErrors.length) throw new Error(`INVALID_CANONICAL_CANDIDATE_SCOPE:${scopeErrors.join(",")}`)
+          const command = candidate.kind === "STREAM_MANIFEST" ? buildCanonicalStreamSegmentCommand({ operationType: "INITIAL_VERSION", initiatedAt: candidate.createdAt, sourceDatasetId: "agg-trade", streamKind: "AGG_TRADE", providerId: candidate.providerId, venue: "BINANCE", symbol: invocation.instrument, canonicalInstrumentId: canonicalInstrument(invocation.instrument), sourcePartitionKey: invocation.logicalSlotId, windowStart: candidate.payload.windowStart, windowEnd: candidate.payload.windowEnd, firstSequence: candidate.payload.firstSequence, lastSequence: candidate.payload.lastSequence, recordCount: candidate.payload.recordCount, segmentObjectKey: candidate.payload.segmentObjectKey, segmentContentChecksum: candidate.payload.segmentContentChecksum, columnarFormat: "PARQUET", compressionFormat: "SNAPPY", segmentByteLength: candidate.payload.segmentByteLength, eventTimeMin: candidate.payload.eventTimeMin, eventTimeMax: candidate.payload.eventTimeMax, validationStatus: "VALIDATED", eventOrderPolicy: AGG_TRADES_SEGMENT_ORDER_POLICY, governance: { datasetRegistrySnapshotId: governance.datasetRegistry, providerRegistrySnapshotId: governance.providerRegistry, providerCertificationSnapshotId: governance.certification, policyVersionId: governance.policy, schemaVersion: governance.schema, normalizationVersion: AGG_TRADES_SEGMENT_NORMALIZER_VERSION }, sourceRawObject: value.raw!, predecessor: null }) : normalizer.normalize({ candidate: candidate as Exclude<PopulationCandidate, { kind: "STREAM_MANIFEST" }>, datasetRegistrySnapshotId: governance.datasetRegistry, providerRegistrySnapshotId: governance.providerRegistry, providerCertificationSnapshotId: governance.certification, policyVersionId: governance.policy, schemaVersion: governance.schema, normalizationVersion: PRODUCTION_NORMALIZER_VERSION, rawManifestId: value.raw!.objectId, rawObject: value.raw!, sourceContractVersion: invocation.sourceContractId, expectedSourceContractVersion: SOURCE_CONTRACTS[invocation.dataset] })
+          const result = await input.canonical.execute(command)
+          if (result.status === "SUCCESS") { createdCount++; outputs.push({ identity: result.fact.canonicalRecordId, checksum: command.fact.checksum }) }
+          else if (result.status === "DUPLICATE") { duplicateCount++; outputs.push({ identity: result.canonicalRecordId, checksum: result.checksum }) }
+          else conflictCount++
+        }
+        value.commitOutputs = Object.freeze(outputs)
+        return Object.freeze({ status: conflictCount ? "CONFLICT" as const : createdCount ? "CREATED" as const : "DUPLICATE" as const, outputs: value.commitOutputs, createdCount, duplicateCount, conflictCount })
+      } catch (error) {
+        const failedAt = new Date().toISOString()
+        await input.d3.recordCanonicalCommitFailure({ unitId: population.unitId, leaseId: population.leaseId, ownerId: "mvp-live-resume", fencingToken: population.fencingToken, classification: canonicalFailureClassification(error), at: failedAt })
+        throw error
       }
-      value.commitOutputs = Object.freeze(outputs)
-      return Object.freeze({ status: conflictCount ? "CONFLICT" as const : createdCount ? "CREATED" as const : "DUPLICATE" as const, outputs: value.commitOutputs, createdCount, duplicateCount, conflictCount })
     },
     async validate(invocation) {
       const value = state(invocation.logicalSlotId)

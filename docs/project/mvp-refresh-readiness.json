@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-refresh-readiness/1.0.0",
-  "assessedAt": "2026-07-17T06:01:01.423Z",
+  "assessedAt": "2026-07-17T08:06:09.261Z",
   "activeProduction": {
     "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
     "servingChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
@@ -189,6 +189,24 @@
           "rollbackRuns": 2,
           "retainedRows": 0
         },
+        "productionChanged": false
+      },
+      "canonicalScopeAndFailureRecovery": {
+        "status": "ROLLBACK_CERTIFIED",
+        "failingDataset": "agg-trade",
+        "failingInstrument": "BTCUSDT",
+        "rootCause": "PROVIDER_NATIVE_VENUE_COMPARED_TO_CANONICAL_VENUE",
+        "producerScopeWrong": false,
+        "datasetAwareContainment": true,
+        "fundingShape": 3,
+        "openInterestShape": 288,
+        "aggTradesShape": 1,
+        "retainedEthPartialShape": 2,
+        "exactCanonicalRetry": "DUPLICATE",
+        "atomicFailureEventCheckpointLeaseRelease": true,
+        "downstreamStagesAfterFailure": 0,
+        "rollbackRuns": 2,
+        "retainedRows": 0,
         "productionChanged": false
       }
     }

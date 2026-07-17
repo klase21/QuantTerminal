@@ -1,5 +1,5 @@
 import { canonicalChecksum, normalizeIsoTimestamp } from "@/lib/data-platform/contracts"
-import { deriveCanonicalCommitId, deriveCanonicalRecordIdentity, type CanonicalCommitCommand, type CanonicalFact, type CanonicalFactReference, type GovernanceBindings, type RawObjectManifest } from "@/lib/data-platform/persistence"
+import { deriveCanonicalCommitId, deriveCanonicalRecordIdentity, validateRawObjectScope, type CanonicalCommitCommand, type CanonicalFact, type CanonicalFactReference, type GovernanceBindings, type RawObjectManifest } from "@/lib/data-platform/persistence"
 import type { CandidateNormalizationInput, PopulationCandidate } from "@/lib/data-platform/population/contracts"
 
 export const PRODUCTION_NORMALIZER_VERSION = "d3-phase3-normalizer-v1" as const
@@ -8,6 +8,8 @@ export interface ProductionNormalizationInput extends CandidateNormalizationInpu
   readonly operationType?: "INITIAL_VERSION" | "PROVIDER_CORRECTION" | "GOVERNED_IMPORT"
   readonly targetRecordVersion?: number
   readonly predecessor?: CanonicalFactReference | null
+  readonly sourceContractVersion?: string
+  readonly expectedSourceContractVersion?: string
 }
 
 function required(value: string, field: string): string { if (!value.trim()) throw new Error(`NORMALIZER_${field}_MISSING`); return value.trim() }
@@ -30,6 +32,11 @@ function completeFact<T extends CanonicalFact>(draft: CanonicalFactDraft, truth:
 function command(input: ProductionNormalizationInput, fact: CanonicalFact): CanonicalCommitCommand {
   if (input.candidate.validationStatus !== "ELIGIBLE" || input.candidate.qualityEligibility !== "ELIGIBLE" || input.candidate.normalizationEligibility !== "ELIGIBLE") throw new Error("CANDIDATE_NOT_ELIGIBLE")
   if (input.rawObject.objectId !== input.rawManifestId || input.rawObject.objectId !== input.candidate.rawManifestId || input.rawObject.verificationState !== "VERIFIED") throw new Error("RAW_OBJECT_BINDING_INVALID")
+  const interval = fact.kind === "OHLCV" ? { start: fact.observedAt, end: fact.closeTime } : fact.kind === "FUNDING" ? { start: fact.fundingTime, end: null } : fact.kind === "OPEN_INTEREST" ? { start: fact.observedAt, end: null } : fact.kind === "AGG_TRADE" ? { start: fact.tradeTime, end: null } : null
+  if (interval && fact.symbolOrSubject) {
+    const scopeErrors = validateRawObjectScope({ datasetId: input.candidate.datasetId, providerId: input.candidate.providerId, providerSnapshotId: input.providerRegistrySnapshotId, instrument: fact.symbolOrSubject, sourceContractVersion: input.sourceContractVersion ?? input.candidate.parserVersion, expectedSourceContractVersion: input.expectedSourceContractVersion ?? input.candidate.parserVersion, intervalStart: interval.start, intervalEnd: interval.end, intervalPolicy: "CONTAINED", rawObject: input.rawObject })
+    if (scopeErrors.length) throw new Error(`INVALID_CANONICAL_CANDIDATE_SCOPE:${scopeErrors.join(",")}`)
+  }
   const targetRecordVersion = input.targetRecordVersion ?? 1
   const operationType = input.operationType ?? "INITIAL_VERSION"
   const predecessor = input.predecessor ?? null

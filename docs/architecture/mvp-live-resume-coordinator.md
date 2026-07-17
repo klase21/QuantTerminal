@@ -65,3 +65,11 @@ The Funding/DOGEUSDT failure was a D3 lineage defect: Candidate persistence used
 `persistBoundedAcquisitionResult` now atomically injects the persisted D3 Retrieval attempt as the Candidate parent within D3. D2 Raw Object persistence stays a separate immutable role boundary. Exact replay is `DUPLICATE`; incompatible lineage is an exact conflict and fails closed. Authenticated preflight passed governance 16/16, archives 18/18, and Funding 6/6, including rollback-only D2 Raw Artifact object and D3 Retrieval/Candidate probes with zero retained state.
 
 The existing live run remains unchanged: 23 `PENDING` units, a `SOURCES_ACQUIRED` failure, and no common watermark or refresh candidate corpus. D3 retains expired `RAW_PERSISTED` partials for Funding/DOGEUSDT (one attempt, one object, zero Candidates) and Open Interest/ETHUSDT (one attempt, one object, two Candidates). No live resume or Production change occurred.
+
+## Canonical Scope And Failure Recovery
+
+The later live execution reached Canonical Commit and exposed a scope-validator namespace defect. The retained BTCUSDT AggTrades Raw Object and Segment agree on dataset, instrument, provider snapshot, source contract, and exact day. The rejected field was provider-native venue `binance-usdm-futures` versus canonical venue `BINANCE`; these are not the same identity domain.
+
+Canonical scope validation is now dataset-aware. Funding and Open Interest observations must be contained by their immutable day-scoped Raw Object. The bounded AggTrades contract requires its one daily Segment to match the Raw Object interval exactly. Cross-instrument, non-contained, provider-snapshot, dataset, or source-contract mismatch fails closed.
+
+Canonical exceptions now invoke the atomic Population failure boundary. A sanitized event, Candidate checkpoint, retryable transition, and lease release commit together; any failure rolls them all back. The coordinator receives the exception and invokes no downstream stage. Authenticated rollback certification ran the retained 3 Funding, 288 Open Interest, one AggTrades, and two-Candidate ETH partial shapes twice. Exact D2 retry returned `DUPLICATE`, both injected unit failures released their leases, and zero rows or artifacts remained.
