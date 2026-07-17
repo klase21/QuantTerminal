@@ -25,6 +25,7 @@ export interface ExecutionGenerationQuarantineCertificationResult {
   readonly firstQuarantine: "CREATED"
   readonly exactRetry: "DUPLICATE"
   readonly changedEvidence: "CONFLICT"
+  readonly changedIncidentChecksum: "CONFLICT"
   readonly leasesReleased: 1
   readonly resumeRejectedBeforeWrites: true
   readonly immutableCountsPreserved: true
@@ -33,6 +34,11 @@ export interface ExecutionGenerationQuarantineCertificationResult {
   readonly evidenceReadable: true
   readonly receiptGenerated: true
   readonly cleanGenerationManifestGenerated: true
+  readonly failureAfterIntentRecovered: true
+  readonly failureAfterPopulationFencedRecovered: true
+  readonly failureAfterCompletedRecovered: true
+  readonly partialSagaExactRetries: 3
+  readonly populationDetailsConstraintPassed: true
   readonly disposableDatabasesDestroyed: true
   readonly disposableRolesDestroyed: true
   readonly disposableArtifactsDestroyed: true
@@ -75,7 +81,7 @@ export async function runExecutionGenerationQuarantineCertification(environment:
       CREATE TABLE control.population_leases(lease_id text PRIMARY KEY,unit_id text NOT NULL REFERENCES control.population_units(unit_id),owner_id text NOT NULL,fencing_token bigint NOT NULL,acquired_at timestamptz NOT NULL,expires_at timestamptz NOT NULL,released_at timestamptz,release_reason text);
       ALTER TABLE control.population_units ADD CONSTRAINT population_units_lease_fk FOREIGN KEY(active_lease_id) REFERENCES control.population_leases(lease_id) DEFERRABLE INITIALLY DEFERRED;
       CREATE TABLE control.population_checkpoints(checkpoint_id text PRIMARY KEY,unit_id text NOT NULL REFERENCES control.population_units(unit_id));
-      CREATE TABLE control.population_unit_events(event_id text PRIMARY KEY,unit_id text NOT NULL REFERENCES control.population_units(unit_id),run_id text NOT NULL REFERENCES control.population_runs(run_id),event_type text NOT NULL,previous_state text,next_state text,fencing_token bigint,actor_id text NOT NULL,occurred_at timestamptz NOT NULL,details jsonb NOT NULL);
+      CREATE TABLE control.population_unit_events(event_id text PRIMARY KEY,unit_id text NOT NULL REFERENCES control.population_units(unit_id),run_id text NOT NULL REFERENCES control.population_runs(run_id),event_type text NOT NULL,previous_state text,next_state text,fencing_token bigint,actor_id text NOT NULL,occurred_at timestamptz NOT NULL,details jsonb NOT NULL CHECK (jsonb_typeof(details)='object'));
       CREATE TABLE control.population_outcomes(outcome_id text PRIMARY KEY,unit_id text NOT NULL REFERENCES control.population_units(unit_id),outcome_kind text NOT NULL);
       CREATE TABLE coverage.watermark_eligibility_decisions(decision_id text PRIMARY KEY,unit_id text NOT NULL REFERENCES control.population_units(unit_id));
     `)
@@ -114,12 +120,41 @@ export async function runExecutionGenerationQuarantineCertification(environment:
     try { await store.assertResumeEligible(runId) } catch (error) { resumeRejected = error instanceof Error && error.message === "EXECUTION_GENERATION_QUARANTINED" }
     const second = await store.quarantine({ proposal, expectedIncidentChecksum: proposal.incidentChecksum, quarantinedAt: "2026-07-17T10:01:00.000Z" })
     const conflict = await store.quarantine({ proposal: Object.freeze({ ...proposal, evidenceSummaryChecksum: "f".repeat(64) }), expectedIncidentChecksum: proposal.incidentChecksum, quarantinedAt: now })
+    const incidentConflict = await store.reconcile({ runId, expectedIncidentChecksum: "e".repeat(64), operatorConfirmationIdentity: "mvp-8a2r-certification", reconciledAt: now })
     const after = await store.inspect(runId)
     const handoff = createCleanGenerationInputManifest({ proposal, logicalSlotIds: shapes.map((shape) => `slot-${shape.key}`), checkpointIds: shapes.map((shape) => `checkpoint-${shape.key}`) })
     const events = Number((await populationSql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM control.population_unit_events WHERE event_type='EXECUTION_GENERATION_QUARANTINED'"))[0]?.count ?? 0)
     const dispositions = Number((await refreshSql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM refresh_control.refresh_event WHERE event_kind='EXECUTION_GENERATION_DISPOSITION'"))[0]?.count ?? 0)
-    if (!resumeRejected || second.status !== "DUPLICATE" || conflict.status !== "CONFLICT" || first.releasedPopulationLeases !== 1 || events !== 4 || dispositions !== 1 || after.activeLeaseCount !== 0 || after.lineageCounts.retrievalAttempts !== 4 || after.lineageCounts.rawObjects !== 4 || after.lineageCounts.candidates !== 294 || after.lineageCounts.canonicalFacts !== 0 || after.lineageCounts.downstreamOutputs !== 0 || after.lineageCounts.populationUnits !== 4 || after.lineageCounts.populationRunAttempts !== 6 || !handoff.checksum) throw new Error("QUARANTINE_CERTIFICATION_ASSERTION_FAILED")
-    return Object.freeze({ passed: true, firstQuarantine: "CREATED", exactRetry: "DUPLICATE", changedEvidence: "CONFLICT", leasesReleased: 1, resumeRejectedBeforeWrites: true, immutableCountsPreserved: true, downstreamWrites: 0, statusCollapsedAttempts: true, evidenceReadable: true, receiptGenerated: true, cleanGenerationManifestGenerated: true, disposableDatabasesDestroyed: true, disposableRolesDestroyed: true, disposableArtifactsDestroyed: true })
+    if (!resumeRejected || second.status !== "DUPLICATE" || conflict.status !== "CONFLICT" || incidentConflict.status !== "CONFLICT" || first.releasedPopulationLeases !== 1 || events !== 4 || dispositions !== 1 || after.activeLeaseCount !== 0 || after.lineageCounts.retrievalAttempts !== 4 || after.lineageCounts.rawObjects !== 4 || after.lineageCounts.candidates !== 294 || after.lineageCounts.canonicalFacts !== 0 || after.lineageCounts.downstreamOutputs !== 0 || after.lineageCounts.populationUnits !== 4 || after.lineageCounts.populationRunAttempts !== 6 || !handoff.checksum) throw new Error("QUARANTINE_CERTIFICATION_ASSERTION_FAILED")
+
+    const certifyFailureRecovery = async (tag: string, failurePoint: "AFTER_INTENT_RECORDED" | "AFTER_POPULATION_FENCED" | "AFTER_QUARANTINE_COMPLETED", expectedState: "INTENT_RECORDED" | "POPULATION_FENCED" | "COMPLETE") => {
+      const digit = tag.charCodeAt(0).toString(16).padStart(2, "0").repeat(32), scenarioPlanId = `mrlp_${digit}`, scenarioRunId = `mrlr_${canonicalChecksum({ tag })}`
+      const scenarioJobId = `job-saga-${tag}`, scenarioUnitId = `population-unit-saga-${tag}`, scenarioPopulationRunId = `population-run-saga-${tag}`, scenarioLeaseId = `population-lease-saga-${tag}`
+      const acquiredAt = new Date(Date.now() - 60_000).toISOString(), expiresAt = new Date(Date.now() + 300_000).toISOString(), scenarioAt = new Date().toISOString()
+      await refreshSql!.unsafe("INSERT INTO refresh_control.refresh_plan VALUES($1,$2,$3,$4)", [scenarioPlanId, digit, start, end])
+      await refreshSql!.unsafe("INSERT INTO refresh_control.refresh_run VALUES($1,$2,$3)", [scenarioRunId, scenarioPlanId, digit])
+      await refreshSql!.unsafe("INSERT INTO refresh_control.refresh_unit VALUES($1,$2)", [`scenario-refresh-unit-${tag}`, scenarioRunId])
+      await populationSql!.unsafe("INSERT INTO control.population_jobs VALUES($1,$2,'mvp-live-resume')", [scenarioJobId, scenarioRunId])
+      await populationSql!.unsafe("INSERT INTO control.population_runs VALUES($1,$2,1)", [scenarioPopulationRunId, scenarioJobId])
+      await populationSql!.unsafe("INSERT INTO control.population_units VALUES($1,$2,$3,$4,'PROCESSING',1,NULL,$5)", [scenarioUnitId, scenarioJobId, start, end, scenarioAt])
+      await populationSql!.unsafe("INSERT INTO control.population_leases VALUES($1,$2,'certification-worker',1,$3,$4,NULL,NULL)", [scenarioLeaseId, scenarioUnitId, acquiredAt, expiresAt])
+      await populationSql!.unsafe("UPDATE control.population_units SET active_lease_id=$1 WHERE unit_id=$2", [scenarioLeaseId, scenarioUnitId])
+      const scenarioSnapshot = await store.inspect(scenarioRunId)
+      const scenarioProposal = createExecutionGenerationQuarantineProposal({ snapshot: scenarioSnapshot, reasonCode: LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT, sourceCommitSha: "a70328b", operatorConfirmationIdentity: "mvp-8a2r-saga-certification" })
+      let injected = false, injectedMessage = "NONE"
+      try { await store.quarantine({ proposal: scenarioProposal, expectedIncidentChecksum: scenarioProposal.incidentChecksum, quarantinedAt: scenarioAt, failurePoint }) } catch (error) { injectedMessage = error instanceof Error ? error.message : "UNKNOWN"; injected = injectedMessage === `CERTIFICATION_FAILURE_${failurePoint}` }
+      if (!injected) throw new Error(`QUARANTINE_SAGA_FAILURE_NOT_INJECTED:${tag}:${injectedMessage}`)
+      const partial = await store.readSagaStatus(scenarioRunId)
+      if (partial?.quarantineSagaState !== expectedState) throw new Error(`QUARANTINE_SAGA_PARTIAL_STATE_INVALID:${tag}`)
+      const recovered = await store.reconcile({ runId: scenarioRunId, expectedIncidentChecksum: scenarioProposal.incidentChecksum, operatorConfirmationIdentity: "mvp-8a2r-saga-certification", reconciledAt: new Date().toISOString() })
+      const retry = await store.reconcile({ runId: scenarioRunId, expectedIncidentChecksum: scenarioProposal.incidentChecksum, operatorConfirmationIdentity: "mvp-8a2r-saga-certification", reconciledAt: new Date().toISOString() })
+      const completed = await store.readSagaStatus(scenarioRunId)
+      if (recovered.status === "CONFLICT" || retry.status !== "DUPLICATE" || completed?.quarantineSagaState !== "COMPLETE" || completed.activePopulationLeases !== 0 || completed.missingQuarantineSteps.length) throw new Error(`QUARANTINE_SAGA_RECOVERY_INVALID:${tag}`)
+    }
+    await certifyFailureRecovery("i", "AFTER_INTENT_RECORDED", "INTENT_RECORDED")
+    await certifyFailureRecovery("p", "AFTER_POPULATION_FENCED", "POPULATION_FENCED")
+    await certifyFailureRecovery("c", "AFTER_QUARANTINE_COMPLETED", "COMPLETE")
+    return Object.freeze({ passed: true, firstQuarantine: "CREATED", exactRetry: "DUPLICATE", changedEvidence: "CONFLICT", changedIncidentChecksum: "CONFLICT", leasesReleased: 1, resumeRejectedBeforeWrites: true, immutableCountsPreserved: true, downstreamWrites: 0, statusCollapsedAttempts: true, evidenceReadable: true, receiptGenerated: true, cleanGenerationManifestGenerated: true, failureAfterIntentRecovered: true, failureAfterPopulationFencedRecovered: true, failureAfterCompletedRecovered: true, partialSagaExactRetries: 3, populationDetailsConstraintPassed: true, disposableDatabasesDestroyed: true, disposableRolesDestroyed: true, disposableArtifactsDestroyed: true })
   } finally {
     if (refreshSql) await refreshSql.end({ timeout: 5 }).catch(() => undefined)
     if (populationSql) await populationSql.end({ timeout: 5 }).catch(() => undefined)

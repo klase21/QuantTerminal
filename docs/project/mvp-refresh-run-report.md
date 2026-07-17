@@ -193,4 +193,12 @@ The quarantine contract uses one immutable Refresh generation-disposition event 
 
 The real operator preview verified one plan/run, 23 Refresh units, six Population run attempts collapsed into four logical units, four Retrievals, four Raw Objects, 294 Candidates, no active leases, one unreleased expired lease, no common watermark, and no serving candidate. It produced incident checksum `bc716619be2df7afe0899c69b368f8d8f9dba76a201310a19eb55b04ce0140eb` with zero writes.
 
-Commit-bearing disposable certification returned `CREATED`, then exact `DUPLICATE`, and `CONFLICT` for changed evidence. It released the active disposable lease, rejected resume before writes, retained immutable evidence, wrote no downstream output, and removed all disposable databases, roles, and storage. The real generation was not quarantined; operator execution remains required.
+Commit-bearing disposable certification returned `CREATED`, then exact `DUPLICATE`, and `CONFLICT` for changed evidence. It released the active disposable lease, rejected resume before writes, retained immutable evidence, wrote no downstream output, and removed all disposable databases, roles, and storage.
+
+The original operator action committed the immutable Refresh disposition, then the Population transaction failed its JSON object details constraint. Read-only audit confirmed no Population quarantine events and no Population lease release committed. The generation is nevertheless `QUARANTINED`, `resumeEligible=false`, and blocked before every live write.
+
+## MVP-8A.2R Quarantine Saga Reconciliation Repair
+
+Quarantine now executes as an idempotent cross-database saga: Refresh intent, Population fencing, verification, then Refresh completion receipt. Population event details use the existing native JSON object binding. Status and preflight expose `quarantineSagaState`, `missingQuarantineSteps`, and `quarantineReceiptId`.
+
+The real generation remains at `INTENT_RECORDED`. It has zero active leases, four missing Population fencing events, and no completion receipt. The guarded `reconcile-quarantine` preview performed zero writes. Disposable committed certification recovered failures after intent, Population fencing, and completion; exact retries were `DUPLICATE`, changed incident checksum was `CONFLICT`, and cleanup retained no databases, roles, or artifacts. Operator reconciliation remains required; the original quarantine and live resume commands were not rerun.

@@ -145,6 +145,13 @@ async function main() {
   assert.equal(quarantinePreview.command, "quarantine-generation")
   assert.equal(quarantinePreview.confirmQuarantine, false)
   assert.throws(() => parseLiveResumeWorkerOptions(["quarantine-generation", `--run-id=${quarantineRunId}`, "--confirm-quarantine=true"]), /EXPLICIT_CONFIRMATION_REQUIRED/)
+  const reconcilePreview = parseLiveResumeWorkerOptions(["reconcile-quarantine", `--run-id=${quarantineRunId}`])
+  assert.equal(reconcilePreview.command, "reconcile-quarantine")
+  assert.equal(reconcilePreview.confirmReconcile, false)
+  assert.throws(() => parseLiveResumeWorkerOptions(["reconcile-quarantine", `--run-id=${quarantineRunId}`, "--confirm-reconcile=true"]), /EXPLICIT_CONFIRMATION_REQUIRED/)
+  const reconcileConfirmed = parseLiveResumeWorkerOptions(["reconcile-quarantine", `--run-id=${quarantineRunId}`, "--confirm-reconcile=true", `--incident-checksum=${"b".repeat(64)}`, "--operator-confirmation-identity=mvp-operator"])
+  assert.equal(reconcileConfirmed.command, "reconcile-quarantine")
+  assert.equal(reconcileConfirmed.confirmReconcile, true)
   assert.doesNotThrow(() => assertSanitizedLiveResumeOutput({ configured: true, planChecksum: certified.planChecksum }))
   assert.throws(() => assertSanitizedLiveResumeOutput({ connectionString: "redacted" }), /OUTPUT_NOT_SANITIZED/)
 

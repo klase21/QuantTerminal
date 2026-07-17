@@ -94,4 +94,6 @@ The affected live execution is not eligible for resume. It requires an append-on
 
 The worker now resolves an immutable generation disposition before source availability or executor checks. `QUARANTINED` and `SUPERSEDED` fail closed before acquisition, lease reconciliation, watermark, downstream, Replay, manifest, or serving work. The same guard runs inside atomic Refresh execution setup.
 
-Quarantine is an explicit exact-run operator action. Preview is read-only. Confirmation appends the Refresh disposition, fences and releases unreleased Population leases, and appends deterministic Population evidence without changing historical run or unit state. Status remains readable and projects `resumeEligible: false`.
+Quarantine is an explicit exact-run operator action. Preview is read-only. The committed Refresh disposition is the fail-closed saga intent. Population fencing events and active-lease releases are one D3 transaction, followed by a verified append-only Refresh completion receipt. Historical run and unit state remain unchanged.
+
+Status projects `resumeEligible: false` and exposes `INTENT_RECORDED`, `POPULATION_FENCED`, or `COMPLETE` with exact missing steps and receipt identity. `reconcile-quarantine` may fill only missing saga records for an already quarantined exact run; it cannot alter disposition, incident checksum, lineage, watermarks, or serving state.

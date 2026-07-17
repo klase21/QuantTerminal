@@ -8,10 +8,18 @@ The quarantine identity is the exact persisted Refresh run ID. Interval-only sel
 
 Refresh execution setup checks disposition inside its parent-child transaction. Worker preflight checks it before source availability or executor probes. A quarantined generation cannot resolve units, reconcile Population leases, extend lineage, advance watermarks, invoke bounded downstream stages, assemble a manifest, or reach serving activation.
 
-The operator transition appends the Refresh disposition first, establishing the fail-closed guard. It then appends one deterministic Population quarantine event per affected logical unit and releases every unreleased lease without changing unit state. A retry completes any interrupted lease fencing and returns `DUPLICATE` for already persisted immutable events.
+The operator transition is a cross-database saga. `QUARANTINE_INTENT` is represented by the immutable Refresh disposition and immediately establishes the fail-closed guard. Population fencing then appends one deterministic quarantine event per affected logical unit through the native JSON object binding. Active leases are released without changing unit state; expired historical leases remain audit evidence. After verifying all unit events and zero active leases, Refresh records one deterministic `EXECUTION_GENERATION_QUARANTINE_COMPLETED` receipt.
+
+Saga state is derived from durable records:
+
+- `INTENT_RECORDED`: the Refresh guard exists; Population fencing and completion receipt are missing.
+- `POPULATION_FENCED`: every Population unit has its immutable audit event and active leases are zero; the receipt is missing.
+- `COMPLETE`: Population fencing is verified and the completion receipt exists.
+
+Exact event and receipt replay is `DUPLICATE`. The same identity with changed immutable details, reason, evidence, or incident checksum is `CONFLICT`. A partial retry executes only missing saga steps.
 
 Immutable Raw Object bytes remain audit-readable. They may be reused later only after checksum verification and with a fresh execution generation, Retrieval, Candidate, Fact, downstream, watermark, Replay, and manifest lineage.
 
 ## Operator Boundary
 
-Run the command without confirmation for a read-only preview. Confirmation requires the exact previewed incident checksum and an explicit operator identity. The current generation is not quarantined by repository certification; operator execution is a separate controlled action.
+The original quarantine command is not rerun after an intent exists. `reconcile-quarantine` reads the committed intent and previews missing saga steps without writes. Confirmation requires the exact run ID, committed incident checksum, and explicit operator identity. It cannot alter disposition or incident evidence and can only append missing Population audit records and the completion receipt.

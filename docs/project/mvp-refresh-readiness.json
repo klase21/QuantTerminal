@@ -250,7 +250,7 @@
         "productionChanged": false
       },
       "executionGenerationQuarantine": {
-        "status": "CODE_AND_COMMIT_BEARING_CERTIFICATION_COMPLETE_OPERATOR_EXECUTION_REQUIRED",
+        "status": "INTENT_RECORDED_RECONCILIATION_CODE_CERTIFIED_OPERATOR_EXECUTION_REQUIRED",
         "dispositionLedger": "APPEND_ONLY_REFRESH_EVENT",
         "incidentChecksum": "bc716619be2df7afe0899c69b368f8d8f9dba76a201310a19eb55b04ce0140eb",
         "previewWrites": 0,
@@ -261,13 +261,21 @@
         "immutableLineageChanged": false,
         "downstreamWrites": 0,
         "disposableResourcesRetained": 0,
-        "realGenerationQuarantined": false,
+        "realGenerationQuarantined": true,
+        "quarantineSagaState": "INTENT_RECORDED",
+        "missingQuarantineSteps": [
+          "POPULATION_FENCING",
+          "QUARANTINE_COMPLETED_RECEIPT"
+        ],
+        "quarantineReceiptId": null,
+        "resumeEligible": false,
+        "failureAfterEachSagaStepCertified": true,
         "productionChanged": false
       }
     }
   },
   "remainingMvp8bBlockers": [
-    "OPERATOR_EXECUTE_APPEND_ONLY_QUARANTINE_CURRENT_EXECUTION_GENERATION",
+    "OPERATOR_RECONCILE_APPEND_ONLY_QUARANTINE_SAGA",
     "CREATE_CLEAN_EXECUTION_GENERATION_WITH_REPAIRED_IDENTITY_CONTRACT",
     "EXECUTE_REMAINING_23_MANDATORY_SLOTS",
     "RESUME_EXACT_ONE_DAY_INACTIVE_CANDIDATE_CYCLE",

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "mvp-execution-generation-quarantine-certification/1.0.0",
+  "schemaVersion": "mvp-execution-generation-quarantine-certification/2.0.0",
   "status": "PASS",
   "disposableCommittedState": true,
   "incidentShape": {
@@ -14,12 +14,20 @@
     "firstQuarantine": "CREATED",
     "exactRetry": "DUPLICATE",
     "changedEvidence": "CONFLICT",
+    "changedIncidentChecksum": "CONFLICT",
     "activeLeasesReleased": 1,
     "resumeRejectedBeforeWrites": true,
     "immutableCountsPreserved": true,
     "downstreamWrites": 0,
     "statusCollapsedAttempts": true,
-    "evidenceReadable": true
+    "evidenceReadable": true,
+    "failureAfterIntentRecovered": true,
+    "failureAfterPopulationFencedRecovered": true,
+    "failureAfterCompletedRecovered": true,
+    "partialSagaExactRetries": 3,
+    "populationDetailsSchema": "JSON_OBJECT",
+    "populationDetailsConstraintPassed": true,
+    "completionReceipt": "APPEND_ONLY"
   },
   "cleanup": {
     "databasesRetained": 0,

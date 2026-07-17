@@ -85,6 +85,15 @@ async function generationDisposition(runId: string) {
   finally { await client.shutdown() }
 }
 
+async function quarantineSagaStatus(runId: string) {
+  const refresh = createMvpRefreshClientFromEnvironment()
+  const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-generation-quarantine-status" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-generation-quarantine-status" } })
+  try {
+    await refresh.verify()
+    return await new PostgresExecutionGenerationQuarantineStore(refresh, integrated.d3, integrated.d2).readSagaStatus(runId)
+  } finally { await Promise.allSettled([refresh.shutdown(), integrated.shutdown()]) }
+}
+
 async function quarantineGeneration(options: Extract<ReturnType<typeof parseLiveResumeWorkerOptions>, { readonly command: "quarantine-generation" }>) {
   if (options.runId !== CONTAMINATED_GENERATION) throw new Error("QUARANTINE_GENERATION_NOT_CERTIFIED")
   if (options.reason !== LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT) throw new Error("QUARANTINE_REASON_NOT_CERTIFIED")
@@ -107,10 +116,31 @@ async function quarantineGeneration(options: Extract<ReturnType<typeof parseLive
   } finally { await Promise.allSettled([refresh.shutdown(), integrated.shutdown()]) }
 }
 
+async function reconcileQuarantine(options: Extract<ReturnType<typeof parseLiveResumeWorkerOptions>, { readonly command: "reconcile-quarantine" }>) {
+  if (options.runId !== CONTAMINATED_GENERATION) throw new Error("QUARANTINE_GENERATION_NOT_CERTIFIED")
+  const refresh = createMvpRefreshClientFromEnvironment()
+  const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-generation-quarantine-reconcile-audit" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-generation-quarantine-reconcile" } })
+  try {
+    await refresh.verify()
+    const store = new PostgresExecutionGenerationQuarantineStore(refresh, integrated.d3, integrated.d2)
+    const snapshot = await store.inspect(options.runId)
+    assertExpectedExecutionGenerationIncident(snapshot, { runId: CONTAMINATED_GENERATION, planId: CONTAMINATED_PLAN, planChecksum: CONTAMINATED_PLAN_CHECKSUM, intervalStart: TARGET_START, intervalEnd: TARGET_END, counts: { refreshUnits: 23, populationRunAttempts: 6, populationUnits: 4, retrievalAttempts: 4, rawObjects: 4, candidates: 294, canonicalFacts: 0, downstreamOutputs: 0, replayOutputs: 0, watermarks: 0, manifests: 0 } })
+    const before = await store.readSagaStatus(options.runId)
+    if (!before) throw new Error("EXECUTION_GENERATION_QUARANTINE_INTENT_MISSING")
+    if (!options.confirmReconcile) return Object.freeze({ mode: "PREVIEW", runId: options.runId, incidentChecksum: before.incidentChecksum, quarantineSagaState: before.quarantineSagaState, missingQuarantineSteps: before.missingQuarantineSteps, quarantineReceiptId: before.quarantineReceiptId, populationUnitCount: before.populationUnitCount, populationFencingEventCount: before.populationFencingEventCount, activePopulationLeases: before.activePopulationLeases, resumeEligible: false, writes: 0, productionMutation: false })
+    const receipt = await store.reconcile({ runId: options.runId, expectedIncidentChecksum: options.incidentChecksum!, operatorConfirmationIdentity: options.operatorConfirmationIdentity, reconciledAt: new Date().toISOString() })
+    if (receipt.status === "CONFLICT") throw new Error("EXECUTION_GENERATION_QUARANTINE_CONFLICT")
+    return Object.freeze({ mode: "CONFIRMED", receipt, productionMutation: false })
+  } finally { await Promise.allSettled([refresh.shutdown(), integrated.shutdown()]) }
+}
+
 async function preflight(start: string, end: string) {
   const loaded = await loadPlan(start, end)
   const disposition = await generationDisposition(liveResumeRunIdentity(loaded.plan).runId)
-  if (disposition?.disposition === "QUARANTINED") return Object.freeze({ passed: false, blocker: "EXECUTION_GENERATION_QUARANTINED", disposition, productionOrNeonWriteTarget: false as const })
+  if (disposition?.disposition === "QUARANTINED") {
+    const saga = await quarantineSagaStatus(disposition.runId)
+    return Object.freeze({ passed: false, blocker: "EXECUTION_GENERATION_QUARANTINED", disposition, quarantineSagaState: saga?.quarantineSagaState ?? "INTENT_RECORDED", missingQuarantineSteps: saga?.missingQuarantineSteps ?? Object.freeze(["POPULATION_FENCING", "QUARANTINE_COMPLETED_RECEIPT"]), quarantineReceiptId: saga?.quarantineReceiptId ?? null, productionOrNeonWriteTarget: false as const })
+  }
   if (disposition?.disposition === "SUPERSEDED") return Object.freeze({ passed: false, blocker: "EXECUTION_GENERATION_SUPERSEDED", disposition, productionOrNeonWriteTarget: false as const })
   const governance = await governanceInventory(start)
   const governanceReady = governance.every((entry) => entry.state === "READY")
@@ -165,9 +195,10 @@ function dryRunPorts(gate: Awaited<ReturnType<typeof preflight>>): LiveResumeCoo
 async function main() {
   const options = parseLiveResumeWorkerOptions(process.argv.slice(2))
   if (options.command === "quarantine-generation") return print({ command: options.command, result: await quarantineGeneration(options) })
+  if (options.command === "reconcile-quarantine") return print({ command: options.command, result: await reconcileQuarantine(options) })
   if (options.command === "inspect") {
     const environment = await createLiveResumeEnvironmentFromProcessEnv({ mode: "INSPECT" })
-    return print({ command: options.command, coordinatorVersion: "mvp-live-resume-coordinator/1.0.0", environmentVersion: "mvp-live-resume-environment/1.0.0", capabilities: environment.capabilities, commands: ["inspect", "plan", "preflight", "bootstrap-governance", "quarantine-generation", "dry-run", "run", "resume", "status", "verify"], liveConfirmationRequired: true })
+    return print({ command: options.command, coordinatorVersion: "mvp-live-resume-coordinator/1.0.0", environmentVersion: "mvp-live-resume-environment/1.0.0", capabilities: environment.capabilities, commands: ["inspect", "plan", "preflight", "bootstrap-governance", "quarantine-generation", "reconcile-quarantine", "dry-run", "run", "resume", "status", "verify"], liveConfirmationRequired: true })
   }
   if (options.command === "bootstrap-governance") {
     const result = await bootstrapGovernance(options.start)
@@ -177,12 +208,15 @@ async function main() {
     const client = createMvpRefreshClientFromEnvironment()
     try {
       await client.verify()
-      const [status, governance, lineage] = await Promise.all([new PostgresLiveResumeExecutionStore(client).statusForWindow(options.start, options.end), governanceInventory(options.start), lineageInventory(options.start, options.end)])
+      const status = await new PostgresLiveResumeExecutionStore(client).statusForWindow(options.start, options.end)
+      const governance = await governanceInventory(options.start)
+      const lineage = await lineageInventory(options.start, options.end)
+      const saga = status?.persistedRunId ? await quarantineSagaStatus(status.persistedRunId) : null
       const lineageBlockers = lineage.units.filter((unit) => unit.retrievalAttempts > 0 && unit.candidates === 0).map((unit) => ({ unitId: unit.unitId, dataset: unit.dataset, instrument: unit.instrument, reason: "CANDIDATE_LINEAGE_INCOMPLETE" }))
       const quarantined = status?.disposition === "QUARANTINED"
       const lineageUnits = lineage.units.map(({ fencingToken, ...unit }) => ({ ...unit, resumeEligible: quarantined ? false : unit.resumeEligible, fence: fencingToken }))
       const durablePopulationStage = lineage.units.some((unit) => unit.resumeStage === "CANDIDATE_LINEAGE") ? "CANDIDATE_LINEAGE" : lineage.units.some((unit) => unit.resumeStage === "CANONICAL_COMMIT") ? "CANONICAL_COMMIT" : lineage.units.every((unit) => unit.resumeStage === "COMPLETE") ? "COMPLETE" : "SOURCE_ACQUISITION"
-      return print({ command: options.command, status: status ? { ...status, durablePopulationStage, effectiveCoordinatorStage: status.currentCoordinatorStage === "UNITS_RESOLVED" ? durablePopulationStage : status.currentCoordinatorStage } : null, lineage: { ...lineage, units: lineageUnits, activeLeases: lineage.units.filter((unit) => unit.activeLease).length, immutableCounts: { retrievalAttempts: lineage.retrievalAttempts, rawObjects: lineage.rawObjects, candidates: lineage.candidates }, nonAuthoritativeExecutionAttempts: lineage.units.reduce((total, unit) => total + unit.nonAuthoritativePartialOutputs, 0), unattributedPayloadCount: Math.max(0, (status?.retainedArtifacts ?? 0) - lineage.rawObjects), blockers: quarantined ? Object.freeze([{ reason: "EXECUTION_GENERATION_QUARANTINED" }]) : lineageBlockers }, governance: { ready: governance.filter((entry) => entry.state === "READY").length, missing: governance.filter((entry) => entry.state === "MISSING").map((entry) => entry.identity), conflicts: governance.filter((entry) => entry.state === "CHECKSUM_CONFLICT" || entry.state === "VERSION_MISMATCH").map((entry) => entry.identity) }, productionMutation: false })
+      return print({ command: options.command, status: status ? { ...status, quarantineSagaState: saga?.quarantineSagaState ?? null, missingQuarantineSteps: saga?.missingQuarantineSteps ?? Object.freeze([]), quarantineReceiptId: saga?.quarantineReceiptId ?? null, durablePopulationStage, effectiveCoordinatorStage: status.currentCoordinatorStage === "UNITS_RESOLVED" ? durablePopulationStage : status.currentCoordinatorStage } : null, lineage: { ...lineage, units: lineageUnits, activeLeases: lineage.units.filter((unit) => unit.activeLease).length, immutableCounts: { retrievalAttempts: lineage.retrievalAttempts, rawObjects: lineage.rawObjects, candidates: lineage.candidates }, nonAuthoritativeExecutionAttempts: lineage.units.reduce((total, unit) => total + unit.nonAuthoritativePartialOutputs, 0), unattributedPayloadCount: Math.max(0, (status?.retainedArtifacts ?? 0) - lineage.rawObjects), blockers: quarantined ? Object.freeze([{ reason: "EXECUTION_GENERATION_QUARANTINED" }]) : lineageBlockers }, governance: { ready: governance.filter((entry) => entry.state === "READY").length, missing: governance.filter((entry) => entry.state === "MISSING").map((entry) => entry.identity), conflicts: governance.filter((entry) => entry.state === "CHECKSUM_CONFLICT" || entry.state === "VERSION_MISMATCH").map((entry) => entry.identity) }, productionMutation: false })
     } finally { await client.shutdown() }
   }
   const loaded = await loadPlan(options.start, options.end)

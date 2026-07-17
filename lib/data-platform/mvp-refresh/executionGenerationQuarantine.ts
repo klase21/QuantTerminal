@@ -6,6 +6,8 @@ export const LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT = "LOGICAL_SLOT_EXECUTION_
 
 export type ExecutionGenerationDisposition = "ACTIVE" | "QUARANTINED" | "SUPERSEDED"
 export type ExecutionGenerationQuarantineStatus = "CREATED" | "DUPLICATE" | "CONFLICT"
+export type ExecutionGenerationQuarantineSagaState = "INTENT_RECORDED" | "POPULATION_FENCED" | "COMPLETE"
+export type ExecutionGenerationQuarantineSagaStep = "POPULATION_FENCING" | "QUARANTINE_COMPLETED_RECEIPT"
 
 type SqlExecutor = postgres.Sql | postgres.TransactionSql
 
@@ -98,9 +100,26 @@ export interface ExecutionGenerationQuarantineReceipt {
   readonly record: PersistedExecutionGenerationDisposition
   readonly releasedPopulationLeases: number
   readonly appendedPopulationEvents: number
+  readonly quarantineSagaState: ExecutionGenerationQuarantineSagaState
+  readonly missingQuarantineSteps: readonly ExecutionGenerationQuarantineSagaStep[]
+  readonly quarantineReceiptId: string | null
   readonly resumeEligible: false
   readonly productionMutation: false
 }
+
+export interface ExecutionGenerationQuarantineSagaStatus {
+  readonly disposition: "QUARANTINED"
+  readonly quarantineSagaState: ExecutionGenerationQuarantineSagaState
+  readonly missingQuarantineSteps: readonly ExecutionGenerationQuarantineSagaStep[]
+  readonly quarantineReceiptId: string | null
+  readonly populationUnitCount: number
+  readonly populationFencingEventCount: number
+  readonly activePopulationLeases: number
+  readonly incidentChecksum: string
+  readonly resumeEligible: false
+}
+
+export type ExecutionGenerationQuarantineFailurePoint = "AFTER_INTENT_RECORDED" | "AFTER_POPULATION_FENCED" | "AFTER_QUARANTINE_COMPLETED"
 
 export interface CleanGenerationInputManifest {
   readonly schemaVersion: "mvp-clean-generation-input/1.0.0"
@@ -122,6 +141,14 @@ export interface CleanGenerationInputManifest {
 const asIso = (value: string): string => new Date(value).toISOString()
 const sorted = (values: readonly string[]): readonly string[] => Object.freeze([...values].sort())
 function parsedJson(value: unknown): unknown { let parsed = value; for (let index = 0; index < 2 && typeof parsed === "string"; index++) parsed = JSON.parse(parsed); return parsed }
+
+function quarantinePopulationEventId(runId: string, unitId: string): string {
+  return `population-generation-quarantine:${canonicalChecksum({ generationId: runId, unitId })}`
+}
+
+function quarantineReceiptId(runId: string, incidentChecksum: string): string {
+  return `mre_${canonicalChecksum({ kind: "EXECUTION_GENERATION_QUARANTINE_COMPLETED", runId, incidentChecksum })}`
+}
 
 function dispositionPayload(value: unknown): PersistedExecutionGenerationDisposition {
   const parsed = parsedJson(value)
@@ -231,52 +258,128 @@ export class PostgresExecutionGenerationQuarantineStore {
     return Object.freeze({ generationId: runId, planId: run.plan_id, planChecksum: run.plan_checksum, runId, runChecksum: run.run_checksum, intervalStart: asIso(run.requested_start), intervalEnd: asIso(run.requested_end), refreshUnitIds: Object.freeze(refreshUnits.map((row) => row.unit_id)), populationRunAttemptIds: Object.freeze(populationRuns.map((row) => row.run_id)), populationUnitIds: Object.freeze(unitIds), retrievalAttemptIds: Object.freeze(retrievals.map((row) => row.attempt_id)), rawObjectIdentities: Object.freeze(rawObjects.map((row) => Object.freeze({ identity: row.object_id, checksum: row.content_hash }))), candidateIds: Object.freeze(candidates.map((row) => row.candidate_id)), leaseEvidence: Object.freeze(leases.map((row) => Object.freeze({ leaseId: row.lease_id, unitId: row.unit_id, ownerId: row.owner_id, fence: Number(row.fencing_token), acquiredAt: asIso(row.acquired_at), expiresAt: asIso(row.expires_at), releasedAt: row.released_at ? asIso(row.released_at) : null }))), checkpointCount: Number(populationCounts[0]?.checkpoints ?? 0), failureEventCount: Number(populationCounts[0]?.failures ?? 0) + Number(refreshCounts[0]?.failures ?? 0), activeLeaseCount: leases.filter((row) => row.active).length, unreleasedLeaseCount: leases.filter((row) => !row.released_at).length, lineageCounts, commonWatermark: null, servingCandidate: null, productionMutation: false })
   }
 
-  async quarantine(input: { readonly proposal: ExecutionGenerationQuarantineProposal; readonly expectedIncidentChecksum: string; readonly quarantinedAt: string }): Promise<ExecutionGenerationQuarantineReceipt | { readonly status: "CONFLICT" }> {
+  async quarantine(input: { readonly proposal: ExecutionGenerationQuarantineProposal; readonly expectedIncidentChecksum: string; readonly quarantinedAt: string; readonly failurePoint?: ExecutionGenerationQuarantineFailurePoint }): Promise<ExecutionGenerationQuarantineReceipt | { readonly status: "CONFLICT" }> {
     if (input.expectedIncidentChecksum !== input.proposal.incidentChecksum) return Object.freeze({ status: "CONFLICT" })
     const existing = await this.readDisposition(input.proposal.runId)
     if (existing && !equivalentDisposition(existing, input.proposal)) return Object.freeze({ status: "CONFLICT" })
     const persisted = existing ?? Object.freeze({ disposition: input.proposal.disposition, generationId: input.proposal.generationId, planId: input.proposal.planId, runId: input.proposal.runId, intervalStart: input.proposal.intervalStart, intervalEnd: input.proposal.intervalEnd, reasonCode: input.proposal.reasonCode, incidentChecksum: input.proposal.incidentChecksum, sourceCommitSha: input.proposal.sourceCommitSha, quarantinedAt: asIso(input.quarantinedAt), operatorConfirmationIdentity: input.proposal.operatorConfirmationIdentity, evidenceSummaryChecksum: input.proposal.evidenceSummaryChecksum })
-    const refreshStatus = await this.refresh.transaction(async (sql) => {
-      const run = await sql.unsafe<Array<{ plan_id: string }>>("SELECT plan_id FROM refresh_control.refresh_run WHERE run_id=$1 FOR SHARE", [input.proposal.runId])
-      if (run[0]?.plan_id !== input.proposal.planId) throw new Error("QUARANTINE_REFRESH_RUN_MISMATCH")
-      const current = await sql.unsafe<Array<{ payload: unknown }>>("SELECT payload FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='execution_generation' AND entity_id=$1 AND event_kind='EXECUTION_GENERATION_DISPOSITION' FOR SHARE", [input.proposal.runId])
-      if (current[0]) {
-        if (!equivalentDisposition(dispositionPayload(current[0].payload), input.proposal)) throw new Error("EXECUTION_GENERATION_QUARANTINE_CONFLICT")
-        return "DUPLICATE" as const
-      }
-      const eventIdentity = canonicalChecksum({ kind: "EXECUTION_GENERATION_DISPOSITION", runId: input.proposal.runId })
-      const checksum = canonicalChecksum(persisted)
-      await sql.unsafe("INSERT INTO refresh_control.refresh_event(event_id,run_id,entity_kind,entity_id,event_kind,from_state,to_state,payload,checksum,occurred_at) VALUES($1,$2,'execution_generation',$2,'EXECUTION_GENERATION_DISPOSITION','ACTIVE','QUARANTINED',$3::jsonb,$4,$5)", [`mre_${eventIdentity}`, input.proposal.runId, JSON.stringify(persisted), checksum, persisted.quarantinedAt])
-      await sql.unsafe("UPDATE refresh_control.refresh_lease SET released_at=$2 WHERE lease_key=$1 AND released_at IS NULL", [`live-resume:${input.proposal.runId}`, persisted.quarantinedAt])
-      return "CREATED" as const
-    })
-    const population = await this.quarantinePopulation(input.proposal, persisted.quarantinedAt)
-    return Object.freeze({ status: refreshStatus, disposition: "QUARANTINED", record: persisted, releasedPopulationLeases: population.releasedLeases, appendedPopulationEvents: population.appendedEvents, resumeEligible: false, productionMutation: false })
+    const refreshStatus = await this.persistIntent(input.proposal, persisted)
+    if (input.failurePoint === "AFTER_INTENT_RECORDED") throw new Error("CERTIFICATION_FAILURE_AFTER_INTENT_RECORDED")
+    return this.completeSaga({ record: persisted, status: refreshStatus, actorId: persisted.operatorConfirmationIdentity, completedAt: asIso(input.quarantinedAt), failurePoint: input.failurePoint })
   }
 
-  private async quarantinePopulation(proposal: ExecutionGenerationQuarantineProposal, at: string): Promise<{ readonly releasedLeases: number; readonly appendedEvents: number }> {
+  async reconcile(input: { readonly runId: string; readonly expectedIncidentChecksum: string; readonly operatorConfirmationIdentity: string; readonly reconciledAt: string; readonly failurePoint?: ExecutionGenerationQuarantineFailurePoint }): Promise<ExecutionGenerationQuarantineReceipt | { readonly status: "CONFLICT" }> {
+    const record = await this.readDisposition(input.runId)
+    if (!record || record.disposition !== "QUARANTINED") throw new Error("EXECUTION_GENERATION_QUARANTINE_INTENT_MISSING")
+    if (record.incidentChecksum !== input.expectedIncidentChecksum) return Object.freeze({ status: "CONFLICT" })
+    if (!/^[A-Za-z0-9._:@/-]{3,128}$/.test(input.operatorConfirmationIdentity)) throw new Error("QUARANTINE_OPERATOR_IDENTITY_INVALID")
+    return this.completeSaga({ record, status: "DUPLICATE", actorId: input.operatorConfirmationIdentity, completedAt: asIso(input.reconciledAt), failurePoint: input.failurePoint })
+  }
+
+  async readSagaStatus(runId: string): Promise<ExecutionGenerationQuarantineSagaStatus | null> {
+    const record = await this.readDisposition(runId)
+    if (!record || record.disposition !== "QUARANTINED") return null
+    const units = await this.readPopulationUnits(this.population.sql, record, false)
+    const unitIds = units.map((row) => row.unit_id)
+    const eventIds = units.map((row) => quarantinePopulationEventId(record.runId, row.unit_id))
+    const populationEvents = eventIds.length ? await this.population.sql.unsafe<Array<{ event_id: string }>>("SELECT event_id FROM control.population_unit_events WHERE event_id=ANY($1::text[])", [eventIds]) : []
+    const activeRows = unitIds.length ? await this.population.sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM control.population_leases WHERE unit_id=ANY($1::text[]) AND released_at IS NULL AND expires_at>now()", [unitIds]) : [{ count: 0 }]
+    const activePopulationLeases = Number(activeRows[0]?.count ?? 0)
+    const receipts = await this.refresh.sql.unsafe<Array<{ event_id: string; payload: unknown }>>("SELECT event_id,payload FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='execution_generation' AND entity_id=$1 AND event_kind='EXECUTION_GENERATION_QUARANTINE_COMPLETED' ORDER BY occurred_at,event_id", [runId])
+    if (receipts.length > 1) throw new Error("EXECUTION_GENERATION_QUARANTINE_RECEIPT_MULTIPLE")
+    const populationFenced = populationEvents.length === units.length && activePopulationLeases === 0
+    const receipt = receipts[0]
+    if (receipt) {
+      const payload = parsedJson(receipt.payload) as { incidentChecksum?: string }
+      if (payload?.incidentChecksum !== record.incidentChecksum || !populationFenced) throw new Error("EXECUTION_GENERATION_QUARANTINE_SAGA_INCONSISTENT")
+    }
+    const quarantineSagaState: ExecutionGenerationQuarantineSagaState = receipt ? "COMPLETE" : populationFenced ? "POPULATION_FENCED" : "INTENT_RECORDED"
+    const missingQuarantineSteps: ExecutionGenerationQuarantineSagaStep[] = []
+    if (!populationFenced) missingQuarantineSteps.push("POPULATION_FENCING")
+    if (!receipt) missingQuarantineSteps.push("QUARANTINE_COMPLETED_RECEIPT")
+    return Object.freeze({ disposition: "QUARANTINED", quarantineSagaState, missingQuarantineSteps: Object.freeze(missingQuarantineSteps), quarantineReceiptId: receipt?.event_id ?? null, populationUnitCount: units.length, populationFencingEventCount: populationEvents.length, activePopulationLeases, incidentChecksum: record.incidentChecksum, resumeEligible: false })
+  }
+
+  private async persistIntent(proposal: ExecutionGenerationQuarantineProposal, persisted: PersistedExecutionGenerationDisposition): Promise<"CREATED" | "DUPLICATE"> {
+    return this.refresh.transaction(async (sql) => {
+      const run = await sql.unsafe<Array<{ plan_id: string }>>("SELECT plan_id FROM refresh_control.refresh_run WHERE run_id=$1 FOR SHARE", [proposal.runId])
+      if (run[0]?.plan_id !== proposal.planId) throw new Error("QUARANTINE_REFRESH_RUN_MISMATCH")
+      const current = await sql.unsafe<Array<{ payload: unknown }>>("SELECT payload FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='execution_generation' AND entity_id=$1 AND event_kind='EXECUTION_GENERATION_DISPOSITION' FOR SHARE", [proposal.runId])
+      if (current[0]) {
+        if (!equivalentDisposition(dispositionPayload(current[0].payload), proposal)) throw new Error("EXECUTION_GENERATION_QUARANTINE_CONFLICT")
+        return "DUPLICATE" as const
+      }
+      const eventIdentity = canonicalChecksum({ kind: "EXECUTION_GENERATION_DISPOSITION", runId: proposal.runId })
+      const checksum = canonicalChecksum(persisted)
+      await sql`INSERT INTO refresh_control.refresh_event(event_id,run_id,entity_kind,entity_id,event_kind,from_state,to_state,payload,checksum,occurred_at) VALUES(${`mre_${eventIdentity}`},${proposal.runId},'execution_generation',${proposal.runId},'EXECUTION_GENERATION_DISPOSITION','ACTIVE','QUARANTINED',${sql.json({ ...persisted })},${checksum},${persisted.quarantinedAt})`
+      await sql.unsafe("UPDATE refresh_control.refresh_lease SET released_at=$2 WHERE lease_key=$1 AND released_at IS NULL", [`live-resume:${proposal.runId}`, persisted.quarantinedAt])
+      return "CREATED" as const
+    })
+  }
+
+  private async completeSaga(input: { readonly record: PersistedExecutionGenerationDisposition; readonly status: "CREATED" | "DUPLICATE"; readonly actorId: string; readonly completedAt: string; readonly failurePoint?: ExecutionGenerationQuarantineFailurePoint }): Promise<ExecutionGenerationQuarantineReceipt> {
+    if (input.failurePoint === "AFTER_INTENT_RECORDED") throw new Error("CERTIFICATION_FAILURE_AFTER_INTENT_RECORDED")
+    const initial = await this.readSagaStatus(input.record.runId)
+    if (!initial) throw new Error("EXECUTION_GENERATION_QUARANTINE_INTENT_MISSING")
+    if (initial.quarantineSagaState === "COMPLETE") return Object.freeze({ status: "DUPLICATE", disposition: "QUARANTINED", record: input.record, releasedPopulationLeases: 0, appendedPopulationEvents: 0, quarantineSagaState: "COMPLETE", missingQuarantineSteps: Object.freeze([]), quarantineReceiptId: initial.quarantineReceiptId, resumeEligible: false, productionMutation: false })
+    const population = initial.quarantineSagaState === "INTENT_RECORDED" ? await this.fencePopulation(input.record, input.actorId, input.completedAt) : Object.freeze({ releasedLeases: 0, appendedEvents: 0 })
+    if (input.failurePoint === "AFTER_POPULATION_FENCED") throw new Error("CERTIFICATION_FAILURE_AFTER_POPULATION_FENCED")
+    const beforeReceipt = await this.readSagaStatus(input.record.runId)
+    if (!beforeReceipt || beforeReceipt.quarantineSagaState !== "POPULATION_FENCED") throw new Error(`EXECUTION_GENERATION_POPULATION_FENCING_INCOMPLETE:${beforeReceipt?.quarantineSagaState ?? "ABSENT"}:${beforeReceipt?.populationFencingEventCount ?? 0}:${beforeReceipt?.activePopulationLeases ?? 0}`)
+    const receipt = await this.appendCompletionReceipt(input.record, input.completedAt, beforeReceipt.populationFencingEventCount)
+    if (input.failurePoint === "AFTER_QUARANTINE_COMPLETED") throw new Error("CERTIFICATION_FAILURE_AFTER_QUARANTINE_COMPLETED")
+    const completed = await this.readSagaStatus(input.record.runId)
+    if (!completed || completed.quarantineSagaState !== "COMPLETE" || completed.activePopulationLeases !== 0) throw new Error("EXECUTION_GENERATION_QUARANTINE_COMPLETION_INVALID")
+    return Object.freeze({ status: input.status, disposition: "QUARANTINED", record: input.record, releasedPopulationLeases: population.releasedLeases, appendedPopulationEvents: population.appendedEvents, quarantineSagaState: completed.quarantineSagaState, missingQuarantineSteps: completed.missingQuarantineSteps, quarantineReceiptId: receipt.receiptId, resumeEligible: false, productionMutation: false })
+  }
+
+  private async readPopulationUnits(sql: SqlExecutor, record: Pick<PersistedExecutionGenerationDisposition, "runId" | "intervalStart" | "intervalEnd">, forUpdate: boolean): Promise<Array<{ unit_id: string; current_state: string; current_fencing_token: number; active_lease_id: string | null; run_id: string }>> {
+    return sql.unsafe<Array<{ unit_id: string; current_state: string; current_fencing_token: number; active_lease_id: string | null; run_id: string }>>(`SELECT u.unit_id,u.current_state::text,u.current_fencing_token,u.active_lease_id,(SELECT r.run_id FROM control.population_runs r WHERE r.job_id=j.job_id ORDER BY r.attempt_number DESC,r.run_id DESC LIMIT 1) run_id FROM control.population_units u JOIN control.population_jobs j ON j.job_id=u.job_id WHERE j.intentional_rerun_identity=$1 OR (j.intentional_rerun_identity IS NULL AND j.requested_by='mvp-live-resume' AND u.window_start=$2 AND u.window_end=$3) ORDER BY u.unit_id${forUpdate ? " FOR UPDATE OF u" : ""}`, [record.runId, record.intervalStart, record.intervalEnd])
+  }
+
+  private async fencePopulation(record: PersistedExecutionGenerationDisposition, actorId: string, at: string): Promise<{ readonly releasedLeases: number; readonly appendedEvents: number }> {
     return this.population.transaction(async (sql) => {
-      const units = await sql.unsafe<Array<{ unit_id: string; current_state: string; current_fencing_token: number; active_lease_id: string | null; run_id: string }>>("SELECT u.unit_id,u.current_state::text,u.current_fencing_token,u.active_lease_id,(SELECT r.run_id FROM control.population_runs r WHERE r.job_id=j.job_id ORDER BY r.attempt_number DESC,r.run_id DESC LIMIT 1) run_id FROM control.population_units u JOIN control.population_jobs j ON j.job_id=u.job_id WHERE j.intentional_rerun_identity=$1 OR (j.intentional_rerun_identity IS NULL AND j.requested_by='mvp-live-resume' AND u.window_start=$2 AND u.window_end=$3) ORDER BY u.unit_id FOR UPDATE OF u", [proposal.runId, proposal.intervalStart, proposal.intervalEnd])
+      const units = await this.readPopulationUnits(sql, record, true)
       const unitIds = units.map((row) => row.unit_id)
       if (!unitIds.length) return Object.freeze({ releasedLeases: 0, appendedEvents: 0 })
-      const allLeases = await sql.unsafe<Array<{ lease_id: string; unit_id: string; owner_id: string; fencing_token: number; released_at: string | null }>>("SELECT lease_id,unit_id,owner_id,fencing_token,released_at::text FROM control.population_leases WHERE unit_id=ANY($1::text[]) ORDER BY unit_id,fencing_token FOR UPDATE", [unitIds])
-      const leases = allLeases.filter((value) => !value.released_at)
+      const allLeases = await sql.unsafe<Array<{ lease_id: string; unit_id: string; owner_id: string; fencing_token: number; released_at: string | null; release_reason: string | null; active: boolean }>>("SELECT lease_id,unit_id,owner_id,fencing_token,released_at::text,release_reason,(released_at IS NULL AND expires_at>$2) active FROM control.population_leases WHERE unit_id=ANY($1::text[]) ORDER BY unit_id,fencing_token FOR UPDATE", [unitIds, at])
+      const activeLeases = allLeases.filter((value) => value.active)
       let appendedEvents = 0
       for (const unit of units) {
         const lease = [...allLeases].reverse().find((value) => value.unit_id === unit.unit_id)
-        const eventId = `population-generation-quarantine:${canonicalChecksum({ generationId: proposal.runId, unitId: unit.unit_id })}`
-        const details = { disposition: "QUARANTINED", generationId: proposal.runId, reasonCode: proposal.reasonCode, incidentChecksum: proposal.incidentChecksum, evidenceSummaryChecksum: proposal.evidenceSummaryChecksum, releasedLeaseId: lease?.lease_id ?? null }
+        const eventId = quarantinePopulationEventId(record.runId, unit.unit_id)
+        const details = { schemaVersion: "mvp-execution-generation-quarantine-population-event/1.0.0", disposition: "QUARANTINED", generationId: record.runId, reasonCode: record.reasonCode, incidentChecksum: record.incidentChecksum, evidenceSummaryChecksum: record.evidenceSummaryChecksum, observedLeaseId: lease?.lease_id ?? null, leaseAction: lease?.active || lease?.release_reason === "EXECUTION_GENERATION_QUARANTINED" ? "RELEASED_BY_QUARANTINE" : "NO_ACTIVE_LEASE" }
         const existing = await sql.unsafe<Array<{ event_type: string; previous_state: string | null; next_state: string | null; fencing_token: number | null; details: unknown }>>("SELECT event_type,previous_state::text,next_state::text,fencing_token,details FROM control.population_unit_events WHERE event_id=$1", [eventId])
         if (existing[0]) {
           if (existing[0].event_type !== "EXECUTION_GENERATION_QUARANTINED" || existing[0].previous_state !== unit.current_state || existing[0].next_state !== unit.current_state || Number(existing[0].fencing_token ?? 0) !== Number(unit.current_fencing_token) || canonicalChecksum(parsedJson(existing[0].details)) !== canonicalChecksum(details)) throw new Error("POPULATION_GENERATION_QUARANTINE_CONFLICT")
         } else {
-          await sql.unsafe("INSERT INTO control.population_unit_events(event_id,unit_id,run_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at,details) VALUES($1,$2,$3,'EXECUTION_GENERATION_QUARANTINED',$4,$4,$5,$6,$7,$8::jsonb)", [eventId, unit.unit_id, unit.run_id, unit.current_state, unit.current_fencing_token || null, proposal.operatorConfirmationIdentity, at, JSON.stringify(details)])
+          await sql`INSERT INTO control.population_unit_events(event_id,unit_id,run_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at,details) VALUES(${eventId},${unit.unit_id},${unit.run_id},'EXECUTION_GENERATION_QUARANTINED',${unit.current_state},${unit.current_state},${unit.current_fencing_token || null},${actorId},${at},${sql.json(details)})`
           appendedEvents++
         }
       }
-      if (leases.length) await sql.unsafe("UPDATE control.population_leases SET released_at=$2,release_reason='EXECUTION_GENERATION_QUARANTINED' WHERE lease_id=ANY($1::text[]) AND released_at IS NULL", [leases.map((value) => value.lease_id), at])
-      await sql.unsafe("UPDATE control.population_units SET active_lease_id=NULL,updated_at=$2 WHERE unit_id=ANY($1::text[]) AND active_lease_id IS NOT NULL", [unitIds, at])
-      return Object.freeze({ releasedLeases: leases.length, appendedEvents })
+      if (activeLeases.length) {
+        const activeLeaseIds = activeLeases.map((value) => value.lease_id)
+        await sql.unsafe("UPDATE control.population_leases SET released_at=$2,release_reason='EXECUTION_GENERATION_QUARANTINED' WHERE lease_id=ANY($1::text[]) AND released_at IS NULL", [activeLeaseIds, at])
+        await sql.unsafe("UPDATE control.population_units SET active_lease_id=NULL,updated_at=$2 WHERE active_lease_id=ANY($1::text[])", [activeLeaseIds, at])
+      }
+      const verification = await sql.unsafe<Array<{ events: number; active: number }>>("SELECT (SELECT count(*)::int FROM control.population_unit_events WHERE event_id=ANY($1::text[])) events,(SELECT count(*)::int FROM control.population_leases WHERE unit_id=ANY($2::text[]) AND released_at IS NULL AND expires_at>$3) active", [units.map((unit) => quarantinePopulationEventId(record.runId, unit.unit_id)), unitIds, at])
+      if (Number(verification[0]?.events ?? 0) !== units.length || Number(verification[0]?.active ?? 0) !== 0) throw new Error("EXECUTION_GENERATION_POPULATION_FENCING_INCOMPLETE")
+      return Object.freeze({ releasedLeases: activeLeases.length, appendedEvents })
+    })
+  }
+
+  private async appendCompletionReceipt(record: PersistedExecutionGenerationDisposition, at: string, populationFencingEventCount: number): Promise<{ readonly status: "CREATED" | "DUPLICATE"; readonly receiptId: string }> {
+    return this.refresh.transaction(async (sql) => {
+      const receiptId = quarantineReceiptId(record.runId, record.incidentChecksum)
+      const payload = { schemaVersion: "mvp-execution-generation-quarantine-receipt/2.0.0", generationId: record.runId, disposition: "QUARANTINED", incidentChecksum: record.incidentChecksum, evidenceSummaryChecksum: record.evidenceSummaryChecksum, populationFencingEventCount, activePopulationLeases: 0, operatorConfirmationIdentity: record.operatorConfirmationIdentity }
+      const checksum = canonicalChecksum(payload)
+      const existing = await sql.unsafe<Array<{ payload: unknown; checksum: string }>>("SELECT payload,checksum FROM refresh_control.refresh_event WHERE event_id=$1 FOR SHARE", [receiptId])
+      if (existing[0]) {
+        if (existing[0].checksum !== checksum || canonicalChecksum(parsedJson(existing[0].payload)) !== canonicalChecksum(payload)) throw new Error("EXECUTION_GENERATION_QUARANTINE_RECEIPT_CONFLICT")
+        return Object.freeze({ status: "DUPLICATE" as const, receiptId })
+      }
+      await sql`INSERT INTO refresh_control.refresh_event(event_id,run_id,entity_kind,entity_id,event_kind,from_state,to_state,payload,checksum,occurred_at) VALUES(${receiptId},${record.runId},'execution_generation',${record.runId},'EXECUTION_GENERATION_QUARANTINE_COMPLETED','QUARANTINED','QUARANTINED',${sql.json(payload)},${checksum},${at})`
+      return Object.freeze({ status: "CREATED" as const, receiptId })
     })
   }
 }

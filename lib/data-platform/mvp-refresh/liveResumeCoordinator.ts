@@ -173,9 +173,9 @@ export interface LiveResumeCoordinatorResult {
   readonly candidateExposed: false
 }
 
-export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify" | "bootstrap-governance" | "quarantine-generation"
+export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify" | "bootstrap-governance" | "quarantine-generation" | "reconcile-quarantine"
 export type LiveResumeWorkerOptions = {
-  readonly command: Exclude<LiveResumeWorkerCommand, "quarantine-generation">
+  readonly command: Exclude<LiveResumeWorkerCommand, "quarantine-generation" | "reconcile-quarantine">
   readonly start: string
   readonly end: string
   readonly executionMode: "dry-run" | "live"
@@ -189,17 +189,31 @@ export type LiveResumeWorkerOptions = {
   readonly operatorConfirmationIdentity: string
   readonly executionMode: "dry-run"
   readonly confirmLocalInactiveCandidate: false
+} | {
+  readonly command: "reconcile-quarantine"
+  readonly runId: string
+  readonly confirmReconcile: boolean
+  readonly incidentChecksum: string | null
+  readonly operatorConfirmationIdentity: string
+  readonly executionMode: "dry-run"
+  readonly confirmLocalInactiveCandidate: false
 }
 
 export function parseLiveResumeWorkerOptions(argv: readonly string[]): LiveResumeWorkerOptions {
   const command = argv[0] as LiveResumeWorkerCommand | undefined
-  if (!command || !["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify", "bootstrap-governance", "quarantine-generation"].includes(command)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
+  if (!command || !["inspect", "plan", "preflight", "dry-run", "run", "resume", "status", "verify", "bootstrap-governance", "quarantine-generation", "reconcile-quarantine"].includes(command)) throw new Error("LIVE_RESUME_COMMAND_INVALID")
   const option = (name: string) => argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3)
   if (command === "quarantine-generation") {
     const runId = option("run-id"), reason = option("reason") ?? "LOGICAL_SLOT_EXECUTION_IDENTITY_INCIDENT", confirmQuarantine = option("confirm-quarantine") === "true", incidentChecksum = option("incident-checksum") ?? null, operatorConfirmationIdentity = option("operator-confirmation-identity") ?? "preview-only"
     if (!runId || !/^mrlr_[0-9a-f]{64}$/.test(runId)) throw new Error("QUARANTINE_EXACT_RUN_ID_REQUIRED")
     if (confirmQuarantine && (!incidentChecksum || !/^[0-9a-f]{64}$/.test(incidentChecksum) || operatorConfirmationIdentity === "preview-only")) throw new Error("QUARANTINE_EXPLICIT_CONFIRMATION_REQUIRED")
     return Object.freeze({ command, runId, reason, confirmQuarantine, incidentChecksum, operatorConfirmationIdentity, executionMode: "dry-run", confirmLocalInactiveCandidate: false })
+  }
+  if (command === "reconcile-quarantine") {
+    const runId = option("run-id"), confirmReconcile = option("confirm-reconcile") === "true", incidentChecksum = option("incident-checksum") ?? null, operatorConfirmationIdentity = option("operator-confirmation-identity") ?? "preview-only"
+    if (!runId || !/^mrlr_[0-9a-f]{64}$/.test(runId)) throw new Error("QUARANTINE_EXACT_RUN_ID_REQUIRED")
+    if (confirmReconcile && (!incidentChecksum || !/^[0-9a-f]{64}$/.test(incidentChecksum) || operatorConfirmationIdentity === "preview-only")) throw new Error("QUARANTINE_RECONCILE_EXPLICIT_CONFIRMATION_REQUIRED")
+    return Object.freeze({ command, runId, confirmReconcile, incidentChecksum, operatorConfirmationIdentity, executionMode: "dry-run", confirmLocalInactiveCandidate: false })
   }
   const start = option("start"), end = option("end")
   if (!start || !end) throw new Error("LIVE_RESUME_EXACT_INTERVAL_REQUIRED")
