@@ -70,6 +70,11 @@ export interface StageInactiveServingCandidateOptions {
   readonly injectFailureAfter?: "PAYLOADS" | "MEMBERS" | "MANIFEST"
 }
 
+export interface SeparateTargetInactivePublicationOptions {
+  readonly targetId: string
+  readonly expectedTargetId: string
+}
+
 export function computeInactiveServingCandidateId(input: {
   readonly schemaVersion: string
   readonly verifiedSourceCorpusId: string
@@ -200,6 +205,28 @@ export async function stageInactiveServingCandidate(client: MvpServingPostgresCl
   })
 }
 
+export async function publishInactiveCandidateToSeparateTarget(writer: MvpServingPostgresClient, reader: MvpServingPostgresClient, input: InactiveServingCandidateInput, options: SeparateTargetInactivePublicationOptions): Promise<{ readonly status: "CREATED" | "DUPLICATE"; readonly review: InactiveServingCandidateReview; readonly exposureFingerprint: string }> {
+  validateSeparateTargetPublicationClients(writer, reader, options)
+  const plan = prepareInactiveServingCandidate(input)
+  const before = await exposureFingerprint(reader.sql)
+  if (await candidateExposureCount(reader.sql, plan.candidateId) !== 0) throw new Error("MVP8L_CANDIDATE_EXPOSURE_PREEXISTS")
+  const existing = await reader.sql.unsafe<Array<{ corpus_id: string }>>("SELECT corpus_id FROM serving.serving_corpus WHERE corpus_id=$1", [plan.candidateId])
+  let status: "CREATED" | "DUPLICATE" = "DUPLICATE"
+  if (!existing[0]) {
+    await writer.transaction(async (sql) => {
+      await sql.unsafe("SELECT pg_advisory_xact_lock(hashtext($1))", [plan.candidateId])
+      const concurrent = await sql.unsafe<Array<{ corpus_id: string }>>("SELECT corpus_id FROM serving.serving_corpus WHERE corpus_id=$1", [plan.candidateId])
+      if (concurrent[0]) return
+      await persistInactiveServingPlan(sql, plan)
+      status = "CREATED"
+    })
+  }
+  const review = await readInactiveServingCandidateReview(reader.sql, plan.candidateId, plan)
+  const after = await exposureFingerprint(reader.sql)
+  if (before !== after || review.exposureCount !== 0) throw new Error("MVP8L_ACTIVE_EXPOSURE_CHANGED")
+  return Object.freeze({ status, review, exposureFingerprint: after })
+}
+
 export class PostgresMvpInactiveServingReadPort {
   constructor(private readonly client: MvpServingPostgresClient) {
     if (client.roleIntent !== "READER") throw new Error("MVP8I_READER_ROLE_REQUIRED")
@@ -208,6 +235,15 @@ export class PostgresMvpInactiveServingReadPort {
   async selectCandidate(candidateId: string) {
     const review = await readInactiveServingCandidateReview(this.client.sql, candidateId)
     return createInactiveServingCandidateSelection(review)
+  }
+
+  async exportCandidateInput(candidateId: string): Promise<InactiveServingCandidateInput> {
+    const review = await readInactiveServingCandidateReview(this.client.sql, candidateId)
+    const rows = await this.client.sql.unsafe<Array<{ manifest: unknown }>>("SELECT manifest FROM serving.serving_candidate_manifest WHERE corpus_id=$1", [candidateId])
+    const manifest = requireRecord(rows[0]?.manifest, "MVP8L_SOURCE_MANIFEST_MALFORMED")
+    const replaySourceCorpusId = String(manifest.replaySourceCorpusId ?? ""), replaySourceCorpusChecksum = String(manifest.replaySourceCorpusChecksum ?? "")
+    if (!replaySourceCorpusId || !isChecksum(replaySourceCorpusChecksum)) throw new Error("MVP8L_SOURCE_REPLAY_BINDING_INVALID")
+    return Object.freeze({ schemaVersion: MVP_INACTIVE_SERVING_STAGE_SCHEMA_VERSION, replaySourceCorpusId, replaySourceCorpusChecksum, commonWatermarkId: review.commonWatermarkId, commonWatermarkValue: review.commonWatermarkValue, commonWatermarkChecksum: review.commonWatermarkChecksum, projections: review.projections, evidenceSummaries: review.evidenceSummaries, replaySnapshots: review.replaySnapshots })
   }
 }
 
@@ -246,6 +282,19 @@ async function ensureGenesis(sql: postgres.TransactionSql, plan: InactiveServing
     return
   }
   await sql.unsafe("INSERT INTO serving.serving_corpus (corpus_id,corpus_version,source_corpus_id,source_corpus_checksum,serving_checksum,schema_version,generated_at,governed_through,lifecycle,exposure,projection_count,evidence_summary_count,replay_snapshot_count,demo_profile_count,release_inventory_count,publication_event_count) VALUES($1,'mvp-inactive-serving-stage-genesis/1.0.0',$1,$2,$2,$3,$4,$4,'WITHHELD','INTERNAL_ONLY',0,0,0,0,0,0)", [plan.genesisCorpusId, plan.genesisChecksum, plan.schemaVersion, plan.generatedAt])
+}
+
+async function persistInactiveServingPlan(sql: postgres.TransactionSql, plan: InactiveServingCandidatePlan): Promise<void> {
+  await ensureGenesis(sql, plan)
+  await sql.unsafe("INSERT INTO serving.serving_corpus (corpus_id,corpus_version,source_corpus_id,source_corpus_checksum,serving_checksum,schema_version,generated_at,governed_through,lifecycle,exposure,projection_count,evidence_summary_count,replay_snapshot_count,demo_profile_count,release_inventory_count,publication_event_count) VALUES($1,'mvp-inactive-serving-candidate/1.0.0',$2,$3,$4,$5,$6,$7,'WITHHELD','INTERNAL_ONLY',$8,$9,$10,0,0,0)", [plan.candidateId, plan.verifiedSourceCorpusId, plan.verifiedSourceCorpusChecksum, plan.servingChecksum, plan.schemaVersion, plan.generatedAt, plan.governedThrough, plan.counts.projections, plan.counts.evidenceSummaries, plan.counts.replaySnapshots])
+  const corpus = { corpusId: plan.candidateId, sourceCorpusId: plan.verifiedSourceCorpusId, generatedAt: plan.generatedAt }
+  for (const value of plan.projections) await insertServingProjectionPayload(sql, corpus, value)
+  for (const value of plan.evidenceSummaries) await insertServingEvidencePayload(sql, corpus, value)
+  for (const value of plan.replaySnapshots) await insertServingReplayPayload(sql, corpus, value)
+  await verifyPayloadReadback(sql, plan)
+  for (const member of plan.members) await sql.unsafe("INSERT INTO serving.serving_corpus_member (corpus_id,member_kind,member_id,member_checksum,canonical_sort_key,inherited_source_corpus_id,schema_version,metadata,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8::text::jsonb,$9)", [plan.candidateId, member.memberKind, member.memberId, member.memberChecksum, member.canonicalSortKey, member.inheritedSourceCorpusId, member.schemaVersion, JSON.stringify(member.metadata), plan.generatedAt])
+  await verifyMemberReadback(sql, plan)
+  await sql.unsafe("INSERT INTO serving.serving_candidate_manifest (manifest_id,corpus_id,previous_corpus_id,previous_serving_checksum,manifest_checksum,schema_version,lifecycle,exposure_eligibility,manifest,created_at,common_watermark_id,common_watermark_value,common_watermark_checksum,member_set_checksum) VALUES($1,$2,$3,$4,$5,$6,'CANDIDATE','INELIGIBLE',$7::text::jsonb,$8,$9,$10,$11,$12)", [plan.manifestId, plan.candidateId, plan.genesisCorpusId, plan.genesisChecksum, plan.manifestChecksum, plan.schemaVersion, JSON.stringify(plan.manifest), plan.generatedAt, plan.commonWatermarkId, plan.commonWatermarkValue, plan.commonWatermarkChecksum, plan.memberSetChecksum])
 }
 
 async function verifyPayloadReadback(sql: postgres.Sql | postgres.TransactionSql, plan: InactiveServingCandidatePlan): Promise<void> {
@@ -290,7 +339,7 @@ async function readInactiveServingCandidateReview(sql: postgres.Sql | postgres.T
     sql.unsafe<Record<string, unknown>[]>("SELECT * FROM serving.serving_evidence_summary WHERE serving_corpus_id=$1 ORDER BY evidence_summary_id", [candidateId]),
     sql.unsafe<Record<string, unknown>[]>("SELECT * FROM serving.serving_replay_sequence WHERE serving_corpus_id=$1 ORDER BY instrument", [candidateId]),
     sql.unsafe<Record<string, unknown>[]>("SELECT member_kind,member_id,member_checksum,canonical_sort_key,inherited_source_corpus_id,schema_version,metadata FROM serving.serving_corpus_member WHERE corpus_id=$1 ORDER BY canonical_sort_key,member_kind,member_id", [candidateId]),
-    sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure"),
+    sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure WHERE corpus_id=$1", [candidateId]),
   ])
   const projections = Object.freeze(projectionRows.map(mapServingProjectionPayload)), evidenceSummaries = Object.freeze(evidenceRows.map(mapServingEvidencePayload)), replaySnapshots = Object.freeze(replayRows.map(mapServingReplayPayload)), members = canonicalizeServingCorpusMembers(memberRows.map(mapMember))
   if (projections.length !== 62 || evidenceSummaries.length !== 6 || replaySnapshots.length !== 6 || members.length !== 74) throw new Error("MVP8I_READBACK_COUNTS_INVALID")
@@ -311,6 +360,16 @@ async function readInactiveServingCandidateReview(sql: postgres.Sql | postgres.T
 }
 
 async function exposureCount(sql: postgres.Sql | postgres.TransactionSql): Promise<number> { const rows = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure"); return rows[0]?.count ?? -1 }
+async function candidateExposureCount(sql: postgres.Sql | postgres.TransactionSql, candidateId: string): Promise<number> { const rows = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure WHERE corpus_id=$1", [candidateId]); return rows[0]?.count ?? -1 }
+async function exposureFingerprint(sql: postgres.Sql | postgres.TransactionSql): Promise<string> { const rows = await sql.unsafe<Record<string, unknown>[]>("SELECT exposure_id,corpus_id,exposure_state,effective_from,checksum,publication_note,created_at FROM serving.serving_exposure ORDER BY exposure_id"); return canonicalChecksum(rows) }
+function validateSeparateTargetPublicationClients(writer: MvpServingPostgresClient, reader: MvpServingPostgresClient, options: SeparateTargetInactivePublicationOptions): void {
+  if (writer.roleIntent !== "PUBLISHER" || reader.roleIntent !== "READER" || writer.targetKind !== reader.targetKind || !["LOCAL_DISPOSABLE_CERTIFICATION", "MANAGED_POSTGRES"].includes(writer.targetKind)) throw new Error("MVP8L_SEPARATE_TARGET_CLIENTS_REQUIRED")
+  if (options.targetId !== options.expectedTargetId) throw new Error("MVP8L_TARGET_FINGERPRINT_MISMATCH")
+  if (writer.targetKind === "MANAGED_POSTGRES" && !/^neon:[a-z0-9-]+\/[a-z0-9-]+\/[a-zA-Z0-9_-]+$/.test(options.targetId)) throw new Error("MVP8L_NEON_TARGET_FINGERPRINT_INVALID")
+  if (writer.targetKind === "LOCAL_DISPOSABLE_CERTIFICATION" && !/^local-postgres:(?:127\.0\.0\.1|localhost):[0-9]+\/quantterminal_mvp8l_canary_[a-z0-9]+$/.test(options.targetId)) throw new Error("MVP8L_DISPOSABLE_TARGET_FINGERPRINT_INVALID")
+  const writerUrl = new URL(writer.connectionString), readerUrl = new URL(reader.connectionString)
+  if (writerUrl.hostname !== readerUrl.hostname || writerUrl.port !== readerUrl.port || writerUrl.pathname !== readerUrl.pathname || writerUrl.username === readerUrl.username || writer.connectionString === reader.connectionString) throw new Error("MVP8L_TARGET_ROLE_BINDING_INVALID")
+}
 function memberIdentity(member: ServingCorpusMember) { return { kind: member.memberKind, id: member.memberId, checksum: member.memberChecksum, sortKey: member.canonicalSortKey, inheritedSourceCorpusId: member.inheritedSourceCorpusId, schemaVersion: member.schemaVersion, metadata: member.metadata } }
 function mapMember(row: Record<string, unknown>): ServingCorpusMember { return Object.freeze({ memberKind: String(row.member_kind) as ServingCorpusMember["memberKind"], memberId: String(row.member_id), memberChecksum: String(row.member_checksum), canonicalSortKey: String(row.canonical_sort_key), inheritedSourceCorpusId: row.inherited_source_corpus_id ? String(row.inherited_source_corpus_id) : null, schemaVersion: String(row.schema_version), metadata: Object.freeze(requireRecord(row.metadata, "MVP8I_MEMBER_METADATA_MALFORMED")) }) }
 function isChecksum(value: unknown): value is string { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value) }

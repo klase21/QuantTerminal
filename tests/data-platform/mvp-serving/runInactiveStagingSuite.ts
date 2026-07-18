@@ -5,6 +5,7 @@ import {
   MVP_INACTIVE_SERVING_STAGE_COUNTS,
   MVP_INACTIVE_SERVING_STAGE_SCHEMA_VERSION,
   MVP_INACTIVE_SERVING_STAGE_WRITE_ORDER,
+  MvpServingPostgresClient,
   computeInactiveServingCandidateId,
   createInactiveServingCandidateSelection,
   createServingEvidenceSummary,
@@ -75,6 +76,16 @@ async function main() {
   assert.throws(() => prepareInactiveServingCandidate({ ...input, evidenceSummaries: [{ ...input.evidenceSummaries[0]!, summaryChecksum: "0".repeat(64) }, ...input.evidenceSummaries.slice(1)] }), /MVP8I_EVIDENCE_CHECKSUM_MISMATCH/)
   assert.throws(() => prepareInactiveServingCandidate({ ...input, replaySnapshots: [{ ...input.replaySnapshots[0]!, snapshotChecksum: "0".repeat(64) }, ...input.replaySnapshots.slice(1)] }), /MVP8I_REPLAY_CHECKSUM_MISMATCH/)
   assert.throws(() => computeInactiveServingCandidateId({ schemaVersion: plan.schemaVersion, verifiedSourceCorpusId: plan.verifiedSourceCorpusId, verifiedSourceCorpusChecksum: plan.verifiedSourceCorpusChecksum, bindings: plan, counts: plan.counts, members: [{ ...plan.members[0]!, memberKind: "UNKNOWN" as ServingCorpusMember["memberKind"] }, ...plan.members.slice(1)] }), /SERVING_CANDIDATE_MEMBER_KIND_INVALID/)
+
+  const disposableDatabase = "quantterminal_mvp8l_canary_unit1", disposablePort = "55431", disposableTarget = `local-postgres:127.0.0.1:${disposablePort}/${disposableDatabase}`
+  const disposableEnvironment = Object.freeze({ MVP_PUBLICATION_TARGET_MODE: "LOCAL_DISPOSABLE_CERTIFICATION", MVP_LOCAL_DISPOSABLE_HOST: "127.0.0.1", MVP_LOCAL_DISPOSABLE_PORT: disposablePort, MVP_LOCAL_DISPOSABLE_DATABASE: disposableDatabase, MVP_LOCAL_DISPOSABLE_TARGET_ID: disposableTarget })
+  const disposableUrl = (role: string, port = disposablePort, database = disposableDatabase, host = "127.0.0.1") => `postgresql://${role}@${host}:${port}/${database}`
+  assert.doesNotThrow(() => new MvpServingPostgresClient(disposableUrl("qt_inactive_writer"), "PUBLISHER", disposableEnvironment, "LOCAL_DISPOSABLE_CERTIFICATION", { database: disposableDatabase, role: "qt_inactive_writer" }))
+  assert.throws(() => new MvpServingPostgresClient(disposableUrl("qt_inactive_writer"), "PUBLISHER", { ...disposableEnvironment, MVP_PUBLICATION_TARGET_MODE: undefined }, "LOCAL_DISPOSABLE_CERTIFICATION", { database: disposableDatabase, role: "qt_inactive_writer" }), /MVP8L_DISPOSABLE_MODE_REQUIRED/)
+  assert.throws(() => new MvpServingPostgresClient(disposableUrl("qt_inactive_writer", "55432"), "PUBLISHER", disposableEnvironment, "LOCAL_DISPOSABLE_CERTIFICATION", { database: disposableDatabase, role: "qt_inactive_writer" }), /MVP8L_DISPOSABLE_PORT_MISMATCH/)
+  assert.throws(() => new MvpServingPostgresClient(disposableUrl("qt_inactive_writer", disposablePort, "arbitrary"), "PUBLISHER", disposableEnvironment, "LOCAL_DISPOSABLE_CERTIFICATION", { database: "arbitrary", role: "qt_inactive_writer" }), /MVP8L_DISPOSABLE_DATABASE_MISMATCH/)
+  assert.throws(() => new MvpServingPostgresClient(disposableUrl("qt_inactive_writer", disposablePort, disposableDatabase, "127.0.0.2"), "PUBLISHER", disposableEnvironment, "LOCAL_DISPOSABLE_CERTIFICATION", { database: disposableDatabase, role: "qt_inactive_writer" }), /MVP8L_LOOPBACK_HOST_REQUIRED/)
+  assert.throws(() => new MvpServingPostgresClient(disposableUrl("qt_inactive_writer"), "PUBLISHER", { ...disposableEnvironment, MVP8J_SOURCE_READER_URL: disposableUrl("qt_inactive_writer") }, "LOCAL_DISPOSABLE_CERTIFICATION", { database: disposableDatabase, role: "qt_inactive_writer" }), /MVP8L_MATCHES_MVP8J_SOURCE_READER_URL/)
 
   const selection = createInactiveServingCandidateSelection(Object.freeze({ candidateId: plan.candidateId, servingChecksum: plan.servingChecksum, lifecycle: "WITHHELD", exposure: "INTERNAL_ONLY", exposureCount: 0, commonWatermarkId: plan.commonWatermarkId, commonWatermarkValue: plan.commonWatermarkValue, commonWatermarkChecksum: plan.commonWatermarkChecksum, memberSetChecksum: plan.memberSetChecksum, manifestChecksum: plan.manifestChecksum, counts: plan.counts, projections: plan.projections, evidenceSummaries: plan.evidenceSummaries, replaySnapshots: plan.replaySnapshots }))
   const [dashboard, scanner, trades, replayReads] = await Promise.all([selection.dashboard(), selection.scanner(), Promise.all(SYMBOLS.map((symbol) => selection.tradeDecisionContext(symbol))), Promise.all(SYMBOLS.map((symbol) => selection.replay(symbol)))])

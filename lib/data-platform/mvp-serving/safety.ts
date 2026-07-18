@@ -1,5 +1,5 @@
 export type MvpServingRoleIntent = "MIGRATION_OWNER" | "PUBLISHER" | "READER"
-export type MvpServingTargetKind = "LOCAL_ISOLATED" | "MANAGED_POSTGRES"
+export type MvpServingTargetKind = "LOCAL_ISOLATED" | "LOCAL_DISPOSABLE_CERTIFICATION" | "MANAGED_POSTGRES"
 
 export interface MvpServingTargetInspection {
   readonly safe: boolean
@@ -35,12 +35,32 @@ export function requireMvpServingIsolatedTarget(connectionString: string | undef
   return result
 }
 
-export function inspectMvpServingManagedTarget(connectionString: string | undefined, expectedRole: "mvp_serving_publisher" | "mvp_serving_reader", environment: Readonly<Record<string, string | undefined>> = process.env): MvpServingTargetInspection {
+export function requireMvpServingDisposableTarget(connectionString: string | undefined, intent: MvpServingRoleIntent, environment: Readonly<Record<string, string | undefined>> = process.env, expected?: { readonly database: string; readonly role: string }): MvpServingTargetInspection {
+  if (environment.MVP_PUBLICATION_TARGET_MODE !== "LOCAL_DISPOSABLE_CERTIFICATION") throw new Error("MVP8L_DISPOSABLE_MODE_REQUIRED")
+  if (!connectionString || !expected) throw new Error("MVP8L_DISPOSABLE_BINDING_REQUIRED")
+  let url: URL
+  try { url = new URL(connectionString) } catch { throw new Error("MVP8L_DISPOSABLE_URL_INVALID") }
+  const database = decodeURIComponent(url.pathname.replace(/^\//, "")), role = decodeURIComponent(url.username)
+  const configuredHost = environment.MVP_LOCAL_DISPOSABLE_HOST, configuredPort = environment.MVP_LOCAL_DISPOSABLE_PORT, configuredDatabase = environment.MVP_LOCAL_DISPOSABLE_DATABASE
+  const fingerprint = `local-postgres:${url.hostname}:${url.port}/${database}`
+  const reasons: string[] = []
+  if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost") reasons.push("MVP8L_LOOPBACK_HOST_REQUIRED")
+  if (!url.port || url.port !== configuredPort) reasons.push("MVP8L_DISPOSABLE_PORT_MISMATCH")
+  if (!/^quantterminal_mvp8l_canary_[a-z0-9]+$/.test(database) || database !== configuredDatabase || database !== expected.database) reasons.push("MVP8L_DISPOSABLE_DATABASE_MISMATCH")
+  if (role !== expected.role) reasons.push(`MVP8L_${intent}_ROLE_MISMATCH`)
+  if (fingerprint !== environment.MVP_LOCAL_DISPOSABLE_TARGET_ID) reasons.push("MVP8L_DISPOSABLE_FINGERPRINT_MISMATCH")
+  for (const key of ["DATABASE_URL", "MVP_SERVING_POSTGRES_URL", "MVP_NEON_INACTIVE_WRITER_URL", "MVP_NEON_INACTIVE_READER_URL", "MVP8J_SOURCE_READER_URL"]) if (environment[key] && environment[key] === connectionString) reasons.push(`MVP8L_MATCHES_${key}`)
+  if (reasons.length) throw new Error(`UNSAFE_MVP8L_DISPOSABLE_TARGET:${reasons.join(",")}`)
+  return Object.freeze({ safe: true, redactedTarget: fingerprint, database, role, reasons: Object.freeze([]) })
+}
+
+export function inspectMvpServingManagedTarget(connectionString: string | undefined, expectedRole: string, environment: Readonly<Record<string, string | undefined>> = process.env, expectedDatabase?: string): MvpServingTargetInspection {
   if (!connectionString?.trim()) return Object.freeze({ safe: false, redactedTarget: "UNAVAILABLE", database: null, role: null, reasons: Object.freeze(["MVP_SERVING_MANAGED_POSTGRES_URL_REQUIRED"]) })
   try {
     const url = new URL(connectionString), database = decodeURIComponent(url.pathname.replace(/^\//, "")), role = decodeURIComponent(url.username || "") || null, reasons: string[] = []
     if (!["postgres:", "postgresql:"].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
     if (!database) reasons.push("SERVING_DATABASE_REQUIRED")
+    if (expectedDatabase && database !== expectedDatabase) reasons.push("SERVING_MANAGED_DATABASE_MISMATCH")
     if (["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())) reasons.push("MANAGED_POSTGRES_REMOTE_HOST_REQUIRED")
     if (role !== expectedRole) reasons.push("SERVING_MANAGED_ROLE_INVALID")
     if (!url.password) reasons.push("SERVING_MANAGED_PASSWORD_REQUIRED")
@@ -49,8 +69,8 @@ export function inspectMvpServingManagedTarget(connectionString: string | undefi
   } catch { return Object.freeze({ safe: false, redactedTarget: "INVALID", database: null, role: null, reasons: Object.freeze(["INVALID_CONNECTION_STRING"]) }) }
 }
 
-export function requireMvpServingManagedTarget(connectionString: string | undefined, intent: MvpServingRoleIntent, environment: Readonly<Record<string, string | undefined>> = process.env): MvpServingTargetInspection {
-  const expectedRole = intent === "READER" ? "mvp_serving_reader" : "mvp_serving_publisher", result = inspectMvpServingManagedTarget(connectionString, expectedRole, environment)
+export function requireMvpServingManagedTarget(connectionString: string | undefined, intent: MvpServingRoleIntent, environment: Readonly<Record<string, string | undefined>> = process.env, expected?: { readonly database: string; readonly role: string }): MvpServingTargetInspection {
+  const expectedRole = expected?.role ?? (intent === "READER" ? "mvp_serving_reader" : "mvp_serving_publisher"), result = inspectMvpServingManagedTarget(connectionString, expectedRole, environment, expected?.database)
   if (!result.safe) throw new Error(`UNSAFE_MVP_SERVING_MANAGED_TARGET:${result.reasons.join(",")}`)
   return result
 }
