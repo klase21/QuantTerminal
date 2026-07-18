@@ -1,0 +1,26 @@
+# MVP-8P Operator Confirmation Template
+
+This template is evidence only. It must not be executed without a separately certified guarded activation operation and explicit operator authorization.
+
+```text
+AUTHORIZE PRODUCTION CUTOVER
+target_fingerprint=neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb
+candidate_id=mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57
+candidate_checksum=fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57
+member_set_checksum=021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e
+common_watermark_id=mre_a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a
+common_watermark_checksum=a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a
+expected_current_corpus=mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949
+expected_current_exposure=msex_230d070ad323f9d4aad3a1420fb2a8d160ab1ae70acfcb1ecd7ee0939eacd5a0
+expected_vercel_corpus_pin=mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949
+expected_vercel_checksum_pin=129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949
+proposed_vercel_corpus_pin=mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57
+proposed_vercel_checksum_pin=fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57
+operator_id=<REQUIRED>
+authorization_id=<REQUIRED>
+request_id=<REQUIRED>
+reason=<REQUIRED>
+observation_window=15_minutes
+```
+
+Rollback must restore the frozen prior corpus/checksum pins and deployment `dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR`, then rerun health, Dashboard, Scanner, Trade for six symbols, and Replay for six symbols. Trigger rollback on any health, pin, reader, or exposure-count threshold in the preflight artifact.

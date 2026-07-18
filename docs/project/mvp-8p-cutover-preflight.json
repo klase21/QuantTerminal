@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "mvp-8p-cutover-preflight/1.0.0",
+  "status": "READY_FOR_SEPARATE_OPERATOR_APPROVAL",
+  "productionTargetFingerprint": "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb",
+  "proposed": {
+    "candidateId": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "candidateChecksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "memberSetChecksum": "021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e",
+    "commonWatermarkId": "mre_a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+    "commonWatermarkChecksum": "a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a"
+  },
+  "expectedCurrent": {
+    "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "corpusChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "exposureId": "msex_230d070ad323f9d4aad3a1420fb2a8d160ab1ae70acfcb1ecd7ee0939eacd5a0",
+    "vercelDeploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX"
+  },
+  "rollback": {
+    "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "exposureId": "msex_230d070ad323f9d4aad3a1420fb2a8d160ab1ae70acfcb1ecd7ee0939eacd5a0",
+    "deploymentId": "dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR"
+  },
+  "operatorPlaceholders": { "operatorId": "<REQUIRED>", "authorizationId": "<REQUIRED>", "requestId": "<REQUIRED>" },
+  "observationWindowMinutes": 15,
+  "failureThresholds": ["health_not_HEALTHY", "corpus_or_checksum_pin_mismatch", "dashboard_scanner_trade_or_replay_smoke_failure", "unexpected_exposure_count"]
+}
