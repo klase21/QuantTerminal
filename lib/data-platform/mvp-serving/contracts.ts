@@ -136,6 +136,13 @@ export function createServingEvidenceSummary(projection: MvpProjectionVersion): 
   return Object.freeze({ evidenceSummaryId: `mses_${summaryChecksum}`, ...base, summaryChecksum })
 }
 
+export function verifyServingEvidenceSummary(summary: ServingEvidenceSummary): boolean {
+  const { evidenceSummaryId, summaryChecksum, ...base } = summary
+  return /^[0-9a-f]{64}$/.test(summaryChecksum)
+    && evidenceSummaryId === `mses_${summaryChecksum}`
+    && canonicalChecksum(base) === summaryChecksum
+}
+
 export function createServingReplaySnapshot(projection: MvpProjectionVersion, model: ReplaySequenceModel): ServingReplaySnapshot {
   if (projection.projectionKind !== "ReplayTimelineProjection" || model.sourceProjectionVersionId !== projection.projectionVersionId || model.sourceProjectionChecksum !== projection.projectionChecksum) throw new Error("SERVING_REPLAY_SOURCE_MISMATCH")
   if (model.sampleCounts.price !== 288 || model.sampleCounts.openInterest !== 288 || model.sampleCounts.funding !== 3 || model.sampleCounts.flow !== 48) throw new Error("SERVING_REPLAY_SAMPLE_COUNT_MISMATCH")

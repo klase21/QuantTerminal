@@ -8,7 +8,7 @@ import { verifyCertifiedSnapshotBundle, type CertifiedSnapshotBundle } from "@/l
 async function main() {
   const checks: Array<[string, boolean]> = [], check = (name: string, pass: boolean) => checks.push([name, pass])
   const migrations = await discoverMvpServingMigrations()
-  check("versioned migrations discovered", migrations.length === 3 && migrations.every((value) => /^[0-9a-f]{64}$/.test(value.checksum)))
+  check("versioned migrations discovered", migrations.length === 4 && migrations.every((value) => /^[0-9a-f]{64}$/.test(value.checksum)))
   check("whitespace-only legacy checksum is explicitly pinned", MVP_SERVING_CERTIFIED_LEGACY_CHECKSUMS["001"]?.repositoryChecksum === migrations[0]?.checksum && MVP_SERVING_CERTIFIED_LEGACY_CHECKSUMS["001"]?.appliedChecksums.length === 1)
   const syntheticUrl = (database: string) => `postgresql://${"mvp_serving_reader"}:${"synthetic"}@localhost:55432/${database}`
   check("isolated target accepts exact local database", inspectMvpServingIsolatedTarget(syntheticUrl("quantterminal_mvp_serving_isolated"), {}).safe)
