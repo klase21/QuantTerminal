@@ -1,6 +1,7 @@
 import {
   MvpServingPostgresClient,
   PostgresMvpInactiveServingReadPort,
+  copyInactiveCandidateToServingTarget,
   publishInactiveCandidateToSeparateTarget,
   type MvpServingTargetKind,
 } from "@/lib/data-platform/mvp-serving"
@@ -9,6 +10,7 @@ const CANDIDATE_ID = "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0
 const MEMBER_SET_CHECKSUM = "021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e"
 const WATERMARK = "2026-07-16T00:00:00.000Z"
 const NEON_TARGET = "neon:soft-cell-16396854/br-flat-grass-ao9rtnyr/neondb"
+const PRODUCTION_TARGET = "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb"
 const SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"])
 
 function required(name: string): string { const value = process.env[name]; if (!value) throw new Error(`MVP8L_ENV_REQUIRED:${name}`); return value }
@@ -16,10 +18,11 @@ function identity(raw: string) { const url = new URL(raw); return { database: de
 
 function sourceClient() {
   const url = required("MVP8L_SOURCE_READER_URL"), expected = identity(url)
-  return new MvpServingPostgresClient(url, "READER", process.env, "LOCAL_ISOLATED", { database: expected.database, role: expected.role })
+  const kind: MvpServingTargetKind = ["localhost", "127.0.0.1", "::1"].includes(expected.host) ? "LOCAL_ISOLATED" : "MANAGED_POSTGRES"
+  return new MvpServingPostgresClient(url, "READER", process.env, kind, { database: expected.database, role: expected.role })
 }
 
-function targetKind(): MvpServingTargetKind { return process.env.MVP_PUBLICATION_TARGET_MODE === "LOCAL_DISPOSABLE_CERTIFICATION" ? "LOCAL_DISPOSABLE_CERTIFICATION" : "MANAGED_POSTGRES" }
+function targetKind(): MvpServingTargetKind { return ["LOCAL_DISPOSABLE_CERTIFICATION", "PRODUCTION_INACTIVE_COPY_CERTIFICATION"].includes(process.env.MVP_PUBLICATION_TARGET_MODE ?? "") ? "LOCAL_DISPOSABLE_CERTIFICATION" : "MANAGED_POSTGRES" }
 function targetClient(intent: "PUBLISHER" | "READER") {
   const url = required(intent === "PUBLISHER" ? "MVP_INACTIVE_WRITER_URL" : "MVP_INACTIVE_READER_URL"), expected = identity(url)
   return new MvpServingPostgresClient(url, intent, process.env, targetKind(), { database: expected.database, role: expected.role })
@@ -40,12 +43,18 @@ async function loadSource() {
 
 async function publish() {
   const targetId = required("MVP_INACTIVE_TARGET_ID")
-  if (targetKind() === "MANAGED_POSTGRES" && targetId !== NEON_TARGET) throw new Error("MVP8L_NEON_TARGET_MISMATCH")
+  const productionCopy = process.env.MVP_PUBLICATION_TARGET_MODE === "PRODUCTION_INACTIVE_COPY"
+  if (targetKind() === "MANAGED_POSTGRES" && targetId !== (productionCopy ? PRODUCTION_TARGET : NEON_TARGET)) throw new Error("MVP8L_NEON_TARGET_MISMATCH")
   const source = await loadSource(), writer = targetClient("PUBLISHER"), reader = targetClient("READER")
   try {
     await Promise.all([writer.verify(), reader.verify()])
     const sourceIdentity = identity(required("MVP8L_SOURCE_READER_URL")), destinationIdentity = identity(required("MVP_INACTIVE_WRITER_URL"))
     if (sourceIdentity.host === destinationIdentity.host && sourceIdentity.port === destinationIdentity.port && sourceIdentity.database === destinationIdentity.database) throw new Error("MVP8L_SOURCE_DESTINATION_ALIAS_REJECTED")
+    if (productionCopy) {
+      const outcome = await copyInactiveCandidateToServingTarget(writer, reader, source.input, { targetId, expectedTargetId: PRODUCTION_TARGET, sourceTargetId: NEON_TARGET, expectedActiveExposureId: required("MVP8P_EXPECTED_ACTIVE_EXPOSURE_ID"), expectedActiveCorpusId: required("MVP8P_EXPECTED_ACTIVE_CORPUS_ID"), requestId: required("MVP8P_REQUEST_ID"), operatorId: required("MVP8P_OPERATOR_ID"), copyReason: required("MVP8P_COPY_REASON"), dryRun: process.env.MVP8P_DRY_RUN === "true" })
+      if (!outcome.review) return { status: outcome.status, candidateId: outcome.candidateId, receiptId: outcome.receiptId, exposureFingerprint: outcome.exposureFingerprint, dryRun: true }
+      return { status: outcome.status, candidateId: outcome.review.candidateId, counts: outcome.review.counts, lifecycle: outcome.review.lifecycle, exposure: outcome.review.exposure, exposureCount: outcome.review.exposureCount, memberSetChecksum: outcome.review.memberSetChecksum, manifestChecksum: outcome.review.manifestChecksum, exposureFingerprint: outcome.exposureFingerprint, receiptId: outcome.receiptId }
+    }
     const outcome = await publishInactiveCandidateToSeparateTarget(writer, reader, source.input, { targetId, expectedTargetId: targetId })
     return { status: outcome.status, candidateId: outcome.review.candidateId, counts: outcome.review.counts, lifecycle: outcome.review.lifecycle, exposure: outcome.review.exposure, exposureCount: outcome.review.exposureCount, memberSetChecksum: outcome.review.memberSetChecksum, manifestChecksum: outcome.review.manifestChecksum, exposureFingerprint: outcome.exposureFingerprint }
   } finally { await Promise.allSettled([writer.shutdown(), reader.shutdown()]) }

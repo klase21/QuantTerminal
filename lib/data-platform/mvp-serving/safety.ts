@@ -36,7 +36,7 @@ export function requireMvpServingIsolatedTarget(connectionString: string | undef
 }
 
 export function requireMvpServingDisposableTarget(connectionString: string | undefined, intent: MvpServingRoleIntent, environment: Readonly<Record<string, string | undefined>> = process.env, expected?: { readonly database: string; readonly role: string }): MvpServingTargetInspection {
-  if (environment.MVP_PUBLICATION_TARGET_MODE !== "LOCAL_DISPOSABLE_CERTIFICATION") throw new Error("MVP8L_DISPOSABLE_MODE_REQUIRED")
+  if (!["LOCAL_DISPOSABLE_CERTIFICATION", "PRODUCTION_INACTIVE_COPY_CERTIFICATION"].includes(environment.MVP_PUBLICATION_TARGET_MODE ?? "")) throw new Error("MVP8L_DISPOSABLE_MODE_REQUIRED")
   if (!connectionString || !expected) throw new Error("MVP8L_DISPOSABLE_BINDING_REQUIRED")
   let url: URL
   try { url = new URL(connectionString) } catch { throw new Error("MVP8L_DISPOSABLE_URL_INVALID") }
@@ -46,7 +46,7 @@ export function requireMvpServingDisposableTarget(connectionString: string | und
   const reasons: string[] = []
   if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost") reasons.push("MVP8L_LOOPBACK_HOST_REQUIRED")
   if (!url.port || url.port !== configuredPort) reasons.push("MVP8L_DISPOSABLE_PORT_MISMATCH")
-  if (!/^quantterminal_mvp8l_canary_[a-z0-9]+$/.test(database) || database !== configuredDatabase || database !== expected.database) reasons.push("MVP8L_DISPOSABLE_DATABASE_MISMATCH")
+  if (!/^quantterminal_mvp8[lp]_canary_[a-z0-9]+$/.test(database) || database !== configuredDatabase || database !== expected.database) reasons.push("MVP8L_DISPOSABLE_DATABASE_MISMATCH")
   if (role !== expected.role) reasons.push(`MVP8L_${intent}_ROLE_MISMATCH`)
   if (fingerprint !== environment.MVP_LOCAL_DISPOSABLE_TARGET_ID) reasons.push("MVP8L_DISPOSABLE_FINGERPRINT_MISMATCH")
   for (const key of ["DATABASE_URL", "MVP_SERVING_POSTGRES_URL", "MVP_NEON_INACTIVE_WRITER_URL", "MVP_NEON_INACTIVE_READER_URL", "MVP8J_SOURCE_READER_URL"]) if (environment[key] && environment[key] === connectionString) reasons.push(`MVP8L_MATCHES_${key}`)

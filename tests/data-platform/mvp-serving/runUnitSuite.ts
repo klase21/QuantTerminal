@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
-import { MVP_SERVING_CERTIFIED_LEGACY_CHECKSUMS, createServingCorpus, discoverMvpServingMigrations, inspectMvpServingIsolatedTarget, inspectMvpServingManagedTarget, requireMvpServingManagedAdminTarget, resolveMvpServingMode, verifyReplaySnapshot } from "@/lib/data-platform/mvp-serving"
+import { MVP_SERVING_CERTIFIED_LEGACY_CHECKSUMS, createMinimalActiveServingFixture, createServingCorpus, discoverMvpServingMigrations, inspectMvpServingIsolatedTarget, inspectMvpServingManagedTarget, requireMvpServingManagedAdminTarget, resolveMvpServingMode, verifyReplaySnapshot } from "@/lib/data-platform/mvp-serving"
 import { verifyCertifiedSnapshotBundle, type CertifiedSnapshotBundle } from "@/lib/data-platform/mvp-serving/snapshotContract"
 
 async function main() {
@@ -38,6 +38,9 @@ async function main() {
   check("expected corpus mismatch fails closed", corpusMismatchRejected)
   const corpusInput = { corpusVersion: "test", sourceCorpusId: "source", sourceCorpusChecksum: "a".repeat(64), generatedAt: "2026-07-15T00:00:00.000Z", governedThrough: "2026-07-15T00:00:00.000Z", projectionCount: 1, evidenceSummaryCount: 1, replaySnapshotCount: 1, demoProfileCount: 2, releaseInventoryCount: 3, publicationEventCount: 1, releaseDigest: "b".repeat(64) }
   check("serving corpus identity deterministic", createServingCorpus(corpusInput).corpusId === createServingCorpus(corpusInput).corpusId)
+  const minimal = createMinimalActiveServingFixture()
+  check("minimal active fixture uses official corpus contract", minimal.corpus.lifecycle === "PUBLISHED" && minimal.corpus.exposure === "CONSUMER_VISIBLE" && minimal.corpus.publicationEventCount === 1)
+  check("minimal active fixture has zero optional payloads", minimal.projections.length === 0 && minimal.evidenceSummaries.length === 0 && minimal.replaySnapshots.length === 0 && minimal.demoProfiles.length === 0 && minimal.releaseInventory.length === 0)
   const failures = checks.filter(([, pass]) => !pass)
   console.log(`MVP SERVING UNIT SUITE: ${failures.length ? "FAIL" : "PASS"}`)
   for (const [name, pass] of checks) console.log(`[${pass ? "PASS" : "FAIL"}] ${name}`)

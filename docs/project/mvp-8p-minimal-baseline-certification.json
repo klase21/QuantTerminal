@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "mvp-8p-minimal-baseline-certification/1.0.0",
+  "status": "PASS",
+  "postgresMajor": 16,
+  "seedMilliseconds": 28,
+  "baseline": {
+    "corpusCount": 1,
+    "exposureCount": 1,
+    "optionalPayloadCount": 0,
+    "activeReaderPassed": true
+  },
+  "migrations": {
+    "order": ["001", "002", "003", "004"],
+    "checksumsMatched": true,
+    "baselineChanged": false
+  },
+  "candidateCopy": {
+    "projections": 62,
+    "evidence": 6,
+    "replay": 6,
+    "members": 74,
+    "manifests": 1,
+    "candidateExposures": 0,
+    "dryRunWrites": 0,
+    "repeatStatus": "DUPLICATE"
+  },
+  "smoke": { "dashboard": "PASS", "scanner": "PASS", "tradeSymbols": 6, "replaySymbols": 6 },
+  "writerExposurePrivilege": false,
+  "productionMutation": false,
+  "vercelMutation": false
+}

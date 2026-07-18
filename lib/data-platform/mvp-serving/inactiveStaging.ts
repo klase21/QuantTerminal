@@ -75,6 +75,16 @@ export interface SeparateTargetInactivePublicationOptions {
   readonly expectedTargetId: string
 }
 
+export interface ServingTargetInactiveCopyOptions extends SeparateTargetInactivePublicationOptions {
+  readonly sourceTargetId: string
+  readonly expectedActiveExposureId: string
+  readonly expectedActiveCorpusId: string
+  readonly requestId: string
+  readonly operatorId: string
+  readonly copyReason: string
+  readonly dryRun: boolean
+}
+
 export function computeInactiveServingCandidateId(input: {
   readonly schemaVersion: string
   readonly verifiedSourceCorpusId: string
@@ -227,6 +237,21 @@ export async function publishInactiveCandidateToSeparateTarget(writer: MvpServin
   return Object.freeze({ status, review, exposureFingerprint: after })
 }
 
+export async function copyInactiveCandidateToServingTarget(writer: MvpServingPostgresClient, reader: MvpServingPostgresClient, input: InactiveServingCandidateInput, options: ServingTargetInactiveCopyOptions): Promise<{ readonly status: "DRY_RUN" | "CREATED" | "DUPLICATE"; readonly candidateId: string; readonly receiptId: string; readonly review: InactiveServingCandidateReview | null; readonly exposureFingerprint: string }> {
+  validateSeparateTargetPublicationClients(writer, reader, options)
+  if (!options.sourceTargetId || options.sourceTargetId === options.targetId) throw new Error("MVP8P_SOURCE_TARGET_INVALID")
+  if (!options.requestId.trim() || !options.operatorId.trim() || !options.copyReason.trim()) throw new Error("MVP8P_COPY_METADATA_REQUIRED")
+  const privilege = await writer.sql.unsafe<Array<{ dangerous: boolean }>>("SELECT has_table_privilege(current_user,'serving.serving_exposure','SELECT,INSERT,UPDATE,DELETE,TRUNCATE') dangerous")
+  if (privilege[0]?.dangerous !== false) throw new Error("MVP8P_WRITER_EXPOSURE_PRIVILEGE_FORBIDDEN")
+  const plan = prepareInactiveServingCandidate(input), baseline = await activeBaseline(reader.sql)
+  if (baseline.exposureId !== options.expectedActiveExposureId || baseline.corpusId !== options.expectedActiveCorpusId) throw new Error("MVP8P_ACTIVE_BASELINE_MISMATCH")
+  const before = await exposureFingerprint(reader.sql), receiptId = `mvp8p-copy:${canonicalChecksum({ requestId: options.requestId, candidateId: plan.candidateId, sourceTargetId: options.sourceTargetId, targetId: options.targetId, operatorId: options.operatorId, copyReason: options.copyReason, baseline })}`
+  if (options.dryRun) return Object.freeze({ status: "DRY_RUN", candidateId: plan.candidateId, receiptId, review: null, exposureFingerprint: before })
+  const outcome = await publishInactiveCandidateToSeparateTarget(writer, reader, input, options), afterBaseline = await activeBaseline(reader.sql)
+  if (afterBaseline.exposureId !== baseline.exposureId || afterBaseline.corpusId !== baseline.corpusId || outcome.exposureFingerprint !== before) throw new Error("MVP8P_ACTIVE_BASELINE_CHANGED")
+  return Object.freeze({ status: outcome.status, candidateId: plan.candidateId, receiptId, review: outcome.review, exposureFingerprint: outcome.exposureFingerprint })
+}
+
 export class PostgresMvpInactiveServingReadPort {
   constructor(private readonly client: MvpServingPostgresClient) {
     if (client.roleIntent !== "READER") throw new Error("MVP8I_READER_ROLE_REQUIRED")
@@ -362,11 +387,12 @@ async function readInactiveServingCandidateReview(sql: postgres.Sql | postgres.T
 async function exposureCount(sql: postgres.Sql | postgres.TransactionSql): Promise<number> { const rows = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure"); return rows[0]?.count ?? -1 }
 async function candidateExposureCount(sql: postgres.Sql | postgres.TransactionSql, candidateId: string): Promise<number> { const rows = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure WHERE corpus_id=$1", [candidateId]); return rows[0]?.count ?? -1 }
 async function exposureFingerprint(sql: postgres.Sql | postgres.TransactionSql): Promise<string> { const rows = await sql.unsafe<Record<string, unknown>[]>("SELECT exposure_id,corpus_id,exposure_state,effective_from,checksum,publication_note,created_at FROM serving.serving_exposure ORDER BY exposure_id"); return canonicalChecksum(rows) }
+async function activeBaseline(sql: postgres.Sql | postgres.TransactionSql): Promise<{ readonly exposureId: string; readonly corpusId: string }> { const rows = await sql.unsafe<Array<{ exposure_id: string; corpus_id: string }>>("SELECT exposure_id,corpus_id FROM serving.serving_exposure WHERE exposure_state='CONSUMER_VISIBLE' ORDER BY effective_from DESC,exposure_id DESC LIMIT 1"); if (!rows[0]) throw new Error("MVP8P_ACTIVE_BASELINE_MISSING"); return Object.freeze({ exposureId: rows[0].exposure_id, corpusId: rows[0].corpus_id }) }
 function validateSeparateTargetPublicationClients(writer: MvpServingPostgresClient, reader: MvpServingPostgresClient, options: SeparateTargetInactivePublicationOptions): void {
   if (writer.roleIntent !== "PUBLISHER" || reader.roleIntent !== "READER" || writer.targetKind !== reader.targetKind || !["LOCAL_DISPOSABLE_CERTIFICATION", "MANAGED_POSTGRES"].includes(writer.targetKind)) throw new Error("MVP8L_SEPARATE_TARGET_CLIENTS_REQUIRED")
   if (options.targetId !== options.expectedTargetId) throw new Error("MVP8L_TARGET_FINGERPRINT_MISMATCH")
   if (writer.targetKind === "MANAGED_POSTGRES" && !/^neon:[a-z0-9-]+\/[a-z0-9-]+\/[a-zA-Z0-9_-]+$/.test(options.targetId)) throw new Error("MVP8L_NEON_TARGET_FINGERPRINT_INVALID")
-  if (writer.targetKind === "LOCAL_DISPOSABLE_CERTIFICATION" && !/^local-postgres:(?:127\.0\.0\.1|localhost):[0-9]+\/quantterminal_mvp8l_canary_[a-z0-9]+$/.test(options.targetId)) throw new Error("MVP8L_DISPOSABLE_TARGET_FINGERPRINT_INVALID")
+  if (writer.targetKind === "LOCAL_DISPOSABLE_CERTIFICATION" && !/^local-postgres:(?:127\.0\.0\.1|localhost):[0-9]+\/quantterminal_mvp8[lp]_canary_[a-z0-9]+$/.test(options.targetId)) throw new Error("MVP8L_DISPOSABLE_TARGET_FINGERPRINT_INVALID")
   const writerUrl = new URL(writer.connectionString), readerUrl = new URL(reader.connectionString)
   if (writerUrl.hostname !== readerUrl.hostname || writerUrl.port !== readerUrl.port || writerUrl.pathname !== readerUrl.pathname || writerUrl.username === readerUrl.username || writer.connectionString === reader.connectionString) throw new Error("MVP8L_TARGET_ROLE_BINDING_INVALID")
 }
