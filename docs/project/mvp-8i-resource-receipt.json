@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "mvp-8i-resource-receipt/1.0.0",
+  "recordedAt": "2026-07-18T11:33:05+09:00",
+  "retained": {
+    "database": "quantterminal_mvp8i_serving_760697d8i1",
+    "ownerRole": "qt_mvp8i_owner_760697d8i1",
+    "readerRole": "qt_mvp8i_reader_760697d8i1",
+    "candidateId": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "containerVolumePreserved": true,
+    "networkPreserved": true
+  },
+  "removed": {
+    "disposableDatabase": true,
+    "disposableRoles": true,
+    "disposableMetadata": true
+  },
+  "temporaryCredentialFilesRemaining": 0,
+  "activeExposureCreated": false,
+  "productionMutation": false,
+  "neonMutation": false,
+  "vercelMutation": false
+}
