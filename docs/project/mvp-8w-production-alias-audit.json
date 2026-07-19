@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "mvp-8w-production-alias-audit/1.0.0",
+  "status": "PASS",
+  "project": {
+    "id": "prj_iAsTeKrqHSh9SA2AXANn9MJ17O6S",
+    "name": "quantterminal",
+    "scope": "klase21s-projects"
+  },
+  "productionAlias": "quantterminalai.vercel.app",
+  "beforeRecovery": {
+    "deploymentId": "dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR",
+    "deploymentUrl": "quantterminal-g8j7eme9j-klase21s-projects.vercel.app",
+    "target": "production",
+    "state": "READY",
+    "commitSha": "e25d227e493a5fa9b7f367ac44b1640493ae5171",
+    "aliasAssignedAt": "2026-07-19T13:11:24.900Z",
+    "mandatoryServingHealthRoute": "HTTP_404",
+    "routeAssessment": "MANDATORY_MVP_SERVING_APIS_ABSENT"
+  },
+  "cutoverStartDeployment": {
+    "deploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "deploymentUrl": "quantterminal-iwpe37rxr-klase21s-projects.vercel.app",
+    "target": "production",
+    "state": "READY",
+    "commitSha": "9017dcf4e50e8caeddbd146070c800480e3a06d1",
+    "createdAt": "2026-07-15T22:33:16.068Z",
+    "readyAt": "2026-07-15T22:35:55.244Z",
+    "mandatoryRouteAssessment": "RUNTIME_PROVEN_PRESENT"
+  },
+  "afterRecovery": {
+    "deploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "aliasAssignedAt": "2026-07-19T13:38:55.052Z",
+    "target": "production",
+    "state": "READY",
+    "effectiveCorpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "effectiveChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "sanitizedPinBindingSha256": "623b1ddf3db65486164d1eab79d2e4d1583dc977ec98761f55f0d2c7b234d842"
+  }
+}

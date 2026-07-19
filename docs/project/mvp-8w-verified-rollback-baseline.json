@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "mvp-8w-verified-rollback-baseline/1.0.0",
+  "status": "VERIFIED",
+  "verifiedAt": "2026-07-19T13:49:21.554Z",
+  "productionAlias": "quantterminalai.vercel.app",
+  "deployment": {
+    "id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "commitSha": "9017dcf4e50e8caeddbd146070c800480e3a06d1",
+    "state": "READY",
+    "target": "production"
+  },
+  "database": {
+    "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "corpusChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "rollbackExposureId": "msex_68b61cce29a9404ff7f40d914e08b18f76dd953ccc750b456a2e7002c9ed2a9a"
+  },
+  "pins": {
+    "corpusChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "sanitizedBindingSha256": "623b1ddf3db65486164d1eab79d2e4d1583dc977ec98761f55f0d2c7b234d842"
+  },
+  "receiptChecksums": {
+    "servingSmokeSha256": "caad738d225a72be7d5b7ab63938c45a97d442efc609133bd5856e41c6d93fe6",
+    "knownGoodRestorationSha256": "09a55a599a80c03a863dc033cb244c2f1890e2325a2252088c2689bd3e255a24"
+  },
+  "obsoleteDeployment": {
+    "id": "dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR",
+    "assessment": "OBSOLETE_NOT_VALID_FOR_MVP_SERVING_ROLLBACK",
+    "deleted": false
+  }
+}

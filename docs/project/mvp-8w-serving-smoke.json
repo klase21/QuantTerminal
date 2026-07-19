@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "mvp-8w-serving-smoke/1.0.0",
+  "status": "PASS",
+  "productionAlias": "quantterminalai.vercel.app",
+  "attributedDeploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "propagationProbes": [
+    {
+      "timestamp": "2026-07-19T13:39:31.747Z",
+      "httpStatus": 200,
+      "health": "HEALTHY",
+      "provider": "SERVING_POSTGRES",
+      "durationSeconds": 0.373271,
+      "xVercelId": "icn1::sin1::br8j6-1784468374508-b7d936356e5f",
+      "xVercelCache": "MISS",
+      "xMatchedPath": "/api/health/mvp-serving",
+      "server": "Vercel"
+    },
+    {
+      "timestamp": "2026-07-19T13:39:45.021Z",
+      "httpStatus": 200,
+      "health": "HEALTHY",
+      "provider": "SERVING_POSTGRES",
+      "durationSeconds": 0.304239,
+      "xVercelId": "icn1::sin1::wm488-1784468387524-79ac689dc822",
+      "xVercelCache": "MISS",
+      "xMatchedPath": "/api/health/mvp-serving",
+      "server": "Vercel"
+    },
+    {
+      "timestamp": "2026-07-19T13:39:57.928Z",
+      "httpStatus": 200,
+      "health": "HEALTHY",
+      "provider": "SERVING_POSTGRES",
+      "durationSeconds": 0.250004,
+      "xVercelId": "icn1::sin1::ps2rd-1784468400437-f0b0edeee90b",
+      "xVercelCache": "MISS",
+      "xMatchedPath": "/api/health/mvp-serving",
+      "server": "Vercel"
+    }
+  ],
+  "servingHealth": {
+    "health": "HEALTHY",
+    "provider": "SERVING_POSTGRES",
+    "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "checksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "governedThrough": "2026-07-15T00:00:00.000Z",
+    "counts": { "projections": 870, "evidence": 84, "replay": 84 }
+  },
+  "dashboard": { "status": "PASS", "httpStatus": 200, "projectionCount": 45 },
+  "scanner": { "status": "PASS", "httpStatus": 200, "projectionCount": 31 },
+  "trade": {
+    "status": "PASS",
+    "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+    "passed": 6,
+    "attemptsPerSymbol": 1
+  },
+  "replay": {
+    "status": "PASS",
+    "window": ["2026-07-11T00:00:00.000Z", "2026-07-12T00:00:00.000Z"],
+    "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+    "passed": 6,
+    "attemptsPerSymbol": 1,
+    "sampleCountsPerSymbol": { "price": 288, "openInterest": 288, "funding": 3, "flow": 48 },
+    "modelChecksums": {
+      "BTCUSDT": "14fbef053debbdcbb4c0a9799d437b0ec2e6059343d436aef8d12d968f197eaf",
+      "ETHUSDT": "bc73afdecf1d78208a9328e31072662c340d08e940805776c92548b6312e638d",
+      "SOLUSDT": "2a639447886dd7f8e5fbf3733694c74cef227130dfcd283272a591dbb8470162",
+      "BNBUSDT": "3e81025a4f78bff97d7c477c14f5e731001cdf964a9ecbedab3e4964c7ad43e0",
+      "XRPUSDT": "6268b6d9b930de7ca47f9858bb59ff749d613182ef5d4ca8ec19e6ceb5874637",
+      "DOGEUSDT": "7e445271d2dee9a861ce0f6706a4580e56e1bd13ae81d463f3ace7b114a9427a"
+    }
+  },
+  "contracts": {
+    "noDataDistinctFromZero": "PASS",
+    "unavailableUsesExplicitReason": "PASS",
+    "orderBookWebSocketInvoked": false
+  }
+}

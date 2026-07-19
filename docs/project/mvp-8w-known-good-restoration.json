@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "mvp-8w-known-good-restoration/1.0.0",
+  "status": "PASS",
+  "recoveryCondition": "PRODUCTION_ALIAS_OWNED_BY_OBSOLETE_DEPLOYMENT_WITHOUT_MANDATORY_SERVING_APIS",
+  "action": "PROMOTE_EXISTING_VERIFIED_DEPLOYMENT_ONCE",
+  "fromDeploymentId": "dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR",
+  "toDeploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "promotedAt": "2026-07-19T13:38:55.052Z",
+  "databaseWrites": 0,
+  "pinWrites": 0,
+  "newDeploymentsCreated": 0,
+  "preconditions": {
+    "knownGoodDeploymentReady": true,
+    "knownGoodCommitVerified": true,
+    "mandatoryServingRoutesRuntimeVerified": true,
+    "restoredDatabaseCorpusMatched": true,
+    "restoredPinsMatched": true
+  },
+  "result": {
+    "aliasOwner": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "health": "HEALTHY",
+    "provider": "SERVING_POSTGRES",
+    "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "corpusChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949"
+  }
+}

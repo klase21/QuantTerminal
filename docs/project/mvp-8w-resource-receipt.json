@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "mvp-8w-resource-receipt/1.0.0",
+  "status": "PASS",
+  "retained": [
+    "Production deployment dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "obsolete deployment dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR for audit only",
+    "failed-cutover deployment dpl_2N3iCNN5yYjrVjAtmp6E6zCzthxf",
+    "approved inactive candidate and all payloads",
+    "append-only activation and rollback history",
+    "production-supporting PostgreSQL in its pre-existing state"
+  ],
+  "created": ["eight sanitized MVP-8W documentation artifacts"],
+  "removed": ["temporary Production environment export", "temporary diagnostic scripts"],
+  "notModified": [".env.local", "protected operational files", "unrelated user files", "Production database corpus/exposure/pins"],
+  "secretsPersisted": false,
+  "containersStartedOrStopped": false
+}
