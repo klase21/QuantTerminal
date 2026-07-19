@@ -3,7 +3,9 @@ import "server-only"
 import { MvpConsumerProjectionFacade } from "@/lib/data-platform/consumer-projections"
 import type { ReplaySequenceModel } from "@/lib/replay-sequence"
 import { createMvpServingReaderClientFromEnvironment } from "./client"
+import { PostgresMvpInactiveServingReadPort } from "./inactiveStaging"
 import { permitsCertifiedSnapshotFallback, resolveMvpServingMode } from "./mode"
+import { createMvpServingPreviewProjectionSource, mvpServingPreviewReadAuthorizationId, resolveMvpServingPreviewCandidate, verifyMvpServingPreviewCandidate } from "./preview"
 import { PostgresMvpServingReadPort, createServingProjectionSource } from "./store"
 import { createCertifiedSnapshotProjectionSource, readCertifiedReplaySnapshot, readCertifiedSnapshotBundle } from "./snapshot"
 
@@ -11,19 +13,35 @@ export interface MvpServingRequestContext {
   readonly mode: "SERVING_POSTGRES" | "CERTIFIED_SNAPSHOT" | "LOCAL_TRUTH"
   readonly corpusId: string
   readonly checksum: string
-  readonly exposure: "CONSUMER_VISIBLE"
+  readonly exposure: "CONSUMER_VISIBLE" | "INTERNAL_ONLY"
   readonly governedThrough: string
+  readonly selection: "ACTIVE_EXPOSURE" | "PREVIEW_INACTIVE_CANDIDATE"
+  readonly transactionReadOnly: true
+  readonly previewIntegrity?: Readonly<Record<string, unknown>>
 }
 
 export async function withServingPostgresFacade<T>(work: (facade: MvpConsumerProjectionFacade, context: MvpServingRequestContext, port: PostgresMvpServingReadPort) => Promise<T>): Promise<T> {
   const client = createMvpServingReaderClientFromEnvironment()
   try {
     await client.verify()
-    const port = new PostgresMvpServingReadPort(client), corpus = await port.activeCorpus()
-    if (!corpus) throw new Error("SERVING_CORPUS_UNAVAILABLE")
-    verifyExpectedCorpus(corpus.corpusId, corpus.servingChecksum)
-    const facade = new MvpConsumerProjectionFacade(createServingProjectionSource(port, corpus), { id: corpus.corpusId, checksum: corpus.servingChecksum })
-    return await work(facade, Object.freeze({ mode: "SERVING_POSTGRES", corpusId: corpus.corpusId, checksum: corpus.servingChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: corpus.governedThrough }), port)
+    return await client.readOnlyTransaction(async (sql) => {
+      const preview = resolveMvpServingPreviewCandidate()
+      if (preview) {
+        const target = await sql.unsafe<Array<{ branch_id: string | null }>>("SELECT current_setting('neon.branch_id',true) branch_id")
+        if (target[0]?.branch_id !== "br-royal-block-aop70mzq") throw new Error("SERVING_PREVIEW_TARGET_MISMATCH")
+        const selection = await new PostgresMvpInactiveServingReadPort(client, sql).selectCandidate(preview.candidateId)
+        verifyMvpServingPreviewCandidate(selection.review, preview)
+        verifyExpectedCorpus(selection.review.candidateId, selection.review.servingChecksum)
+        const port = new PostgresMvpServingReadPort(client, sql, selection.review.candidateId)
+        const facade = new MvpConsumerProjectionFacade(createMvpServingPreviewProjectionSource(selection.review), { id: selection.review.candidateId, checksum: selection.review.servingChecksum }, { id: mvpServingPreviewReadAuthorizationId(preview) })
+        return work(facade, Object.freeze({ mode: "SERVING_POSTGRES", corpusId: selection.review.candidateId, checksum: selection.review.servingChecksum, exposure: "INTERNAL_ONLY", governedThrough: selection.review.commonWatermarkValue, selection: "PREVIEW_INACTIVE_CANDIDATE", transactionReadOnly: true, previewIntegrity: Object.freeze({ counts: selection.review.counts, memberSetChecksum: selection.review.memberSetChecksum, commonWatermarkId: selection.review.commonWatermarkId, commonWatermarkChecksum: selection.review.commonWatermarkChecksum, exposureCount: selection.review.exposureCount }) }), port)
+      }
+      const port = new PostgresMvpServingReadPort(client, sql), corpus = await port.activeCorpus()
+      if (!corpus) throw new Error("SERVING_CORPUS_UNAVAILABLE")
+      verifyExpectedCorpus(corpus.corpusId, corpus.servingChecksum)
+      const facade = new MvpConsumerProjectionFacade(createServingProjectionSource(port, corpus), { id: corpus.corpusId, checksum: corpus.servingChecksum })
+      return work(facade, Object.freeze({ mode: "SERVING_POSTGRES", corpusId: corpus.corpusId, checksum: corpus.servingChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: corpus.governedThrough, selection: "ACTIVE_EXPOSURE", transactionReadOnly: true }), port)
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (/SERVING_|CERTIFIED_SNAPSHOT_|REPLAY_SNAPSHOT_|ROLLBACK|WITHHELD|UNAUTHORIZED/.test(message)) throw error
@@ -33,7 +51,7 @@ export async function withServingPostgresFacade<T>(work: (facade: MvpConsumerPro
 
 export async function withCertifiedSnapshotFacade<T>(work: (facade: MvpConsumerProjectionFacade, context: MvpServingRequestContext) => Promise<T>): Promise<T> {
   const bundle = readCertifiedSnapshotBundle()
-  return work(new MvpConsumerProjectionFacade(createCertifiedSnapshotProjectionSource(bundle), { id: bundle.corpus.corpusId, checksum: bundle.corpus.servingChecksum }), Object.freeze({ mode: "CERTIFIED_SNAPSHOT", corpusId: bundle.corpus.corpusId, checksum: bundle.corpus.servingChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: bundle.governedThrough }))
+  return work(new MvpConsumerProjectionFacade(createCertifiedSnapshotProjectionSource(bundle), { id: bundle.corpus.corpusId, checksum: bundle.corpus.servingChecksum }), Object.freeze({ mode: "CERTIFIED_SNAPSHOT", corpusId: bundle.corpus.corpusId, checksum: bundle.corpus.servingChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: bundle.governedThrough, selection: "ACTIVE_EXPOSURE", transactionReadOnly: true }))
 }
 
 export async function readServingReplayModel(input: { readonly sourceProjectionVersionId: string; readonly instrument: string; readonly start: string; readonly end: string }): Promise<{ readonly model: ReplaySequenceModel; readonly context: MvpServingRequestContext }> {
@@ -42,7 +60,7 @@ export async function readServingReplayModel(input: { readonly sourceProjectionV
     const snapshot = readCertifiedReplaySnapshot(input)
     if (!snapshot) throw new Error("REPLAY_SNAPSHOT_MISSING")
     const bundle = readCertifiedSnapshotBundle()
-    return Object.freeze({ model: snapshot.payload, context: Object.freeze({ mode: "CERTIFIED_SNAPSHOT", corpusId: bundle.corpus.corpusId, checksum: bundle.corpus.servingChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: bundle.governedThrough }) })
+    return Object.freeze({ model: snapshot.payload, context: Object.freeze({ mode: "CERTIFIED_SNAPSHOT", corpusId: bundle.corpus.corpusId, checksum: bundle.corpus.servingChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: bundle.governedThrough, selection: "ACTIVE_EXPOSURE", transactionReadOnly: true }) })
   }
   if (mode !== "serving_postgres") throw new Error("LOCAL_TRUTH_REPLAY_MODE")
   try {
@@ -56,7 +74,7 @@ export async function readServingReplayModel(input: { readonly sourceProjectionV
     const snapshot = readCertifiedReplaySnapshot(input)
     if (!snapshot) throw new Error("REPLAY_SNAPSHOT_MISSING")
     const bundle = readCertifiedSnapshotBundle()
-    return Object.freeze({ model: snapshot.payload, context: Object.freeze({ mode: "CERTIFIED_SNAPSHOT", corpusId: bundle.corpus.corpusId, checksum: bundle.corpus.servingChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: bundle.governedThrough }) })
+    return Object.freeze({ model: snapshot.payload, context: Object.freeze({ mode: "CERTIFIED_SNAPSHOT", corpusId: bundle.corpus.corpusId, checksum: bundle.corpus.servingChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: bundle.governedThrough, selection: "ACTIVE_EXPOSURE", transactionReadOnly: true }) })
   }
 }
 
@@ -67,4 +85,4 @@ function verifyExpectedCorpus(corpusId: string, checksum: string): void {
   if (process.env.MVP_SERVING_EXPECTED_CHECKSUM && process.env.MVP_SERVING_EXPECTED_CHECKSUM !== checksum) throw new Error("SERVING_CORPUS_CHECKSUM_MISMATCH")
 }
 
-function isGovernanceFailure(error: unknown): boolean { const message = error instanceof Error ? error.message : String(error); return /CHECKSUM_MISMATCH|INVALID|WITHHELD|ROLLBACK|UNAUTHORIZED/.test(message) }
+function isGovernanceFailure(error: unknown): boolean { const message = error instanceof Error ? error.message : String(error); return /CHECKSUM_MISMATCH|INVALID|WITHHELD|ROLLBACK|UNAUTHORIZED|SERVING_PREVIEW/.test(message) }

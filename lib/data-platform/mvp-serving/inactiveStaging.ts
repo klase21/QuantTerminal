@@ -253,18 +253,18 @@ export async function copyInactiveCandidateToServingTarget(writer: MvpServingPos
 }
 
 export class PostgresMvpInactiveServingReadPort {
-  constructor(private readonly client: MvpServingPostgresClient) {
+  constructor(private readonly client: MvpServingPostgresClient, private readonly sql: postgres.Sql | postgres.TransactionSql = client.sql) {
     if (client.roleIntent !== "READER") throw new Error("MVP8I_READER_ROLE_REQUIRED")
   }
 
   async selectCandidate(candidateId: string) {
-    const review = await readInactiveServingCandidateReview(this.client.sql, candidateId)
+    const review = await readInactiveServingCandidateReview(this.sql, candidateId)
     return createInactiveServingCandidateSelection(review)
   }
 
   async exportCandidateInput(candidateId: string): Promise<InactiveServingCandidateInput> {
-    const review = await readInactiveServingCandidateReview(this.client.sql, candidateId)
-    const rows = await this.client.sql.unsafe<Array<{ manifest: unknown }>>("SELECT manifest FROM serving.serving_candidate_manifest WHERE corpus_id=$1", [candidateId])
+    const review = await readInactiveServingCandidateReview(this.sql, candidateId)
+    const rows = await this.sql.unsafe<Array<{ manifest: unknown }>>("SELECT manifest FROM serving.serving_candidate_manifest WHERE corpus_id=$1", [candidateId])
     const manifest = requireRecord(rows[0]?.manifest, "MVP8L_SOURCE_MANIFEST_MALFORMED")
     const replaySourceCorpusId = String(manifest.replaySourceCorpusId ?? ""), replaySourceCorpusChecksum = String(manifest.replaySourceCorpusChecksum ?? "")
     if (!replaySourceCorpusId || !isChecksum(replaySourceCorpusChecksum)) throw new Error("MVP8L_SOURCE_REPLAY_BINDING_INVALID")

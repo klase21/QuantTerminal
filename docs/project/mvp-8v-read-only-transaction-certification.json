@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "mvp-8v-read-only-transaction-certification/1.0.0",
+  "status": "PASS",
+  "targetFingerprint": "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb",
+  "role": "mvp_serving_reader",
+  "connectionStyle": "POOLED",
+  "outsideTransactionStateIsGate": false,
+  "managedTransaction": {
+    "mode": "READ ONLY",
+    "currentDatabase": "neondb",
+    "branchId": "br-royal-block-aop70mzq",
+    "transactionReadOnly": "on"
+  },
+  "negativePrivileges": {
+    "insert": false,
+    "update": false,
+    "delete": false,
+    "truncate": false,
+    "create": false
+  },
+  "credentialsRecorded": false
+}

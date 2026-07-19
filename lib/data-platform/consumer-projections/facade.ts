@@ -18,7 +18,7 @@ export interface ConsumerProjection {
   readonly completeness: string
   readonly limitations: readonly string[]
   readonly lifecycleState: string
-  readonly effectiveExposure: "CONSUMER_VISIBLE"
+  readonly effectiveExposure: "CONSUMER_VISIBLE" | "INTERNAL_ONLY"
   readonly projectionChecksum: string
 }
 export interface MvpConsumerBundle {
@@ -42,22 +42,22 @@ export class MvpConsumerFacadeError extends Error {
   constructor(readonly reasonCode: "ROLLBACK_ACTIVE" | "CUTOVER_NOT_AUTHORIZED" | "PROJECTION_MISSING" | "PROJECTION_WITHHELD" | "INVALID_QUERY", message: string) { super(message) }
 }
 
-function expose(value: MvpProjectionVersion): ConsumerProjection {
+function expose(value: MvpProjectionVersion, effectiveExposure: ConsumerProjection["effectiveExposure"]): ConsumerProjection {
   if (value.lifecycleState === "WITHHELD" || value.lifecycleState === "INVALID") throw new MvpConsumerFacadeError("PROJECTION_WITHHELD", `Projection ${value.projectionVersionId} is not consumer eligible.`)
   if (value.lifecycleState !== "GENERATED" || value.consumerExposureState !== "READY_FOR_CUTOVER") throw new MvpConsumerFacadeError("PROJECTION_WITHHELD", `Projection ${value.projectionVersionId} is outside the reviewed lifecycle.`)
-  return Object.freeze({ projectionId: value.projectionId, projectionVersionId: value.projectionVersionId, projectionKind: value.projectionKind, subjectId: value.subjectId, eventTimeStart: value.eventTimeStart, eventTimeEnd: value.eventTimeEnd, knowledgeTimeCutoff: value.knowledgeTimeCutoff, payload: value.structuredPayload, completeness: value.completeness, limitations: value.limitations, lifecycleState: value.lifecycleState, effectiveExposure: "CONSUMER_VISIBLE", projectionChecksum: value.projectionChecksum })
+  return Object.freeze({ projectionId: value.projectionId, projectionVersionId: value.projectionVersionId, projectionKind: value.projectionKind, subjectId: value.subjectId, eventTimeStart: value.eventTimeStart, eventTimeEnd: value.eventTimeEnd, knowledgeTimeCutoff: value.knowledgeTimeCutoff, payload: value.structuredPayload, completeness: value.completeness, limitations: value.limitations, lifecycleState: value.lifecycleState, effectiveExposure, projectionChecksum: value.projectionChecksum })
 }
 
 export class MvpConsumerProjectionFacade {
-  constructor(private readonly source: MvpConsumerProjectionSource, private readonly corpus: { readonly id: string; readonly checksum: string }) {}
+  constructor(private readonly source: MvpConsumerProjectionSource, private readonly corpus: { readonly id: string; readonly checksum: string }, private readonly previewAuthorization?: { readonly id: string }) {}
 
   async read(input: { readonly view: MvpConsumerView; readonly instrument?: MvpConsumerInstrument; readonly start?: string; readonly end?: string; readonly candidateId?: string; readonly projectionVersionId?: string }): Promise<MvpConsumerBundle> {
-    const decision = await this.source.exposure()
-    if (!decision || decision.projectionCorpusChecksum !== this.corpus.checksum) throw new MvpConsumerFacadeError("CUTOVER_NOT_AUTHORIZED", "The governed Projection corpus has no matching cutover decision.")
-    if (decision.effectiveExposure !== "CONSUMER_VISIBLE") throw new MvpConsumerFacadeError("ROLLBACK_ACTIVE", "The audited rollback decision is active.")
+    const decision = this.previewAuthorization ? null : await this.source.exposure()
+    if (!this.previewAuthorization && (!decision || decision.projectionCorpusChecksum !== this.corpus.checksum)) throw new MvpConsumerFacadeError("CUTOVER_NOT_AUTHORIZED", "The governed Projection corpus has no matching cutover decision.")
+    if (decision && decision.effectiveExposure !== "CONSUMER_VISIBLE") throw new MvpConsumerFacadeError("ROLLBACK_ACTIVE", "The audited rollback decision is active.")
     const values = await this.readView(input)
     if (!values.length) throw new MvpConsumerFacadeError("PROJECTION_MISSING", "No governed Projection matches the bounded query.")
-    return Object.freeze({ status: "AVAILABLE", view: input.view, projectionCorpusId: this.corpus.id, projectionCorpusChecksum: this.corpus.checksum, exposureDecisionId: decision.decisionId, generatedAt: values.map((value) => value.knowledgeTimeCutoff).sort().at(-1)!, projections: Object.freeze(values.map(expose)) })
+    return Object.freeze({ status: "AVAILABLE", view: input.view, projectionCorpusId: this.corpus.id, projectionCorpusChecksum: this.corpus.checksum, exposureDecisionId: decision?.decisionId ?? this.previewAuthorization!.id, generatedAt: values.map((value) => value.knowledgeTimeCutoff).sort().at(-1)!, projections: Object.freeze(values.map((value) => expose(value, this.previewAuthorization ? "INTERNAL_ONLY" : "CONSUMER_VISIBLE"))) })
   }
 
   private async readView(input: { readonly view: MvpConsumerView; readonly instrument?: MvpConsumerInstrument; readonly start?: string; readonly end?: string; readonly candidateId?: string; readonly projectionVersionId?: string }): Promise<readonly MvpProjectionVersion[]> {

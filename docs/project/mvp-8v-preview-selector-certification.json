@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "mvp-8v-preview-selector-certification/1.0.0",
+  "status": "PASS",
+  "candidateId": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "candidateChecksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "memberSetChecksum": "021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e",
+  "commonWatermarkChecksum": "a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+  "counts": {
+    "projection": 62,
+    "evidence": 6,
+    "replay": 6,
+    "members": 74,
+    "manifest": 1
+  },
+  "lifecycle": "WITHHELD",
+  "exposure": "INTERNAL_ONLY",
+  "candidateExposureCount": 0,
+  "smoke": {
+    "dashboard": "PASS",
+    "scanner": "PASS",
+    "tradeSymbolsPassed": 6,
+    "replaySymbolsPassed": 6
+  },
+  "productionDefaultSelectionChanged": false,
+  "databaseWrites": 0,
+  "credentialsRecorded": false
+}

@@ -15,7 +15,7 @@ export async function withMvpConsumerProjectionFacade<T>(work: (facade: MvpConsu
     try { return await withServingPostgresFacade((facade, context) => work(facade, context)) }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      if (!permitsCertifiedSnapshotFallback() || /CHECKSUM_MISMATCH|INVALID|WITHHELD|ROLLBACK|UNAUTHORIZED/.test(message)) throw error
+      if (!permitsCertifiedSnapshotFallback() || /CHECKSUM_MISMATCH|INVALID|WITHHELD|ROLLBACK|UNAUTHORIZED|SERVING_PREVIEW/.test(message)) throw error
       return withCertifiedSnapshotFacade(work)
     }
   }
@@ -26,6 +26,6 @@ export async function withMvpConsumerProjectionFacade<T>(work: (facade: MvpConsu
   try {
     const port = new MvpProjectionReadPort(runtime)
     const source: MvpConsumerProjectionSource = { latest: port.latest.bind(port), byVersion: port.byVersion.bind(port), list: port.list.bind(port), exposure: () => readLatestMvpProjectionExposure(runtime, corpus.projectionCorpusId) }
-    return await work(new MvpConsumerProjectionFacade(source, { id: corpus.projectionCorpusId, checksum: corpus.projectionCorpusChecksum }), Object.freeze({ mode: "LOCAL_TRUTH", corpusId: corpus.projectionCorpusId, checksum: corpus.projectionCorpusChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: "2026-07-15T00:00:00.000Z" }))
+    return await work(new MvpConsumerProjectionFacade(source, { id: corpus.projectionCorpusId, checksum: corpus.projectionCorpusChecksum }), Object.freeze({ mode: "LOCAL_TRUTH", corpusId: corpus.projectionCorpusId, checksum: corpus.projectionCorpusChecksum, exposure: "CONSUMER_VISIBLE", governedThrough: "2026-07-15T00:00:00.000Z", selection: "ACTIVE_EXPOSURE", transactionReadOnly: true }))
   } finally { await runtime.shutdown() }
 }
