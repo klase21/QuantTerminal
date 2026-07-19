@@ -1,0 +1,45 @@
+{
+  "sprint": "MVP-8Z2",
+  "status": "COMPLETE",
+  "verified_at": "2026-07-19T17:59:57.5249047Z",
+  "application": {
+    "baseline_commit": "726d90ca1bc15a1372b256b5785b564bf916a205",
+    "preview_commit": "a72f39430eea02252028921cd8d7b73d3f9067a2",
+    "branch": "epic/d2-canonical-persistence"
+  },
+  "candidate_target": {
+    "project_id": "soft-cell-16396854",
+    "branch_id": "br-flat-grass-ao9rtnyr",
+    "branch_name": "mvp-inactive-staging",
+    "database": "neondb",
+    "fingerprint": "neon:soft-cell-16396854/br-flat-grass-ao9rtnyr/neondb",
+    "role": "mvp_serving_reader",
+    "transaction_read_only": true
+  },
+  "candidate": {
+    "id": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "checksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "projection_count": 62,
+    "evidence_count": 6,
+    "replay_count": 6,
+    "manifest_member_count": 74,
+    "manifest_count": 1,
+    "candidate_exposure_count": 0,
+    "common_watermark_id": "mre_a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+    "common_watermark": "2026-07-16T00:00:00.000Z",
+    "common_watermark_checksum": "a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+    "member_set_checksum": "021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e",
+    "checksum_mismatches": 0,
+    "orphan_members": 0,
+    "duplicate_identities": 0
+  },
+  "deployment": {
+    "id": "dpl_G8z6Sd1yvktvPt41GKd9mHuEWqEw",
+    "target": "preview",
+    "state": "READY",
+    "url": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/candidate-review",
+    "stable_alias_attempt": "REJECTED_BEFORE_ASSIGNMENT_ACCOUNT_NAMESPACE_MISMATCH",
+    "production_promoted": false
+  },
+  "credentials_included": false
+}

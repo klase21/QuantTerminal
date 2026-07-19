@@ -1,0 +1,40 @@
+{
+  "sprint": "MVP-8Z2",
+  "deployment_id": "dpl_G8z6Sd1yvktvPt41GKd9mHuEWqEw",
+  "verified_at": "2026-07-19T17:59:57.5249047Z",
+  "health": {
+    "http_status": 200,
+    "attempt": 1,
+    "status": "HEALTHY",
+    "provider": "SERVING_POSTGRES",
+    "database_connectivity": "CONNECTED",
+    "reader_role_state": "READ_ONLY_TRANSACTION_VERIFIED",
+    "selection": "PREVIEW_INACTIVE_CANDIDATE",
+    "runtime_selection_policy": "PREVIEW_EXPLICIT_CANDIDATE",
+    "candidate_exposure_count": 0
+  },
+  "dashboard": { "page_http_status": 200, "api_http_status": 200, "projection_count": 43, "attempt": 1 },
+  "scanner": { "page_http_status": 200, "api_http_status": 200, "projection_count": 31, "attempt": 1 },
+  "trade": {
+    "BTCUSDT": { "http_status": 200, "projection_count": 8, "attempt": 1 },
+    "ETHUSDT": { "http_status": 200, "projection_count": 8, "attempt": 1 },
+    "SOLUSDT": { "http_status": 200, "projection_count": 8, "attempt": 1 },
+    "BNBUSDT": { "http_status": 200, "projection_count": 8, "attempt": 1 },
+    "XRPUSDT": { "http_status": 200, "projection_count": 8, "attempt": 1 },
+    "DOGEUSDT": { "http_status": 200, "projection_count": 8, "attempt": 1 }
+  },
+  "replay": {
+    "BTCUSDT": { "http_status": 200, "sample_counts": { "price": 288, "open_interest": 288, "funding": 3, "flow": 48 }, "attempt": 1 },
+    "ETHUSDT": { "http_status": 200, "sample_counts": { "price": 288, "open_interest": 288, "funding": 3, "flow": 48 }, "attempt": 1 },
+    "SOLUSDT": { "http_status": 200, "sample_counts": { "price": 288, "open_interest": 288, "funding": 3, "flow": 48 }, "attempt": 1 },
+    "BNBUSDT": { "http_status": 200, "sample_counts": { "price": 288, "open_interest": 288, "funding": 3, "flow": 48 }, "attempt": 1 },
+    "XRPUSDT": { "http_status": 200, "sample_counts": { "price": 288, "open_interest": 288, "funding": 3, "flow": 48 }, "attempt": 1 },
+    "DOGEUSDT": { "http_status": 200, "sample_counts": { "price": 288, "open_interest": 288, "funding": 3, "flow": 48 }, "attempt": 1 }
+  },
+  "contracts": {
+    "source_unavailable_explicit": true,
+    "legitimate_zero_distinct": true,
+    "database_writes": 0,
+    "banner_bundle_verified": true
+  }
+}

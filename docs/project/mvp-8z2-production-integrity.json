@@ -1,0 +1,18 @@
+{
+  "sprint": "MVP-8Z2",
+  "verified_at": "2026-07-19T17:59:57.5249047Z",
+  "before_after_match": true,
+  "alias": "quantterminalai.vercel.app",
+  "deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "deployment_state": "READY",
+  "active_corpus_id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "active_serving_checksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "latest_exposure_id": "msex_2c4d1cc8204d3abb813036f9f251ed2aa6ea0ea4b4414cc4336664cafcdfd9bc",
+  "exposure_history_count": 7,
+  "cutover_event_count": 6,
+  "counts": { "projections": 870, "evidence": 84, "replay": 84 },
+  "health": "HEALTHY",
+  "provider": "SERVING_POSTGRES",
+  "pins_unchanged": true,
+  "production_mutations_issued": 0
+}

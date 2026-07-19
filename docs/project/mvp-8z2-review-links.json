@@ -1,0 +1,26 @@
+{
+  "sprint": "MVP-8Z2",
+  "base_url": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app",
+  "access": "VERCEL_AUTHENTICATED_PREVIEW",
+  "landing": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/candidate-review",
+  "health": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/api/health/mvp-serving",
+  "dashboard": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/dashboard",
+  "scanner": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/scanner",
+  "trade": {
+    "BTCUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/trade?instrument=BTCUSDT",
+    "ETHUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/trade?instrument=ETHUSDT",
+    "SOLUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/trade?instrument=SOLUSDT",
+    "BNBUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/trade?instrument=BNBUSDT",
+    "XRPUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/trade?instrument=XRPUSDT",
+    "DOGEUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/trade?instrument=DOGEUSDT"
+  },
+  "replay_window": { "start": "2026-07-15T00:00:00.000Z", "end": "2026-07-16T00:00:00.000Z", "timestamp": "2026-07-15T00:00:00.000Z" },
+  "replay": {
+    "BTCUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/replay?instrument=BTCUSDT&start=2026-07-15T00%3A00%3A00.000Z&end=2026-07-16T00%3A00%3A00.000Z&projection=mvpv_8105e949ab2a6f0b619375fbb16fef73a0d875cedb279af57fe7afe974a067ba&timestamp=2026-07-15T00%3A00%3A00.000Z",
+    "ETHUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/replay?instrument=ETHUSDT&start=2026-07-15T00%3A00%3A00.000Z&end=2026-07-16T00%3A00%3A00.000Z&projection=mvpv_090b3381299ac7a317bd432c08a08c0956d891949df9417f2b7db61682c611d9&timestamp=2026-07-15T00%3A00%3A00.000Z",
+    "SOLUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/replay?instrument=SOLUSDT&start=2026-07-15T00%3A00%3A00.000Z&end=2026-07-16T00%3A00%3A00.000Z&projection=mvpv_ac37f0a16aca8d4095e6ab8974c3e9519ed6bcc82751df61212707e462c47124&timestamp=2026-07-15T00%3A00%3A00.000Z",
+    "BNBUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/replay?instrument=BNBUSDT&start=2026-07-15T00%3A00%3A00.000Z&end=2026-07-16T00%3A00%3A00.000Z&projection=mvpv_b6089b2dcaff6ddabd15ea0725149239ffa17244a226305ae2038cfec7dbbd68&timestamp=2026-07-15T00%3A00%3A00.000Z",
+    "XRPUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/replay?instrument=XRPUSDT&start=2026-07-15T00%3A00%3A00.000Z&end=2026-07-16T00%3A00%3A00.000Z&projection=mvpv_911d9562a8b7d549e592ab9dcfb8ebe31e30599e6f5e62e54dea20a49dd8cb02&timestamp=2026-07-15T00%3A00%3A00.000Z",
+    "DOGEUSDT": "https://quantterminal-nceoznjvu-klase21s-projects.vercel.app/replay?instrument=DOGEUSDT&start=2026-07-15T00%3A00%3A00.000Z&end=2026-07-16T00%3A00%3A00.000Z&projection=mvpv_52a13aa81e4881398d74fc4fa14374dff82e7a9487fd0c3c9867ec2cc2edc57b&timestamp=2026-07-15T00%3A00%3A00.000Z"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "sprint": "MVP-8Z2",
+  "verified_at": "2026-07-19T17:59:57.5249047Z",
+  "retained": {
+    "preview_deployment": "dpl_G8z6Sd1yvktvPt41GKd9mHuEWqEw",
+    "candidate_branch": "br-flat-grass-ao9rtnyr",
+    "candidate_database": "neondb",
+    "production_deployment": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "production_database_state": "UNCHANGED"
+  },
+  "native_approvals": {
+    "requests_issued_one_at_a_time": true,
+    "approval_log": "CODEX_NATIVE_APPROVAL_HISTORY",
+    "production_mutations": 0,
+    "mutating_action_types": [
+      "CREATE_CLEAN_TEMPORARY_GIT_WORKTREE",
+      "PUSH_PREVIEW_SCOPED_IMPLEMENTATION_COMMIT",
+      "CREATE_NON_PRODUCTION_PREVIEW_DEPLOYMENT",
+      "ATTEMPT_NON_PRODUCTION_CUSTOM_ALIAS_REJECTED_BEFORE_ASSIGNMENT"
+    ]
+  },
+  "alias_result": {
+    "requested": "cutover-candidate.quantterminalai.vercel.app",
+    "assigned": false,
+    "reason": "ACCOUNT_NAMESPACE_MISMATCH",
+    "fallback": "DEPLOYMENT_SPECIFIC_PREVIEW_URL"
+  },
+  "temporary_resources_cleanup_required": [
+    "C:/QuantTerminal/.mvp8z2-worktree"
+  ],
+  "credentials_included": false
+}
