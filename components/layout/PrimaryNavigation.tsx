@@ -40,6 +40,23 @@ const MVP_ROUTES = new Set([
   "/replay",
   "/research",
 ]);
+const CANDIDATE_REVIEW = process.env.NEXT_PUBLIC_MVP_CANDIDATE_REVIEW_MODE === "CUTOVER_CANDIDATE_2026_07_16";
+
+function CandidateReviewBanner() {
+  if (!CANDIDATE_REVIEW) return null;
+  return (
+    <section className="border-b border-amber-400 bg-[#181306] px-3 py-2 text-amber-100" aria-label="Candidate review environment">
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-x-4 gap-y-1 font-[var(--qt-font-mono)]">
+        <div>
+          <p className="text-xs font-bold">CUTOVER CANDIDATE PREVIEW</p>
+          <p className="text-[10px] font-semibold text-amber-300">2026-07-16 DATA</p>
+        </div>
+        <p className="text-[10px] font-bold">READ-ONLY · NOT PRODUCTION</p>
+        <p className="text-[9px] text-amber-200/80">fa295d3b · mvp-inactive-staging · through 2026-07-16 UTC · BTC/ETH/SOL/BNB/XRP/DOGE · reader verified</p>
+      </div>
+    </section>
+  );
+}
 
 function TerminalAppShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -154,6 +171,7 @@ function TerminalAppShellContent({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="xl:pl-[190px]">
+        <CandidateReviewBanner />
         <div className="sticky top-0 z-30 border-b border-zinc-900 bg-black/95 px-3 py-2 xl:hidden">
           <nav className="flex gap-2 overflow-x-auto">
             {NAV_ITEMS.map((item) => {

@@ -30,7 +30,7 @@ export async function withServingPostgresFacade<T>(work: (facade: MvpConsumerPro
       const preview = resolveMvpServingPreviewCandidate()
       if (preview) {
         const target = await sql.unsafe<Array<{ branch_id: string | null }>>("SELECT current_setting('neon.branch_id',true) branch_id")
-        if (target[0]?.branch_id !== "br-royal-block-aop70mzq") throw new Error("SERVING_PREVIEW_TARGET_MISMATCH")
+        if (target[0]?.branch_id !== preview.branchId) throw new Error("SERVING_PREVIEW_TARGET_MISMATCH")
         const selection = await new PostgresMvpInactiveServingReadPort(client, sql).selectCandidate(preview.candidateId, preview.retry ? { approvalId: preview.retry.approvalId, candidateChecksum: preview.candidateChecksum, targetFingerprint: preview.targetId, at: new Date().toISOString(), binding: preview.retry.binding } : undefined)
         verifyMvpServingPreviewCandidate(selection.review, preview)
         verifyExpectedCorpus(selection.review.candidateId, selection.review.servingChecksum)
