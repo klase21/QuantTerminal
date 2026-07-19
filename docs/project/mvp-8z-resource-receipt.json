@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z",
+  "implementation_commit": "6483c5c20e16242b1818ad6985acfd01014b2f56",
+  "bridge_deployment_id": "dpl_7CM1fqLM6dqzqmHDEjfGL8CJquGt",
+  "candidate_only_deployment_id": "dpl_75nfLjZwzv6xKwLEGDJuDZ9Gp9Nj",
+  "restored_deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "failed_or_superseded_deployments_retained": true,
+  "candidate_retained": true,
+  "old_corpus_retained": true,
+  "append_only_history_retained": true,
+  "production_supporting_postgresql_state": "UNCHANGED",
+  "temporary_worktree_cleanup_pending_at_receipt_creation": true,
+  "credentials_included": false
+}

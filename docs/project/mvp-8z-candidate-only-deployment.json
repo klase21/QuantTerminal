@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z",
+  "artifact_type": "candidate_only_deployment",
+  "deployment_id": "dpl_75nfLjZwzv6xKwLEGDJuDZ9Gp9Nj",
+  "commit": "6483c5c20e16242b1818ad6985acfd01014b2f56",
+  "target": "production",
+  "state": "READY",
+  "production_alias_attached": false,
+  "runtime_selection_policy": "CANDIDATE_ONLY",
+  "allowed_corpus": {
+    "corpus_id": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "checksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57"
+  },
+  "pre_activation_behavior": {
+    "old_corpus_rejected": true,
+    "result": "PASS_FAIL_CLOSED"
+  },
+  "candidate_certification": {
+    "result": "PASS",
+    "policy_tests": "PASS",
+    "read_only_application_simulation": "PASS",
+    "dashboard": "PASS",
+    "scanner": "PASS",
+    "trade_symbols": 6,
+    "replay_symbols": 6
+  },
+  "contains_credentials": false
+}

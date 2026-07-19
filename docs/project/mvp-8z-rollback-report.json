@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z",
+  "trigger": "BRIDGE_CANDIDATE_HEALTH_CONFIRMED_FAILED_AFTER_PROPAGATION_GRACE",
+  "trigger_policy_satisfied": true,
+  "rollback": {
+    "result": "COMMITTED",
+    "event_id": "mvp8s-event:6a2db72fb3d580eb91d51f39d5489749a90922eb914a6138cc302e8585c38568",
+    "exposure_id": "msex_2c4d1cc8204d3abb813036f9f251ed2aa6ea0ea4b4414cc4336664cafcdfd9bc",
+    "restored_corpus_id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "failed_activation_event_id": "mvp8s-event:826c18bfcdb01734d578108273663ce827b2a83c250eaf85e3a883fc854b9b40",
+    "failed_activation_exposure_id": "msex_530d907d8614f24678dc66be0fb8424d487833796579808012e407ce9aa0b0a2",
+    "authorization_consumed": true,
+    "append_only": true
+  },
+  "bridge_old_corpus_verification": {
+    "result": "PASS",
+    "consecutive_attributed_healthy": 3
+  },
+  "deployment_restoration": {
+    "result": "PASS",
+    "deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "consecutive_attributed_healthy": 3,
+    "full_smoke": "PASS"
+  },
+  "obsolete_deployment_used": false,
+  "credentials_included": false
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z",
+  "gate": 1,
+  "decision": "YES",
+  "decision_text": "PROCEED? YES / NO",
+  "authorized_action": "Promote only the exact bridge deployment while retaining the old active corpus, exposure, and pins.",
+  "production_alias": "quantterminalai.vercel.app",
+  "current_deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "bridge_deployment_id": "dpl_7CM1fqLM6dqzqmHDEjfGL8CJquGt",
+  "bridge_commit": "6483c5c20e16242b1818ad6985acfd01014b2f56",
+  "active_corpus_id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "latest_exposure_id": "msex_962d199601e27a0b1d6f7578389a180e5b8f810554dedf22d89e8b46fbd69d90",
+  "database_change_authorized": false,
+  "candidate_activation_authorized_by_this_gate": false,
+  "credentials_included": false
+}

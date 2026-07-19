@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z",
+  "artifact_type": "bridge_deployment",
+  "deployment_id": "dpl_7CM1fqLM6dqzqmHDEjfGL8CJquGt",
+  "commit": "6483c5c20e16242b1818ad6985acfd01014b2f56",
+  "target": "production",
+  "state": "READY",
+  "production_alias_attached": false,
+  "runtime_selection_policy": "CUTOVER_BRIDGE_EXACT_PAIR",
+  "allowed_corpora": [
+    {
+      "corpus_id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+      "checksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949"
+    },
+    {
+      "corpus_id": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+      "checksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57"
+    }
+  ],
+  "old_corpus_smoke": {
+    "result": "PASS",
+    "health": "HEALTHY",
+    "provider": "SERVING_POSTGRES",
+    "dashboard": 45,
+    "scanner": 31,
+    "trade_symbols": 6,
+    "replay_symbols": 6,
+    "replay_shape_per_symbol": "288/288/3/48",
+    "no_data_and_unavailable_contract": "PASS"
+  },
+  "candidate_read_only_simulation": {
+    "result": "PASS",
+    "dashboard": "PASS",
+    "scanner": "PASS",
+    "trade_symbols": 6,
+    "replay_symbols": 6,
+    "candidate_exposure_created": false
+  },
+  "contains_credentials": false
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z",
+  "candidate_only_production_promotion": "NOT_PERFORMED_DUE_TO_BRIDGE_CANDIDATE_HEALTH_FAILURE",
+  "restored_deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "production_alias": "quantterminalai.vercel.app",
+  "propagation_health": {
+    "result": "PASS",
+    "consecutive_attributed_healthy": 3,
+    "selected_old_corpus": true
+  },
+  "mandatory_smoke": {
+    "result": "PASS",
+    "health": "HEALTHY",
+    "provider": "SERVING_POSTGRES",
+    "dashboard_projection_count": 45,
+    "scanner_projection_count": 31,
+    "trade_symbols_passed": 6,
+    "trade_projection_count_per_symbol": 8,
+    "replay_symbols_passed": 6,
+    "replay_shape_per_symbol": "288/288/3/48",
+    "governed_through": "2026-07-15T00:00:00.000Z",
+    "no_data_contract": "PASS",
+    "unavailable_contract": "PASS",
+    "all_first_attempt": true,
+    "all_responses_attributed_to_restored_deployment": true
+  },
+  "credentials_included": false
+}

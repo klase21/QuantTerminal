@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "mvp-8z-runtime-identities/1.0.0",
+  "createdAt": "2026-07-19T16:03:12.881Z",
+  "expiresAt": "2026-07-21T16:03:12.881Z",
+  "implementationCommit": "6483c5c20e16242b1818ad6985acfd01014b2f56",
+  "operatorId": "jay-local-operator",
+  "approvalId": "mvp8s-approval:55963eabf94c3b1ccca7ece5c1ff7bc2f32e30e1186a021067ecf46a035b491e",
+  "approvalChecksum": "55963eabf94c3b1ccca7ece5c1ff7bc2f32e30e1186a021067ecf46a035b491e",
+  "approvalRequestId": "mvp8s-retry-approval-request:8e9612d70a526ee23c59751aad9067a3c93d711f1028ac1e20413892ee7bce02",
+  "activationAuthorizationId": "mvp8s-authorization:fe9ac3173fcddec9fec5f2fc06f4a4af3f2b6b184f0e01242c5c277ce03e2730",
+  "activationRequestId": "mvp8s-bridge-activation-request:a665137b99b4885378f155bf4f8946321fd2df3089a7718ac4e8bb75b1edf3df",
+  "predictedActivationEventId": "mvp8s-event:826c18bfcdb01734d578108273663ce827b2a83c250eaf85e3a883fc854b9b40",
+  "predictedActivationExposureId": "msex_530d907d8614f24678dc66be0fb8424d487833796579808012e407ce9aa0b0a2",
+  "activationDryRun": "PASS_ZERO_WRITES",
+  "rollbackAuthorizationId": "mvp8s-authorization:da271d029cd8bdd3bdeaaaa10f8f81d30ccb3a0c502c72d5cc67be6a1567074f",
+  "rollbackRequestId": "mvp8s-bridge-rollback-request:904e2e03429d75072418e9ef196298948e2875790c8f307c8993de6c52756660",
+  "currentRollbackExposureId": "msex_962d199601e27a0b1d6f7578389a180e5b8f810554dedf22d89e8b46fbd69d90",
+  "rollbackDeploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "bridgePolicyArtifactChecksum": "823c6f2164634a26b59ff25634cd7b6b507849631a28d0efabe2d940e7b84fff",
+  "authorizationConsumptionCount": 0,
+  "databaseSelectionChanged": false,
+  "credentialsIncluded": false
+}
