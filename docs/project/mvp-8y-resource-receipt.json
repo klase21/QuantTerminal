@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "mvp-8y-resource-receipt/1.0.0",
+  "status": "DISPOSABLE_CERTIFICATION_COMPLETE",
+  "disposable": {
+    "container": "qt-mvp8y-0ee7ca04e4-pg",
+    "network": "qt-mvp8y-0ee7ca04e4-net",
+    "volume": "qt-mvp8y-0ee7ca04e4-vol",
+    "database": "quantterminal_mvp8y_canary_0ee7ca04e4",
+    "host": "127.0.0.1",
+    "port": 63267,
+    "cleanupComplete": true
+  },
+  "credentialsPersisted": false,
+  "productionDatabaseWrites": 0,
+  "vercelWrites": 0
+}

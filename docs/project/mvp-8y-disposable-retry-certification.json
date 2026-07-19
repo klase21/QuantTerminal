@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "mvp-8y-disposable-retry-certification/1.0.0",
+  "status": "PASS",
+  "target": "local-postgres:127.0.0.1:63267/quantterminal_mvp8y_canary_0ee7ca04e4",
+  "migrations": ["001", "002", "003", "004", "005"],
+  "migration006Required": false,
+  "sourceAccess": "READ_ONLY",
+  "history": {
+    "initialExposure": "OLD_CORPUS",
+    "firstActivation": "CANDIDATE",
+    "firstRollback": "OLD_CORPUS",
+    "secondActivation": "CANDIDATE",
+    "secondRollback": "OLD_CORPUS"
+  },
+  "finalCounts": {
+    "exposures": 5,
+    "events": 4,
+    "approvals": 2,
+    "authorizations": 4,
+    "consumptions": 4,
+    "candidateHistoricalExposures": 2
+  },
+  "certifications": {
+    "retryApproval": "PASS",
+    "secondActivationDryRunZeroWrites": "PASS",
+    "secondActivationAppendOnly": "PASS",
+    "secondActivationIdempotency": "PASS",
+    "secondRollbackDryRunZeroWrites": "PASS",
+    "secondRollbackAppendOnly": "PASS",
+    "secondRollbackIdempotency": "PASS",
+    "currentlySelectedCandidateRejected": "PASS",
+    "staleRollbackBaselineRejected": "PASS",
+    "previewRetrySelection": "PASS",
+    "defaultSelectionRestored": "PASS"
+  },
+  "productionWrites": 0
+}

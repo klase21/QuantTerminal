@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "mvp-8y-retry-lineage-certification/1.0.0",
+  "status": "CERTIFIED_DISPOSABLE",
+  "predicate": "isCandidateSafelyRolledBackAndRetryable",
+  "accepts": {
+    "neverActivatedThroughOriginalPath": true,
+    "fullyRolledBackCandidateThroughRetryPath": true
+  },
+  "requires": [
+    "candidate-not-currently-selected",
+    "one-activation-event-per-candidate-exposure",
+    "one-later-rollback-event-per-activation",
+    "authorization-consumption-per-event",
+    "event-checksum-integrity",
+    "current-rollback-exposure-CAS",
+    "rollback-corpus-checksum-binding",
+    "fresh-cryptographically-bound-retry-approval"
+  ],
+  "historicalMutation": false,
+  "genericPreviouslyExposedCandidateBypass": false
+}

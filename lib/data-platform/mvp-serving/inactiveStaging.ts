@@ -1,4 +1,5 @@
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
+import { verifyRolledBackRetryApproval, type RolledBackCandidateRetryBinding } from "./cutoverControl"
 import { verifyMvpProjection, type MvpProjectionVersion } from "@/lib/data-platform/evidence-platform"
 import type postgres from "postgres"
 import type { MvpServingPostgresClient } from "./client"
@@ -54,7 +55,7 @@ export interface InactiveServingCandidateReview {
   readonly servingChecksum: string
   readonly lifecycle: "WITHHELD"
   readonly exposure: "INTERNAL_ONLY"
-  readonly exposureCount: 0
+  readonly exposureCount: number
   readonly commonWatermarkId: string
   readonly commonWatermarkValue: string
   readonly commonWatermarkChecksum: string
@@ -257,8 +258,9 @@ export class PostgresMvpInactiveServingReadPort {
     if (client.roleIntent !== "READER") throw new Error("MVP8I_READER_ROLE_REQUIRED")
   }
 
-  async selectCandidate(candidateId: string) {
-    const review = await readInactiveServingCandidateReview(this.sql, candidateId)
+  async selectCandidate(candidateId: string, retry?: { readonly approvalId: string; readonly candidateChecksum: string; readonly targetFingerprint: string; readonly at: string; readonly binding: RolledBackCandidateRetryBinding }) {
+    if (retry) await verifyRolledBackRetryApproval(this.sql, { approvalId: retry.approvalId, candidateId, candidateChecksum: retry.candidateChecksum, targetFingerprint: retry.targetFingerprint, at: retry.at, retry: retry.binding })
+    const review = await readInactiveServingCandidateReview(this.sql, candidateId, undefined, retry ? 1 : 0)
     return createInactiveServingCandidateSelection(review)
   }
 
@@ -340,7 +342,7 @@ async function verifyMemberReadback(sql: postgres.Sql | postgres.TransactionSql,
   if (members.length !== plan.counts.members || canonicalChecksum(members.map(memberIdentity)) !== plan.memberSetChecksum) throw new Error("MVP8I_MEMBER_SET_READBACK_MISMATCH")
 }
 
-async function readInactiveServingCandidateReview(sql: postgres.Sql | postgres.TransactionSql, candidateId: string, expected?: InactiveServingCandidatePlan): Promise<InactiveServingCandidateReview> {
+async function readInactiveServingCandidateReview(sql: postgres.Sql | postgres.TransactionSql, candidateId: string, expected?: InactiveServingCandidatePlan, allowedHistoricalExposureCount = 0): Promise<InactiveServingCandidateReview> {
   if (!/^mvp8i-candidate:[0-9a-f]{64}$/.test(candidateId)) throw new Error("MVP8I_CANDIDATE_ID_INVALID")
   const [corpusRows, manifestRows] = await Promise.all([
     sql.unsafe<Record<string, unknown>[]>("SELECT * FROM serving.serving_corpus WHERE corpus_id=$1", [candidateId]),
@@ -375,13 +377,13 @@ async function readInactiveServingCandidateReview(sql: postgres.Sql | postgres.T
   if (verifiedSource.corpusId !== manifest.verifiedSourceCorpusId || verifiedSource.checksum !== manifest.verifiedSourceCorpusChecksum) throw new Error("MVP8I_VERIFIED_SOURCE_CHECKSUM_MISMATCH")
   const recomputedId = computeInactiveServingCandidateId({ schemaVersion: String(manifest.schemaVersion), verifiedSourceCorpusId: verifiedSource.corpusId, verifiedSourceCorpusChecksum: verifiedSource.checksum, bindings: { commonWatermarkId, commonWatermarkValue, commonWatermarkChecksum }, counts: MVP_INACTIVE_SERVING_STAGE_COUNTS, members })
   if (recomputedId !== candidateId || String(corpus.serving_checksum) !== candidateId.slice("mvp8i-candidate:".length)) throw new Error("MVP8I_CANDIDATE_IDENTITY_MISMATCH")
-  if (exposures[0]?.count !== 0) throw new Error("MVP8I_ZERO_EXPOSURE_VIOLATED")
+  if (exposures[0]?.count !== allowedHistoricalExposureCount) throw new Error(allowedHistoricalExposureCount ? "MVP8Y_RETRY_EXPOSURE_HISTORY_INVALID" : "MVP8I_ZERO_EXPOSURE_VIOLATED")
   if (expected) {
     await verifyPayloadReadback(sql, planStub)
     await verifyMemberReadback(sql, planStub)
     if (expected.manifestChecksum !== manifestChecksum) throw new Error("MVP8I_EXPECTED_MANIFEST_MISMATCH")
   }
-  return Object.freeze({ candidateId, servingChecksum: String(corpus.serving_checksum), lifecycle: "WITHHELD", exposure: "INTERNAL_ONLY", exposureCount: 0, commonWatermarkId, commonWatermarkValue, commonWatermarkChecksum, memberSetChecksum, manifestChecksum, counts: MVP_INACTIVE_SERVING_STAGE_COUNTS, projections, evidenceSummaries, replaySnapshots })
+  return Object.freeze({ candidateId, servingChecksum: String(corpus.serving_checksum), lifecycle: "WITHHELD", exposure: "INTERNAL_ONLY", exposureCount: allowedHistoricalExposureCount, commonWatermarkId, commonWatermarkValue, commonWatermarkChecksum, memberSetChecksum, manifestChecksum, counts: MVP_INACTIVE_SERVING_STAGE_COUNTS, projections, evidenceSummaries, replaySnapshots })
 }
 
 async function exposureCount(sql: postgres.Sql | postgres.TransactionSql): Promise<number> { const rows = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure"); return rows[0]?.count ?? -1 }
@@ -391,7 +393,7 @@ async function activeBaseline(sql: postgres.Sql | postgres.TransactionSql): Prom
 export function validateSeparateTargetPublicationFingerprint(targetKind: MvpServingPostgresClient["targetKind"], targetId: string, expectedTargetId: string): void {
   if (targetId !== expectedTargetId) throw new Error("MVP8L_TARGET_FINGERPRINT_MISMATCH")
   if (targetKind === "MANAGED_POSTGRES" && !/^neon:[a-z0-9-]+\/[a-z0-9-]+\/[a-zA-Z0-9_-]+$/.test(targetId)) throw new Error("MVP8L_NEON_TARGET_FINGERPRINT_INVALID")
-  if (targetKind === "LOCAL_DISPOSABLE_CERTIFICATION" && !/^local-postgres:(?:127\.0\.0\.1|localhost):[0-9]+\/quantterminal_mvp8(?:[lp]|s)_canary_[a-z0-9]+$/.test(targetId)) throw new Error("MVP_DISPOSABLE_TARGET_FINGERPRINT_INVALID")
+  if (targetKind === "LOCAL_DISPOSABLE_CERTIFICATION" && !/^local-postgres:(?:127\.0\.0\.1|localhost):[0-9]+\/quantterminal_mvp8(?:[lp]|s|y)_canary_[a-z0-9]+$/.test(targetId)) throw new Error("MVP_DISPOSABLE_TARGET_FINGERPRINT_INVALID")
 }
 
 function validateSeparateTargetPublicationClients(writer: MvpServingPostgresClient, reader: MvpServingPostgresClient, options: SeparateTargetInactivePublicationOptions): void {

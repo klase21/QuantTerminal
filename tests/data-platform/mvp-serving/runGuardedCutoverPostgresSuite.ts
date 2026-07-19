@@ -23,7 +23,7 @@ if (!metaPath || !sourceUrlPath) throw new Error("MVP8S_CERTIFICATION_INPUT_PATH
 const meta = JSON.parse(await readFile(metaPath, "utf8")) as { database: string; port: string; password: string }
 const sourceUrl = (await readFile(sourceUrlPath, "utf8")).trim()
 const host = "127.0.0.1", targetId = `local-postgres:${host}:${meta.port}/${meta.database}`
-const environment = Object.freeze({ MVP_PUBLICATION_TARGET_MODE: "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION", MVP_LOCAL_DISPOSABLE_HOST: host, MVP_LOCAL_DISPOSABLE_PORT: meta.port, MVP_LOCAL_DISPOSABLE_DATABASE: meta.database, MVP_LOCAL_DISPOSABLE_TARGET_ID: targetId, MVP8J_SOURCE_READER_URL: sourceUrl })
+const environment = Object.freeze({ MVP_PUBLICATION_TARGET_MODE: meta.database.startsWith("quantterminal_mvp8y_canary_") ? "MVP8Y_LOCAL_DISPOSABLE_CERTIFICATION" : "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION", MVP_LOCAL_DISPOSABLE_HOST: host, MVP_LOCAL_DISPOSABLE_PORT: meta.port, MVP_LOCAL_DISPOSABLE_DATABASE: meta.database, MVP_LOCAL_DISPOSABLE_TARGET_ID: targetId, MVP8J_SOURCE_READER_URL: sourceUrl })
 const password = randomBytes(24).toString("base64url")
 const url = (role: string, secret = password) => `postgresql://${role}:${encodeURIComponent(secret)}@${host}:${meta.port}/${meta.database}`
 const owner = new MvpServingPostgresClient(url("qt_mvp8s_owner", meta.password), "MIGRATION_OWNER", environment, "LOCAL_DISPOSABLE_CERTIFICATION", { database: meta.database, role: "qt_mvp8s_owner" })
@@ -98,7 +98,7 @@ try {
   assert.equal(activation.status, "COMMITTED")
   assert.equal((await readPort.activeCorpus())?.corpusId, CANDIDATE_ID)
   assert.equal((await plane.activateServingCandidateGuarded({ ...activationInput, dryRun: false })).status, "DUPLICATE")
-  await assert.rejects(() => plane.activateServingCandidateGuarded({ ...activationInput, requestId: `${activationRequestId}-conflict`, authorizationId: activationAuthorization.authorizationId, dryRun: false }), /MVP8S_CANDIDATE_NOT_INACTIVE|MVP8S_AUTHORIZATION_INVALID_OR_CONSUMED/)
+  await assert.rejects(() => plane.activateServingCandidateGuarded({ ...activationInput, requestId: `${activationRequestId}-conflict`, authorizationId: activationAuthorization.authorizationId, dryRun: false }), /MVP8Y_RETRY_APPROVAL_REQUIRED|MVP8S_AUTHORIZATION_INVALID_OR_CONSUMED/)
 
   const rollbackInput = { activationEventId: activation.eventId, expectedActiveExposureId: activation.exposureId, expectedActiveCandidateId: CANDIDATE_ID, rollbackTargetExposureId: oldExposure.exposureId, rollbackTargetCorpusId: fixture.corpus.corpusId, rollbackTargetCorpusChecksum: fixture.corpus.servingChecksum, operatorId: OPERATOR, authorizationId: rollbackAuthorization.authorizationId, rollbackReason: "MVP-8S disposable rollback", requestId: rollbackRequestId, targetFingerprint: targetId, effectiveAt: "2026-07-19T01:20:00.000Z", dryRun: true }
   const rollbackDryRun = await plane.rollbackServingExposureGuarded(rollbackInput)
@@ -107,13 +107,45 @@ try {
   assert.equal(rollback.status, "COMMITTED")
   assert.equal((await plane.rollbackServingExposureGuarded({ ...rollbackInput, dryRun: false })).status, "DUPLICATE")
   assert.equal((await readPort.activeCorpus())?.corpusId, fixture.corpus.corpusId)
+
+  const retry = Object.freeze({ priorActivationEventId: activation.eventId, priorRollbackEventId: rollback.eventId, currentRollbackExposureId: rollback.exposureId, rollbackCorpusId: fixture.corpus.corpusId, rollbackCorpusChecksum: fixture.corpus.servingChecksum, rollbackDeploymentId: "dpl_disposable_rollback", rollbackPinChecksum: fixture.corpus.servingChecksum })
+  const retryCreatedAt = "2026-07-19T01:30:00.000Z", retryExpiresAt = "2026-07-19T04:00:00.000Z"
+  const retryApprovalRequestId = createCutoverRequestId("retry-approval", { candidateId: CANDIDATE_ID, rollbackEventId: rollback.eventId, rollbackExposureId: rollback.exposureId })
+  const retryApprovalInput = { ...approvalInput, reviewedCommit: "3c8fa17f17a20934de765bbf642225661512b8d7", approvalReason: "MVP-8Y propagation-aware retry of fully rolled-back candidate", requestId: retryApprovalRequestId, createdAt: retryCreatedAt, expiresAt: retryExpiresAt, retry }
+  await assert.rejects(() => plane.approveServingCandidateForCutover({ ...retryApprovalInput, requestId: `${retryApprovalRequestId}-initial-path` }), /MVP8S_CANDIDATE_NOT_INACTIVE/)
+  const retryApproval = await plane.approveRolledBackServingCandidateForRetry(retryApprovalInput)
+  assert.equal(retryApproval.eligibility, "ELIGIBLE_FOR_CUTOVER")
+  assert.equal((await plane.approveRolledBackServingCandidateForRetry(retryApprovalInput)).status, "DUPLICATE")
+  const retrySelection = await new PostgresMvpInactiveServingReadPort(reader).selectCandidate(CANDIDATE_ID, { approvalId: retryApproval.approvalId, candidateChecksum: CANDIDATE_CHECKSUM, targetFingerprint: targetId, at: retryCreatedAt, binding: retry })
+  assert.equal(retrySelection.review.exposureCount, 1)
+  assert.equal((await retrySelection.dashboard()).status, "AVAILABLE_INTERNAL")
+
+  const retryActivationRequestId = createCutoverRequestId("retry-activation", { candidateId: CANDIDATE_ID, rollbackExposureId: rollback.exposureId })
+  const retryActivationAuthorizationInput = { ...activationAuthorizationInput, approvalId: retryApproval.approvalId, expectedCurrentExposureId: rollback.exposureId, rollbackExposureId: rollback.exposureId, requestId: createCutoverRequestId("retry-activation-authorization", { retryActivationRequestId }), createdAt: retryCreatedAt, expiresAt: retryExpiresAt }
+  const retryActivationAuthorization = await plane.createServingCutoverAuthorization(retryActivationAuthorizationInput)
+  const retryActivationInput = { ...activationInput, expectedCurrentExposureId: rollback.exposureId, authorizationId: retryActivationAuthorization.authorizationId, activationReason: "MVP-8Y disposable retry activation", requestId: retryActivationRequestId, effectiveAt: "2026-07-19T01:40:00.000Z", dryRun: true, retry }
+  const retryActivationDryRun = await plane.activateServingCandidateGuarded(retryActivationInput)
+  assert.equal(retryActivationDryRun.status, "DRY_RUN")
+  const retryRollbackRequestId = createCutoverRequestId("retry-rollback", { activationEventId: retryActivationDryRun.eventId, rollbackExposureId: rollback.exposureId })
+  const retryRollbackAuthorizationInput = { ...rollbackAuthorizationInput, approvalId: retryApproval.approvalId, expectedCurrentExposureId: retryActivationDryRun.exposureId, rollbackExposureId: rollback.exposureId, relatedActivationEventId: retryActivationDryRun.eventId, requestId: createCutoverRequestId("retry-rollback-authorization", { retryRollbackRequestId }), createdAt: retryCreatedAt, expiresAt: retryExpiresAt }
+  const retryRollbackAuthorization = await plane.createServingCutoverAuthorization(retryRollbackAuthorizationInput)
+  const retryActivation = await plane.activateServingCandidateGuarded({ ...retryActivationInput, dryRun: false })
+  assert.equal(retryActivation.status, "COMMITTED")
+  assert.equal((await readPort.activeCorpus())?.corpusId, CANDIDATE_ID)
+  await assert.rejects(() => plane.approveRolledBackServingCandidateForRetry({ ...retryApprovalInput, requestId: `${retryApprovalRequestId}-while-active` }), /MVP8Y_CANDIDATE_CURRENTLY_SELECTED/)
+  const retryRollbackInput = { ...rollbackInput, activationEventId: retryActivation.eventId, expectedActiveExposureId: retryActivation.exposureId, rollbackTargetExposureId: rollback.exposureId, authorizationId: retryRollbackAuthorization.authorizationId, rollbackReason: "MVP-8Y disposable retry rollback", requestId: retryRollbackRequestId, effectiveAt: "2026-07-19T01:50:00.000Z", dryRun: true }
+  assert.equal((await plane.rollbackServingExposureGuarded(retryRollbackInput)).status, "DRY_RUN")
+  const retryRollback = await plane.rollbackServingExposureGuarded({ ...retryRollbackInput, dryRun: false })
+  assert.equal(retryRollback.status, "COMMITTED")
+  assert.equal((await plane.rollbackServingExposureGuarded({ ...retryRollbackInput, dryRun: false })).status, "DUPLICATE")
+  assert.equal((await readPort.activeCorpus())?.corpusId, fixture.corpus.corpusId)
   const final = await owner.sql.unsafe<Array<{ exposures: number; events: number; approvals: number; authorizations: number; consumptions: number; candidate_exposures: number }>>("SELECT (SELECT count(*)::int FROM serving.serving_exposure) exposures,(SELECT count(*)::int FROM serving_control.cutover_event) events,(SELECT count(*)::int FROM serving_control.cutover_approval) approvals,(SELECT count(*)::int FROM serving_control.cutover_authorization) authorizations,(SELECT count(*)::int FROM serving_control.cutover_authorization_consumption) consumptions,(SELECT count(*)::int FROM serving.serving_exposure WHERE corpus_id=$1) candidate_exposures", [CANDIDATE_ID])
-  assert.deepEqual(final[0], { exposures: 3, events: 2, approvals: 1, authorizations: 2, consumptions: 2, candidate_exposures: 1 })
+  assert.deepEqual(final[0], { exposures: 5, events: 4, approvals: 2, authorizations: 4, consumptions: 4, candidate_exposures: 2 })
   await assert.rejects(() => copy.sql.unsafe("INSERT INTO serving.serving_exposure SELECT * FROM serving.serving_exposure LIMIT 1"), /permission denied/)
   await assert.rejects(() => reader.sql.unsafe("INSERT INTO serving.serving_corpus SELECT * FROM serving.serving_corpus LIMIT 1"), /read-only|permission denied/)
   const computedRollbackAuthorization = computeCutoverAuthorization(rollbackAuthorizationInput)
   assert.equal(computedRollbackAuthorization.authorizationId, rollbackAuthorization.authorizationId)
-  process.stdout.write(JSON.stringify({ status: "PASS", targetId, migrations: migrations.map((value) => ({ id: value.migrationId, checksum: value.checksum })), counts: final[0], activation: { eventId: activation.eventId, exposureId: activation.exposureId }, rollback: { eventId: rollback.eventId, exposureId: rollback.exposureId }, oldCorpusId: fixture.corpus.corpusId }))
+  process.stdout.write(JSON.stringify({ status: "PASS", targetId, migrations: migrations.map((value) => ({ id: value.migrationId, checksum: value.checksum })), counts: final[0], activation: { eventId: activation.eventId, exposureId: activation.exposureId }, rollback: { eventId: rollback.eventId, exposureId: rollback.exposureId }, retryActivation: { eventId: retryActivation.eventId, exposureId: retryActivation.exposureId }, retryRollback: { eventId: retryRollback.eventId, exposureId: retryRollback.exposureId }, oldCorpusId: fixture.corpus.corpusId }))
 } finally {
   await Promise.allSettled(clients.map((client) => client.shutdown()))
 }

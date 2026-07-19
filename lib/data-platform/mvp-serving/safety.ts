@@ -37,9 +37,11 @@ export function requireMvpServingIsolatedTarget(connectionString: string | undef
 
 export function requireMvpServingDisposableTarget(connectionString: string | undefined, intent: MvpServingRoleIntent, environment: Readonly<Record<string, string | undefined>> = process.env, expected?: { readonly database: string; readonly role: string }): MvpServingTargetInspection {
   const mode = environment.MVP_PUBLICATION_TARGET_MODE ?? ""
-  const mvp8s = mode === "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION" || Boolean(expected?.database.startsWith("quantterminal_mvp8s_canary_"))
-  const code = (suffix: string) => `${mvp8s ? "MVP8S" : "MVP8L"}_${suffix}`
-  if (!["LOCAL_DISPOSABLE_CERTIFICATION", "PRODUCTION_INACTIVE_COPY_CERTIFICATION", "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION"].includes(mode)) throw new Error(code("DISPOSABLE_MODE_REQUIRED"))
+  const mvp8y = mode === "MVP8Y_LOCAL_DISPOSABLE_CERTIFICATION" || Boolean(expected?.database.startsWith("quantterminal_mvp8y_canary_"))
+  const mvp8s = !mvp8y && (mode === "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION" || Boolean(expected?.database.startsWith("quantterminal_mvp8s_canary_")))
+  const prefix = mvp8y ? "MVP8Y" : mvp8s ? "MVP8S" : "MVP8L"
+  const code = (suffix: string) => `${prefix}_${suffix}`
+  if (!["LOCAL_DISPOSABLE_CERTIFICATION", "PRODUCTION_INACTIVE_COPY_CERTIFICATION", "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION", "MVP8Y_LOCAL_DISPOSABLE_CERTIFICATION"].includes(mode)) throw new Error(code("DISPOSABLE_MODE_REQUIRED"))
   if (!connectionString || !expected) throw new Error(code("DISPOSABLE_BINDING_REQUIRED"))
   let url: URL
   try { url = new URL(connectionString) } catch { throw new Error(code("DISPOSABLE_URL_INVALID")) }
@@ -49,12 +51,12 @@ export function requireMvpServingDisposableTarget(connectionString: string | und
   const reasons: string[] = []
   if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost") reasons.push(code("LOOPBACK_HOST_REQUIRED"))
   if (!url.port || url.port !== configuredPort) reasons.push(code("DISPOSABLE_PORT_MISMATCH"))
-  const databasePattern = mode === "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION" ? /^quantterminal_mvp8s_canary_[a-z0-9]+$/ : /^quantterminal_mvp8[lp]_canary_[a-z0-9]+$/
-  if (!databasePattern.test(database) || database !== configuredDatabase || database !== expected.database) reasons.push(mode === "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION" ? "MVP8S_DISPOSABLE_DATABASE_MISMATCH" : "MVP8L_DISPOSABLE_DATABASE_MISMATCH")
+  const databasePattern = mvp8y ? /^quantterminal_mvp8y_canary_[a-z0-9]+$/ : mvp8s ? /^quantterminal_mvp8s_canary_[a-z0-9]+$/ : /^quantterminal_mvp8[lp]_canary_[a-z0-9]+$/
+  if (!databasePattern.test(database) || database !== configuredDatabase || database !== expected.database) reasons.push(code("DISPOSABLE_DATABASE_MISMATCH"))
   if (role !== expected.role) reasons.push(code(`${intent}_ROLE_MISMATCH`))
-  if (fingerprint !== environment.MVP_LOCAL_DISPOSABLE_TARGET_ID) reasons.push(mode === "MVP8S_LOCAL_DISPOSABLE_CERTIFICATION" ? "MVP8S_DISPOSABLE_FINGERPRINT_MISMATCH" : "MVP8L_DISPOSABLE_FINGERPRINT_MISMATCH")
+  if (fingerprint !== environment.MVP_LOCAL_DISPOSABLE_TARGET_ID) reasons.push(code("DISPOSABLE_FINGERPRINT_MISMATCH"))
   for (const key of ["DATABASE_URL", "MVP_SERVING_POSTGRES_URL", "MVP_NEON_INACTIVE_WRITER_URL", "MVP_NEON_INACTIVE_READER_URL", "MVP8J_SOURCE_READER_URL"]) if (environment[key] && environment[key] === connectionString) reasons.push(code(`MATCHES_${key}`))
-  if (reasons.length) throw new Error(`UNSAFE_${mvp8s ? "MVP8S" : "MVP8L"}_DISPOSABLE_TARGET:${reasons.join(",")}`)
+  if (reasons.length) throw new Error(`UNSAFE_${prefix}_DISPOSABLE_TARGET:${reasons.join(",")}`)
   return Object.freeze({ safe: true, redactedTarget: fingerprint, database, role, reasons: Object.freeze([]) })
 }
 

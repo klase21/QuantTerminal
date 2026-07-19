@@ -27,4 +27,10 @@ assert.throws(() => validateSeparateTargetPublicationFingerprint("LOCAL_DISPOSAB
 assert.throws(() => validateSeparateTargetPublicationFingerprint("LOCAL_DISPOSABLE_CERTIFICATION", "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb", "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb"), /MVP_DISPOSABLE_TARGET_FINGERPRINT_INVALID/)
 assert.throws(() => validateSeparateTargetPublicationFingerprint("LOCAL_DISPOSABLE_CERTIFICATION", targetId, `${targetId}-other`), /MVP8L_TARGET_FINGERPRINT_MISMATCH/)
 
-process.stdout.write(JSON.stringify({ status: "PASS", targetId, cases: 10 }))
+const retryDatabase = "quantterminal_mvp8y_canary_unit1", retryTargetId = `local-postgres:127.0.0.1:${port}/${retryDatabase}`
+const retryEnvironment = Object.freeze({ ...environment, MVP_PUBLICATION_TARGET_MODE: "MVP8Y_LOCAL_DISPOSABLE_CERTIFICATION", MVP_LOCAL_DISPOSABLE_DATABASE: retryDatabase, MVP_LOCAL_DISPOSABLE_TARGET_ID: retryTargetId })
+assert.doesNotThrow(() => new MvpServingPostgresClient(url("127.0.0.1", port, retryDatabase), "PUBLISHER", retryEnvironment, "LOCAL_DISPOSABLE_CERTIFICATION", { database: retryDatabase, role: "qt_mvp8s_writer" }))
+assert.throws(() => new MvpServingPostgresClient(url("127.0.0.1", port, database), "PUBLISHER", retryEnvironment, "LOCAL_DISPOSABLE_CERTIFICATION", { database, role: "qt_mvp8s_writer" }), /MVP8Y_DISPOSABLE_DATABASE_MISMATCH/)
+assert.doesNotThrow(() => validateSeparateTargetPublicationFingerprint("LOCAL_DISPOSABLE_CERTIFICATION", retryTargetId, retryTargetId))
+
+process.stdout.write(JSON.stringify({ status: "PASS", targetId, retryTargetId, cases: 13 }))

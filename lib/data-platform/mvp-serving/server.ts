@@ -29,12 +29,12 @@ export async function withServingPostgresFacade<T>(work: (facade: MvpConsumerPro
       if (preview) {
         const target = await sql.unsafe<Array<{ branch_id: string | null }>>("SELECT current_setting('neon.branch_id',true) branch_id")
         if (target[0]?.branch_id !== "br-royal-block-aop70mzq") throw new Error("SERVING_PREVIEW_TARGET_MISMATCH")
-        const selection = await new PostgresMvpInactiveServingReadPort(client, sql).selectCandidate(preview.candidateId)
+        const selection = await new PostgresMvpInactiveServingReadPort(client, sql).selectCandidate(preview.candidateId, preview.retry ? { approvalId: preview.retry.approvalId, candidateChecksum: preview.candidateChecksum, targetFingerprint: preview.targetId, at: new Date().toISOString(), binding: preview.retry.binding } : undefined)
         verifyMvpServingPreviewCandidate(selection.review, preview)
         verifyExpectedCorpus(selection.review.candidateId, selection.review.servingChecksum)
         const port = new PostgresMvpServingReadPort(client, sql, selection.review.candidateId)
         const facade = new MvpConsumerProjectionFacade(createMvpServingPreviewProjectionSource(selection.review), { id: selection.review.candidateId, checksum: selection.review.servingChecksum }, { id: mvpServingPreviewReadAuthorizationId(preview) })
-        return work(facade, Object.freeze({ mode: "SERVING_POSTGRES", corpusId: selection.review.candidateId, checksum: selection.review.servingChecksum, exposure: "INTERNAL_ONLY", governedThrough: selection.review.commonWatermarkValue, selection: "PREVIEW_INACTIVE_CANDIDATE", transactionReadOnly: true, previewIntegrity: Object.freeze({ counts: selection.review.counts, memberSetChecksum: selection.review.memberSetChecksum, commonWatermarkId: selection.review.commonWatermarkId, commonWatermarkChecksum: selection.review.commonWatermarkChecksum, exposureCount: selection.review.exposureCount }) }), port)
+        return work(facade, Object.freeze({ mode: "SERVING_POSTGRES", corpusId: selection.review.candidateId, checksum: selection.review.servingChecksum, exposure: "INTERNAL_ONLY", governedThrough: selection.review.commonWatermarkValue, selection: "PREVIEW_INACTIVE_CANDIDATE", transactionReadOnly: true, previewIntegrity: Object.freeze({ counts: selection.review.counts, memberSetChecksum: selection.review.memberSetChecksum, commonWatermarkId: selection.review.commonWatermarkId, commonWatermarkChecksum: selection.review.commonWatermarkChecksum, exposureCount: selection.review.exposureCount, retryLineageVerified: Boolean(preview.retry) }) }), port)
       }
       const port = new PostgresMvpServingReadPort(client, sql), corpus = await port.activeCorpus()
       if (!corpus) throw new Error("SERVING_CORPUS_UNAVAILABLE")
