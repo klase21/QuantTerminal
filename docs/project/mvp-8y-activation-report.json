@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mvp-8y-activation-report/1.0.0",
+  "dryRun": "PASS_ZERO_WRITES",
+  "status": "COMMITTED",
+  "activationEventId": "mvp8s-event:be029c33d71e3be97e9bbcc396888ba6872dcceb9f2e9c667ad6a80312bda173",
+  "activationExposureId": "msex_bc55132961ea1bf8fdb5935d3fa68df65454cd9d2b46fa82034537c6c8358fbe",
+  "candidateId": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "previousExposureId": "msex_68b61cce29a9404ff7f40d914e08b18f76dd953ccc750b456a2e7002c9ed2a9a",
+  "previousCorpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "authorizationConsumed": true,
+  "appendOnly": true,
+  "payloadMutationCount": 0,
+  "finalDisposition": "ROLLED_BACK_AFTER_CONFIRMED_APPLICATION_FAILURE"
+}

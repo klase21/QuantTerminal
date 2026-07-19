@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "mvp-8y-pre-cutover-freeze/1.0.0",
+  "status": "PASS",
+  "implementationCommit": "95fd41d9e1a8df3a81ec082714cfa34ecceacfff",
+  "candidateCounts": { "projection": 62, "evidence": 6, "replay": 6, "members": 74, "manifests": 1 },
+  "candidateHistoricalExposureCount": 1,
+  "retryLineage": { "activationCount": 1, "rollbackCount": 1, "currentExposureId": "msex_68b61cce29a9404ff7f40d914e08b18f76dd953ccc750b456a2e7002c9ed2a9a" },
+  "productionDeploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "productionHealth": "HEALTHY",
+  "candidateDeploymentId": "dpl_FMkDWbfZZV4RCR4ysiXsRkZZnYTq",
+  "candidateDeploymentSmoke": "PASS",
+  "activationAuthorizationUnused": true,
+  "rollbackAuthorizationUnused": true,
+  "baselineDrift": false
+}

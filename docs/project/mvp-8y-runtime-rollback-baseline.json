@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "mvp-8y-runtime-rollback-baseline/1.0.0",
+  "capturedAt": "2026-07-19T15:07:55.000Z",
+  "status": "VERIFIED_HEALTHY",
+  "productionAlias": "quantterminalai.vercel.app",
+  "deploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "corpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "corpusChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "latestExposureId": "msex_68b61cce29a9404ff7f40d914e08b18f76dd953ccc750b456a2e7002c9ed2a9a",
+  "pinChecksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "payloadCounts": { "projection": 870, "evidence": 84, "replay": 84 },
+  "provider": "SERVING_POSTGRES",
+  "health": "HEALTHY",
+  "obsoleteDeployment": "dpl_Bmkcfuk9FAZT7VQ9thzi3yr7nonR",
+  "obsoleteDeploymentDisposition": "OBSOLETE_NOT_VALID_FOR_MVP_SERVING_ROLLBACK"
+}

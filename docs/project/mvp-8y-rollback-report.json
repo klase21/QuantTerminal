@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "mvp-8y-rollback-report/1.0.0",
+  "trigger": "THREE_CONSECUTIVE_ATTRIBUTED_SERVING_CORPUS_UNAVAILABLE_RESPONSES_AFTER_120_SECOND_GRACE",
+  "vercelDirectRollback": "REFUSED_NO_CHANGE_TARGET_OLDER_THAN_PREVIOUS",
+  "vercelRestorationMethod": "PROMOTE_EXACT_RUNTIME_VERIFIED_DEPLOYMENT",
+  "restoredDeploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "rollbackDryRun": "PASS_ZERO_WRITES",
+  "rollbackStatus": "COMMITTED",
+  "rollbackEventId": "mvp8s-event:61c2430bddaaaf7ce4e10ad0b9e9143ddbc6a10f1900bc8255d8aa80291ef1c6",
+  "rollbackExposureId": "msex_962d199601e27a0b1d6f7578389a180e5b8f810554dedf22d89e8b46fbd69d90",
+  "relatedActivationEventId": "mvp8s-event:be029c33d71e3be97e9bbcc396888ba6872dcceb9f2e9c667ad6a80312bda173",
+  "restoredCorpusId": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "appendOnlyExposureCount": 5,
+  "healthVerification": "THREE_CONSECUTIVE_ATTRIBUTED_HEALTHY",
+  "mandatorySmoke": "PASS"
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "mvp-8y-propagation-probes/1.0.0",
+  "promotedDeploymentId": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i",
+  "graceSeconds": 120,
+  "preGrace": [
+    { "at": "2026-07-19T15:09:27.354Z", "owner": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX", "http": 503, "status": "UNHEALTHY", "attributedToCandidateDeployment": false },
+    { "at": "2026-07-19T15:09:42.937Z", "owner": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i", "http": 503, "status": "UNHEALTHY" },
+    { "at": "2026-07-19T15:09:58.563Z", "owner": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i", "http": 503, "status": "UNHEALTHY" },
+    { "at": "2026-07-19T15:10:13.974Z", "owner": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i", "http": 503, "status": "UNHEALTHY" },
+    { "at": "2026-07-19T15:10:29.673Z", "owner": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i", "http": 503, "status": "UNHEALTHY" },
+    { "at": "2026-07-19T15:10:45.706Z", "owner": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i", "http": 503, "status": "UNHEALTHY" }
+  ],
+  "postGraceConfirmedFailures": [
+    { "at": "2026-07-19T15:12:10.683Z", "owner": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i", "http": 503, "reason": "SERVING_CORPUS_UNAVAILABLE" },
+    { "at": "2026-07-19T15:12:23.498Z", "owner": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i", "http": 503, "reason": "SERVING_CORPUS_UNAVAILABLE" },
+    { "at": "2026-07-19T15:12:36.378Z", "owner": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i", "http": 503, "reason": "SERVING_CORPUS_UNAVAILABLE" }
+  ],
+  "rollbackTrigger": "THREE_CONSECUTIVE_ATTRIBUTED_FAILURES_AFTER_GRACE",
+  "singleTransientTriggeredRollback": false,
+  "restorationProbes": [
+    { "at": "2026-07-19T15:14:12.938Z", "owner": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX", "http": 200, "status": "HEALTHY" },
+    { "at": "2026-07-19T15:14:25.922Z", "owner": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX", "http": 200, "status": "HEALTHY" },
+    { "at": "2026-07-19T15:14:38.849Z", "owner": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX", "http": 200, "status": "HEALTHY" }
+  ]
+}

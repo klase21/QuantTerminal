@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "mvp-8y-candidate-deployment/1.0.0",
+  "sourceCommit": "95fd41d9e1a8df3a81ec082714cfa34ecceacfff",
+  "previewDeploymentId": "dpl_FMkDWbfZZV4RCR4ysiXsRkZZnYTq",
+  "previewState": "READY",
+  "previewSelection": "PREVIEW_INACTIVE_CANDIDATE",
+  "promotedProductionDeploymentId": "dpl_HQBnh3r7KaaNC884KXynEkbaT11i",
+  "promotedProductionState": "READY",
+  "promotionResult": "ROLLBACK_TRIGGERED_AFTER_CONFIRMED_POST_GRACE_FAILURES",
+  "failedPreviewRetained": "dpl_91jxQQhu9n2KSUBTaLSg13pM8iQd"
+}

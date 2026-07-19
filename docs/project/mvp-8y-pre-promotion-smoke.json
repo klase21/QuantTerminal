@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "mvp-8y-pre-promotion-smoke/1.0.0",
+  "deploymentId": "dpl_FMkDWbfZZV4RCR4ysiXsRkZZnYTq",
+  "status": "PASS",
+  "candidateId": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "health": "HEALTHY",
+  "provider": "SERVING_POSTGRES",
+  "readerRoleState": "READ_ONLY_TRANSACTION_VERIFIED",
+  "dashboard": { "status": "AVAILABLE", "projectionCount": 45 },
+  "scanner": { "status": "AVAILABLE", "projectionCount": 31 },
+  "trade": { "symbolsPassed": 6, "projectionCountPerSymbol": 8 },
+  "replay": { "symbolsPassed": 6, "window": ["2026-07-15T00:00:00.000Z", "2026-07-16T00:00:00.000Z"], "samplesPerSymbol": { "price": 288, "openInterest": 288, "funding": 3, "flow": 48 } },
+  "unavailableContract": "SERVING_PROJECTION_MISSING_FOR_OUT_OF_RANGE_WINDOW",
+  "candidateHistoricalExposureCount": 1,
+  "candidateCurrentlySelected": false
+}

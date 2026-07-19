@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "mvp-8y-runtime-identities/1.0.0",
+  "implementationCommit": "95fd41d9e1a8df3a81ec082714cfa34ecceacfff",
+  "operatorId": "jay-local-operator",
+  "candidateId": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "approvalId": "mvp8s-approval:2b760277ccfea77a60870ce85fc5f1ae929d7261da9fdc7e6bbea71e21151080",
+  "approvalRequestId": "mvp8s-retry-approval-request:62a697d1d4b427a393be9e977751a56873b05c2ba389b661246c60bafc0ba763",
+  "activationAuthorizationId": "mvp8s-authorization:52dce04ecafb373d2bd6c0a2f74e129aee404665309be9390ff887b67900245f",
+  "activationRequestId": "mvp8s-retry-activation-request:524cb5a7a22ed1270348d1ea3109043276eb47b14e827cb172e664629c80e541",
+  "rollbackAuthorizationId": "mvp8s-authorization:9ee5c9050b77a0e31eae59c742cfc946a297cbae65d772348aa8d0c010f1a8b3",
+  "rollbackRequestId": "mvp8s-retry-rollback-request:69bd0ad5c90d110badd92bd53f2ff87642d34307db221b293f8b221ef9f8abb5",
+  "expiresAt": "2026-07-19T20:54:41.475Z",
+  "identitySetChecksum": "9d5bf2aee8acb61b7e016783c60fea113c9afee45f359b54284d43e0ed3eff2e",
+  "finalState": "ACTIVATION_AND_ROLLBACK_AUTHORIZATIONS_CONSUMED"
+}

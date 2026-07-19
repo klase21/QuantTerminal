@@ -1,6 +1,6 @@
 {
   "schemaVersion": "mvp-8y-resource-receipt/1.0.0",
-  "status": "DISPOSABLE_CERTIFICATION_COMPLETE",
+  "status": "VERIFIED_PRODUCTION_ROLLBACK_COMPLETE",
   "disposable": {
     "container": "qt-mvp8y-0ee7ca04e4-pg",
     "network": "qt-mvp8y-0ee7ca04e4-net",
@@ -11,6 +11,21 @@
     "cleanupComplete": true
   },
   "credentialsPersisted": false,
-  "productionDatabaseWrites": 0,
-  "vercelWrites": 0
+  "production": {
+    "activationRequests": 1,
+    "rollbackRequests": 1,
+    "appendOnlyExposuresCreated": 2,
+    "historicalExposureUpdatesOrDeletes": 0,
+    "candidatePayloadWrites": 0,
+    "vercelPromotions": 2,
+    "finalDeploymentId": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "finalHealth": "HEALTHY"
+  },
+  "retained": [
+    "candidate payloads and manifests",
+    "five append-only exposures",
+    "activation and rollback audit events",
+    "candidate and rollback deployments",
+    "production-supporting PostgreSQL"
+  ]
 }
