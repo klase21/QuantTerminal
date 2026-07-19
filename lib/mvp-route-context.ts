@@ -1,4 +1,11 @@
 import demoProfile from "@/docs/project/mvp-default-demo-event.json";
+import {
+  isMvp8z2CandidateReviewMode,
+  MVP8Z2_CANDIDATE_REVIEW_END,
+  MVP8Z2_CANDIDATE_REVIEW_START,
+  MVP8Z2_CANDIDATE_REPLAY_REVIEWS,
+  mvp8z2CandidateReplayReview,
+} from "@/lib/data-platform/mvp-serving/candidateReview";
 
 export const MVP_ROUTE_VIEWS = [
   "dashboard",
@@ -32,14 +39,25 @@ export function normalizeMvpRouteContext(
   source: URLSearchParams,
 ): URLSearchParams {
   const next = new URLSearchParams();
+  const candidateReview = isMvp8z2CandidateReviewMode();
   const instrument = first(source, "instrument", "symbol")?.toUpperCase();
+  const candidateReplay = candidateReview
+    ? mvp8z2CandidateReplayReview(instrument)
+    : null;
   const exchange = first(source, "exchange");
   const timeframe = first(source, "timeframe");
-  const start = first(source, "start");
-  const end = first(source, "end");
-  const timestamp = first(source, "timestamp");
+  const start = candidateReview
+    ? MVP8Z2_CANDIDATE_REVIEW_START
+    : first(source, "start");
+  const end = candidateReview
+    ? MVP8Z2_CANDIDATE_REVIEW_END
+    : first(source, "end");
+  const timestamp = candidateReview
+    ? MVP8Z2_CANDIDATE_REVIEW_START
+    : first(source, "timestamp");
 
-  if (instrument) next.set("instrument", instrument);
+  if (candidateReplay) next.set("instrument", candidateReplay.instrument);
+  else if (instrument) next.set("instrument", instrument);
   if (exchange) next.set("exchange", exchange);
   if (timeframe) next.set("timeframe", timeframe);
   if (start) next.set("start", start);
@@ -77,13 +95,24 @@ export function normalizeMvpRouteContext(
   }
 
   if (view === "replay" || view === "research") {
-    const projection = first(source, "projection", "projectionId");
+    const requestedProjection = first(source, "projection", "projectionId");
+    const candidateProjectionIds = MVP8Z2_CANDIDATE_REPLAY_REVIEWS.map(
+      (review) => review.projectionVersionId,
+    );
+    const projection =
+      view === "replay" && candidateReplay
+        ? requestedProjection && candidateProjectionIds.includes(requestedProjection as typeof candidateProjectionIds[number])
+          ? requestedProjection
+          : candidateReplay.projectionVersionId
+        : requestedProjection;
     const knownForRoute =
       view === "replay"
-        ? [
-            demoProfile.primary.replayProjectionVersionId,
-            demoProfile.backup.replayProjectionVersionId,
-          ]
+        ? candidateReview
+          ? candidateProjectionIds
+          : [
+              demoProfile.primary.replayProjectionVersionId,
+              demoProfile.backup.replayProjectionVersionId,
+            ]
         : [
             demoProfile.primary.researchProjectionVersionId,
             demoProfile.backup.researchProjectionVersionId,
