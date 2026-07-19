@@ -1,0 +1,30 @@
+{
+  "sprint": "MVP-8Z",
+  "status": "PASS",
+  "policyModes": [
+    "ACTIVE_ONLY",
+    "PREVIEW_EXPLICIT_CANDIDATE",
+    "CUTOVER_BRIDGE_EXACT_PAIR",
+    "CANDIDATE_ONLY"
+  ],
+  "bridge": {
+    "selection": "LATEST_ACTIVE_EXPOSURE",
+    "maximumBindings": 2,
+    "authorization": "DURABLE_COMMIT_BOUND_APPROVAL",
+    "databaseWrites": 0
+  },
+  "candidateOnly": {
+    "selection": "LATEST_ACTIVE_EXPOSURE",
+    "maximumBindings": 1,
+    "temporaryAuthorizationDependency": false,
+    "databaseWrites": 0
+  },
+  "tests": {
+    "typescript": "PASS",
+    "runtimeSelectionPolicy": "PASS",
+    "managedReaderAndPreviewRegression": "PASS",
+    "legacyUnitSuite": "PASS_IN_PRESERVED_MAIN_CHECKOUT",
+    "temporaryWorktreeLegacyChecksum": "WINDOWS_LINE_ENDING_ONLY"
+  },
+  "credentialsIncluded": false
+}
