@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "mvp-8s-disposable-certification/1.0.0",
+  "status": "PASS",
+  "targetClass": "LOCAL_DISPOSABLE_POSTGRESQL_16",
+  "targetFingerprint": "SANITIZED_EPHEMERAL_MVP8S_TARGET",
+  "candidateId": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "candidateCounts": { "projections": 62, "evidence": 6, "replay": 6, "members": 74, "manifests": 1 },
+  "migrationChecksums": {
+    "001": "b28b489343695c5fbf3759280beaf3bb8d20c26f0c6604bbfa4daaef647b5cfb",
+    "002": "7d366525720f07e7ef7aa4cc8628e4cbd465f0707556768a168d22b43a33fb4d",
+    "003": "50f3e25597aff94178d38b262611e5590d933174646716815b90e28f19fd7ddb",
+    "004": "5ddfb5029fbc6248b2edbb3ac20fe135dd6e264666c88d51c06988d181bcbc50",
+    "005": "c870daa1125dedffecab78a77c84459b6335e9f015905715f74b404fa269677b"
+  },
+  "fingerprintMatrix": "PASS",
+  "approval": "PASS",
+  "authorization": "PASS",
+  "activationDryRunZeroWrites": true,
+  "activationCommit": "PASS",
+  "activationIdempotency": "PASS",
+  "activationConflictRejection": "PASS",
+  "rollbackDryRunZeroWrites": true,
+  "rollbackCommit": "PASS",
+  "rollbackIdempotency": "PASS",
+  "rollbackConflictRejection": "PASS",
+  "appendOnlyExposureCountAfterRollback": 3,
+  "applicationSmoke": { "dashboard": "PASS", "scanner": "PASS", "tradeSymbols": 6, "replaySymbols": 6 },
+  "productionWrites": 0,
+  "credentialsIncluded": false
+}

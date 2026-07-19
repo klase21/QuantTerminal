@@ -3,6 +3,7 @@ export const MVP_SERVING_MIGRATION_ORDER = Object.freeze([
   "002_reader_role_hardening.sql",
   "003_inactive_candidate_membership.sql",
   "004_inactive_serving_staging_bindings.sql",
+  "005_guarded_serving_cutover_control.sql",
 ] as const)
 
 export const MVP_SERVING_CERTIFIED_LEGACY_CHECKSUMS: Readonly<Record<string, { readonly repositoryChecksum: string; readonly appliedChecksums: readonly string[] }>> = Object.freeze({

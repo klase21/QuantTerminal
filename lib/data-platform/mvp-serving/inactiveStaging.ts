@@ -388,11 +388,15 @@ async function exposureCount(sql: postgres.Sql | postgres.TransactionSql): Promi
 async function candidateExposureCount(sql: postgres.Sql | postgres.TransactionSql, candidateId: string): Promise<number> { const rows = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure WHERE corpus_id=$1", [candidateId]); return rows[0]?.count ?? -1 }
 async function exposureFingerprint(sql: postgres.Sql | postgres.TransactionSql): Promise<string> { const rows = await sql.unsafe<Record<string, unknown>[]>("SELECT exposure_id,corpus_id,exposure_state,effective_from,checksum,publication_note,created_at FROM serving.serving_exposure ORDER BY exposure_id"); return canonicalChecksum(rows) }
 async function activeBaseline(sql: postgres.Sql | postgres.TransactionSql): Promise<{ readonly exposureId: string; readonly corpusId: string }> { const rows = await sql.unsafe<Array<{ exposure_id: string; corpus_id: string }>>("SELECT exposure_id,corpus_id FROM serving.serving_exposure WHERE exposure_state='CONSUMER_VISIBLE' ORDER BY effective_from DESC,exposure_id DESC LIMIT 1"); if (!rows[0]) throw new Error("MVP8P_ACTIVE_BASELINE_MISSING"); return Object.freeze({ exposureId: rows[0].exposure_id, corpusId: rows[0].corpus_id }) }
+export function validateSeparateTargetPublicationFingerprint(targetKind: MvpServingPostgresClient["targetKind"], targetId: string, expectedTargetId: string): void {
+  if (targetId !== expectedTargetId) throw new Error("MVP8L_TARGET_FINGERPRINT_MISMATCH")
+  if (targetKind === "MANAGED_POSTGRES" && !/^neon:[a-z0-9-]+\/[a-z0-9-]+\/[a-zA-Z0-9_-]+$/.test(targetId)) throw new Error("MVP8L_NEON_TARGET_FINGERPRINT_INVALID")
+  if (targetKind === "LOCAL_DISPOSABLE_CERTIFICATION" && !/^local-postgres:(?:127\.0\.0\.1|localhost):[0-9]+\/quantterminal_mvp8(?:[lp]|s)_canary_[a-z0-9]+$/.test(targetId)) throw new Error("MVP_DISPOSABLE_TARGET_FINGERPRINT_INVALID")
+}
+
 function validateSeparateTargetPublicationClients(writer: MvpServingPostgresClient, reader: MvpServingPostgresClient, options: SeparateTargetInactivePublicationOptions): void {
   if (writer.roleIntent !== "PUBLISHER" || reader.roleIntent !== "READER" || writer.targetKind !== reader.targetKind || !["LOCAL_DISPOSABLE_CERTIFICATION", "MANAGED_POSTGRES"].includes(writer.targetKind)) throw new Error("MVP8L_SEPARATE_TARGET_CLIENTS_REQUIRED")
-  if (options.targetId !== options.expectedTargetId) throw new Error("MVP8L_TARGET_FINGERPRINT_MISMATCH")
-  if (writer.targetKind === "MANAGED_POSTGRES" && !/^neon:[a-z0-9-]+\/[a-z0-9-]+\/[a-zA-Z0-9_-]+$/.test(options.targetId)) throw new Error("MVP8L_NEON_TARGET_FINGERPRINT_INVALID")
-  if (writer.targetKind === "LOCAL_DISPOSABLE_CERTIFICATION" && !/^local-postgres:(?:127\.0\.0\.1|localhost):[0-9]+\/quantterminal_mvp8[lp]_canary_[a-z0-9]+$/.test(options.targetId)) throw new Error("MVP8L_DISPOSABLE_TARGET_FINGERPRINT_INVALID")
+  validateSeparateTargetPublicationFingerprint(writer.targetKind, options.targetId, options.expectedTargetId)
   const writerUrl = new URL(writer.connectionString), readerUrl = new URL(reader.connectionString)
   if (writerUrl.hostname !== readerUrl.hostname || writerUrl.port !== readerUrl.port || writerUrl.pathname !== readerUrl.pathname || writerUrl.username === readerUrl.username || writer.connectionString === reader.connectionString) throw new Error("MVP8L_TARGET_ROLE_BINDING_INVALID")
 }

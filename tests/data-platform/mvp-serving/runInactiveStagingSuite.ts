@@ -97,10 +97,12 @@ async function main() {
   assert.deepEqual(replayReads.map((value) => value.projections.length), [8, 8, 8, 8, 8, 8])
 
   const migrations = await discoverMvpServingMigrations()
-  assert.equal(migrations.length, 4)
+  assert.equal(migrations.length, 5)
   assert.equal(migrations[3]?.filename, "004_inactive_serving_staging_bindings.sql")
   assert.match(migrations[3]?.sql ?? "", /common_watermark_id/)
   assert.match(migrations[3]?.sql ?? "", /member_set_checksum/)
+  assert.equal(migrations[4]?.filename, "005_guarded_serving_cutover_control.sql")
+  assert.match(migrations[4]?.sql ?? "", /cutover_authorization_consumption/)
   process.stdout.write(JSON.stringify({ status: "PASS", candidateId: plan.candidateId, counts: plan.counts, deterministic: true, failClosed: true }))
 }
 
