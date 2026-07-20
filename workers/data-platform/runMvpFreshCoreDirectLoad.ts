@@ -12,6 +12,7 @@ import { createRefreshPlan } from "@/lib/data-platform/mvp-refresh/contracts"
 import { createRefreshLogicalSlot, type RefreshLogicalDataset, type RefreshLogicalInstrument } from "@/lib/data-platform/mvp-refresh/unitReconciliation"
 import { createLiveExecutorPortSet, createLiveWatermarkPorts, type LiveExecutorInvocation, type LiveExecutorPortResult } from "@/lib/data-platform/mvp-refresh/liveExecutorPorts"
 import { createDatasetAdapter, createDownstreamExecutor, createWatermarkAudit } from "@/lib/data-platform/mvp-refresh/liveResumeLocalBootstrap"
+import { ensureIntegratedMvpGovernancePrerequisites } from "@/lib/data-platform/mvp-refresh/integratedGovernance"
 import { MvpRefreshStore } from "@/lib/data-platform/mvp-refresh/store"
 
 const START = process.env.MVP_BLUE_GREEN_WINDOW_START ?? "2026-07-15T00:00:00.000Z"
@@ -55,6 +56,7 @@ async function main(): Promise<void> {
     const storage = await createFilesystemObjectStorage({ root: objectRoot, repositoryRoot: process.cwd(), createRoot: false })
     const refreshStore = new MvpRefreshStore(refresh)
     const d2Adapter = createCanonicalPersistenceAdapter(integrated.d2), d3Adapter = createPopulationPostgresAdapter(integrated.d3), canonical = createD3ToD2CanonicalCommitPort(d2Adapter)
+    await ensureIntegratedMvpGovernancePrerequisites({ client: integrated.d2, adapter: d2Adapter, effectiveAt: START })
     const adapter = (dataset: RefreshLogicalDataset) => createDatasetAdapter({ dataset, storage, objectRoot, d2Client: integrated.d2, d2: d2Adapter, d3: d3Adapter, canonical, refresh: refreshStore, allowBtcOhlcvAcquisition: dataset === "ohlcv", enableResumeReconciliation: false })
     const executors = createLiveExecutorPortSet({ ohlcv: adapter("ohlcv"), "open-interest": adapter("open-interest"), funding: adapter("funding"), "agg-trade": adapter("agg-trade") })
     const slots = DATASETS.flatMap((dataset) => INSTRUMENTS.map((instrument) => slot(dataset, instrument)))
