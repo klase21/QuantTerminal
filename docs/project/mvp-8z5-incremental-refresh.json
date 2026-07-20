@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "mvp-8z5-incremental-refresh/1.0.0",
+  "status": "SAFE_BLOCKED_PARTIAL_SLOT",
+  "releaseState": "REJECTED",
+  "requestedRange": {
+    "start": "2026-07-16T00:00:00.000Z",
+    "end": "2026-07-19T00:00:00.000Z"
+  },
+  "completedWindows": 0,
+  "requiredWindows": 3,
+  "readback": {
+    "runStates": { "ACQUIRING": 1, "FAILED": 1 },
+    "unitStates": { "LEASED": 1, "FAILED": 1, "PENDING": 46 },
+    "dayOneCanonicalCounts": { "ohlcv": 218, "openInterest": 0, "funding": 0 },
+    "expectedDayOneCounts": { "ohlcv": 1728, "openInterest": 1728, "funding": 18, "aggTradeManifests": 6 }
+  },
+  "failure": "STALLED_ACQUISITION_LEFT_NON_CERTIFIABLE_PARTIAL_SLOT",
+  "retryPerformedAfterReadback": false,
+  "productionWrites": 0,
+  "servingExposureWrites": 0
+}

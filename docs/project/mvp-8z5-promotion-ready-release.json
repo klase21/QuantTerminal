@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "mvp-8z5-promotion-ready-release/1.0.0",
+  "status": "SAFE_BLOCKED",
+  "promotionReady": false,
+  "releaseState": "REJECTED",
+  "reason": "INCREMENTAL_REFRESH_PARTIAL_SLOT"
+}

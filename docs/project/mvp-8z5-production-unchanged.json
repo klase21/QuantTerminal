@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "mvp-8z5-production-unchanged/1.0.0",
+  "status": "VERIFIED",
+  "verifiedAt": "2026-07-20T09:04:24.946Z",
+  "alias": "quantterminalai.vercel.app",
+  "deploymentId": "dpl_GdY2UhVwJ6Kntyy8UXShgGtbGKU5",
+  "deploymentState": "READY",
+  "databaseTarget": "neon:soft-cell-16396854/br-flat-grass-ao9rtnyr/neondb",
+  "candidateId": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "governedThrough": "2026-07-16T00:00:00.000Z",
+  "health": "HEALTHY",
+  "provider": "SERVING_POSTGRES",
+  "databaseConnectivity": "CONNECTED",
+  "counts": { "projections": 62, "evidence": 6, "replay": 6, "members": 74 },
+  "productionDatabaseWrites": 0,
+  "servingExposureWrites": 0,
+  "aliasChanges": 0
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mvp-8z5-branch-creation/1.0.0",
+  "status": "CREATED",
+  "projectId": "soft-cell-16396854",
+  "parentBranchId": "br-flat-grass-ao9rtnyr",
+  "parentLsn": "0/2BE2898",
+  "branchId": "br-odd-leaf-ao61pbg4",
+  "branchName": "mvp-release-2026-07-19-4840e8040c7c",
+  "databaseName": "mvp_release_20260719",
+  "targetFingerprint": "neon:soft-cell-16396854/br-odd-leaf-ao61pbg4/mvp_release_20260719",
+  "region": "aws-ap-southeast-1",
+  "createdAt": "2026-07-20T08:27:21.000Z",
+  "productionChanged": false
+}

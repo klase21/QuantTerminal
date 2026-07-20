@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "mvp-8z5-replay-smoke/1.0.0",
+  "status": "NOT_RUN",
+  "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+  "reason": "PREVIEW_NOT_CREATED"
+}

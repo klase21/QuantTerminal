@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "mvp-8z5-resource-receipt/1.0.0",
+  "status": "SAFE_BLOCKED",
+  "applicationCommit": "ce747ab8e050ace95516ddd2517db8a19f61f2c6",
+  "retained": {
+    "branchId": "br-odd-leaf-ao61pbg4",
+    "branchName": "mvp-release-2026-07-19-4840e8040c7c",
+    "databases": [
+      "quantterminal_backfill",
+      "quantterminal_mvp8z5_d4_4840e804",
+      "quantterminal_mvp8z5_refresh_4840e804",
+      "mvp_release_20260719"
+    ],
+    "reason": "PRESERVE_PARTIAL_BUILD_EVIDENCE_FOR_EXPLICIT_RECOVERY_OR_ARCHIVE"
+  },
+  "previewDeploymentCreated": false,
+  "productionChanged": false,
+  "credentialsIncluded": false
+}
