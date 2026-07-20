@@ -39,9 +39,10 @@ export function inspectMvpRefreshTarget(connectionString: string | undefined, en
     const database = decodeURIComponent(url.pathname.replace(/^\//, "")).toLowerCase()
     const reasons: string[] = []
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
-    if (expectedDatabase !== "quantterminal_mvp_refresh_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?refresh_/.test(expectedDatabase)) reasons.push("REFRESH_EXPECTED_DATABASE_NAME_UNSAFE")
+    const blueGreen = environment.MVP_BLUE_GREEN_RELEASE_MODE === "IMMUTABLE_CANDIDATE_DATABASE" && /^quantterminal_mvp8z5_refresh_[a-z0-9]+$/.test(expectedDatabase) && environment.MVP_BLUE_GREEN_TARGET_ID?.endsWith(`/${expectedDatabase}`)
+    if (expectedDatabase !== "quantterminal_mvp_refresh_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?refresh_/.test(expectedDatabase) && !blueGreen) reasons.push("REFRESH_EXPECTED_DATABASE_NAME_UNSAFE")
     if (database !== expectedDatabase) reasons.push("REFRESH_ISOLATED_DATABASE_NAME_MISMATCH")
-    if (!["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())) reasons.push("REFRESH_LOCAL_HOST_REQUIRED")
+    if (!["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase()) && !blueGreen) reasons.push("REFRESH_LOCAL_HOST_REQUIRED")
     for (const key of FORBIDDEN_ALIASES) if (environment[key] && environment[key] === connectionString) reasons.push(`MATCHES_${key}`)
     return Object.freeze({ safe: reasons.length === 0, database, reasons: Object.freeze(reasons) })
   } catch {

@@ -1,6 +1,7 @@
 import { D4_ISOLATED_DATABASE_NAME } from "@/lib/data-platform/evidence-platform"
 
 export interface D4Environment {
+  readonly MVP_BLUE_GREEN_RELEASE_MODE?: string
   readonly D4_ISOLATED_POSTGRES_URL?: string
   readonly D4_EXPECTED_DATABASE_NAME?: string
   readonly D2_CANONICAL_POSTGRES_URL?: string
@@ -32,7 +33,8 @@ export function inspectD4RuntimeTarget(connectionString: string, environment: D4
     const reasons: string[] = []
     if (!["postgres:", "postgresql:"].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
     const expectedDatabase = environment.D4_EXPECTED_DATABASE_NAME?.toLowerCase() ?? D4_ISOLATED_DATABASE_NAME
-    if (expectedDatabase !== D4_ISOLATED_DATABASE_NAME && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase)) reasons.push("D4_EXPECTED_DATABASE_NAME_UNSAFE")
+    const blueGreen = environment.MVP_BLUE_GREEN_RELEASE_MODE === "IMMUTABLE_CANDIDATE_DATABASE" && /^quantterminal_mvp8z5_d4_[a-z0-9]+$/.test(expectedDatabase)
+    if (expectedDatabase !== D4_ISOLATED_DATABASE_NAME && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase) && !blueGreen) reasons.push("D4_EXPECTED_DATABASE_NAME_UNSAFE")
     if (database !== expectedDatabase) reasons.push("D4_DATABASE_NAME_MISMATCH")
     if (PRODUCTION_MARKERS.some((marker) => identity.includes(marker))) reasons.push("PRODUCTION_MARKER_DETECTED")
     if (environment.DATABASE_URL && connectionString === environment.DATABASE_URL) reasons.push("MATCHES_APPLICATION_DATABASE")

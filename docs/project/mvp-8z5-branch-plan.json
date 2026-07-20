@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "mvp-8z5-branch-plan/1.0.0",
+  "createdAt": "2026-07-20T08:15:29.470Z",
+  "projectId": "soft-cell-16396854",
+  "parentBranchId": "br-flat-grass-ao9rtnyr",
+  "parentDatabase": "neondb",
+  "plannedBranchName": "mvp-release-2026-07-19-4840e8040c7c",
+  "plannedReleaseDatabase": "mvp_release_20260719",
+  "applicationBaseCommit": "c28ed35b983376f51d74336604aa63e19d4a8933",
+  "watermarkTransition": {
+    "from": "2026-07-16T00:00:00.000Z",
+    "through": "2026-07-19T00:00:00.000Z"
+  },
+  "incrementalWindows": [
+    { "start": "2026-07-16T00:00:00.000Z", "end": "2026-07-17T00:00:00.000Z" },
+    { "start": "2026-07-17T00:00:00.000Z", "end": "2026-07-18T00:00:00.000Z" },
+    { "start": "2026-07-18T00:00:00.000Z", "end": "2026-07-19T00:00:00.000Z" }
+  ],
+  "planChecksum": "4840e8040c7c0bad50e322b62c7482abe626853447acad3c69b4064f919d43e2",
+  "branchCreated": false,
+  "productionMutation": false
+}

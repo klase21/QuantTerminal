@@ -14,8 +14,9 @@ import { createLiveExecutorPortSet, createLiveWatermarkPorts, type LiveExecutorI
 import { createDatasetAdapter, createDownstreamExecutor, createWatermarkAudit } from "@/lib/data-platform/mvp-refresh/liveResumeLocalBootstrap"
 import { MvpRefreshStore } from "@/lib/data-platform/mvp-refresh/store"
 
-const START = "2026-07-15T00:00:00.000Z"
-const END = "2026-07-16T00:00:00.000Z"
+const START = process.env.MVP_BLUE_GREEN_WINDOW_START ?? "2026-07-15T00:00:00.000Z"
+const END = process.env.MVP_BLUE_GREEN_WINDOW_END ?? "2026-07-16T00:00:00.000Z"
+const INGEST_ONLY = process.env.MVP_BLUE_GREEN_INGEST_ONLY === "1"
 const INSTRUMENTS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const)
 const DATASETS = Object.freeze(["ohlcv", "open-interest", "funding", "agg-trade"] as const)
 const CONTRACTS: Readonly<Record<RefreshLogicalDataset, string>> = Object.freeze({ ohlcv: "mvp-bounded-ohlcv/1.0.0", "open-interest": "mvp-bounded-open-interest/1.0.0", funding: "binance-official-rest-funding-rate/1.0.0", "agg-trade": "mvp-bounded-agg-trade/1.0.0" })
@@ -25,7 +26,7 @@ function loadEnvironment(): NodeJS.ProcessEnv {
   const path = process.env.MVP8B_META_PATH
   if (!path) throw new Error("MVP8B_META_PATH_REQUIRED")
   const values = Object.fromEntries(readFileSync(path, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean).map((line) => { const at = line.indexOf("="); return [line.slice(0, at), line.slice(at + 1)] })) as Record<string, string>
-  return { ...process.env, D2_CANONICAL_POSTGRES_URL: values.D2_CANONICAL_POSTGRES_URL, D3_POPULATION_POSTGRES_URL: values.D3_POPULATION_POSTGRES_URL, D3_BACKFILL_OBJECT_ROOT: values.OBJECT_ROOT, D4_ISOLATED_POSTGRES_URL: values.D4_ISOLATED_POSTGRES_URL, MVP_REFRESH_ISOLATED_POSTGRES_URL: values.MVP_REFRESH_ISOLATED_POSTGRES_URL, MVP_SERVING_ISOLATED_POSTGRES_URL: values.MVP_SERVING_ISOLATED_POSTGRES_URL }
+  return { ...process.env, MVP_BLUE_GREEN_RELEASE_MODE: values.MVP_BLUE_GREEN_RELEASE_MODE, MVP_BLUE_GREEN_TARGET_ID: values.MVP_BLUE_GREEN_REFRESH_TARGET_ID, MVP_BLUE_GREEN_REFRESH_DATABASE: values.MVP_BLUE_GREEN_REFRESH_DATABASE, MVP_BLUE_GREEN_REFRESH_ROLE: values.MVP_BLUE_GREEN_REFRESH_ROLE, D2_CANONICAL_POSTGRES_URL: values.D2_CANONICAL_POSTGRES_URL, D3_POPULATION_POSTGRES_URL: values.D3_POPULATION_POSTGRES_URL, D3_BACKFILL_OBJECT_ROOT: values.OBJECT_ROOT, D4_ISOLATED_POSTGRES_URL: values.D4_ISOLATED_POSTGRES_URL, D4_EXPECTED_DATABASE_NAME: values.D4_EXPECTED_DATABASE_NAME, MVP_REFRESH_ISOLATED_POSTGRES_URL: values.MVP_REFRESH_ISOLATED_POSTGRES_URL, MVP_SERVING_ISOLATED_POSTGRES_URL: values.MVP_SERVING_ISOLATED_POSTGRES_URL }
 }
 
 function slot(dataset: RefreshLogicalDataset, instrument: RefreshLogicalInstrument) {
@@ -38,18 +39,19 @@ function asSlotResult(result: LiveExecutorPortResult) {
 }
 
 async function main(): Promise<void> {
+  if (Date.parse(END) - Date.parse(START) !== 86_400_000 || new Date(Date.parse(START)).toISOString() !== START || new Date(Date.parse(END)).toISOString() !== END) throw new Error("MVP_BLUE_GREEN_DAILY_WINDOW_REQUIRED")
   const environment = loadEnvironment()
   const objectRoot = environment.D3_BACKFILL_OBJECT_ROOT!
   const plannerIdentity = `mvp8b-fresh-core:${canonicalChecksum({ sourceCommit: process.env.MVP8B_SOURCE_COMMIT, start: START, end: END })}`
   const plannerChecksum = canonicalChecksum({ plannerIdentity, start: START, end: END, topology: "FRESH_CORE_DIRECT_LOAD" })
   const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp8b-direct-d2" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp8b-direct-d3" } }, environment)
-  const d4Environment = { D4_ISOLATED_POSTGRES_URL: environment.D4_ISOLATED_POSTGRES_URL, D2_CANONICAL_POSTGRES_URL: environment.D2_CANONICAL_POSTGRES_URL, D3_POPULATION_POSTGRES_URL: environment.D3_POPULATION_POSTGRES_URL, MVP_REFRESH_ISOLATED_POSTGRES_URL: environment.MVP_REFRESH_ISOLATED_POSTGRES_URL, MVP_SERVING_ISOLATED_POSTGRES_URL: environment.MVP_SERVING_ISOLATED_POSTGRES_URL }
+  const d4Environment = { MVP_BLUE_GREEN_RELEASE_MODE: environment.MVP_BLUE_GREEN_RELEASE_MODE, D4_ISOLATED_POSTGRES_URL: environment.D4_ISOLATED_POSTGRES_URL, D4_EXPECTED_DATABASE_NAME: environment.D4_EXPECTED_DATABASE_NAME, D2_CANONICAL_POSTGRES_URL: environment.D2_CANONICAL_POSTGRES_URL, D3_POPULATION_POSTGRES_URL: environment.D3_POPULATION_POSTGRES_URL, MVP_REFRESH_ISOLATED_POSTGRES_URL: environment.MVP_REFRESH_ISOLATED_POSTGRES_URL, MVP_SERVING_ISOLATED_POSTGRES_URL: environment.MVP_SERVING_ISOLATED_POSTGRES_URL }
   const runtime = (roleIntent: "MIGRATION_OWNER" | "CONSISTENCY_WORKER" | "EVIDENCE_ASSEMBLER" | "PROJECTION_BUILDER", name: string) => new ConsistencyPostgresRuntime({ connectionString: environment.D4_ISOLATED_POSTGRES_URL!, roleIntent, maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: name, environment: d4Environment })
   const d4 = runtime("MIGRATION_OWNER", "mvp8b-direct-d4"), consistency = runtime("CONSISTENCY_WORKER", "mvp8b-direct-consistency"), evidence = runtime("EVIDENCE_ASSEMBLER", "mvp8b-direct-evidence"), projection = runtime("PROJECTION_BUILDER", "mvp8b-direct-projection")
-  const refresh = new MvpRefreshPostgresClient(environment.MVP_REFRESH_ISOLATED_POSTGRES_URL!, environment)
-  const serving = new MvpServingPostgresClient(environment.MVP_SERVING_ISOLATED_POSTGRES_URL!, "PUBLISHER", environment, "LOCAL_ISOLATED")
+  const refresh = new MvpRefreshPostgresClient(environment.MVP_REFRESH_ISOLATED_POSTGRES_URL!, environment, { database: environment.MVP_BLUE_GREEN_REFRESH_DATABASE ?? "quantterminal_mvp_refresh_isolated", role: environment.MVP_BLUE_GREEN_REFRESH_ROLE ?? "qt_d2_owner" })
+  const serving = INGEST_ONLY ? null : new MvpServingPostgresClient(environment.MVP_SERVING_ISOLATED_POSTGRES_URL!, "PUBLISHER", environment, "LOCAL_ISOLATED")
   try {
-    await Promise.all([d4.connect(), consistency.connect(), evidence.connect(), projection.connect(), refresh.verify(), serving.verify()])
+    await Promise.all([d4.connect(), consistency.connect(), evidence.connect(), projection.connect(), refresh.verify(), ...(serving ? [serving.verify()] : [])])
     const storage = await createFilesystemObjectStorage({ root: objectRoot, repositoryRoot: process.cwd(), createRoot: false })
     const refreshStore = new MvpRefreshStore(refresh)
     const d2Adapter = createCanonicalPersistenceAdapter(integrated.d2), d3Adapter = createPopulationPostgresAdapter(integrated.d3), canonical = createD3ToD2CanonicalCommitPort(d2Adapter)
@@ -92,6 +94,11 @@ async function main(): Promise<void> {
     const datasetOutputs = []
     for (const dataset of DATASETS) datasetOutputs.push(await watermarkPorts.persistDataset(dataset, END, results.filter((value) => value.dataset === dataset)))
     const common = await watermarkPorts.persistCommon(END, datasetOutputs)
+    if (INGEST_ONLY) {
+      await refreshStore.transitionRun(runId, "MATERIALIZING"); await refreshStore.transitionRun(runId, "COMPARING"); await refreshStore.transitionRun(runId, "READY_FOR_RELEASE_REVIEW")
+      process.stdout.write(JSON.stringify({ kind: "FINAL", mode: "INGEST_ONLY", runId, logicalSlots: slots.length, commonWatermark: END, datasetWatermarks: datasetOutputs.length, productionMutation: false, servingExposureWrites: 0 }))
+      return
+    }
     const downstream = createDownstreamExecutor({ d2: integrated.d2, d3: integrated.d3, objectRoot, refresh: refreshStore, consistency, evidence, projection })
     let upstream = datasetOutputs.flatMap((value) => value.identities.map((identity) => ({ identity, checksum: value.checksum }))).concat(common.identities.map((identity) => ({ identity, checksum: common.checksum })))
     const downstreamOutputs = []
@@ -99,13 +106,14 @@ async function main(): Promise<void> {
     await refreshStore.transitionRun(runId, "MATERIALIZING")
     const members: ServingCorpusMember[] = downstreamOutputs.flatMap(({ stage, output }) => output.identities.map((identity, index) => Object.freeze({ memberKind: "RELEASE_MANIFEST" as const, memberId: identity, memberChecksum: output.checksum, canonicalSortKey: `${stage.toUpperCase()}:${String(index).padStart(4, "0")}:${identity}`, inheritedSourceCorpusId: null, schemaVersion: "mvp8b-fresh-core/1.0.0", metadata: Object.freeze({ stage, targetWindow: true }) })))
     const canonicalMembers = canonicalizeServingCorpusMembers(members), schemaVersion = "mvp-serving/1.0.0", servingChecksum = computeCandidateServingChecksum({ governedThrough: END, schemaVersion, members: canonicalMembers }), corpusId = `mvp8b-fresh-candidate:${servingChecksum}`
+    if (!serving) throw new Error("MVP_BLUE_GREEN_SERVING_CLIENT_REQUIRED")
     const candidate = await new LocalInactiveCandidateAssemblyService(serving).assembleGenesis({ candidate: { corpusId, sourceCorpusId: "mvp8b-fresh-genesis", sourceCorpusChecksum: canonicalChecksum("mvp8b-fresh-genesis"), governedThrough: END, schemaVersion, generatedAt: new Date().toISOString(), members: canonicalMembers, limitations: Object.freeze(["INACTIVE_LOCAL_CANDIDATE", "FRESH_CORE_DIRECT_LOAD"]) } })
     await refreshStore.transitionRun(runId, "COMPARING"); await refreshStore.transitionRun(runId, "READY_FOR_RELEASE_REVIEW")
     const counts = await Promise.all([integrated.d3.sql.unsafe<Array<{ count: string }>>("SELECT count(*)::text count FROM control.retrieval_attempts"), integrated.d2.sql.unsafe<Array<{ count: string }>>("SELECT count(*)::text count FROM raw.objects"), integrated.d3.sql.unsafe<Array<{ count: string }>>("SELECT count(*)::text count FROM population.candidates"), integrated.d2.sql.unsafe<Array<{ count: string }>>("SELECT ((SELECT count(*) FROM canonical.ohlcv)+(SELECT count(*) FROM canonical.open_interest)+(SELECT count(*) FROM canonical.funding)+(SELECT count(*) FROM canonical.stream_manifests))::text count")])
     const activeLeases = await integrated.d3.sql.unsafe<Array<{ count: string }>>("SELECT count(*)::text count FROM control.population_leases WHERE released_at IS NULL AND expires_at>now()")
     process.stdout.write(JSON.stringify({ kind: "FINAL", runId, logicalSlots: slots.length, authoritySeeds: 1, executableSlots: 23, candidateStatus: candidate.status, candidateCorpusId: corpusId, candidateChecksum: candidate.servingChecksum, manifestChecksum: candidate.manifestChecksum, activationAvailable: false, counts: { retrievals: Number(counts[0][0]?.count), objects: Number(counts[1][0]?.count), candidates: Number(counts[2][0]?.count), facts: Number(counts[3][0]?.count) }, activeLeases: Number(activeLeases[0]?.count), datasetWatermarks: datasetOutputs.length, commonWatermark: END, downstream: Object.fromEntries(downstreamOutputs.map(({ stage, output }) => [stage, output.identities.length])) }))
   } finally {
-    await Promise.allSettled([d4.shutdown(), consistency.shutdown(), evidence.shutdown(), projection.shutdown(), refresh.shutdown(), serving.shutdown(), integrated.shutdown()])
+    await Promise.allSettled([d4.shutdown(), consistency.shutdown(), evidence.shutdown(), projection.shutdown(), refresh.shutdown(), ...(serving ? [serving.shutdown()] : []), integrated.shutdown()])
   }
 }
 

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "mvp-8z5-watermark-discovery/1.0.0",
+  "capturedAt": "2026-07-20T08:15:29.470Z",
+  "currentWatermark": "2026-07-16T00:00:00.000Z",
+  "latestCompleteCommonWatermark": "2026-07-19T00:00:00.000Z",
+  "status": "COMPLETE_WATERMARK_FOUND",
+  "requiredSymbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+  "acceptedDays": [
+    { "start": "2026-07-16T00:00:00.000Z", "end": "2026-07-17T00:00:00.000Z", "archivesVerified": 18, "fundingStreamsVerified": 6, "fundingEventsPerSymbol": 3 },
+    { "start": "2026-07-17T00:00:00.000Z", "end": "2026-07-18T00:00:00.000Z", "archivesVerified": 18, "fundingStreamsVerified": 6, "fundingEventsPerSymbol": 3 },
+    { "start": "2026-07-18T00:00:00.000Z", "end": "2026-07-19T00:00:00.000Z", "archivesVerified": 18, "fundingStreamsVerified": 6, "fundingEventsPerSymbol": 3 }
+  ],
+  "firstRejectedDay": {
+    "start": "2026-07-19T00:00:00.000Z",
+    "end": "2026-07-20T00:00:00.000Z",
+    "archivesAvailable": 16,
+    "archivesRequired": 18,
+    "missing": ["ohlcv:SOLUSDT", "ohlcv:XRPUSDT"],
+    "reason": "SOURCE_NOT_FINALIZED"
+  },
+  "verification": {
+    "archiveMethod": "GET_PARSE_AND_CHECKSUM",
+    "fundingMethod": "EXACT_BOUNDED_PARSE",
+    "continuity": "PASS",
+    "partialDayUsed": false,
+    "singleProviderMaximumUsed": false
+  },
+  "writes": 0
+}
