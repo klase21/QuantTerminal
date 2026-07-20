@@ -16,7 +16,7 @@ import {
   MVP8Z2_CANDIDATE_REVIEW_START,
   mvp8z2CandidateReplayHref,
 } from "@/lib/data-platform/mvp-serving/candidateReview"
-import { normalizeMvpRouteContext } from "@/lib/mvp-route-context"
+import { mvpApiQuery, normalizeMvpRouteContext } from "@/lib/mvp-route-context"
 
 const exact = {
   VERCEL_ENV: "preview",
@@ -48,7 +48,7 @@ for (const review of MVP8Z2_CANDIDATE_REPLAY_REVIEWS) {
   assert.equal(url.searchParams.get("start"), MVP8Z2_CANDIDATE_REVIEW_START)
   assert.equal(url.searchParams.get("end"), MVP8Z2_CANDIDATE_REVIEW_END)
   assert.equal(url.searchParams.get("projection"), review.projectionVersionId)
-  assert.equal(url.searchParams.get("timestamp"), MVP8Z2_CANDIDATE_REVIEW_START)
+  assert.equal(url.searchParams.get("timestamp"), null)
 }
 
 const previousReviewMode = process.env.NEXT_PUBLIC_MVP_CANDIDATE_REVIEW_MODE
@@ -58,6 +58,12 @@ assert.equal(normalizedReplay.get("start"), MVP8Z2_CANDIDATE_REVIEW_START)
 assert.equal(normalizedReplay.get("end"), MVP8Z2_CANDIDATE_REVIEW_END)
 assert.equal(normalizedReplay.get("timestamp"), MVP8Z2_CANDIDATE_REVIEW_START)
 assert.equal(normalizedReplay.get("projection"), MVP8Z2_CANDIDATE_REPLAY_REVIEWS[2].projectionVersionId)
+const browserApiQuery = mvpApiQuery("replay", new URLSearchParams(mvp8z2CandidateReplayHref("ETHUSDT").split("?")[1]), { candidateReview: true })
+assert.equal(browserApiQuery.get("instrument"), "ETHUSDT")
+assert.equal(browserApiQuery.get("start"), MVP8Z2_CANDIDATE_REVIEW_START)
+assert.equal(browserApiQuery.get("end"), MVP8Z2_CANDIDATE_REVIEW_END)
+assert.equal(browserApiQuery.get("projection"), MVP8Z2_CANDIDATE_REPLAY_REVIEWS[1].projectionVersionId)
+assert.equal(browserApiQuery.get("timestamp"), null)
 const boundedInstrument = normalizeMvpRouteContext("replay", new URLSearchParams({ instrument: "NOT_IN_REVIEW" }))
 assert.equal(boundedInstrument.get("instrument"), "BTCUSDT")
 assert.equal(boundedInstrument.get("projection"), MVP8Z2_CANDIDATE_REPLAY_REVIEWS[0].projectionVersionId)

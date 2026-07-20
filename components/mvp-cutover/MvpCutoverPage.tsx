@@ -2146,7 +2146,7 @@ function SharedStatus({
   );
 }
 
-export default function MvpCutoverPage({ view }: { view: MvpView }) {
+export default function MvpCutoverPage({ view, candidateReview = false }: { view: MvpView; candidateReview?: boolean }) {
   const params = useSearchParams();
   const router = useRouter();
   const [state, setState] = useState<{
@@ -2160,16 +2160,17 @@ export default function MvpCutoverPage({ view }: { view: MvpView }) {
     const normalized = normalizeMvpRouteContext(
       view,
       new URLSearchParams(params),
+      { candidateReview },
     );
     if (normalized.toString() !== query)
       router.replace(
         `${routes[view]}${normalized.size ? `?${normalized}` : ""}`,
         { scroll: false },
       );
-  }, [params, query, router, view]);
+  }, [candidateReview, params, query, router, view]);
   useEffect(() => {
     const controller = new AbortController(),
-      request = mvpApiQuery(view, new URLSearchParams(params));
+      request = mvpApiQuery(view, new URLSearchParams(params), { candidateReview });
     setState({ phase: "loading" });
     fetch(`/api/mvp/projections?${request.toString()}`, {
       signal: controller.signal,
@@ -2199,12 +2200,12 @@ export default function MvpCutoverPage({ view }: { view: MvpView }) {
           });
       });
     return () => controller.abort();
-  }, [view, query, params]);
+  }, [candidateReview, view, query, params]);
   const href = useMemo(
     () =>
       (target: MvpView, extra: Record<string, string> = {}) =>
-        buildMvpRouteHref(target, new URLSearchParams(params), extra),
-    [params],
+        buildMvpRouteHref(target, new URLSearchParams(params), extra, { candidateReview }),
+    [candidateReview, params],
   );
   if (state.phase === "loading") return <MvpCutoverLoadingShell view={view} />;
   if (state.phase === "error")

@@ -37,9 +37,10 @@ function first(params: URLSearchParams, ...keys: string[]): string | undefined {
 export function normalizeMvpRouteContext(
   view: MvpRouteView,
   source: URLSearchParams,
+  options: { readonly candidateReview?: boolean } = {},
 ): URLSearchParams {
   const next = new URLSearchParams();
-  const candidateReview = isMvp8z2CandidateReviewMode();
+  const candidateReview = options.candidateReview ?? isMvp8z2CandidateReviewMode();
   const instrument = first(source, "instrument", "symbol")?.toUpperCase();
   const candidateReplay = candidateReview
     ? mvp8z2CandidateReplayReview(instrument)
@@ -133,12 +134,13 @@ export function buildMvpRouteHref(
   view: MvpRouteView,
   source: URLSearchParams,
   additions: Record<string, string> = {},
+  options: { readonly candidateReview?: boolean } = {},
 ): string {
   const merged = new URLSearchParams(source);
   Object.entries(additions).forEach(([key, value]) =>
     value ? merged.set(key, value) : merged.delete(key),
   );
-  const normalized = normalizeMvpRouteContext(view, merged);
+  const normalized = normalizeMvpRouteContext(view, merged, options);
   const query = normalized.toString();
   return query ? `${ROUTES[view]}?${query}` : ROUTES[view];
 }
@@ -146,8 +148,9 @@ export function buildMvpRouteHref(
 export function mvpApiQuery(
   view: MvpRouteView,
   source: URLSearchParams,
+  options: { readonly candidateReview?: boolean } = {},
 ): URLSearchParams {
-  const next = normalizeMvpRouteContext(view, source);
+  const next = normalizeMvpRouteContext(view, source, options);
   next.delete("timestamp");
   next.delete("evidence");
   next.delete("candidate");

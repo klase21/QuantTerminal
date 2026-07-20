@@ -17,6 +17,10 @@ export function isMvp8z2CandidateReviewMode(environment: Record<string, string |
   return environment.NEXT_PUBLIC_MVP_CANDIDATE_REVIEW_MODE === MVP8Z2_CANDIDATE_REVIEW_MODE
 }
 
+export function isMvp8z2CandidateReviewPreview(environment: Record<string, string | undefined> = process.env): boolean {
+  return environment.VERCEL_ENV === "preview" && environment.MVP_SERVING_PREVIEW_CANDIDATE_MODE === "EXPLICIT_CANDIDATE_DB_REVIEW"
+}
+
 export function mvp8z2CandidateReplayReview(instrument: string | undefined) {
   const normalized = instrument?.trim().toUpperCase() ?? "BTCUSDT"
   return MVP8Z2_CANDIDATE_REPLAY_REVIEWS.find((review) => review.instrument === normalized) ?? MVP8Z2_CANDIDATE_REPLAY_REVIEWS[0]
@@ -29,7 +33,6 @@ export function mvp8z2CandidateReplayHref(instrument: string): string {
     start: MVP8Z2_CANDIDATE_REVIEW_START,
     end: MVP8Z2_CANDIDATE_REVIEW_END,
     projection: review.projectionVersionId,
-    timestamp: MVP8Z2_CANDIDATE_REVIEW_START,
   })
   return `/replay?${query.toString()}`
 }
