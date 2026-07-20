@@ -2,10 +2,11 @@ import "server-only"
 
 import { MvpConsumerProjectionFacade } from "@/lib/data-platform/consumer-projections"
 import type { ReplaySequenceModel } from "@/lib/replay-sequence"
-import { createMvpServingReaderClientFromEnvironment } from "./client"
+import { createMvpServingManagedClient, createMvpServingReaderClientFromEnvironment } from "./client"
 import { PostgresMvpInactiveServingReadPort } from "./inactiveStaging"
 import { permitsCertifiedSnapshotFallback, resolveMvpServingMode } from "./mode"
 import { createMvpServingPreviewProjectionSource, mvpServingPreviewReadAuthorizationId, resolveMvpServingPreviewCandidate, verifyMvpServingPreviewCandidate } from "./preview"
+import { mvpServingProductionCandidateReadAuthorizationId, resolveMvpServingProductionCandidateDb, verifyMvpServingProductionCandidateDbReview } from "./productionCandidateDb"
 import { resolveMvpServingRuntimeSelectionPolicy, verifyRuntimeSelectionPolicyInTransaction, verifySelectedServingCorpus, type MvpServingRuntimeSelectionPolicyName } from "./runtimeSelection"
 import { PostgresMvpServingReadPort, createServingProjectionSource } from "./store"
 import { createCertifiedSnapshotProjectionSource, readCertifiedReplaySnapshot, readCertifiedSnapshotBundle } from "./snapshot"
@@ -16,17 +17,33 @@ export interface MvpServingRequestContext {
   readonly checksum: string
   readonly exposure: "CONSUMER_VISIBLE" | "INTERNAL_ONLY"
   readonly governedThrough: string
-  readonly selection: "ACTIVE_EXPOSURE" | "PREVIEW_INACTIVE_CANDIDATE"
-  readonly runtimeSelectionPolicy: MvpServingRuntimeSelectionPolicyName | "PREVIEW_EXPLICIT_CANDIDATE"
+  readonly selection: "ACTIVE_EXPOSURE" | "PREVIEW_INACTIVE_CANDIDATE" | "PRODUCTION_EXACT_CANDIDATE_DB"
+  readonly runtimeSelectionPolicy: MvpServingRuntimeSelectionPolicyName | "PREVIEW_EXPLICIT_CANDIDATE" | "PRODUCTION_EXACT_CANDIDATE_DB"
   readonly transactionReadOnly: true
   readonly previewIntegrity?: Readonly<Record<string, unknown>>
 }
 
 export async function withServingPostgresFacade<T>(work: (facade: MvpConsumerProjectionFacade, context: MvpServingRequestContext, port: PostgresMvpServingReadPort) => Promise<T>): Promise<T> {
-  const client = createMvpServingReaderClientFromEnvironment()
+  const productionCandidate = resolveMvpServingProductionCandidateDb()
+  const client = productionCandidate
+    ? createMvpServingManagedClient(productionCandidate.connectionString, "READER")
+    : createMvpServingReaderClientFromEnvironment()
   try {
     await client.verify()
     return await client.readOnlyTransaction(async (sql) => {
+      if (productionCandidate) {
+        const target = await sql.unsafe<Array<{ branch_id: string | null }>>("SELECT current_setting('neon.branch_id',true) branch_id")
+        if (target[0]?.branch_id !== productionCandidate.branchId) throw new Error("SERVING_PRODUCTION_CANDIDATE_DB_TARGET_MISMATCH")
+        const selection = await new PostgresMvpInactiveServingReadPort(client, sql).selectCandidate(productionCandidate.candidateId)
+        verifyMvpServingProductionCandidateDbReview(selection.review, productionCandidate)
+        const port = new PostgresMvpServingReadPort(client, sql, selection.review.candidateId)
+        const facade = new MvpConsumerProjectionFacade(
+          createMvpServingPreviewProjectionSource(selection.review),
+          { id: selection.review.candidateId, checksum: selection.review.servingChecksum },
+          { id: mvpServingProductionCandidateReadAuthorizationId(productionCandidate) },
+        )
+        return work(facade, Object.freeze({ mode: "SERVING_POSTGRES", corpusId: selection.review.candidateId, checksum: selection.review.servingChecksum, exposure: "INTERNAL_ONLY", governedThrough: selection.review.commonWatermarkValue, selection: "PRODUCTION_EXACT_CANDIDATE_DB", runtimeSelectionPolicy: "PRODUCTION_EXACT_CANDIDATE_DB", transactionReadOnly: true, previewIntegrity: Object.freeze({ counts: selection.review.counts, memberSetChecksum: selection.review.memberSetChecksum, commonWatermarkId: selection.review.commonWatermarkId, commonWatermarkChecksum: selection.review.commonWatermarkChecksum, exposureCount: selection.review.exposureCount }) }), port)
+      }
       const preview = resolveMvpServingPreviewCandidate()
       if (preview) {
         const target = await sql.unsafe<Array<{ branch_id: string | null }>>("SELECT current_setting('neon.branch_id',true) branch_id")
@@ -90,4 +107,4 @@ function verifyExpectedCorpus(corpusId: string, checksum: string): void {
   if (process.env.MVP_SERVING_EXPECTED_CHECKSUM && process.env.MVP_SERVING_EXPECTED_CHECKSUM !== checksum) throw new Error("SERVING_CORPUS_CHECKSUM_MISMATCH")
 }
 
-function isGovernanceFailure(error: unknown): boolean { const message = error instanceof Error ? error.message : String(error); return /CHECKSUM_MISMATCH|CORPUS_ID_MISMATCH|INVALID|WITHHELD|ROLLBACK|UNAUTHORIZED|SERVING_PREVIEW|SERVING_RUNTIME|SERVING_BRIDGE|SERVING_CANDIDATE_ONLY/.test(message) }
+function isGovernanceFailure(error: unknown): boolean { const message = error instanceof Error ? error.message : String(error); return /CHECKSUM_MISMATCH|CORPUS_ID_MISMATCH|INVALID|WITHHELD|ROLLBACK|UNAUTHORIZED|SERVING_PREVIEW|SERVING_RUNTIME|SERVING_BRIDGE|SERVING_CANDIDATE_ONLY|SERVING_PRODUCTION_CANDIDATE_DB/.test(message) }

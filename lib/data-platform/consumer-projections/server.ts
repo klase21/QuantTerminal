@@ -15,7 +15,7 @@ export async function withMvpConsumerProjectionFacade<T>(work: (facade: MvpConsu
     try { return await withServingPostgresFacade((facade, context) => work(facade, context)) }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      if (!permitsCertifiedSnapshotFallback() || /CHECKSUM_MISMATCH|CORPUS_ID_MISMATCH|INVALID|WITHHELD|ROLLBACK|UNAUTHORIZED|SERVING_PREVIEW|SERVING_RUNTIME|SERVING_BRIDGE|SERVING_CANDIDATE_ONLY/.test(message)) throw error
+      if (!permitsCertifiedSnapshotFallback() || /CHECKSUM_MISMATCH|CORPUS_ID_MISMATCH|INVALID|WITHHELD|ROLLBACK|UNAUTHORIZED|SERVING_PREVIEW|SERVING_RUNTIME|SERVING_BRIDGE|SERVING_CANDIDATE_ONLY|SERVING_PRODUCTION_CANDIDATE_DB/.test(message)) throw error
       return withCertifiedSnapshotFacade(work)
     }
   }

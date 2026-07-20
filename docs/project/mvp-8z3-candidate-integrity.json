@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "verified_at": "2026-07-20T04:56:19.058Z",
+  "source_deployment": "dpl_DQVAFKejA657FKVvjxXsoYddDxRc",
+  "target_fingerprint": "neon:soft-cell-16396854/br-flat-grass-ao9rtnyr/neondb",
+  "candidate_id": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "candidate_checksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "member_set_checksum": "021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e",
+  "common_watermark_checksum": "a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+  "common_watermark": "2026-07-16T00:00:00.000Z",
+  "counts": { "projections": 62, "evidence": 6, "replay": 6, "members": 74, "manifests": 1 },
+  "candidate_exposure_count": 0,
+  "reader_role_state": "READ_ONLY_TRANSACTION_VERIFIED",
+  "health": "HEALTHY",
+  "replay_six_symbols": "AVAILABLE_288_288_3_48",
+  "database_writes": 0,
+  "credentials_included": false
+}

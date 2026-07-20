@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "captured_at": "2026-07-20T04:56:19.058Z",
+  "production_alias": "quantterminalai.vercel.app",
+  "deployment": {
+    "id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "commit": "9017dcf4e50e8caeddbd146070c800480e3a06d1",
+    "state": "READY",
+    "target": "production"
+  },
+  "database": {
+    "target_fingerprint": "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb",
+    "active_corpus_id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "active_corpus_checksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "latest_exposure_id": "msex_2c4d1cc8204d3abb813036f9f251ed2aa6ea0ea4b4414cc4336664cafcdfd9bc",
+    "projection_count": 870,
+    "evidence_count": 84,
+    "replay_count": 84,
+    "governed_through": "2026-07-15T00:00:00.000Z"
+  },
+  "environment_binding_sha256": "623b1ddf3db65486164d1eab79d2e4d1583dc977ec98761f55f0d2c7b234d842",
+  "health": "HEALTHY",
+  "provider": "SERVING_POSTGRES",
+  "source": "live Vercel alias inspection and live Production health, with latest exposure from the most recent verified read-only MVP-8Z2 receipt",
+  "credentials_included": false
+}

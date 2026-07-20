@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "certified_at": "2026-07-20T04:56:19.058Z",
+  "policy": "PRODUCTION_EXACT_CANDIDATE_DB",
+  "mode": "EXACT_CANDIDATE_DB_CUTOVER",
+  "target_fingerprint": "neon:soft-cell-16396854/br-flat-grass-ao9rtnyr/neondb",
+  "transaction_contract": "MANAGED_EXPLICIT_READ_ONLY",
+  "selection_boundary": "DEPLOYMENT_EXACT_CANDIDATE_DB_BINDINGS",
+  "production_database_exposure_selection_used": false,
+  "fallback_used": false,
+  "tests": {
+    "typescript": "PASS",
+    "production_candidate_db_policy": "PASS",
+    "preview_regression": "PASS",
+    "runtime_selection_regression": "PASS",
+    "route_contracts": "PASS",
+    "managed_reader_assertions": "PASS",
+    "legacy_aggregate_suite": "ONE_PRE_EXISTING_WHITESPACE_SENSITIVE_MIGRATION_CHECKSUM_ASSERTION_FAILED"
+  },
+  "security": {
+    "preview_rejected": true,
+    "development_rejected": true,
+    "old_production_target_rejected": true,
+    "wrong_role_rejected": true,
+    "non_pooled_rejected": true,
+    "ssl_missing_rejected": true,
+    "wildcard_rejected": true,
+    "bridge_conflict_rejected": true,
+    "fallback_rejected": true,
+    "database_writes": 0,
+    "exposure_writes": 0
+  },
+  "credentials_included": false
+}
