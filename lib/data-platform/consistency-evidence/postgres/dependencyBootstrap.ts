@@ -7,14 +7,14 @@ export const D2_CERTIFIED_BASELINE = "1cb1c8d:d2-canonical-persistence-v2.1"
 export const D4_BOOTSTRAP_RUNNER_VERSION = "1.0.0"
 export const D2_DEPENDENCY_MIGRATION_ROOT = path.join(process.cwd(), "lib", "data-platform", "persistence", "postgres", "migrations")
 export const D2_DEPENDENCY_INVENTORY = Object.freeze([
-  { sequence: "001", filename: "001_control_and_raw.sql", checksum: "564f40851b4a36462daababd88ec725908f767897bf697873e846a7d52ed1f9f", certifiedBaseline: D2_CERTIFIED_BASELINE },
-  { sequence: "002", filename: "002_repository_lifecycle.sql", checksum: "ef40fddfe0a566bfadf1ac18c1b8fc217c5677ae887bc08cab9d1a1bc10d6cd5", certifiedBaseline: D2_CERTIFIED_BASELINE },
-  { sequence: "003", filename: "003_canonical_fact_tables.sql", checksum: "fb6f0c11e349fadab3fa5ae07ee8f0ecd0a860175992962a727e264f7ba34188", certifiedBaseline: D2_CERTIFIED_BASELINE },
-  { sequence: "004", filename: "004_governance_and_read_models.sql", checksum: "3466a2ad2728ea905a39d3e539477d2b3e3c215560c6e2598d21f51f63a310ee", certifiedBaseline: D2_CERTIFIED_BASELINE },
-  { sequence: "005", filename: "005_funding_event_metadata.sql", checksum: "9919d859b5912df8472a510d9a42262e4b3553130f226973588eea5772c836df", certifiedBaseline: "df94661:d2-funding-event-metadata" },
-  { sequence: "006", filename: "006_open_interest_observation_metadata.sql", checksum: "fd68d20cd5c18bef1f1e2191d703979a958bdf6da46a11d0a8c0dd74b2738b48", certifiedBaseline: "344d9e0:d2-open-interest-observation-metadata" },
-  { sequence: "007", filename: "007_agg_trade_facts.sql", checksum: "3cfe3df30f032c61f6f8d8897bb3625b9a4ba59716a6a630fa850a735229cb86", certifiedBaseline: "4a6b1cd:d2-aggtrades-segment-storage" },
-  { sequence: "008", filename: "008_canonical_stream_segments.sql", checksum: "ef932bb8bd17924e80554728b6707f9c196cf35202e3f39c7ee15a75d84923ba", certifiedBaseline: "4a6b1cd:d2-aggtrades-segment-storage" },
+  { sequence: "001", filename: "001_control_and_raw.sql", checksum: "747b3889d7e7f40699a32a20afcd12f77918313e370f0d07a55a6e1b824b4d65", certifiedBaseline: D2_CERTIFIED_BASELINE },
+  { sequence: "002", filename: "002_repository_lifecycle.sql", checksum: "381974e6c81383b6f2b61cc1b5394dbedfe6dd5f5236d38aa00d1827ab8ef34f", certifiedBaseline: D2_CERTIFIED_BASELINE },
+  { sequence: "003", filename: "003_canonical_fact_tables.sql", checksum: "13e24cf5b4502bde285bd06991d0745410180361e745b687bf5037f42afd7be5", certifiedBaseline: D2_CERTIFIED_BASELINE },
+  { sequence: "004", filename: "004_governance_and_read_models.sql", checksum: "8dd4ecfb4aed1d8d6e0f6ea8a30592d1cd25e44e78ad3eb72bcfb45206ff9fb1", certifiedBaseline: D2_CERTIFIED_BASELINE },
+  { sequence: "005", filename: "005_funding_event_metadata.sql", checksum: "4187c4f6bad0637debbae520e89b8e8d1d38a84cb4b508aec9057d70a2a64286", certifiedBaseline: "df94661:d2-funding-event-metadata" },
+  { sequence: "006", filename: "006_open_interest_observation_metadata.sql", checksum: "bf256b3ee5e328dd00a5d69a5b4a35d270bfc6c10a88d51820250073a7fcc6a9", certifiedBaseline: "344d9e0:d2-open-interest-observation-metadata" },
+  { sequence: "007", filename: "007_agg_trade_facts.sql", checksum: "72e9062040988727e9e37445081cab2a172e0fc702347a640ead01ae135f24f0", certifiedBaseline: "4a6b1cd:d2-aggtrades-segment-storage" },
+  { sequence: "008", filename: "008_canonical_stream_segments.sql", checksum: "3488d9b4d57c6d1f0f434fa5bac3399191c15f5b33f9d0fa5485d8d49ae6dbcb", certifiedBaseline: "4a6b1cd:d2-aggtrades-segment-storage" },
 ] as const)
 
 export interface D2DependencyArtifact {
@@ -61,7 +61,7 @@ export async function discoverCertifiedD2Dependencies(root = D2_DEPENDENCY_MIGRA
 
 async function ensureBootstrapLedger(runtime: ConsistencyPostgresRuntime): Promise<void> {
   const expectedDatabase = runtime.expectedDatabase
-  if (expectedDatabase !== "quantterminal_d4_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase)) throw new Error("D4_DEPENDENCY_TARGET_UNSAFE")
+  if (expectedDatabase !== "quantterminal_d4_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase) && !/^quantterminal_mvp8z5_d4_[a-z0-9]+$/.test(expectedDatabase)) throw new Error("D4_DEPENDENCY_TARGET_UNSAFE")
   await runtime.transaction(async (sql) => {
     await sql.unsafe("CREATE SCHEMA IF NOT EXISTS d4_control")
     await sql.unsafe(`CREATE TABLE IF NOT EXISTS d4_control.dependency_bootstrap_ledger (dependency_owner text NOT NULL CHECK (dependency_owner='D2'), certified_baseline text NOT NULL, source_filename text NOT NULL, sequence text NOT NULL, source_checksum text NOT NULL CHECK (source_checksum ~ '^[0-9a-f]{64}$'), applied_at timestamptz NOT NULL, target_database text NOT NULL CHECK (target_database='${expectedDatabase}'), bootstrap_runner_version text NOT NULL, status text NOT NULL CHECK (status='APPLIED'), PRIMARY KEY (dependency_owner,sequence), UNIQUE (dependency_owner,source_filename))`)

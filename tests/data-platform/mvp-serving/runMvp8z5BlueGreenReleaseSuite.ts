@@ -14,6 +14,7 @@ import {
   type MvpBlueGreenSourceDay,
 } from "@/lib/data-platform/mvp-release"
 import { inspectD4RuntimeTarget } from "@/lib/data-platform/consistency-evidence/postgres/safety"
+import { discoverCertifiedD2Dependencies } from "@/lib/data-platform/consistency-evidence/postgres/dependencyBootstrap"
 import { inspectMvpRefreshTarget } from "@/lib/data-platform/mvp-refresh/safety"
 
 const checksum = (character: string) => character.repeat(64)
@@ -29,6 +30,7 @@ const sourceDay = (start: string, complete = true): MvpBlueGreenSourceDay => {
 
 const main = async () => {
 const days = [sourceDay("2026-07-16T00:00:00.000Z"), sourceDay("2026-07-17T00:00:00.000Z"), sourceDay("2026-07-18T00:00:00.000Z"), sourceDay("2026-07-19T00:00:00.000Z", false)]
+assert.equal((await discoverCertifiedD2Dependencies()).length, 8)
 assert.equal(days.slice(0, 3).every(verifyMvpBlueGreenSourceDay), true)
 assert.equal(verifyMvpBlueGreenSourceDay(days[3]), false)
 
