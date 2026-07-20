@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3R",
+  "status": "PASS",
+  "rejected_artifact": {
+    "deployment_id": "dpl_5K9DsJB3GmRsM7VuzBCvDBdCf3kh",
+    "classification": "INVALID_FOR_PROMOTION",
+    "reason": "Production exact Candidate DB mode did not enable exact Candidate Replay navigation."
+  },
+  "replacement_contract": {
+    "preview_runtime": "PREVIEW_EXPLICIT_CANDIDATE_DB_REVIEW",
+    "production_runtime": "PRODUCTION_EXACT_CANDIDATE_DB",
+    "replay_symbols": 6,
+    "browser_links_per_runtime": 6,
+    "api_queries_per_runtime": 6,
+    "exact_projection_required": true,
+    "timestamp_substitution_allowed": false,
+    "default_production_candidate_replay": "BTCUSDT"
+  },
+  "tests": {
+    "typescript": "PASS",
+    "focused_replay_navigation": "PASS",
+    "candidate_preview_regression": "PASS",
+    "production_candidate_db_policy": "PASS",
+    "runtime_selection": "PASS",
+    "managed_reader": "PASS",
+    "route_contracts": "PASS",
+    "direct_write_scan": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "production": {
+    "alias": "quantterminalai.vercel.app",
+    "expected_deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "changed": false
+  },
+  "database_writes": 0,
+  "exposure_writes": 0,
+  "credentials_included": false
+}
