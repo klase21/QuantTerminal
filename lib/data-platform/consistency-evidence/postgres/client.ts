@@ -54,11 +54,11 @@ export class ConsistencyPostgresRuntime {
         statement_timeout: this.config.statementTimeoutMs ?? 15_000,
         lock_timeout: this.config.lockTimeoutMs ?? 5_000,
         idle_in_transaction_session_timeout: this.config.idleTransactionTimeoutMs ?? 15_000,
-        ...(role ? { role } : {}),
       },
     })
     this.client = sql
     try {
+      if (role) await sql.unsafe(`SET ROLE ${role}`)
       const verification = await verifyDatabase(sql, this.config.environment.D4_EXPECTED_DATABASE_NAME)
       if (role) {
         const session = await sql.unsafe<{ role: string }[]>("SELECT current_user role")
