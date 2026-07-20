@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "status": "DECLINED_CLEANUP_COMPLETE",
+  "retained": {
+    "production_deployment": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "prepared_candidate_deployment": "dpl_5K9DsJB3GmRsM7VuzBCvDBdCf3kh",
+    "production_database_target": "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb",
+    "candidate_database_target": "neon:soft-cell-16396854/br-flat-grass-ao9rtnyr/neondb",
+    "candidate_id": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "production_supporting_postgresql_state": "UNCHANGED",
+    "historical_exposure_and_audit_state": "UNCHANGED"
+  },
+  "removed": {
+    "temporary_response_files": true,
+    "temporary_node_modules_junction": true,
+    "temporary_git_worktree": true,
+    "temporary_credentials": 0,
+    "temporary_environment_exports": 0,
+    "temporary_processes": 0
+  },
+  "mutations": {
+    "production_alias": 0,
+    "production_environment": 0,
+    "production_database": 0,
+    "candidate_database": 0,
+    "serving_exposure": 0
+  },
+  "credentials_included": false
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "status": "NOT_PERFORMED_OPERATOR_DECLINED",
+  "prepared_deployment_id": "dpl_5K9DsJB3GmRsM7VuzBCvDBdCf3kh",
+  "production_alias": "quantterminalai.vercel.app",
+  "production_deployment_unchanged": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "alias_mutations": 0,
+  "environment_mutations": 0,
+  "database_writes": 0,
+  "exposure_writes": 0
+}

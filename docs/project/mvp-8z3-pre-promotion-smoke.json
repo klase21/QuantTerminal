@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "verified_at": "2026-07-20T05:46:35.7913043Z",
+  "deployment_id": "dpl_5K9DsJB3GmRsM7VuzBCvDBdCf3kh",
+  "deployment_commit": "4c1cbff6d964a1d6df04b03c802776297831e915",
+  "health": {
+    "http_status": 200,
+    "status": "HEALTHY",
+    "provider": "SERVING_POSTGRES",
+    "database_connectivity": "CONNECTED",
+    "candidate_id": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "candidate_checksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "governed_through": "2026-07-16T00:00:00.000Z",
+    "counts": {
+      "projection": 62,
+      "evidence": 6,
+      "replay": 6,
+      "members": 74,
+      "manifest": 1
+    },
+    "candidate_exposure_count": 0,
+    "reader_role_state": "READ_ONLY_TRANSACTION_VERIFIED",
+    "selection": "PRODUCTION_EXACT_CANDIDATE_DB",
+    "runtime_selection_policy": "PRODUCTION_EXACT_CANDIDATE_DB"
+  },
+  "dashboard": {
+    "status": "PASS",
+    "api_status": "AVAILABLE",
+    "candidate_checksum_verified": true
+  },
+  "scanner": {
+    "status": "PASS",
+    "api_status": "AVAILABLE",
+    "projection_count": 31,
+    "candidate_checksum_verified": true
+  },
+  "trade": {
+    "status": "PASS",
+    "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+    "passed": 6,
+    "projection_count_per_symbol": 8,
+    "trade_context_count_per_symbol": 1
+  },
+  "replay": {
+    "status": "PASS",
+    "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+    "passed": 6,
+    "window": ["2026-07-15T00:00:00.000Z", "2026-07-16T00:00:00.000Z"],
+    "sample_counts_per_symbol": {
+      "price": 288,
+      "open_interest": 288,
+      "funding": 3,
+      "flow": 48
+    }
+  },
+  "integrity": {
+    "member_set_checksum": "021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e",
+    "common_watermark_checksum": "a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+    "no_data_distinct_from_legitimate_zero": "PASS",
+    "unavailable_uses_explicit_reason": "PASS",
+    "database_writes": 0,
+    "exposure_writes": 0
+  },
+  "production_integrity": {
+    "alias": "quantterminalai.vercel.app",
+    "deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "corpus_id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "health": "HEALTHY",
+    "dashboard": "PASS",
+    "scanner": "PASS",
+    "trade_six": "PASS",
+    "replay_six_receipt": "caad738d225a72be7d5b7ab63938c45a97d442efc609133bd5856e41c6d93fe6",
+    "unchanged": true
+  },
+  "credentials_included": false
+}

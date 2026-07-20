@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "captured_at": "2026-07-20T05:46:35.7913043Z",
+  "deployment": {
+    "id": "dpl_5K9DsJB3GmRsM7VuzBCvDBdCf3kh",
+    "commit": "4c1cbff6d964a1d6df04b03c802776297831e915",
+    "target": "production",
+    "state": "READY",
+    "production_alias_assigned": false,
+    "deployment_url": "quantterminal-d0g5ytjm9-klase21s-projects.vercel.app",
+    "created_at": "2026-07-20T05:33:52.000Z"
+  },
+  "selection": {
+    "policy": "PRODUCTION_EXACT_CANDIDATE_DB",
+    "mode": "EXACT_CANDIDATE_DB_CUTOVER",
+    "target_fingerprint": "neon:soft-cell-16396854/br-flat-grass-ao9rtnyr/neondb",
+    "candidate_id": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "candidate_checksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+    "member_set_checksum": "021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e",
+    "common_watermark_checksum": "a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+    "reader_role": "mvp_serving_reader",
+    "transaction_contract": "MANAGED_EXPLICIT_READ_ONLY"
+  },
+  "sanitized_environment_binding_checksum": "0039b6191356371e22b6b86b28ea50e8edc05d5180cdd192d05b746f5332de6d",
+  "required_routes_present": true,
+  "credentials_included": false
+}

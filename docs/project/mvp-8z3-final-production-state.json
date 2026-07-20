@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "captured_at": "2026-07-20T05:52:58.3796521Z",
+  "status": "DECLINED_PRODUCTION_UNCHANGED",
+  "production_alias": "quantterminalai.vercel.app",
+  "deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "deployment_commit": "9017dcf4e50e8caeddbd146070c800480e3a06d1",
+  "database_target": "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb",
+  "active_corpus_id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "active_corpus_checksum": "129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+  "latest_exposure_id": "msex_2c4d1cc8204d3abb813036f9f251ed2aa6ea0ea4b4414cc4336664cafcdfd9bc",
+  "health": "HEALTHY",
+  "provider": "SERVING_POSTGRES",
+  "counts": {
+    "projection": 870,
+    "evidence": 84,
+    "replay": 84
+  },
+  "prepared_candidate_deployment_retained": "dpl_5K9DsJB3GmRsM7VuzBCvDBdCf3kh",
+  "production_promotion_performed": false,
+  "database_writes": 0,
+  "exposure_writes": 0
+}

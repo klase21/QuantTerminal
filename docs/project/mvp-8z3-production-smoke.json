@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "status": "NOT_APPLICABLE_NO_PROMOTION",
+  "baseline_health_after_decline": {
+    "status": "HEALTHY",
+    "provider": "SERVING_POSTGRES",
+    "deployment_id": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+    "corpus_id": "mvp-serving-corpus:129fb3614df294abb3b7d0a66b3a3ee0036d560c6e0c45cc52a7ba60d8b48949",
+    "counts": {
+      "projection": 870,
+      "evidence": 84,
+      "replay": 84
+    }
+  },
+  "candidate_production_smoke_performed": false
+}

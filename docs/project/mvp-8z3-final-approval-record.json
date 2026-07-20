@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "sprint": "MVP-8Z3",
+  "recorded_at": "2026-07-20T05:52:58.3796521Z",
+  "gate": "FINAL_CANDIDATE_DB_CUTOVER",
+  "decision": "NO",
+  "decision_source": "operator",
+  "prepared_deployment_id": "dpl_5K9DsJB3GmRsM7VuzBCvDBdCf3kh",
+  "prepared_deployment_commit": "4c1cbff6d964a1d6df04b03c802776297831e915",
+  "production_alias_before": "quantterminalai.vercel.app",
+  "production_deployment_before": "dpl_9aBTrz4w29fg7EL94vuvwhAdARRX",
+  "production_promotion_authorized": false,
+  "production_promotion_performed": false,
+  "database_writes": 0,
+  "exposure_writes": 0
+}
