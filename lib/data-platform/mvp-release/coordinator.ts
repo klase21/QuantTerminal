@@ -57,14 +57,16 @@ export interface MvpBlueGreenPipelinePorts {
   }
 }
 
+export type MvpBlueGreenCertificationOnlyPorts = Omit<MvpBlueGreenPipelinePorts, "preview">
+
 function requireChecksum(value: string, code: string): void {
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error(code)
 }
 
-export async function runMvpBlueGreenReleasePipeline(input: {
+async function runMvpBlueGreenThroughCertification(input: {
   readonly plan: MvpBlueGreenBranchPlan
-  readonly ports: MvpBlueGreenPipelinePorts
-}): Promise<{ readonly release: MvpBlueGreenReleaseUnit; readonly windows: readonly MvpBlueGreenWindowReceipt[]; readonly pipelineChecksum: string }> {
+  readonly ports: MvpBlueGreenCertificationOnlyPorts
+}) {
   const branch = await input.ports.infrastructure.createBranch(input.plan)
   if (branch.projectId !== input.plan.projectId || branch.parentBranchId !== input.plan.parentBranchId || branch.branchName !== input.plan.branchName || branch.databaseName !== input.plan.databaseName || branch.branchId === input.plan.parentBranchId || branch.targetFingerprint !== `neon:${branch.projectId}/${branch.branchId}/${branch.databaseName}` || !branch.pooledEndpointReady) throw new Error("MVP_BLUE_GREEN_CREATED_BRANCH_INVALID")
 
@@ -106,6 +108,49 @@ export async function runMvpBlueGreenReleasePipeline(input: {
   if (!certified.passed) throw new Error("MVP_BLUE_GREEN_CERTIFICATION_FAILED")
   requireChecksum(certified.checksum, "MVP_BLUE_GREEN_CERTIFICATION_CHECKSUM_INVALID")
   release = createMvpBlueGreenReleaseUnit({ ...release, state: transitionMvpBlueGreenRelease(release.state, "CERTIFIED") })
+  return Object.freeze({
+    branch,
+    release,
+    windows: Object.freeze(windowReceipts),
+    disabled,
+    reader,
+    certified,
+  })
+}
+
+export async function runMvpBlueGreenCertificationOnlyPipeline(input: {
+  readonly mode: "GREEN_CERTIFICATION_ONLY"
+  readonly plan: MvpBlueGreenBranchPlan
+  readonly ports: MvpBlueGreenCertificationOnlyPorts
+}): Promise<{ readonly release: MvpBlueGreenReleaseUnit; readonly windows: readonly MvpBlueGreenWindowReceipt[]; readonly pipelineChecksum: string; readonly preview: "NOT_APPLICABLE" }> {
+  if (input.mode !== "GREEN_CERTIFICATION_ONLY") throw new Error("MVP_GREEN_CERTIFICATION_ONLY_BOUNDARY_VIOLATION")
+  const result = await runMvpBlueGreenThroughCertification(input)
+  await input.ports.receipts.persist(result.release)
+  const pipelineChecksum = canonicalChecksum({
+    mode: input.mode,
+    planChecksum: input.plan.planChecksum,
+    branch: result.branch,
+    windowReceipts: result.windows,
+    disabled: result.disabled,
+    reader: result.reader,
+    certified: result.certified,
+    releaseChecksum: result.release.releaseChecksum,
+    preview: "NOT_APPLICABLE",
+  })
+  return Object.freeze({
+    release: result.release,
+    windows: result.windows,
+    pipelineChecksum,
+    preview: "NOT_APPLICABLE" as const,
+  })
+}
+
+export async function runMvpBlueGreenReleasePipeline(input: {
+  readonly plan: MvpBlueGreenBranchPlan
+  readonly ports: MvpBlueGreenPipelinePorts
+}): Promise<{ readonly release: MvpBlueGreenReleaseUnit; readonly windows: readonly MvpBlueGreenWindowReceipt[]; readonly pipelineChecksum: string }> {
+  const result = await runMvpBlueGreenThroughCertification(input)
+  let release = result.release
 
   const deployment = await input.ports.preview.deploy(release)
   if (!deployment.deploymentId || deployment.commit !== release.applicationCommit) throw new Error("MVP_BLUE_GREEN_PREVIEW_DEPLOYMENT_INVALID")
@@ -116,6 +161,6 @@ export async function runMvpBlueGreenReleasePipeline(input: {
   release = createMvpBlueGreenReleaseUnit({ ...release, state: transitionMvpBlueGreenRelease(release.state, "PROMOTION_READY") })
   await input.ports.receipts.persist(release)
 
-  const pipelineChecksum = canonicalChecksum({ planChecksum: input.plan.planChecksum, branch, windowReceipts, disabled, reader, certified, deployment, releaseChecksum: release.releaseChecksum })
-  return Object.freeze({ release, windows: Object.freeze(windowReceipts), pipelineChecksum })
+  const pipelineChecksum = canonicalChecksum({ planChecksum: input.plan.planChecksum, branch: result.branch, windowReceipts: result.windows, disabled: result.disabled, reader: result.reader, certified: result.certified, deployment, releaseChecksum: release.releaseChecksum })
+  return Object.freeze({ release, windows: result.windows, pipelineChecksum })
 }
