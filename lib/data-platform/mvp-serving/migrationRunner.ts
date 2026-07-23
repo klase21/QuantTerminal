@@ -10,7 +10,7 @@ export type MvpServingMigrationResult = { readonly status: "APPLIED" | "SKIPPED"
 export async function discoverMvpServingMigrations(root = path.join(process.cwd(), "lib", "data-platform", "mvp-serving", "migrations")): Promise<readonly MvpServingMigrationArtifact[]> {
   const artifacts: MvpServingMigrationArtifact[] = []
   for (const filename of MVP_SERVING_MIGRATION_ORDER) {
-    const sql = await readFile(path.join(root, filename), "utf8"), migrationId = /^(\d{3})_/.exec(filename)?.[1]
+    const sql = (await readFile(path.join(root, filename), "utf8")).replace(/\r\n/g, "\n"), migrationId = /^(\d{3})_/.exec(filename)?.[1]
     if (!migrationId) throw new Error("MVP_SERVING_MIGRATION_FILENAME_INVALID")
     artifacts.push(Object.freeze({ migrationId, filename, checksum: createHash("sha256").update(sql).digest("hex"), sql }))
   }

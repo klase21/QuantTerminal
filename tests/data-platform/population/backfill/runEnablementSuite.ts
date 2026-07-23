@@ -7,6 +7,7 @@ import { buildHistoricalDatasetScope, buildInstrumentLifecycleInventory, createB
 import { createCandidateId, type PopulationCandidate } from "@/lib/data-platform/population"
 import type { RawObjectManifest } from "@/lib/data-platform/persistence"
 import type { CanonicalPersistenceAdapter } from "@/lib/data-platform/persistence/postgres"
+import { DATASET_REGISTRY } from "@/lib/data-platform/registry"
 
 let failures = 0
 function check(name: string, value: boolean) { if (!value) { failures += 1; console.error(`FAIL ${name}`) } else console.log(`PASS ${name}`) }
@@ -14,10 +15,11 @@ const stream = (value: Uint8Array) => ({ async *[Symbol.asyncIterator]() { yield
 
 async function main() {
   const scope = buildHistoricalDatasetScope()
-  check("all registry datasets classified", scope.length === 17)
+  check("all registry datasets classified", scope.length === DATASET_REGISTRY.length && DATASET_REGISTRY.every((entry) => scope.some((item) => item.datasetId === entry.datasetId)))
   check("derived objects excluded", ["research-packet", "evidence-packet", "coverage-projection", "derived-market-intelligence"].every((id) => scope.find((item) => item.datasetId === id)?.status === "EXCLUDED_FROM_SOURCE_BACKFILL"))
   check("control objects excluded", ["population-job", "consistency-result"].every((id) => scope.find((item) => item.datasetId === id)?.classification === "CONTROL_PLANE"))
-  check("required provider remains blocked", scope.find((item) => item.datasetId === "macro")?.status === "BLOCKED_REQUIRED_PROVIDER")
+  check("certified macro provider is required", scope.find((item) => item.datasetId === "macro")?.status === "REQUIRED" && scope.find((item) => item.datasetId === "macro")?.producingOrSourceSystem === "fred")
+  check("governed external required provider remains blocked", scope.find((item) => item.datasetId === "prediction-market")?.status === "BLOCKED_REQUIRED_PROVIDER")
   check("required missing target remains blocked", scope.find((item) => item.datasetId === "research-document")?.status === "BLOCKED_REQUIRED_TARGET")
 
   const instruments = buildInstrumentLifecycleInventory()
