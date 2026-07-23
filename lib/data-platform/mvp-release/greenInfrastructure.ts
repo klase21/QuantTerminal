@@ -262,6 +262,13 @@ function requiredString(value: unknown, code: MvpGreenInfrastructureErrorCode): 
   return value
 }
 
+function normalizedProviderIso(value: unknown, code: MvpGreenInfrastructureErrorCode): string {
+  const raw = requiredString(value, code)
+  const parsed = Date.parse(raw)
+  if (!Number.isFinite(parsed)) throw new MvpGreenInfrastructureError(code)
+  return new Date(parsed).toISOString()
+}
+
 function encoded(value: string): string {
   return encodeURIComponent(value)
 }
@@ -306,8 +313,7 @@ function normalizedDatabase(input: {
     throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
   }
   const ownerName = requiredString(input.value.owner_name, "RELEASE_DATABASE_IDENTITY_UNVERIFIED")
-  const createdAt = requiredString(input.value.created_at, "RELEASE_DATABASE_IDENTITY_UNVERIFIED")
-  exactIso(createdAt, "RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+  const createdAt = normalizedProviderIso(input.value.created_at, "RELEASE_DATABASE_IDENTITY_UNVERIFIED")
   return Object.freeze({
     projectId: input.projectId,
     branchId,
@@ -517,10 +523,8 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     }
     const region = branchRegion || project.region
     const state = requiredString(branch.current_state, "PARENT_BRANCH_IDENTITY_MISMATCH")
-    const createdAt = requiredString(branch.created_at, "PARENT_BRANCH_IDENTITY_MISMATCH")
-    const updatedAt = requiredString(branch.updated_at, "PARENT_BRANCH_IDENTITY_MISMATCH")
-    exactIso(createdAt, "PARENT_BRANCH_IDENTITY_MISMATCH")
-    exactIso(updatedAt, "PARENT_BRANCH_IDENTITY_MISMATCH")
+    const createdAt = normalizedProviderIso(branch.created_at, "PARENT_BRANCH_IDENTITY_MISMATCH")
+    const updatedAt = normalizedProviderIso(branch.updated_at, "PARENT_BRANCH_IDENTITY_MISMATCH")
     const parentBranchId = branch.parent_id === null || branch.parent_id === undefined
       ? null
       : requiredString(branch.parent_id, "PARENT_BRANCH_IDENTITY_MISMATCH")

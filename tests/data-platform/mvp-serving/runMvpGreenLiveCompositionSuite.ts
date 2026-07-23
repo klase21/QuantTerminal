@@ -54,6 +54,13 @@ assert.notEqual(
   createMvpGreenReleaseIdentity(createMvpBlueGreenBranchPlan({ ...plan, governedThrough: "2026-07-22T00:00:00.000Z" })).databaseName,
   release.databaseName,
 )
+assert.throws(
+  () => createMvpGreenReleaseIdentity(createMvpBlueGreenBranchPlan({
+    ...plan,
+    currentWatermark: "2026-07-16T00:00:00Z",
+  })),
+  /MVP_BLUE_GREEN_CURRENT_WATERMARK_INVALID/,
+)
 
 type Branch = {
   id: string
@@ -62,11 +69,11 @@ type Branch = {
   parent_id: string | null
   parent_lsn?: string | null
   current_state: string
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
   region_id?: string | null
 }
-type Database = { branch_id: string; name: string; owner_name: string; created_at: string }
+type Database = { branch_id: string; name: string; owner_name: string; created_at?: string }
 
 class FakeNeonTransport implements MvpNeonTransport {
   readonly branches = new Map<string, Branch>()
@@ -232,6 +239,48 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     parentState: parent,
     at: NOW,
   })).creationStatus, "RECONCILED")
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const branch = transport.branches.get(MVP_GREEN_PRODUCTION_BRANCH_ID)!
+  branch.created_at = "2026-07-18T08:29:29Z"
+  branch.updated_at = "2026-07-23T23:57:45+09:00"
+  branch.region_id = undefined
+  const normalized = await adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)
+  assert.equal(normalized.createdAt, "2026-07-18T08:29:29.000Z")
+  assert.equal(normalized.updatedAt, "2026-07-23T14:57:45.000Z")
+  branch.created_at = "2026-07-18T08:29:29.000Z"
+  assert.equal(
+    (await adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)).createdAt,
+    "2026-07-18T08:29:29.000Z",
+  )
+  branch.created_at = "not-a-timestamp"
+  await assert.rejects(
+    () => adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID),
+    /PARENT_BRANCH_IDENTITY_MISMATCH/,
+  )
+  branch.created_at = undefined
+  await assert.rejects(
+    () => adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID),
+    /PARENT_BRANCH_IDENTITY_MISMATCH/,
+  )
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const database = transport.databases.get(MVP_GREEN_PRODUCTION_BRANCH_ID)![0]!
+  database.created_at = "2026-07-15T12:47:49Z"
+  const inspected = await adapter.listInheritedDatabases(
+    MVP_GREEN_PRODUCTION_PROJECT_ID,
+    MVP_GREEN_PRODUCTION_BRANCH_ID,
+  )
+  assert.equal(inspected[0]?.createdAt, "2026-07-15T12:47:49.000Z")
+  database.created_at = undefined
+  await assert.rejects(
+    () => adapter.listInheritedDatabases(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID),
+    /RELEASE_DATABASE_IDENTITY_UNVERIFIED/,
+  )
 }
 
 {
