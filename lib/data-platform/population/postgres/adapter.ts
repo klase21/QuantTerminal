@@ -7,11 +7,22 @@ import type { D3PostgresClient } from "./client"
 export type CreateJobResult = { readonly status: "CREATED" | "DUPLICATE"; readonly jobId: string }
 export type CandidateWriteResult = { readonly status: "CREATED" | "DUPLICATE"; readonly candidateId: string } | { readonly status: "CONFLICT"; readonly candidateId: string }
 export type PopulationCandidateWithoutRetrievalAttempt = PopulationCandidate extends infer Candidate ? Candidate extends PopulationCandidate ? Omit<Candidate, "retrievalAttemptId"> : never : never
+export interface LeaseMutationContext {
+  readonly leaseId: string
+  readonly ownerId: string
+  readonly fencingToken: number
+  readonly occurredAt: string
+}
+export function leaseMutationContext(lease: Pick<LeaseClaim, "leaseId" | "fencingToken">, ownerId: string, occurredAt: string): LeaseMutationContext {
+  return Object.freeze({ leaseId: lease.leaseId, ownerId, fencingToken: lease.fencingToken, occurredAt })
+}
 export interface PersistBoundedAcquisitionInput {
   readonly retrievalAttempt: RetrievalAttempt
   readonly rawObjectChecksum: string
   readonly candidates: readonly PopulationCandidateWithoutRetrievalAttempt[]
+  readonly lease?: LeaseMutationContext
 }
+export type BoundedAcquisitionProbeInput = Omit<PersistBoundedAcquisitionInput, "lease">
 export interface PersistBoundedAcquisitionResult {
   readonly persistedRetrievalAttemptId: string
   readonly retrievalAttemptStatus: "CREATED" | "DUPLICATE" | "CONFLICT"
@@ -73,6 +84,26 @@ export interface LeaseClaim { readonly unitId: string; readonly leaseId: string;
 export interface ReconciliationRead { readonly consistent: boolean; readonly reasons: readonly string[] }
 export interface RecordD2ResultInput { readonly jobId: string; readonly runId: string; readonly unitId: string; readonly candidateId: string; readonly retrievalAttemptId: string; readonly rawManifestId: string; readonly submissionId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly result: CanonicalCommitResult; readonly outcomeId: string; readonly createdAt: string }
 export interface SegmentFinalizationInput { readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly outcomeId: string; readonly decision: PopulationWatermarkEligibility; readonly checkpoint: PopulationCheckpoint; readonly completedAt: string }
+export interface PrepareCanonicalSubmissionInput {
+  readonly submissionId: string
+  readonly candidateId: string
+  readonly idempotencyKey: string
+  readonly unitId: string
+  readonly retrievalAttemptId: string
+  readonly rawManifestId: string
+  readonly expectedCanonicalRecordId: string
+  readonly expectedRecordVersion: number
+  readonly expectedFactChecksum: string
+  readonly commandChecksum: string
+  readonly lease: LeaseMutationContext
+}
+export interface CanonicalConsistencyRead {
+  readonly consistent: boolean
+  readonly reasons: readonly string[]
+  readonly submissionState: "MISSING" | "PREPARED" | "D2_REQUESTED" | "RESULT_RECONCILED" | "OUTCOME_RECORDED" | "CHECKPOINT_RECORDED"
+  readonly outcomeId: string | null
+  readonly checkpointId: string | null
+}
 
 function eventId(kind: string, identity: string) { return `population-event:${kind}:${identity}` }
 function json(value: unknown): string { return JSON.stringify(value) }
@@ -91,17 +122,21 @@ export interface PopulationPostgresAdapter {
   appendRetrievalAttempt(attempt: RetrievalAttempt): Promise<void>
   persistCandidate(candidate: PopulationCandidate): Promise<CandidateWriteResult>
   persistBoundedAcquisitionResult(input: PersistBoundedAcquisitionInput): Promise<PersistBoundedAcquisitionResult>
+  assertCurrentLease(unitId: string, lease: LeaseMutationContext): Promise<void>
   transitionUnitIdempotently(input: PopulationUnitEventInput & { readonly leaseId: string; readonly ownerId: string }): Promise<PopulationUnitEventResult>
   reconcileBoundedAcquisitionResume(input: { readonly unitId: string; readonly ownerId: string; readonly now: string; readonly expiresAt: string }): Promise<PopulationResumeResolution | null>
   inspectResumeLeaseEligibility(input: { readonly intervalStart: string; readonly intervalEnd: string; readonly requestedBy: string; readonly now: string; readonly executionGenerationId?: string }): Promise<readonly PopulationResumeLeaseEligibility[]>
   recoverPopulationUnitLease(input: { readonly unitId: string; readonly runId: string; readonly ownerId: string; readonly now: string; readonly expiresAt: string }): Promise<LeaseClaim | null>
   recordRecoverableLineageFailure(input: { readonly unitId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly classification: string; readonly at: string }): Promise<PopulationUnitEventResult>
   recordCanonicalCommitFailure(input: { readonly unitId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly classification: string; readonly at: string }): Promise<PopulationUnitEventResult>
-  probeBoundedAcquisitionLineage(input: PersistBoundedAcquisitionInput): Promise<{ readonly passed: true; readonly retainedRows: 0 }>
+  probeBoundedAcquisitionLineage(input: BoundedAcquisitionProbeInput): Promise<{ readonly passed: true; readonly retainedRows: 0 }>
   auditBoundedAcquisitionLineage(intervalStart: string, intervalEnd: string, requestedBy: string): Promise<PopulationLineageAudit>
   appendValidation(result: CandidateValidationResult): Promise<void>
   appendQuality(result: CandidateQualityResult): Promise<void>
   createSubmission(submissionId: string, candidateId: string, idempotencyKey: string, submittedAt: string): Promise<"CREATED" | "DUPLICATE">
+  prepareCanonicalSubmission(input: PrepareCanonicalSubmissionInput): Promise<"CREATED" | "DUPLICATE">
+  markCanonicalCommitRequested(submissionId: string, unitId: string, lease: LeaseMutationContext): Promise<"CREATED" | "DUPLICATE">
+  inspectCanonicalConsistency(submissionId: string): Promise<CanonicalConsistencyRead>
   recordD2Result(input: RecordD2ResultInput): Promise<PopulationOutcome>
   recordIntermediateD2Result(input: RecordD2ResultInput): Promise<PopulationOutcome>
   finalizeSegment(input: SegmentFinalizationInput): Promise<void>
@@ -119,6 +154,31 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
   const assertLease = async (sql: postgres.TransactionSql, unitId: string, leaseId: string, ownerId: string, token: number, now: string) => {
     const rows = await sql<{ readonly ok: boolean }[]>`SELECT EXISTS(SELECT 1 FROM control.population_units u JOIN control.population_leases l ON l.lease_id=u.active_lease_id WHERE u.unit_id=${unitId} AND l.lease_id=${leaseId} AND l.owner_id=${ownerId} AND u.current_fencing_token=${token} AND l.fencing_token=${token} AND l.released_at IS NULL AND l.expires_at>${now} AND u.cancellation_requested_at IS NULL) ok`
     if (!rows[0]?.ok) throw new Error("STALE_FENCING_TOKEN")
+  }
+  const appendSubmissionEvent = async (
+    sql: postgres.TransactionSql,
+    input: {
+      readonly submissionId: string
+      readonly eventType: "SUBMISSION_PREPARED" | "D2_COMMIT_REQUESTED" | "COMMIT_RESULT_RECONCILED" | "POPULATION_OUTCOME_RECORDED" | "CHECKPOINT_RECORDED"
+      readonly fencingToken: number
+      readonly createdAt: string
+      readonly details: Readonly<Record<string, string | number | null>>
+    },
+  ): Promise<"CREATED" | "DUPLICATE"> => {
+    const eventChecksum = canonicalChecksum({
+      submissionId: input.submissionId,
+      eventType: input.eventType,
+      fencingToken: input.fencingToken,
+      details: input.details,
+    })
+    const eventId = `canonical-submission-event:${canonicalChecksum({ submissionId: input.submissionId, eventType: input.eventType, details: input.details })}`
+    const existing = await sql<{ readonly event_checksum: string }[]>`SELECT event_checksum FROM population.canonical_submission_events WHERE event_id=${eventId} FOR UPDATE`
+    if (existing[0]) {
+      if (existing[0].event_checksum !== eventChecksum) throw new Error("CANONICAL_SUBMISSION_EVENT_CONFLICT")
+      return "DUPLICATE"
+    }
+    await sql`INSERT INTO population.canonical_submission_events(event_id,submission_id,event_type,event_checksum,details,fencing_token,created_at) VALUES(${eventId},${input.submissionId},${input.eventType},${eventChecksum},${sql.json(input.details as never)},${input.fencingToken},${input.createdAt})`
+    return "CREATED"
   }
   const normalizedEvent = (value: PopulationUnitEventInput | Record<string, unknown>) => {
     const occurredAt = String("occurredAt" in value ? value.occurredAt : value.occurred_at)
@@ -165,8 +225,12 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
     const { startedAt: _startedAt, completedAt: _completedAt, ...stable } = retrievalComparable(value)
     return Object.freeze(stable)
   }
-  const persistBounded = async (sql: postgres.TransactionSql, input: PersistBoundedAcquisitionInput): Promise<PersistBoundedAcquisitionResult> => {
+  const persistBounded = async (sql: postgres.TransactionSql, input: PersistBoundedAcquisitionInput | BoundedAcquisitionProbeInput, enforceLease: boolean): Promise<PersistBoundedAcquisitionResult> => {
     const attempt = input.retrievalAttempt
+    if (enforceLease) {
+      if (!("lease" in input) || !input.lease) throw new Error("LEASE_CONTEXT_REQUIRED")
+      await assertLease(sql, attempt.unitId, input.lease.leaseId, input.lease.ownerId, input.lease.fencingToken, input.lease.occurredAt)
+    }
     if (!attempt.rawManifestId || !/^[0-9a-f]{64}$/.test(input.rawObjectChecksum)) throw new Error("BOUNDED_LINEAGE_INPUT_INVALID")
     if (input.candidates.some((candidate) => candidate.unitId !== attempt.unitId || candidate.rawManifestId !== attempt.rawManifestId || candidate.providerSnapshotId !== attempt.providerSnapshotId)) throw new Error("BOUNDED_LINEAGE_PARENT_MISMATCH")
     const existingAttempts = await sql<Record<string, unknown>[]>`SELECT * FROM control.retrieval_attempts WHERE attempt_id=${attempt.attemptId} FOR UPDATE`
@@ -189,7 +253,7 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
     const transactionOutcome = retrievalStatus === "CREATED" || candidateResults.some((result) => result.status === "CREATED") ? "CREATED" as const : "DUPLICATE" as const
     return Object.freeze({ persistedRetrievalAttemptId: attempt.attemptId, retrievalAttemptStatus: retrievalStatus, persistedObjectId: attempt.rawManifestId, objectStatus: "ATTRIBUTED" as const, candidates: Object.freeze(candidateResults), lineageChecksum: canonicalChecksum({ attempt: retrievalIdentityComparable(attempt), rawObjectChecksum: input.rawObjectChecksum, candidates: input.candidates.map((candidate) => [candidate.candidateId, candidate.candidateChecksum]) }), transactionOutcome })
   }
-  const recordFailure = async (input: { readonly unitId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly classification: string; readonly at: string }, failureKind: "LINEAGE" | "CANONICAL", allowExpiredLease: boolean): Promise<PopulationUnitEventResult> => client.transaction(async (sql) => {
+  const recordFailure = async (input: { readonly unitId: string; readonly leaseId: string; readonly ownerId: string; readonly fencingToken: number; readonly classification: string; readonly at: string }, failureKind: "LINEAGE" | "CANONICAL"): Promise<PopulationUnitEventResult> => client.transaction(async (sql) => {
     const failureId = eventId(failureKind === "CANONICAL" ? "canonical-failure" : "lineage-failure", `${input.unitId}:${input.fencingToken}:${input.classification}`)
     const existing = await sql<Record<string, unknown>[]>`SELECT event_id,unit_id,run_id,event_type,previous_state::text,next_state::text,fencing_token,actor_id,occurred_at,details FROM control.population_unit_events WHERE event_id=${failureId} FOR UPDATE`
     if (existing[0]) {
@@ -197,10 +261,7 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
       const actualSubset = { unitId: stable.unitId, eventType: stable.eventType, nextState: stable.nextState, fencingToken: stable.fencingToken, actorId: stable.actorId, occurredAt: stable.occurredAt, classification: (stable.details as Record<string, unknown>).classification }
       return Object.freeze({ status: canonicalChecksum(actualSubset) === canonicalChecksum(expectedSubset) ? "DUPLICATE" as const : "CONFLICT" as const, checksum: canonicalChecksum(stable) })
     }
-    if (allowExpiredLease) {
-      const owned = await sql<{ readonly ok: boolean }[]>`SELECT EXISTS(SELECT 1 FROM control.population_units u JOIN control.population_leases l ON l.lease_id=u.active_lease_id WHERE u.unit_id=${input.unitId} AND l.lease_id=${input.leaseId} AND l.owner_id=${input.ownerId} AND u.current_fencing_token=${input.fencingToken} AND l.fencing_token=${input.fencingToken} AND l.released_at IS NULL AND u.cancellation_requested_at IS NULL) ok`
-      if (!owned[0]?.ok) throw new Error("STALE_FENCING_TOKEN")
-    } else await assertLease(sql, input.unitId, input.leaseId, input.ownerId, input.fencingToken, input.at)
+    await assertLease(sql, input.unitId, input.leaseId, input.ownerId, input.fencingToken, input.at)
     const current = await sql<{ readonly job_id: string; readonly current_state: string; readonly run_id: string; readonly raw_manifest_id: string | null; readonly candidate_cursor: string | null }[]>`
       SELECT u.job_id,u.current_state::text,r.run_id,
         (SELECT a.raw_manifest_id FROM control.retrieval_attempts a WHERE a.unit_id=u.unit_id ORDER BY a.started_at,a.attempt_id LIMIT 1) raw_manifest_id,
@@ -255,10 +316,11 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
     async advanceUnit(unitId,leaseId,ownerId,fencingToken,nextState,eventIdentity,at){await client.sql`SELECT control.advance_population_unit(${unitId},${leaseId},${ownerId},${fencingToken},${nextState},${eventIdentity},${at})`},
     async expireLease(unitId,leaseId,fencingToken,at) { await client.transaction(async (sql)=>{ const rows=await sql<{readonly expires_at:string;readonly released_at:string|null}[]>`SELECT expires_at,released_at FROM control.population_leases WHERE lease_id=${leaseId} AND unit_id=${unitId} AND fencing_token=${fencingToken} FOR UPDATE`; if(!rows[0]||rows[0].released_at||Date.parse(rows[0].expires_at)>Date.parse(at))throw new Error("LEASE_NOT_EXPIRED"); await sql`UPDATE control.population_leases SET released_at=${at},release_reason='EXPIRED' WHERE lease_id=${leaseId}`; await sql`UPDATE control.population_units SET current_state='RETRYABLE',active_lease_id=NULL,updated_at=${at} WHERE unit_id=${unitId} AND current_fencing_token=${fencingToken}`; await sql`INSERT INTO control.population_unit_events(event_id,unit_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at) VALUES(${eventId("lease-expired",`${leaseId}:${at}`)},${unitId},'LEASE_EXPIRED','LEASED','RETRYABLE',${fencingToken},'coordinator',${at})` }) },
     async releaseLease(unitId,leaseId,ownerId,fencingToken,at,reason) { await client.transaction(async(sql)=>{ await assertLease(sql,unitId,leaseId,ownerId,fencingToken,at); await sql`UPDATE control.population_leases SET released_at=${at},release_reason=${reason} WHERE lease_id=${leaseId}`; await sql`UPDATE control.population_units SET active_lease_id=NULL,updated_at=${at} WHERE unit_id=${unitId}`; await sql`INSERT INTO control.population_unit_events(event_id,unit_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at) SELECT ${eventId("lease-released",`${leaseId}:${at}`)},unit_id,'LEASE_RELEASED',current_state,current_state,${fencingToken},${ownerId},${at} FROM control.population_units WHERE unit_id=${unitId}` }) },
-    async checkpoint(checkpoint, leaseId, ownerId) { return client.transaction(async (sql) => { await assertLease(sql,checkpoint.unitId,leaseId,ownerId,checkpoint.fencingToken,checkpoint.createdAt); if (checkpoint.checkpointType === "RAW_BOUNDARY" && !checkpoint.rawManifestId) throw new Error("RAW_MANIFEST_REQUIRED"); if (checkpoint.checkpointType === "CANDIDATE_BOUNDARY") { if(!checkpoint.candidateCursor)throw new Error("CANDIDATE_BOUNDARY_REQUIRED"); const durable=await sql`SELECT 1 FROM population.candidates WHERE candidate_id=${checkpoint.candidateCursor}`;if(!durable.length)throw new Error("CANDIDATE_NOT_DURABLE") } if (checkpoint.checkpointType === "CANONICAL_BOUNDARY") { if(!checkpoint.canonicalSubmissionId||!checkpoint.lastOutcomeId)throw new Error("CANONICAL_OUTCOME_REQUIRED"); const durable=await sql`SELECT 1 FROM population.canonical_submissions s JOIN control.population_outcomes o ON o.submission_id=s.submission_id WHERE s.submission_id=${checkpoint.canonicalSubmissionId} AND o.outcome_id=${checkpoint.lastOutcomeId}`;if(!durable.length)throw new Error("CANONICAL_OUTCOME_NOT_DURABLE") } const rows = await sql`INSERT INTO control.population_checkpoints(checkpoint_id,job_id,run_id,unit_id,fencing_token,checkpoint_type,completed_stage,raw_manifest_id,candidate_cursor,canonical_submission_id,last_outcome_id,created_at) VALUES(${checkpoint.checkpointId},${checkpoint.jobId},${checkpoint.runId},${checkpoint.unitId},${checkpoint.fencingToken},${checkpoint.checkpointType},${checkpoint.completedStage},${checkpoint.rawManifestId},${checkpoint.candidateCursor},${checkpoint.canonicalSubmissionId},${checkpoint.lastOutcomeId},${checkpoint.createdAt}) ON CONFLICT(checkpoint_id) DO NOTHING RETURNING checkpoint_id`; if (!rows.length) return "DUPLICATE" as const; await sql`UPDATE control.population_units SET current_checkpoint_id=${checkpoint.checkpointId},updated_at=${checkpoint.createdAt} WHERE unit_id=${checkpoint.unitId}`; await sql`INSERT INTO control.population_unit_events(event_id,unit_id,run_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at) SELECT ${eventId("checkpoint",checkpoint.checkpointId)},unit_id,${checkpoint.runId},'CHECKPOINT_ADVANCED',current_state,current_state,${checkpoint.fencingToken},${ownerId},${checkpoint.createdAt} FROM control.population_units WHERE unit_id=${checkpoint.unitId}`; return "CREATED" as const }) },
+    async checkpoint(checkpoint, leaseId, ownerId) { return client.transaction(async (sql) => { await assertLease(sql,checkpoint.unitId,leaseId,ownerId,checkpoint.fencingToken,checkpoint.createdAt); if (checkpoint.checkpointType === "RAW_BOUNDARY" && !checkpoint.rawManifestId) throw new Error("RAW_MANIFEST_REQUIRED"); if (checkpoint.checkpointType === "CANDIDATE_BOUNDARY") { if(!checkpoint.candidateCursor)throw new Error("CANDIDATE_BOUNDARY_REQUIRED"); const durable=await sql`SELECT 1 FROM population.candidates WHERE candidate_id=${checkpoint.candidateCursor}`;if(!durable.length)throw new Error("CANDIDATE_NOT_DURABLE") } if (checkpoint.checkpointType === "CANONICAL_BOUNDARY") { if(!checkpoint.canonicalSubmissionId||!checkpoint.lastOutcomeId)throw new Error("CANONICAL_OUTCOME_REQUIRED"); const durable=await sql`SELECT 1 FROM population.canonical_submissions s JOIN control.population_outcomes o ON o.submission_id=s.submission_id WHERE s.submission_id=${checkpoint.canonicalSubmissionId} AND o.outcome_id=${checkpoint.lastOutcomeId}`;if(!durable.length)throw new Error("CANONICAL_OUTCOME_NOT_DURABLE") } const rows = await sql`INSERT INTO control.population_checkpoints(checkpoint_id,job_id,run_id,unit_id,fencing_token,checkpoint_type,completed_stage,raw_manifest_id,candidate_cursor,canonical_submission_id,last_outcome_id,created_at) VALUES(${checkpoint.checkpointId},${checkpoint.jobId},${checkpoint.runId},${checkpoint.unitId},${checkpoint.fencingToken},${checkpoint.checkpointType},${checkpoint.completedStage},${checkpoint.rawManifestId},${checkpoint.candidateCursor},${checkpoint.canonicalSubmissionId},${checkpoint.lastOutcomeId},${checkpoint.createdAt}) ON CONFLICT(checkpoint_id) DO NOTHING RETURNING checkpoint_id`; if (!rows.length) return "DUPLICATE" as const; await sql`UPDATE control.population_units SET current_checkpoint_id=${checkpoint.checkpointId},updated_at=${checkpoint.createdAt} WHERE unit_id=${checkpoint.unitId}`; await sql`INSERT INTO control.population_unit_events(event_id,unit_id,run_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at) SELECT ${eventId("checkpoint",checkpoint.checkpointId)},unit_id,${checkpoint.runId},'CHECKPOINT_ADVANCED',current_state,current_state,${checkpoint.fencingToken},${ownerId},${checkpoint.createdAt} FROM control.population_units WHERE unit_id=${checkpoint.unitId}`; if (checkpoint.checkpointType === "CANONICAL_BOUNDARY" && checkpoint.canonicalSubmissionId) await appendSubmissionEvent(sql,{submissionId:checkpoint.canonicalSubmissionId,eventType:"CHECKPOINT_RECORDED",fencingToken:checkpoint.fencingToken,createdAt:checkpoint.createdAt,details:{checkpointId:checkpoint.checkpointId,outcomeId:checkpoint.lastOutcomeId}}); return "CREATED" as const }) },
     async appendRetrievalAttempt(a) { await client.sql`INSERT INTO control.retrieval_attempts(attempt_id,unit_id,run_id,provider_id,provider_snapshot_id,request_fingerprint,started_at,completed_at,outcome,status_code,retry_after,response_media_type,raw_byte_count,raw_manifest_id,error_class,error_code,retry_classification_id) VALUES(${a.attemptId},${a.unitId},${a.runId},${a.providerId},${a.providerSnapshotId},${a.requestFingerprint},${a.startedAt},${a.completedAt},${a.outcome},${a.statusCode},${a.retryAfter},${a.responseMediaType},${a.rawByteCount},${a.rawManifestId},${a.errorClass},${a.errorCode},${a.retryClassificationId}) ON CONFLICT(attempt_id) DO NOTHING` },
     async persistCandidate(c) { return client.transaction(async (sql) => { const existing = await sql<{ readonly candidate_checksum: string }[]>`SELECT candidate_checksum FROM population.candidates WHERE candidate_id=${c.candidateId} FOR UPDATE`; if (existing[0]) { if(existing[0].candidate_checksum===c.candidateChecksum)return {status:"DUPLICATE" as const,candidateId:c.candidateId}; const conflictId=`candidate-conflict:${c.candidateId}:${c.candidateChecksum}`; await sql`INSERT INTO population.candidate_conflicts(conflict_id,candidate_id,existing_checksum,incoming_checksum,detected_at) VALUES(${conflictId},${c.candidateId},${existing[0].candidate_checksum},${c.candidateChecksum},${c.createdAt}) ON CONFLICT DO NOTHING`; return {status:"CONFLICT" as const,candidateId:c.candidateId} }; await sql`INSERT INTO population.candidates(candidate_id,unit_id,retrieval_attempt_id,raw_manifest_id,dataset_id,provider_id,provider_snapshot_id,source_observation_id,source_observed_at,effective_at,parser_version,candidate_schema_version,candidate_kind,bounded_payload,candidate_checksum,validation_status,quality_eligibility,normalization_eligibility,created_at) VALUES(${c.candidateId},${c.unitId},${c.retrievalAttemptId},${c.rawManifestId},${c.datasetId},${c.providerId},${c.providerSnapshotId},${c.sourceObservationId},${c.sourceObservedAt},${c.effectiveAt},${c.parserVersion},${c.candidateSchemaVersion},${c.kind},${sql.json(c.payload)},${c.candidateChecksum},${c.validationStatus},${c.qualityEligibility},${c.normalizationEligibility},${c.createdAt})`; return { status: "CREATED" as const, candidateId: c.candidateId } }) },
-    async persistBoundedAcquisitionResult(input) { return client.transaction((sql) => persistBounded(sql, input)) },
+    async persistBoundedAcquisitionResult(input) { return client.transaction((sql) => persistBounded(sql, input, true)) },
+    async assertCurrentLease(unitId, lease) { await client.transaction((sql) => assertLease(sql, unitId, lease.leaseId, lease.ownerId, lease.fencingToken, lease.occurredAt)) },
     async transitionUnitIdempotently(input) {
       return client.transaction(async (sql) => {
         await assertLease(sql, input.unitId, input.leaseId, input.ownerId, input.fencingToken ?? 0, input.occurredAt)
@@ -388,14 +450,14 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
         return Object.freeze({ unitId: value.unit_id, leaseId: value.lease_id, fencingToken: Number(value.fencing_token) })
       })
     },
-    async recordRecoverableLineageFailure(input) { return recordFailure(input, "LINEAGE", false) },
-    async recordCanonicalCommitFailure(input) { return recordFailure(input, "CANONICAL", true) },
+    async recordRecoverableLineageFailure(input) { return recordFailure(input, "LINEAGE") },
+    async recordCanonicalCommitFailure(input) { return recordFailure(input, "CANONICAL") },
     async probeBoundedAcquisitionLineage(input) {
       const attemptId = input.retrievalAttempt.attemptId
       const candidateIds = input.candidates.map((candidate) => candidate.candidateId)
       try {
         await client.transaction(async (sql) => {
-          const result = await persistBounded(sql, input)
+          const result = await persistBounded(sql, input, false)
           if (result.transactionOutcome === "CONFLICT") throw new Error("BOUNDED_LINEAGE_PROBE_CONFLICT")
           const verified = await sql<{ readonly count: number }[]>`SELECT count(*)::int count FROM population.candidates WHERE retrieval_attempt_id=${result.persistedRetrievalAttemptId} AND candidate_id=ANY(${sql.array(candidateIds)})`
           if (verified[0]?.count !== candidateIds.length) throw new Error("BOUNDED_LINEAGE_PROBE_NOT_ATTRIBUTABLE")
@@ -418,8 +480,101 @@ export function createPopulationPostgresAdapter(client: D3PostgresClient): Popul
     async appendValidation(v) { await client.sql`INSERT INTO quality.candidate_validation_results(validation_run_id,candidate_id,retrieval_attempt_id,validation_layer,rule_id,rule_version,outcome,blocking,failure_routing,policy_version_id,diagnostics,created_at) VALUES(${v.validationRunId},${v.candidateId},${v.retrievalAttemptId},${v.layer},${v.ruleId},${v.ruleVersion},${v.outcome},${v.blocking},${v.failureRouting},${v.policyVersionId},${client.sql.json(v.diagnostics)},${v.createdAt})` },
     async appendQuality(q) { await client.transaction(async (sql) => { await sql`INSERT INTO quality.candidate_evaluation_runs(evaluation_run_id,unit_id,policy_version_id,provider_certification_snapshot_id,created_at) VALUES(${q.evaluationRunId},${q.unitId},${q.policyVersionId},${q.providerCertificationSnapshotId},${q.createdAt}) ON CONFLICT DO NOTHING`; await sql`INSERT INTO quality.candidate_evaluation_results(quality_result_id,evaluation_run_id,candidate_id,result_level,rule_id,rule_version,outcome,created_at) VALUES(${q.qualityResultId},${q.evaluationRunId},${q.candidateId},${q.level},${q.ruleId},${q.ruleVersion},${q.outcome},${q.createdAt})` }) },
     async createSubmission(submissionId,candidateId,idempotencyKey,submittedAt) { const rows = await client.sql`INSERT INTO population.canonical_submissions(submission_id,candidate_id,idempotency_key,result_status,submitted_at) VALUES(${submissionId},${candidateId},${idempotencyKey},'PENDING',${submittedAt}) ON CONFLICT(candidate_id) DO NOTHING RETURNING submission_id`; return rows.length ? "CREATED" : "DUPLICATE" },
+    async prepareCanonicalSubmission(input) {
+      return client.transaction(async (sql) => {
+        await assertLease(sql, input.unitId, input.lease.leaseId, input.lease.ownerId, input.lease.fencingToken, input.lease.occurredAt)
+        const existing = await sql<{ readonly submission_id: string; readonly candidate_id: string; readonly idempotency_key: string; readonly unit_id: string | null; readonly retrieval_attempt_id: string | null; readonly raw_manifest_id: string | null; readonly expected_canonical_record_id: string | null; readonly expected_record_version: number | null; readonly expected_fact_checksum: string | null; readonly command_checksum: string | null }[]>`
+          SELECT submission_id,candidate_id,idempotency_key,unit_id,retrieval_attempt_id,raw_manifest_id,expected_canonical_record_id,expected_record_version,expected_fact_checksum,command_checksum
+          FROM population.canonical_submissions
+          WHERE submission_id=${input.submissionId} OR candidate_id=${input.candidateId} OR idempotency_key=${input.idempotencyKey}
+          FOR UPDATE`
+        if (existing[0]) {
+          const row = existing[0]
+          const matches = row.submission_id === input.submissionId && row.candidate_id === input.candidateId && row.idempotency_key === input.idempotencyKey &&
+            row.unit_id === input.unitId && row.retrieval_attempt_id === input.retrievalAttemptId && row.raw_manifest_id === input.rawManifestId &&
+            row.expected_canonical_record_id === input.expectedCanonicalRecordId && Number(row.expected_record_version) === input.expectedRecordVersion &&
+            row.expected_fact_checksum === input.expectedFactChecksum && row.command_checksum === input.commandChecksum
+          if (!matches) throw new Error("CANONICAL_SUBMISSION_IDENTITY_CONFLICT")
+          return "DUPLICATE"
+        }
+        await sql`INSERT INTO population.canonical_submissions(submission_id,candidate_id,idempotency_key,result_status,submitted_at,unit_id,retrieval_attempt_id,raw_manifest_id,expected_canonical_record_id,expected_record_version,expected_fact_checksum,command_checksum) VALUES(${input.submissionId},${input.candidateId},${input.idempotencyKey},'PENDING',${input.lease.occurredAt},${input.unitId},${input.retrievalAttemptId},${input.rawManifestId},${input.expectedCanonicalRecordId},${input.expectedRecordVersion},${input.expectedFactChecksum},${input.commandChecksum})`
+        await appendSubmissionEvent(sql, {
+          submissionId: input.submissionId,
+          eventType: "SUBMISSION_PREPARED",
+          fencingToken: input.lease.fencingToken,
+          createdAt: input.lease.occurredAt,
+          details: { candidateId: input.candidateId, commandChecksum: input.commandChecksum },
+        })
+        return "CREATED"
+      })
+    },
+    async markCanonicalCommitRequested(submissionId, unitId, lease) {
+      return client.transaction(async (sql) => {
+        await assertLease(sql, unitId, lease.leaseId, lease.ownerId, lease.fencingToken, lease.occurredAt)
+        const rows = await sql<{ readonly unit_id: string | null }[]>`SELECT unit_id FROM population.canonical_submissions WHERE submission_id=${submissionId} FOR KEY SHARE`
+        if (!rows[0] || rows[0].unit_id !== unitId) throw new Error("CANONICAL_SUBMISSION_MISSING")
+        return appendSubmissionEvent(sql, {
+          submissionId,
+          eventType: "D2_COMMIT_REQUESTED",
+          fencingToken: lease.fencingToken,
+          createdAt: lease.occurredAt,
+          details: { unitId },
+        })
+      })
+    },
+    async inspectCanonicalConsistency(submissionId) {
+      const rows = await client.sql<{ readonly submission_id: string; readonly result_status: string; readonly outcome_id: string | null; readonly checkpoint_id: string | null; readonly events: string[] }[]>`
+        SELECT s.submission_id,s.result_status,
+          (SELECT o.outcome_id FROM control.population_outcomes o WHERE o.submission_id=s.submission_id ORDER BY o.created_at,o.outcome_id LIMIT 1) outcome_id,
+          (SELECT c.checkpoint_id FROM control.population_checkpoints c WHERE c.canonical_submission_id=s.submission_id ORDER BY c.created_at,c.checkpoint_id LIMIT 1) checkpoint_id,
+          COALESCE((SELECT array_agg(e.event_type ORDER BY e.created_at,e.event_id) FROM population.canonical_submission_events e WHERE e.submission_id=s.submission_id),ARRAY[]::text[]) events
+        FROM population.canonical_submissions s WHERE s.submission_id=${submissionId}`
+      if (!rows[0]) return Object.freeze({ consistent: false, reasons: Object.freeze(["SUBMISSION_MISSING"]), submissionState: "MISSING" as const, outcomeId: null, checkpointId: null })
+      const row = rows[0], events = new Set(row.events)
+      const reasons: string[] = []
+      if (row.result_status !== "PENDING" && !events.has("COMMIT_RESULT_RECONCILED")) reasons.push("D2_RESULT_WITHOUT_RECONCILIATION_EVENT")
+      if (events.has("COMMIT_RESULT_RECONCILED") && !row.outcome_id) reasons.push("D2_RESULT_WITHOUT_POPULATION_OUTCOME")
+      if (row.outcome_id && !row.checkpoint_id) reasons.push("OUTCOME_WITHOUT_CHECKPOINT")
+      const submissionState: CanonicalConsistencyRead["submissionState"] = row.checkpoint_id ? "CHECKPOINT_RECORDED" : row.outcome_id ? "OUTCOME_RECORDED" : events.has("COMMIT_RESULT_RECONCILED") ? "RESULT_RECONCILED" : events.has("D2_COMMIT_REQUESTED") ? "D2_REQUESTED" : "PREPARED"
+      return Object.freeze({ consistent: reasons.length === 0, reasons: Object.freeze(reasons), submissionState, outcomeId: row.outcome_id, checkpointId: row.checkpoint_id })
+    },
     async recordD2Result(input) { const outcome = mapCommitResult(input.result,input.candidateId,input.outcomeId,input.createdAt); await client.transaction(async (sql) => { await assertLease(sql,input.unitId,input.leaseId,input.ownerId,input.fencingToken,input.createdAt); const commitId = outcome.kind === "COMMITTED" ? outcome.commitId : null; const recordId = outcome.kind === "COMMITTED" || outcome.kind === "DUPLICATE" ? outcome.canonicalRecordId : null; const version = outcome.kind === "COMMITTED" || outcome.kind === "DUPLICATE" ? outcome.recordVersion : null; await sql`UPDATE population.canonical_submissions SET result_status=${input.result.status},canonical_commit_id=${commitId},canonical_record_id=${recordId},record_version=${version},resolved_at=${input.createdAt} WHERE submission_id=${input.submissionId}`; await sql`INSERT INTO control.population_outcomes(outcome_id,job_id,run_id,unit_id,candidate_id,retrieval_attempt_id,raw_manifest_id,submission_id,outcome_kind,d2_result_status,canonical_commit_id,conflict_id,quarantine_id,fencing_token,reason_codes,created_at) VALUES(${input.outcomeId},${input.jobId},${input.runId},${input.unitId},${input.candidateId},${input.retrievalAttemptId},${input.rawManifestId},${input.submissionId},${outcome.kind},${input.result.status},${commitId},${outcome.kind === "CONFLICT" ? outcome.conflictId : null},${outcome.kind === "CONFLICT" ? outcome.quarantineId : null},${input.fencingToken},${sql.array(outcome.kind === "PERMANENT_FAILURE" || outcome.kind === "QUARANTINED" || outcome.kind === "EMPTY" || outcome.kind === "UNSUPPORTED" || outcome.kind === "CANCELLED" || outcome.kind === "SKIPPED_BY_POLICY" ? [...outcome.reasonCodes] : [])},${input.createdAt})`; const next = outcome.kind === "COMMITTED" || outcome.kind === "DUPLICATE" ? "COMPLETED" : outcome.kind === "CONFLICT" || outcome.kind === "QUARANTINED" ? "QUARANTINED" : outcome.kind === "RETRYABLE_FAILURE" ? "RETRYABLE" : "FAILED"; await sql`UPDATE control.population_units SET current_state=${next},updated_at=${input.createdAt} WHERE unit_id=${input.unitId}`; await sql`INSERT INTO control.population_unit_events(event_id,unit_id,run_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at,details) VALUES(${eventId("outcome",input.outcomeId)},${input.unitId},${input.runId},'UNIT_OUTCOME','PROCESSING',${next},${input.fencingToken},${input.ownerId},${input.createdAt},${sql.json({ outcomeId: input.outcomeId })})` }); return outcome },
-    async recordIntermediateD2Result(input) { const outcome = mapCommitResult(input.result,input.candidateId,input.outcomeId,input.createdAt); if (outcome.kind !== "COMMITTED" && outcome.kind !== "DUPLICATE") throw new Error("INTERMEDIATE_RESULT_NOT_AUTHORITATIVE"); await client.transaction(async (sql) => { await assertLease(sql,input.unitId,input.leaseId,input.ownerId,input.fencingToken,input.createdAt); const commitId = outcome.kind === "COMMITTED" ? outcome.commitId : null; await sql`UPDATE population.canonical_submissions SET result_status=${input.result.status},canonical_commit_id=${commitId},canonical_record_id=${outcome.canonicalRecordId},record_version=${outcome.recordVersion},resolved_at=${input.createdAt} WHERE submission_id=${input.submissionId}`; await sql`INSERT INTO control.population_outcomes(outcome_id,job_id,run_id,unit_id,candidate_id,retrieval_attempt_id,raw_manifest_id,submission_id,outcome_kind,d2_result_status,canonical_commit_id,conflict_id,quarantine_id,fencing_token,reason_codes,created_at) VALUES(${input.outcomeId},${input.jobId},${input.runId},${input.unitId},${input.candidateId},${input.retrievalAttemptId},${input.rawManifestId},${input.submissionId},${outcome.kind},${input.result.status},${commitId},NULL,NULL,${input.fencingToken},${sql.array([])},${input.createdAt})` }); return outcome },
+    async recordIntermediateD2Result(input) {
+      const outcome = mapCommitResult(input.result,input.candidateId,input.outcomeId,input.createdAt)
+      if (outcome.kind !== "COMMITTED" && outcome.kind !== "DUPLICATE") throw new Error("INTERMEDIATE_RESULT_NOT_AUTHORITATIVE")
+      await client.transaction(async (sql) => {
+        await assertLease(sql,input.unitId,input.leaseId,input.ownerId,input.fencingToken,input.createdAt)
+        const submission = await sql<{ readonly candidate_id: string; readonly unit_id: string | null; readonly candidate_unit_id: string; readonly expected_canonical_record_id: string | null; readonly expected_record_version: number | null; readonly expected_fact_checksum: string | null }[]>`SELECT s.candidate_id,s.unit_id,c.unit_id candidate_unit_id,s.expected_canonical_record_id,s.expected_record_version,s.expected_fact_checksum FROM population.canonical_submissions s JOIN population.candidates c ON c.candidate_id=s.candidate_id WHERE s.submission_id=${input.submissionId} FOR UPDATE OF s`
+        if (!submission[0] || submission[0].candidate_id !== input.candidateId || (submission[0].unit_id ?? submission[0].candidate_unit_id) !== input.unitId) throw new Error("CANONICAL_SUBMISSION_LINEAGE_MISMATCH")
+        if (submission[0].expected_canonical_record_id && (submission[0].expected_canonical_record_id !== outcome.canonicalRecordId || Number(submission[0].expected_record_version) !== outcome.recordVersion)) throw new Error("CANONICAL_RESULT_IDENTITY_MISMATCH")
+        if (input.result.status === "DUPLICATE" && submission[0].expected_fact_checksum && submission[0].expected_fact_checksum !== input.result.checksum) throw new Error("CANONICAL_RESULT_CHECKSUM_MISMATCH")
+        const commitId = outcome.kind === "COMMITTED" ? outcome.commitId : null
+        await appendSubmissionEvent(sql, {
+          submissionId: input.submissionId,
+          eventType: "COMMIT_RESULT_RECONCILED",
+          fencingToken: input.fencingToken,
+          createdAt: input.createdAt,
+          details: { resultStatus: input.result.status, canonicalRecordId: outcome.canonicalRecordId, recordVersion: outcome.recordVersion },
+        })
+        const existingOutcome = await sql<{ readonly outcome_id: string; readonly outcome_kind: string; readonly d2_result_status: string; readonly candidate_id: string; readonly unit_id: string; readonly submission_id: string }[]>`SELECT outcome_id,outcome_kind,d2_result_status,candidate_id,unit_id,submission_id FROM control.population_outcomes WHERE outcome_id=${input.outcomeId} FOR UPDATE`
+        if (existingOutcome[0]) {
+          const row = existingOutcome[0]
+          if (row.outcome_kind !== outcome.kind || row.d2_result_status !== input.result.status || row.candidate_id !== input.candidateId || row.unit_id !== input.unitId || row.submission_id !== input.submissionId) throw new Error("POPULATION_OUTCOME_IDENTITY_CONFLICT")
+          return
+        }
+        const updated = await sql`UPDATE population.canonical_submissions SET result_status=${input.result.status},canonical_commit_id=${commitId},canonical_record_id=${outcome.canonicalRecordId},record_version=${outcome.recordVersion},resolved_at=${input.createdAt} WHERE submission_id=${input.submissionId} AND result_status='PENDING' RETURNING submission_id`
+        if (!updated.length) throw new Error("CANONICAL_SUBMISSION_ALREADY_RESOLVED")
+        await sql`INSERT INTO control.population_outcomes(outcome_id,job_id,run_id,unit_id,candidate_id,retrieval_attempt_id,raw_manifest_id,submission_id,outcome_kind,d2_result_status,canonical_commit_id,conflict_id,quarantine_id,fencing_token,reason_codes,created_at) VALUES(${input.outcomeId},${input.jobId},${input.runId},${input.unitId},${input.candidateId},${input.retrievalAttemptId},${input.rawManifestId},${input.submissionId},${outcome.kind},${input.result.status},${commitId},NULL,NULL,${input.fencingToken},${sql.array([])},${input.createdAt})`
+        await appendSubmissionEvent(sql, {
+          submissionId: input.submissionId,
+          eventType: "POPULATION_OUTCOME_RECORDED",
+          fencingToken: input.fencingToken,
+          createdAt: input.createdAt,
+          details: { outcomeId: input.outcomeId },
+        })
+      })
+      return outcome
+    },
     async finalizeSegment(input) { await client.transaction(async (sql) => { const { checkpoint, decision } = input; if (checkpoint.unitId !== decision.unitId || checkpoint.fencingToken !== input.fencingToken || checkpoint.checkpointType !== "CANONICAL_BOUNDARY" || checkpoint.completedStage !== "COMPLETED" || checkpoint.lastOutcomeId !== input.outcomeId || decision.outcomeIds.length !== 1 || decision.outcomeIds[0] !== input.outcomeId || decision.result !== "ELIGIBLE" || decision.blockingReasons.length) throw new Error("SEGMENT_FINALIZATION_INVALID"); await assertLease(sql,checkpoint.unitId,input.leaseId,input.ownerId,input.fencingToken,input.completedAt); const outcomes = await sql`SELECT 1 FROM control.population_outcomes WHERE outcome_id=${input.outcomeId} AND job_id=${checkpoint.jobId} AND run_id=${checkpoint.runId} AND unit_id=${checkpoint.unitId} AND fencing_token=${input.fencingToken} AND submission_id=${checkpoint.canonicalSubmissionId} AND raw_manifest_id IS NOT DISTINCT FROM ${checkpoint.rawManifestId} AND outcome_kind IN ('COMMITTED','DUPLICATE') FOR KEY SHARE`; if (!outcomes.length) throw new Error("SEGMENT_OUTCOME_NOT_FINALIZABLE"); await sql`INSERT INTO coverage.watermark_eligibility_decisions(decision_id,unit_id,dataset_id,provider_id,bounded_dimensions,outcome_ids,required_unit_policy_id,eligibility_result,blocking_reasons,policy_version_id,created_at) VALUES(${decision.decisionId},${decision.unitId},${decision.datasetId},${decision.providerId},${sql.json(decision.dimensions as never)},${sql.array([...decision.outcomeIds])},${decision.requiredUnitPolicyId},${decision.result},${sql.array([...decision.blockingReasons])},${decision.policyVersionId},${decision.createdAt})`; await sql`INSERT INTO control.population_checkpoints(checkpoint_id,job_id,run_id,unit_id,fencing_token,checkpoint_type,completed_stage,raw_manifest_id,candidate_cursor,canonical_submission_id,last_outcome_id,created_at) VALUES(${checkpoint.checkpointId},${checkpoint.jobId},${checkpoint.runId},${checkpoint.unitId},${checkpoint.fencingToken},${checkpoint.checkpointType},${checkpoint.completedStage},${checkpoint.rawManifestId},${checkpoint.candidateCursor},${checkpoint.canonicalSubmissionId},${checkpoint.lastOutcomeId},${checkpoint.createdAt})`; const completed = await sql`UPDATE control.population_units SET current_state='COMPLETED',current_checkpoint_id=${checkpoint.checkpointId},active_lease_id=NULL,updated_at=${input.completedAt} WHERE unit_id=${checkpoint.unitId} AND current_state='PROCESSING' RETURNING unit_id`; if (!completed.length) throw new Error("SEGMENT_UNIT_NOT_PROCESSING"); await sql`UPDATE control.population_leases SET released_at=${input.completedAt},release_reason='COMPLETED' WHERE lease_id=${input.leaseId} AND unit_id=${checkpoint.unitId} AND owner_id=${input.ownerId} AND fencing_token=${input.fencingToken} AND released_at IS NULL`; await sql`INSERT INTO control.population_unit_events(event_id,unit_id,run_id,event_type,previous_state,next_state,fencing_token,actor_id,occurred_at,details) VALUES(${eventId("segment-completed",input.outcomeId)},${checkpoint.unitId},${checkpoint.runId},'UNIT_COMPLETED','PROCESSING','COMPLETED',${input.fencingToken},${input.ownerId},${input.completedAt},${sql.json({ checkpointId: checkpoint.checkpointId, decisionId: decision.decisionId, outcomeId: input.outcomeId })})` }) },
     async scheduleRetry(i) { await client.sql`INSERT INTO control.retry_events(retry_event_id,job_id,run_id,unit_id,candidate_id,classification_id,retry_policy_id,retry_policy_version,retry_after,created_at) VALUES(${i.retryEventId},${i.jobId},${i.runId},${i.unitId},${i.candidateId},${i.classificationId},${i.policyId},${i.policyVersion},${i.retryAfter},${i.createdAt})` },
     async requestCancellation(jobId,eventIdentity,actorId,at) { await client.transaction(async (sql) => { const jobs=await sql<{readonly current_state:string}[]>`SELECT current_state::text FROM control.population_jobs WHERE job_id=${jobId} FOR UPDATE`;if(!jobs[0]||["SUCCEEDED","FAILED","CANCELLED","EXPIRED"].includes(jobs[0].current_state))return; const affected=await sql<{readonly unit_id:string;readonly current_state:string}[]>`SELECT unit_id,current_state::text FROM control.population_units WHERE job_id=${jobId} AND current_state NOT IN ('COMPLETED','FAILED','QUARANTINED','CANCELLED') FOR UPDATE`; await sql`UPDATE control.population_jobs SET current_state='CANCELLED',current_event_id=${eventIdentity},updated_at=${at} WHERE job_id=${jobId}`; await sql`UPDATE control.population_units SET cancellation_requested_at=${at},current_state=CASE WHEN current_state IN ('PENDING','RETRYABLE') THEN 'CANCELLED' ELSE current_state END,updated_at=${at} WHERE job_id=${jobId} AND current_state NOT IN ('COMPLETED','FAILED','QUARANTINED','CANCELLED')`; for(const unit of affected){const next=unit.current_state==="PENDING"||unit.current_state==="RETRYABLE"?"CANCELLED":unit.current_state;await sql`INSERT INTO control.population_unit_events(event_id,unit_id,event_type,previous_state,next_state,actor_id,occurred_at) VALUES(${eventId("unit-cancel",`${eventIdentity}:${unit.unit_id}`)},${unit.unit_id},'CANCELLATION_REQUESTED',${unit.current_state},${next},${actorId},${at})`} await sql`INSERT INTO control.population_job_events(event_id,job_id,event_type,previous_state,next_state,actor_id,occurred_at) VALUES(${eventIdentity},${jobId},'CANCELLATION_REQUESTED',${jobs[0].current_state},'CANCELLED',${actorId},${at}) ON CONFLICT DO NOTHING` }) },
