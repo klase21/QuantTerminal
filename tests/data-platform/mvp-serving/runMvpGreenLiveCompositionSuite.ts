@@ -64,7 +64,7 @@ type Branch = {
   current_state: string
   created_at: string
   updated_at: string
-  region_id: string
+  region_id?: string | null
 }
 type Database = { branch_id: string; name: string; owner_name: string; created_at: string }
 
@@ -75,6 +75,8 @@ class FakeNeonTransport implements MvpNeonTransport {
   branchResponseLost = false
   databaseResponseLost = false
   authFailure = false
+  projectId: string = MVP_GREEN_PRODUCTION_PROJECT_ID
+  projectRegion: string | undefined = "aws-ap-southeast-1"
 
   constructor() {
     this.branches.set(MVP_GREEN_PRODUCTION_BRANCH_ID, {
@@ -100,7 +102,7 @@ class FakeNeonTransport implements MvpNeonTransport {
     this.calls.push({ method: input.method, path: input.path, body: input.body ?? null })
     if (this.authFailure) return { status: 401, body: { error: "redacted" } }
     if (input.method === "GET" && input.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}`) {
-      return { status: 200, body: { project: { id: MVP_GREEN_PRODUCTION_PROJECT_ID, region_id: "aws-ap-southeast-1" } } }
+      return { status: 200, body: { project: { id: this.projectId, region_id: this.projectRegion } } }
     }
     const branchDetail = input.path.match(/^\/projects\/[^/]+\/branches\/(br-[^/?]+)$/)
     if (input.method === "GET" && branchDetail) {
@@ -230,6 +232,66 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     parentState: parent,
     at: NOW,
   })).creationStatus, "RECONCILED")
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  assert.equal(
+    (await adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)).region,
+    "aws-ap-southeast-1",
+  )
+  transport.branches.get(MVP_GREEN_PRODUCTION_BRANCH_ID)!.region_id = undefined
+  assert.equal(
+    (await adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)).region,
+    "aws-ap-southeast-1",
+  )
+  transport.branches.get(MVP_GREEN_PRODUCTION_BRANCH_ID)!.region_id = ""
+  assert.equal(
+    (await adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)).region,
+    "aws-ap-southeast-1",
+  )
+  transport.branches.get(MVP_GREEN_PRODUCTION_BRANCH_ID)!.region_id = "aws-us-east-1"
+  await assert.rejects(
+    () => adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID),
+    /PARENT_BRANCH_IDENTITY_MISMATCH/,
+  )
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  transport.projectRegion = undefined
+  await assert.rejects(
+    () => adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID),
+    /PROJECT_IDENTITY_MISMATCH/,
+  )
+  transport.projectRegion = "aws-ap-southeast-1"
+  transport.projectId = "wrong-project"
+  await assert.rejects(
+    () => adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID),
+    /PROJECT_IDENTITY_MISMATCH/,
+  )
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  transport.branches.get(MVP_GREEN_PRODUCTION_BRANCH_ID)!.id = "br-wrong-identity"
+  await assert.rejects(
+    () => adapter.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID),
+    /PARENT_BRANCH_IDENTITY_MISMATCH/,
+  )
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  const databases = await adapter.listInheritedDatabases(
+    MVP_GREEN_PRODUCTION_PROJECT_ID,
+    MVP_GREEN_PRODUCTION_BRANCH_ID,
+  )
+  assert.equal(parent.readOnlyTransaction, true)
+  assert.equal(parent.databaseName, MVP_GREEN_PRODUCTION_DATABASE)
+  assert.equal(databases.some((database) => database.databaseName === MVP_GREEN_PRODUCTION_DATABASE), true)
+  assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
 }
 
 {

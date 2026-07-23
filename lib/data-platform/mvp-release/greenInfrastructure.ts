@@ -500,6 +500,7 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     if (projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID || !BRANCH_ID.test(branchId)) {
       throw new MvpGreenInfrastructureError("PARENT_BRANCH_IDENTITY_MISMATCH")
     }
+    const project = await this.inspectProject(projectId)
     const response = await this.transport.request({
       method: "GET",
       path: `/projects/${encoded(projectId)}/branches/${encoded(branchId)}`,
@@ -510,7 +511,11 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       throw new MvpGreenInfrastructureError("PARENT_BRANCH_IDENTITY_MISMATCH")
     }
     const branchName = requiredString(branch.name, "PARENT_BRANCH_IDENTITY_MISMATCH")
-    const region = requiredString(branch.region_id, "PARENT_BRANCH_IDENTITY_MISMATCH")
+    const branchRegion = typeof branch.region_id === "string" ? branch.region_id.trim() : ""
+    if (branchRegion && branchRegion !== project.region) {
+      throw new MvpGreenInfrastructureError("PARENT_BRANCH_IDENTITY_MISMATCH")
+    }
+    const region = branchRegion || project.region
     const state = requiredString(branch.current_state, "PARENT_BRANCH_IDENTITY_MISMATCH")
     const createdAt = requiredString(branch.created_at, "PARENT_BRANCH_IDENTITY_MISMATCH")
     const updatedAt = requiredString(branch.updated_at, "PARENT_BRANCH_IDENTITY_MISMATCH")
@@ -538,7 +543,6 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
   }
 
   async resolveParentState(): Promise<MvpGreenParentState> {
-    await this.inspectProject(MVP_GREEN_PRODUCTION_PROJECT_ID)
     await this.inspectBranch(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)
     const state = await this.parentStateReader.inspect({
       projectId: MVP_GREEN_PRODUCTION_PROJECT_ID,
