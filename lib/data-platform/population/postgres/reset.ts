@@ -12,7 +12,7 @@ export async function resetD3Schemas(client: D3PostgresClient, command: D3ResetC
     for (const type of ["population_outcome_kind","population_unit_state","population_run_state","population_job_state"]) await sql.unsafe(`DROP TYPE IF EXISTS control.${type} CASCADE`)
     for (const role of ["qt_d3_read_only","qt_d3_worker","qt_d3_coordinator","qt_d3_scheduler"]) {
       const exists = await sql.unsafe(`SELECT 1 FROM pg_roles WHERE rolname='${role}'`)
-      if (exists.length) { await sql.unsafe(`DROP OWNED BY ${role}`); await sql.unsafe(`DROP ROLE ${role}`) }
+      if (exists.length) await sql.unsafe(`DROP OWNED BY ${role}`)
     }
   })
 }
