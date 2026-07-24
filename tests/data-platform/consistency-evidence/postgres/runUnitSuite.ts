@@ -102,6 +102,9 @@ async function main() {
   const nativeReset = reset.slice(reset.indexOf("export async function resetD4Runtime"), reset.indexOf("export async function resetD4FullIsolated"))
   check("native reset preserves D2 and D3 schemas", !nativeReset.includes("DROP SCHEMA IF EXISTS control") && !nativeReset.includes("DROP SCHEMA IF EXISTS population") && !nativeReset.includes("DROP SCHEMA IF EXISTS repository"))
   check("native reset preserves dependency ledger", nativeReset.includes("d4_control.migration_ledger") && !nativeReset.includes("dependency_bootstrap_ledger"))
+  check("native reset preserves D2 coverage table", !nativeReset.includes("DROP TABLE IF EXISTS coverage.projection_versions"))
+  check("native reset removes D4 coverage trigger before immutability function", nativeReset.indexOf("DROP TRIGGER IF EXISTS coverage_projection_versions_no_mutation") < nativeReset.indexOf("DROP FUNCTION IF EXISTS consistency.reject_immutable_result_mutation()"))
+  check("native reset removes D4 coverage augmentation without cascade", nativeReset.includes("DROP INDEX IF EXISTS coverage.coverage_projection_bounded_identity_idx") && nativeReset.includes("DROP COLUMN IF EXISTS coverage_checksum") && !nativeReset.slice(nativeReset.indexOf("coverageTargets"), nativeReset.indexOf("consistency.close_recompute_step_lease")).includes("CASCADE"))
 
   const failures = checks.filter(([, pass]) => !pass)
   console.log("D4 PHASE 2 PART 01 UNIT SUITE: " + (failures.length ? "FAIL" : "PASS"))

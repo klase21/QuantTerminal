@@ -24,6 +24,14 @@ export function verifyReset(runtime: ConsistencyPostgresRuntime, command: D4Rese
 export async function resetD4Runtime(runtime: ConsistencyPostgresRuntime, command: D4ResetCommand): Promise<void> {
   verifyReset(runtime, command)
   await runtime.transaction(async (sql) => {
+    const coverageTargets = await sql.unsafe<{ readonly projectionVersions: string | null }[]>(
+      "SELECT to_regclass('coverage.projection_versions')::text \"projectionVersions\"",
+    )
+    if (coverageTargets[0]?.projectionVersions) {
+      await sql.unsafe("DROP TRIGGER IF EXISTS coverage_projection_versions_no_mutation ON coverage.projection_versions")
+      await sql.unsafe("DROP INDEX IF EXISTS coverage.coverage_projection_bounded_identity_idx")
+      await sql.unsafe("ALTER TABLE coverage.projection_versions DROP COLUMN IF EXISTS coverage_checksum, DROP COLUMN IF EXISTS input_commit_ids, DROP COLUMN IF EXISTS provider_snapshot_ids, DROP COLUMN IF EXISTS provider_id, DROP COLUMN IF EXISTS venue")
+    }
     await sql.unsafe("DROP FUNCTION IF EXISTS consistency.close_recompute_step_lease(text,text,bigint,text,timestamptz)")
     await sql.unsafe("DROP FUNCTION IF EXISTS consistency.assert_recompute_step_fence(text,text,bigint,timestamptz)")
     await sql.unsafe("DROP FUNCTION IF EXISTS consistency.heartbeat_recompute_step(text,text,bigint,timestamptz,timestamptz)")

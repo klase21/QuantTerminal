@@ -85,14 +85,14 @@ async function main() {
     await resetD4FullIsolated(runtime, { explicitOptIn: "RESET_D4_FULL_ISOLATED_REBUILD", auditIdentity: "d4-part01b-certification" })
 
     const dependencyFirst = await bootstrap.apply("d4-part01b-certification")
-    check("certified D2 dependency applies", dependencyFirst.length === 4 && dependencyFirst.every((item) => item.status === "APPLIED"))
+    check("certified D2 dependency applies", dependencyFirst.length === D2_DEPENDENCY_INVENTORY.length && dependencyFirst.every((item) => item.status === "APPLIED"))
     check("D2 foundation verified", await verifyD2Foundation(runtime))
     const dependencyLedger = await runtime.sql.unsafe<{ readonly count: number }[]>("SELECT count(*)::int count FROM d4_control.dependency_bootstrap_ledger")
     check("dependency ledger complete", dependencyLedger[0]?.count === D2_DEPENDENCY_INVENTORY.length)
     const canonicalRows = await runtime.sql.unsafe<{ readonly total: number }[]>("SELECT ((SELECT count(*) FROM canonical.ohlcv)+(SELECT count(*) FROM canonical.funding)+(SELECT count(*) FROM canonical.open_interest)+(SELECT count(*) FROM canonical.liquidations)+(SELECT count(*) FROM canonical.prediction_snapshots)+(SELECT count(*) FROM canonical.etf_observations)+(SELECT count(*) FROM canonical.reserve_observations)+(SELECT count(*) FROM canonical.macro_observations)+(SELECT count(*) FROM canonical.stream_manifests))::int total")
     check("no canonical data copied", canonicalRows[0]?.total === 0)
     const dependencySecond = await bootstrap.apply("d4-part01b-certification")
-    check("dependency rerun skips", dependencySecond.length === 4 && dependencySecond.every((item) => item.status === "SKIPPED"))
+    check("dependency rerun skips", dependencySecond.length === D2_DEPENDENCY_INVENTORY.length && dependencySecond.every((item) => item.status === "SKIPPED"))
 
     await runtime.sql.unsafe("UPDATE d4_control.dependency_bootstrap_ledger SET source_checksum=repeat('0',64) WHERE sequence='001'")
     let dependencyDriftRejected = false
@@ -133,8 +133,23 @@ async function main() {
 
     await resetD4Runtime(runtime, { explicitOptIn: "RESET_D4_ISOLATED_DATABASE", auditIdentity: "d4-part01b-certification" })
     check("native reset preserves dependency foundation", await verifyD4Reset(runtime))
+    await resetD4Runtime(runtime, { explicitOptIn: "RESET_D4_ISOLATED_DATABASE", auditIdentity: "d4-part01b-certification-rerun" })
+    check("native reset rerun is idempotent", await verifyD4Reset(runtime))
+    const nativeResetBoundary = await runtime.sql.unsafe<{ readonly d2Table: string | null; readonly d4Index: string | null; readonly d4Function: string | null; readonly d2Column: boolean; readonly d4Column: boolean }[]>(
+      "SELECT to_regclass('coverage.projection_versions')::text \"d2Table\",to_regclass('coverage.coverage_projection_bounded_identity_idx')::text \"d4Index\",to_regprocedure('consistency.reject_immutable_result_mutation()')::text \"d4Function\",EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='coverage.projection_versions'::regclass AND attname='source_watermark' AND attnum>0 AND NOT attisdropped) \"d2Column\",EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='coverage.projection_versions'::regclass AND attname='coverage_checksum' AND attnum>0 AND NOT attisdropped) \"d4Column\"",
+    )
+    check("native reset preserves D2 coverage boundary", Boolean(nativeResetBoundary[0]?.d2Table && nativeResetBoundary[0]?.d2Column && !nativeResetBoundary[0]?.d4Index && !nativeResetBoundary[0]?.d4Function && !nativeResetBoundary[0]?.d4Column))
     const nativeReapply = await nativeRunner.apply("d4-part01b-certification")
     check("D4 reapplication after native reset", nativeReapply.length === D4_MIGRATION_ORDER.length && nativeReapply.every((item) => item.status === "APPLIED"))
+    await runtime.sql.unsafe("INSERT INTO control.policy_versions(policy_version_id,dataset_id,policy_version,content_checksum,canonical_content,effective_at,created_at) VALUES('d4-reset-policy','d4-reset','1',repeat('a',64),'{}','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')")
+    await runtime.sql.unsafe("INSERT INTO coverage.projection_versions(coverage_version_id,dataset_id,subject,window_start,window_end,source_watermark,source_record_set_digest,status,policy_version_id,computed_at,venue,provider_id,provider_snapshot_ids,input_commit_ids,coverage_checksum) VALUES('d4-reset-coverage','d4-reset','BTCUSDT','2026-01-01T00:00:00.000Z','2026-01-01T01:00:00.000Z','0/1',repeat('b',64),'AVAILABLE','d4-reset-policy','2026-01-01T01:00:00.000Z','BINANCE','d4-reset-provider',ARRAY['d4-reset-snapshot'],ARRAY['d4-reset-commit'],repeat('c',64))")
+    let d2CoverageImmutabilityEnforced = false
+    try {
+      await runtime.sql.unsafe("UPDATE coverage.projection_versions SET status='STALE' WHERE coverage_version_id='d4-reset-coverage'")
+    } catch (error) {
+      d2CoverageImmutabilityEnforced = Boolean(error && typeof error === "object" && "code" in error && error.code === "55000")
+    }
+    check("D2 coverage immutability remains enforced after D4 reapply", d2CoverageImmutabilityEnforced)
 
     await resetD4FullIsolated(runtime, { explicitOptIn: "RESET_D4_FULL_ISOLATED_REBUILD", auditIdentity: "d4-part01b-certification" })
     const fullResetState = await runtime.sql.unsafe<{ readonly d2: string | null; readonly dependencyLedger: string | null; readonly nativeLedger: string | null }[]>("SELECT to_regclass('control.canonical_commits')::text d2,to_regclass('d4_control.dependency_bootstrap_ledger')::text \"dependencyLedger\",to_regclass('d4_control.migration_ledger')::text \"nativeLedger\"")
