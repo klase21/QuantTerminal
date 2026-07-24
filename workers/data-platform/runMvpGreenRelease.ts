@@ -8,6 +8,7 @@ import {
   createMvpGreenReleaseIdentity,
   FetchMvpNeonTransport,
   LiveMvpNeonGreenInfrastructureAdapter,
+  MvpGreenInfrastructureError,
   MVP_GREEN_MIGRATION_OWNER_ROLE,
   MVP_GREEN_PRODUCTION_BRANCH_ID,
   MVP_GREEN_PRODUCTION_DATABASE,
@@ -146,6 +147,7 @@ async function greenPreflight(
     throw new Error("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
   }
   const roles = await adapter.listRoles(release.projectId, branchId)
+  const endpoints = await adapter.inspectEndpointPrerequisite(release.projectId, branchId)
   const ownerMatches = roles.filter((role) => role.roleName === MVP_GREEN_MIGRATION_OWNER_ROLE)
   const databaseMatches = databases.filter((database) => database.databaseName === release.databaseName)
   if (ownerMatches.length > 1) throw new Error("ROLE_IDENTITY_UNVERIFIED")
@@ -185,6 +187,10 @@ async function greenPreflight(
     ownerRoleStatus: ownerMatches.length === 1 ? "PRESENT" : "ABSENT",
     targetDatabase: release.databaseName,
     targetDatabaseStatus: databaseMatches.length === 1 ? "PRESENT" : "ABSENT",
+    endpointCount: endpoints.endpointCount,
+    readWriteEndpointCount: endpoints.readWriteEndpointCount,
+    readOnlyEndpointCount: endpoints.readOnlyEndpointCount,
+    endpointPrerequisite: endpoints.prerequisite,
     releaseApplicationCommit: release.applicationCommit,
     releaseChecksum: release.releaseChecksum,
     mutationCalls: 0,
@@ -290,6 +296,16 @@ async function main() {
       branchName: approval.targetBranchName,
       roleName: role.roleName,
       protected: role.protected,
+      endpointPrerequisite: role.endpointPrerequisite,
+      endpointCount: role.endpointCount,
+      readWriteEndpointCount: role.readWriteEndpointCount,
+      roleNoLogin: role.roleNoLogin,
+      providerHttpStatus: role.providerHttpStatus,
+      providerErrorCode: role.providerErrorCode,
+      providerRequestId: role.providerRequestId,
+      operationIds: role.operationIds,
+      operationPollingResult: role.operationPollingResult,
+      deterministicReadbackResult: role.deterministicReadbackResult,
       createdAt: role.createdAt,
       updatedAt: role.updatedAt,
       fingerprint: role.fingerprint,
@@ -325,6 +341,25 @@ async function main() {
 }
 
 void main().catch((error: unknown) => {
-  process.stderr.write(error instanceof Error ? error.message : "MVP_GREEN_RELEASE_COMMAND_FAILED")
+  if (error instanceof MvpGreenInfrastructureError) {
+    process.stderr.write(JSON.stringify({
+      result: error.code,
+      providerHttpStatus: error.evidence?.httpStatus ?? null,
+      providerErrorCode: error.evidence?.providerErrorCode ?? null,
+      providerMessage: error.evidence?.providerMessage ?? null,
+      providerRequestId: error.evidence?.providerRequestId ?? null,
+      operationIds: error.evidence?.operationIds ?? [],
+      retryAfterMs: error.evidence?.retryAfterMs ?? null,
+      requestPath: error.evidence?.requestPath ?? null,
+      operationKind: error.evidence?.operationKind ?? null,
+      responseReceived: error.evidence?.responseReceived ?? null,
+      timedOut: error.evidence?.timedOut ?? null,
+    }, null, 2))
+  } else {
+    const safeCode = error instanceof Error && /^MVP_GREEN_[A-Z0-9_:-]+$/.test(error.message)
+      ? error.message
+      : "MVP_GREEN_RELEASE_COMMAND_FAILED"
+    process.stderr.write(safeCode)
+  }
   process.exitCode = 1
 })

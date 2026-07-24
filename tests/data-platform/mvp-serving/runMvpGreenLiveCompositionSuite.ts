@@ -13,6 +13,7 @@ import {
   createMvpGreenReleaseIdentity,
   createMvpGreenStageReceipt,
   LiveMvpNeonGreenInfrastructureAdapter,
+  MvpGreenInfrastructureError,
   MVP_GREEN_APPROVAL_SCHEMA_VERSION,
   MVP_GREEN_FROZEN_BRANCH_NAME,
   MVP_GREEN_FROZEN_DATABASE_NAME,
@@ -84,7 +85,7 @@ assert.throws(() => compareMvpPostgresLsns("0/100", "a/1"), /APPROVED_PARENT_LSN
 assert.throws(() => compareMvpPostgresLsns("0/100", "00/1"), /APPROVED_PARENT_LSN_INVALID/)
 assert.throws(() => compareMvpPostgresLsns("0/100", "100000000/0"), /APPROVED_PARENT_LSN_INVALID/)
 assert.throws(() => compareMvpPostgresLsns("0/100", "0/100000000"), /APPROVED_PARENT_LSN_INVALID/)
-assert.equal(MVP_GREEN_APPROVAL_SCHEMA_VERSION, "mvp-green-infrastructure-approval/1.2.0")
+assert.equal(MVP_GREEN_APPROVAL_SCHEMA_VERSION, "mvp-green-infrastructure-approval/1.3.0")
 
 const frozenPlan = createMvpGreenCertificationPlan({
   projectId: MVP_GREEN_PRODUCTION_PROJECT_ID,
@@ -122,14 +123,47 @@ type Role = {
   updated_at?: string
   password?: string
 }
+type Endpoint = {
+  id: string
+  project_id: string
+  branch_id: string
+  type: "read_write" | "read_only"
+  current_state: string
+  pooler_mode?: string
+  disabled?: boolean
+  created_at: string
+  updated_at: string
+}
+type Operation = {
+  id: string
+  project_id: string
+  branch_id: string
+  endpoint_id: string | null
+  action: string
+  status: string
+  failures_count: number
+  created_at: string
+  updated_at: string
+}
 
 class FakeNeonTransport implements MvpNeonTransport {
   readonly branches = new Map<string, Branch>()
   readonly databases = new Map<string, Database[]>()
   readonly roles = new Map<string, Role[]>()
+  readonly endpoints = new Map<string, Endpoint[]>()
+  readonly operations = new Map<string, Operation>()
   calls: { method: string; path: string; body: unknown }[] = []
   branchResponseLost = false
   roleResponseLost = false
+  rolePostStatus = 201
+  rolePostCreatesRole = true
+  rolePostErrorBody: unknown = null
+  rolePostThrowBefore: MvpGreenInfrastructureError | null = null
+  rolePostThrowAfter: MvpGreenInfrastructureError | null = null
+  rolePostMalformed = false
+  operationLookupStatus = 200
+  operationStates: string[] = ["finished"]
+  operationGetCount = 0
   databaseResponseLost = false
   onBranchLookup: (() => void) | null = null
   authFailure = false
@@ -198,6 +232,27 @@ class FakeNeonTransport implements MvpNeonTransport {
       const role = (this.roles.get(roleDetail[1]!) ?? []).find((value) => value.name === roleDetail[2])
       return role ? { status: 200, body: { role } } : { status: 404, body: {} }
     }
+    const endpointList = input.path.match(/^\/projects\/[^/]+\/branches\/(br-[^/]+)\/endpoints$/)
+    if (input.method === "GET" && endpointList) {
+      return { status: 200, body: { endpoints: this.endpoints.get(endpointList[1]!) ?? [] } }
+    }
+    const endpointDetail = input.path.match(/^\/projects\/[^/]+\/endpoints\/(ep-[^/]+)$/)
+    if (input.method === "GET" && endpointDetail) {
+      const endpoint = [...this.endpoints.values()].flat().find((value) => value.id === endpointDetail[1])
+      return endpoint ? { status: 200, body: { endpoint } } : { status: 404, body: {} }
+    }
+    const operationDetail = input.path.match(/^\/projects\/[^/]+\/operations\/([0-9a-f-]{36})$/)
+    if (input.method === "GET" && operationDetail) {
+      const operation = this.operations.get(operationDetail[1]!)
+      if (operation) {
+        this.operationGetCount += 1
+        operation.status = this.operationStates.shift() ?? operation.status
+      }
+      if (this.operationLookupStatus !== 200) {
+        return { status: this.operationLookupStatus, body: { code: "operation_lookup_failed" } }
+      }
+      return operation ? { status: 200, body: { operation } } : { status: 404, body: {} }
+    }
     if (input.method === "POST" && input.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches`) {
       const branchInput = input.body?.branch as { name: string; parent_id: string; parent_lsn: string }
       const branch: Branch = {
@@ -222,11 +277,22 @@ class FakeNeonTransport implements MvpNeonTransport {
         ...role,
         branch_id: branch.id,
       })))
+      this.endpoints.set(branch.id, [{
+        id: "ep-green-certified-123",
+        project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+        branch_id: branch.id,
+        type: "read_write",
+        current_state: "idle",
+        pooler_mode: "transaction",
+        created_at: NOW,
+        updated_at: NOW,
+      }])
       if (this.branchResponseLost) throw new Error("NETWORK_RESPONSE_LOST")
       return { status: 201, body: { branch } }
     }
     if (input.method === "POST" && roleList) {
-      const roleInput = input.body?.role as { name: string }
+      if (this.rolePostThrowBefore) throw this.rolePostThrowBefore
+      const roleInput = input.body?.role as { name: string; no_login: boolean }
       const role: Role = {
         branch_id: roleList[1]!,
         name: roleInput.name,
@@ -235,9 +301,29 @@ class FakeNeonTransport implements MvpNeonTransport {
         updated_at: NOW,
         password: "must-never-escape",
       }
-      this.roles.set(role.branch_id, [...(this.roles.get(role.branch_id) ?? []), role])
+      if (this.rolePostCreatesRole) {
+        this.roles.set(role.branch_id, [...(this.roles.get(role.branch_id) ?? []), role])
+      }
+      if (this.rolePostThrowAfter) throw this.rolePostThrowAfter
       if (this.roleResponseLost) throw new Error("NETWORK_RESPONSE_LOST_WITH_SECRET:must-never-escape")
-      return { status: 201, body: { role } }
+      const operation: Operation = {
+        id: "11111111-1111-4111-8111-111111111111",
+        project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+        branch_id: role.branch_id,
+        endpoint_id: this.endpoints.get(role.branch_id)?.[0]?.id ?? null,
+        action: "apply_config",
+        status: this.operationStates[0] ?? "finished",
+        failures_count: 0,
+        created_at: NOW,
+        updated_at: NOW,
+      }
+      this.operations.set(operation.id, operation)
+      return {
+        status: this.rolePostStatus,
+        body: this.rolePostErrorBody ?? { role, operations: [operation] },
+        headers: { "x-request-id": "req-green-role-123", "retry-after": "2" },
+        malformedBody: this.rolePostMalformed,
+      }
     }
     if (input.method === "POST" && databaseList) {
       const databaseInput = input.body?.database as { name: string; owner_name: string }
@@ -269,6 +355,7 @@ function adapterFixture() {
   let parentStateInspections = 0
   const adapter = new LiveMvpNeonGreenInfrastructureAdapter({
     transport,
+    operationPolling: { maxAttempts: 4, delayMs: 0, sleep: async () => undefined },
     parentStateReader: { inspect: async () => {
       parentStateInspections += 1
       return parentBasis
@@ -305,6 +392,7 @@ function approval(
     targetRoleName: targets.targetRoleName ?? (
       operation === "GREEN_OWNER_ROLE_CREATE" ? MVP_GREEN_MIGRATION_OWNER_ROLE : null
     ),
+    targetRoleNoLogin: operation === "GREEN_OWNER_ROLE_CREATE" ? true : null,
     targetOwnerRole: targets.targetOwnerRole ?? (
       operation === "GREEN_DATABASE_CREATE" ? MVP_GREEN_MIGRATION_OWNER_ROLE : null
     ),
@@ -313,6 +401,18 @@ function approval(
     issuedAt: NOW,
     expiresAt: EXPIRES,
   })
+}
+
+async function preparedRoleFixture() {
+  const fixture = adapterFixture()
+  const parent = await fixture.adapter.resolveParentState()
+  await fixture.adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  return { ...fixture, parent }
 }
 
 {
@@ -336,27 +436,30 @@ function approval(
       roleApproval.targetGreenBranchId,
       roleApproval.targetDatabaseName,
       roleApproval.targetRoleName,
+      roleApproval.targetRoleNoLogin,
       roleApproval.targetOwnerRole,
     ],
-    [GREEN_BRANCH_ID, null, MVP_GREEN_MIGRATION_OWNER_ROLE, null],
+    [GREEN_BRANCH_ID, null, MVP_GREEN_MIGRATION_OWNER_ROLE, true, null],
   )
   assert.deepEqual(
     [
       databaseApproval.targetGreenBranchId,
       databaseApproval.targetDatabaseName,
       databaseApproval.targetRoleName,
+      databaseApproval.targetRoleNoLogin,
       databaseApproval.targetOwnerRole,
     ],
-    [GREEN_BRANCH_ID, release.databaseName, null, MVP_GREEN_MIGRATION_OWNER_ROLE],
+    [GREEN_BRANCH_ID, release.databaseName, null, null, MVP_GREEN_MIGRATION_OWNER_ROLE],
   )
   assert.deepEqual(
     [
       acquisitionApproval.targetGreenBranchId,
       acquisitionApproval.targetDatabaseName,
       acquisitionApproval.targetRoleName,
+      acquisitionApproval.targetRoleNoLogin,
       acquisitionApproval.targetOwnerRole,
     ],
-    [GREEN_BRANCH_ID, release.databaseName, null, null],
+    [GREEN_BRANCH_ID, release.databaseName, null, null, null],
   )
   assert.deepEqual(
     Object.keys(roleApproval).sort(),
@@ -378,6 +481,7 @@ function approval(
       "targetGreenBranchId",
       "targetOwnerRole",
       "targetRoleName",
+      "targetRoleNoLogin",
     ],
   )
   const otherBranchApproval = approval("GREEN_OWNER_ROLE_CREATE", release, parent, {
@@ -408,11 +512,40 @@ function approval(
     }),
     /APPROVAL_REQUIRED/,
   )
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: { ...roleApproval, targetRoleNoLogin: false },
+      operation: "GREEN_OWNER_ROLE_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  const { targetRoleNoLogin: _missingNoLogin, ...missingNoLogin } = roleApproval
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: missingNoLogin as MvpGreenOperationApproval,
+      operation: "GREEN_OWNER_ROLE_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: {
+        ...roleApproval,
+        schemaVersion: "mvp-green-infrastructure-approval/1.2.0",
+      } as unknown as MvpGreenOperationApproval,
+      operation: "GREEN_OWNER_ROLE_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
   const {
     schemaVersion: _schemaVersion,
     approvalChecksum: _approvalChecksum,
     targetGreenBranchId: _targetGreenBranchId,
     targetRoleName: _targetRoleName,
+    targetRoleNoLogin: _targetRoleNoLogin,
     targetOwnerRole: _targetOwnerRole,
     ...legacyBasis
   } = databaseApproval
@@ -514,6 +647,7 @@ function approval(
   const rolePost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/roles"))
   assert.equal(rolePost?.path, `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/roles`)
   assert.equal((rolePost?.body as { role?: { name?: string } }).role?.name, MVP_GREEN_MIGRATION_OWNER_ROLE)
+  assert.equal((rolePost?.body as { role?: { no_login?: boolean } }).role?.no_login, true)
   const databasePost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/databases"))
   assert.equal(databasePost?.path, `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/databases`)
   assert.equal(
@@ -654,7 +788,7 @@ function approval(
     parentState: parent,
     at: NOW,
   })
-  assert.equal(role.creationStatus, "CREATED")
+  assert.equal(role.creationStatus, "RECONCILED")
   assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
   transport.databaseResponseLost = true
   const database = await adapter.createReleaseDatabase({
@@ -681,6 +815,7 @@ function approval(
     targetGreenBranchId: null,
     targetDatabaseName: null,
     targetRoleName: null,
+    targetRoleNoLogin: null,
     targetOwnerRole: null,
     invocationId: "stale",
     actorId: "jay-local-operator",
@@ -1125,6 +1260,229 @@ function approval(
 }
 
 {
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  const inventory = await adapter.inspectEndpointPrerequisite(MVP_GREEN_PRODUCTION_PROJECT_ID, GREEN_BRANCH_ID)
+  assert.equal(inventory.prerequisite, "READ_WRITE_ENDPOINT_PRESENT")
+  assert.equal(inventory.endpointCount, 1)
+  transport.endpoints.set(GREEN_BRANCH_ID, [])
+  assert.equal(
+    (await adapter.inspectEndpointPrerequisite(MVP_GREEN_PRODUCTION_PROJECT_ID, GREEN_BRANCH_ID)).prerequisite,
+    "NO_ENDPOINT",
+  )
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_ENDPOINT_REQUIRED/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 0)
+  transport.endpoints.set(GREEN_BRANCH_ID, [{
+    id: "ep-green-read-only-123",
+    project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+    branch_id: GREEN_BRANCH_ID,
+    type: "read_only",
+    current_state: "idle",
+    created_at: NOW,
+    updated_at: NOW,
+  }])
+  assert.equal(
+    (await adapter.inspectEndpointPrerequisite(MVP_GREEN_PRODUCTION_PROJECT_ID, GREEN_BRANCH_ID)).prerequisite,
+    "READ_ONLY_ONLY",
+  )
+}
+
+{
+  const statusCases = [
+    [400, "NEON_BAD_REQUEST"],
+    [401, "NEON_AUTHENTICATION_FAILURE"],
+    [403, "NEON_AUTHENTICATION_FAILURE"],
+    [409, "NEON_CONFLICT"],
+    [422, "NEON_BAD_REQUEST"],
+    [423, "NEON_RESOURCE_LOCKED"],
+    [429, "NEON_RATE_LIMIT"],
+    [500, "NEON_PROVIDER_TRANSIENT_FAILURE"],
+  ] as const
+  for (const [status, code] of statusCases) {
+    const { transport, adapter, parent } = await preparedRoleFixture()
+    transport.rolePostStatus = status
+    transport.rolePostCreatesRole = false
+    transport.rolePostErrorBody = {
+      code: `provider_${status}`,
+      message: "password=must-never-escape authorization=Bearer-secret token=hidden",
+    }
+    let caught: unknown = null
+    try {
+      await adapter.createMigrationOwnerRole({
+        release,
+        approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+        parentState: parent,
+        at: NOW,
+      })
+    } catch (error) {
+      caught = error
+    }
+    assert.equal(caught instanceof MvpGreenInfrastructureError, true)
+    assert.equal((caught as MvpGreenInfrastructureError).code, code)
+    assert.equal((caught as MvpGreenInfrastructureError).evidence?.httpStatus, status)
+    assert.equal((caught as MvpGreenInfrastructureError).evidence?.providerRequestId, "req-green-role-123")
+    if (status === 429) assert.equal((caught as MvpGreenInfrastructureError).evidence?.retryAfterMs, 2_000)
+    assert.equal(JSON.stringify((caught as MvpGreenInfrastructureError).evidence).includes("must-never-escape"), false)
+    assert.equal(JSON.stringify((caught as MvpGreenInfrastructureError).evidence).includes("Bearer-secret"), false)
+    assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+  }
+}
+
+{
+  for (const status of [409, 500]) {
+    const { transport, adapter, parent } = await preparedRoleFixture()
+    transport.rolePostStatus = status
+    transport.rolePostErrorBody = { code: `provider_${status}`, message: "safe failure" }
+    const reconciled = await adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    })
+    assert.equal(reconciled.creationStatus, "RECONCILED")
+    assert.equal(reconciled.providerHttpStatus, status)
+    assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+  }
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.rolePostMalformed = true
+  transport.rolePostCreatesRole = false
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_MALFORMED_RESPONSE/,
+  )
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.operationStates = ["running", "finished"]
+  const role = await adapter.createMigrationOwnerRole({
+    release,
+    approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(role.operationPollingResult, "PASS")
+  assert.equal(role.operationIds.length, 1)
+  assert.equal(transport.operationGetCount, 2)
+  assert.equal(role.roleNoLogin, true)
+  const rolePost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/roles"))
+  assert.deepEqual(rolePost?.body, {
+    role: { name: MVP_GREEN_MIGRATION_OWNER_ROLE, no_login: true },
+  })
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.operationLookupStatus = 500
+  transport.rolePostCreatesRole = false
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_PROVIDER_TRANSIENT_FAILURE/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.rolePostCreatesRole = false
+  transport.operationStates = ["error"]
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_OPERATION_FAILED/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.operationStates = ["running", "running", "running", "running"]
+  const reconciled = await adapter.createMigrationOwnerRole({
+    release,
+    approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(transport.operationGetCount, 4)
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.rolePostThrowAfter = new MvpGreenInfrastructureError("NEON_REQUEST_TIMEOUT", {
+    httpStatus: null,
+    providerErrorCode: null,
+    providerMessage: null,
+    providerRequestId: null,
+    operationIds: Object.freeze([]),
+    retryAfterMs: null,
+    requestPath: `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/roles`,
+    operationKind: "GREEN_OWNER_ROLE_CREATE",
+    responseReceived: false,
+    timedOut: true,
+  })
+  const reconciled = await adapter.createMigrationOwnerRole({
+    release,
+    approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.rolePostThrowBefore = new MvpGreenInfrastructureError("NEON_REQUEST_TIMEOUT", {
+    httpStatus: null,
+    providerErrorCode: null,
+    providerMessage: null,
+    providerRequestId: null,
+    operationIds: Object.freeze([]),
+    retryAfterMs: null,
+    requestPath: `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/roles`,
+    operationKind: "GREEN_OWNER_ROLE_CREATE",
+    responseReceived: false,
+    timedOut: true,
+  })
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_REQUEST_TIMEOUT/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+}
+
+{
   const runnerSource = readFileSync("workers/data-platform/runMvpGreenRelease.ts", "utf8")
   const mutationFlow = runnerSource.slice(runnerSource.indexOf("const approvalAt = new Date().toISOString()"))
   const approvalRead = mutationFlow.indexOf("await approvalFromFile")
@@ -1267,6 +1625,14 @@ console.log(JSON.stringify({
   postUsesApprovedParentLsn: "PASS",
   branchReadbackReconciliation: "PASS",
   roleReadbackReconciliation: "PASS",
+  providerErrorPreservation: "PASS",
+  httpStatusClassification: "PASS",
+  endpointPrerequisite: "PASS",
+  noLoginChecksumBinding: "PASS",
+  rolePostNoLogin: true,
+  operationPolling: "PASS",
+  pollingBounded: true,
+  secondAutomaticRolePost: 0,
   roleSecretRedaction: "PASS",
   databaseReadbackReconciliation: "PASS",
   frozenReleaseIdentity: "PASS",

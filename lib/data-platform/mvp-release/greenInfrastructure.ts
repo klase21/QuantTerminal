@@ -3,7 +3,7 @@ import postgres from "postgres"
 import { createMvpBlueGreenBranchPlan, type MvpBlueGreenBranchPlan } from "./blueGreen"
 
 export const MVP_GREEN_INFRASTRUCTURE_SCHEMA_VERSION = "mvp-green-infrastructure/1.0.0" as const
-export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.2.0" as const
+export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.3.0" as const
 export const MVP_GREEN_PRODUCTION_PROJECT_ID = "soft-cell-16396854" as const
 export const MVP_GREEN_PRODUCTION_BRANCH_ID = "br-flat-grass-ao9rtnyr" as const
 export const MVP_GREEN_PRODUCTION_DATABASE = "neondb" as const
@@ -40,6 +40,17 @@ export type MvpGreenInfrastructureErrorCode =
   | "APPROVED_PARENT_LSN_AHEAD_OF_CURRENT"
   | "NEON_CONFIGURATION_MISSING"
   | "NEON_AUTHENTICATION_FAILURE"
+  | "NEON_BAD_REQUEST"
+  | "NEON_CONFLICT"
+  | "NEON_RESOURCE_LOCKED"
+  | "NEON_RATE_LIMIT"
+  | "NEON_PROVIDER_TRANSIENT_FAILURE"
+  | "NEON_TRANSPORT_FAILURE"
+  | "NEON_REQUEST_TIMEOUT"
+  | "NEON_MALFORMED_RESPONSE"
+  | "NEON_OPERATION_FAILED"
+  | "NEON_OPERATION_TIMEOUT"
+  | "NEON_ENDPOINT_REQUIRED"
   | "PROJECT_IDENTITY_MISMATCH"
   | "PARENT_BRANCH_IDENTITY_MISMATCH"
   | "PARENT_STATE_CHANGED"
@@ -60,12 +71,27 @@ export type MvpGreenInfrastructureErrorCode =
 
 export class MvpGreenInfrastructureError extends Error {
   readonly code: MvpGreenInfrastructureErrorCode
+  readonly evidence: MvpNeonProviderFailureEvidence | null
 
-  constructor(code: MvpGreenInfrastructureErrorCode) {
+  constructor(code: MvpGreenInfrastructureErrorCode, evidence: MvpNeonProviderFailureEvidence | null = null) {
     super(code)
     this.name = "MvpGreenInfrastructureError"
     this.code = code
+    this.evidence = evidence ? Object.freeze({ ...evidence }) : null
   }
+}
+
+export interface MvpNeonProviderFailureEvidence {
+  readonly httpStatus: number | null
+  readonly providerErrorCode: string | null
+  readonly providerMessage: string | null
+  readonly providerRequestId: string | null
+  readonly operationIds: readonly string[]
+  readonly retryAfterMs: number | null
+  readonly requestPath: string
+  readonly operationKind: string
+  readonly responseReceived: boolean
+  readonly timedOut: boolean
 }
 
 export interface MvpGreenReleaseIdentity {
@@ -93,6 +119,7 @@ export interface MvpGreenOperationApproval {
   readonly targetGreenBranchId: string | null
   readonly targetDatabaseName: string | null
   readonly targetRoleName: string | null
+  readonly targetRoleNoLogin: boolean | null
   readonly targetOwnerRole: string | null
   readonly invocationId: string
   readonly actorId: string
@@ -188,6 +215,8 @@ export class PostgresMvpGreenParentStateReader implements MvpGreenParentStateRea
 export interface MvpNeonTransportResponse {
   readonly status: number
   readonly body: unknown
+  readonly headers?: Readonly<Record<string, string>>
+  readonly malformedBody?: boolean
 }
 
 export interface MvpNeonTransport {
@@ -243,6 +272,57 @@ export interface MvpGreenRoleInspection {
 export interface MvpGreenCreatedRole extends MvpGreenRoleInspection {
   readonly creationStatus: "CREATED" | "RECONCILED"
   readonly releaseChecksum: string
+  readonly endpointPrerequisite: MvpGreenEndpointPrerequisite
+  readonly endpointCount: number
+  readonly readWriteEndpointCount: number
+  readonly roleNoLogin: true
+  readonly providerHttpStatus: number | null
+  readonly providerErrorCode: string | null
+  readonly providerRequestId: string | null
+  readonly operationIds: readonly string[]
+  readonly operationPollingResult: "PASS" | "NOT_APPLICABLE" | "FAIL_RECONCILED"
+  readonly deterministicReadbackResult: "MATCH"
+}
+
+export type MvpGreenEndpointPrerequisite =
+  | "READ_WRITE_ENDPOINT_PRESENT"
+  | "NO_ENDPOINT"
+  | "READ_ONLY_ONLY"
+  | "ENDPOINT_IDENTITY_UNVERIFIED"
+
+export interface MvpGreenEndpointInspection {
+  readonly projectId: string
+  readonly branchId: string
+  readonly endpointId: string
+  readonly endpointType: "read_write" | "read_only"
+  readonly currentState: string
+  readonly poolerMode: string | null
+  readonly createdAt: string
+  readonly updatedAt: string
+  readonly status: "VERIFIED"
+  readonly fingerprint: string
+}
+
+export interface MvpGreenEndpointInventory {
+  readonly endpoints: readonly MvpGreenEndpointInspection[]
+  readonly endpointCount: number
+  readonly readWriteEndpointCount: number
+  readonly readOnlyEndpointCount: number
+  readonly prerequisite: MvpGreenEndpointPrerequisite
+}
+
+export interface MvpGreenOperationInspection {
+  readonly projectId: string
+  readonly operationId: string
+  readonly branchId: string | null
+  readonly endpointId: string | null
+  readonly action: string
+  readonly state: string
+  readonly failuresCount: number
+  readonly createdAt: string
+  readonly updatedAt: string
+  readonly status: "VERIFIED"
+  readonly fingerprint: string
 }
 
 export interface MvpGreenCreatedBranch {
@@ -293,6 +373,30 @@ interface NeonRole {
   readonly branch_id?: unknown
   readonly name?: unknown
   readonly protected?: unknown
+  readonly created_at?: unknown
+  readonly updated_at?: unknown
+}
+
+interface NeonEndpoint {
+  readonly id?: unknown
+  readonly project_id?: unknown
+  readonly branch_id?: unknown
+  readonly type?: unknown
+  readonly current_state?: unknown
+  readonly pooler_mode?: unknown
+  readonly disabled?: unknown
+  readonly created_at?: unknown
+  readonly updated_at?: unknown
+}
+
+interface NeonOperation {
+  readonly id?: unknown
+  readonly project_id?: unknown
+  readonly branch_id?: unknown
+  readonly endpoint_id?: unknown
+  readonly action?: unknown
+  readonly status?: unknown
+  readonly failures_count?: unknown
   readonly created_at?: unknown
   readonly updated_at?: unknown
 }
@@ -386,9 +490,109 @@ function roleFromBody(body: unknown): NeonRole | null {
   return record.role && typeof record.role === "object" ? record.role as NeonRole : null
 }
 
-function requireSuccessful(response: MvpNeonTransportResponse, fallback: MvpGreenInfrastructureErrorCode): void {
-  if (response.status === 401 || response.status === 403) throw new MvpGreenInfrastructureError("NEON_AUTHENTICATION_FAILURE")
-  if (response.status < 200 || response.status >= 300) throw new MvpGreenInfrastructureError(fallback)
+function endpointsFromBody(body: unknown): readonly NeonEndpoint[] {
+  if (!body || typeof body !== "object") return []
+  const values = (body as { endpoints?: unknown }).endpoints
+  return Array.isArray(values)
+    ? values.filter((value): value is NeonEndpoint => Boolean(value && typeof value === "object"))
+    : []
+}
+
+function endpointFromBody(body: unknown): NeonEndpoint | null {
+  if (!body || typeof body !== "object") return null
+  const value = (body as { endpoint?: unknown }).endpoint
+  return value && typeof value === "object" ? value as NeonEndpoint : null
+}
+
+function operationsFromBody(body: unknown): readonly NeonOperation[] {
+  if (!body || typeof body !== "object") return []
+  const values = (body as { operations?: unknown }).operations
+  return Array.isArray(values)
+    ? values.filter((value): value is NeonOperation => Boolean(value && typeof value === "object"))
+    : []
+}
+
+function operationFromBody(body: unknown): NeonOperation | null {
+  if (!body || typeof body !== "object") return null
+  const value = (body as { operation?: unknown }).operation
+  return value && typeof value === "object" ? value as NeonOperation : null
+}
+
+function sanitizedProviderText(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null
+  return value
+    .slice(0, 500)
+    .replace(/\b(?:postgres(?:ql)?|https?):\/\/\S+/gi, "[REDACTED_URL]")
+    .replace(/\bBearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/\b(password|authorization|token|connection[_ ]?uri|connection[_ ]?string)\b\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
+}
+
+function safeProviderField(body: unknown, field: "code" | "message" | "request_id" | "trace_id"): string | null {
+  if (!body || typeof body !== "object") return null
+  const record = body as Record<string, unknown>
+  const error = record.error && typeof record.error === "object"
+    ? record.error as Record<string, unknown>
+    : null
+  return sanitizedProviderText(record[field] ?? error?.[field])
+}
+
+function retryAfterMs(headers: Readonly<Record<string, string>> | undefined): number | null {
+  const raw = headers?.["retry-after"]
+  if (!raw) return null
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1_000, 60_000)
+  const parsed = Date.parse(raw)
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed - Date.now(), 0), 60_000) : null
+}
+
+function providerEvidence(input: {
+  readonly response?: MvpNeonTransportResponse
+  readonly requestPath: string
+  readonly operationKind: string
+  readonly responseReceived: boolean
+  readonly timedOut: boolean
+}): MvpNeonProviderFailureEvidence {
+  const response = input.response
+  return Object.freeze({
+    httpStatus: response?.status ?? null,
+    providerErrorCode: safeProviderField(response?.body, "code"),
+    providerMessage: safeProviderField(response?.body, "message"),
+    providerRequestId: sanitizedProviderText(
+      response?.headers?.["x-request-id"]
+      ?? response?.headers?.["neon-request-id"]
+      ?? safeProviderField(response?.body, "request_id")
+      ?? safeProviderField(response?.body, "trace_id"),
+    ),
+    operationIds: Object.freeze(operationsFromBody(response?.body).map((operation) => (
+      typeof operation.id === "string" ? operation.id : ""
+    )).filter(Boolean)),
+    retryAfterMs: retryAfterMs(response?.headers),
+    requestPath: input.requestPath,
+    operationKind: input.operationKind,
+    responseReceived: input.responseReceived,
+    timedOut: input.timedOut,
+  })
+}
+
+function requireSuccessful(
+  response: MvpNeonTransportResponse,
+  fallback: MvpGreenInfrastructureErrorCode,
+  requestPath = "UNAVAILABLE",
+  operationKind = "NEON_REQUEST",
+): void {
+  const evidence = providerEvidence({ response, requestPath, operationKind, responseReceived: true, timedOut: false })
+  if (response.status === 401 || response.status === 403) {
+    throw new MvpGreenInfrastructureError("NEON_AUTHENTICATION_FAILURE", evidence)
+  }
+  if (response.status === 400 || response.status === 422) {
+    throw new MvpGreenInfrastructureError("NEON_BAD_REQUEST", evidence)
+  }
+  if (response.status === 409) throw new MvpGreenInfrastructureError("NEON_CONFLICT", evidence)
+  if (response.status === 423) throw new MvpGreenInfrastructureError("NEON_RESOURCE_LOCKED", evidence)
+  if (response.status === 429) throw new MvpGreenInfrastructureError("NEON_RATE_LIMIT", evidence)
+  if (response.status >= 500) throw new MvpGreenInfrastructureError("NEON_PROVIDER_TRANSIENT_FAILURE", evidence)
+  if (response.status < 200 || response.status >= 300) throw new MvpGreenInfrastructureError(fallback, evidence)
+  if (response.malformedBody) throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE", evidence)
 }
 
 function normalizedDatabase(input: {
@@ -547,7 +751,7 @@ export function createMvpGreenOperationApproval(input: Omit<MvpGreenOperationApp
 
 function assertMvpGreenApprovalOperationMatrix(input: Pick<
   MvpGreenOperationApproval,
-  "operation" | "targetGreenBranchId" | "targetDatabaseName" | "targetRoleName" | "targetOwnerRole"
+  "operation" | "targetGreenBranchId" | "targetDatabaseName" | "targetRoleName" | "targetRoleNoLogin" | "targetOwnerRole"
 >): void {
   const protectedBranch = input.targetGreenBranchId !== null
     && new Set<string>([
@@ -561,6 +765,7 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
       input.targetGreenBranchId !== null
       || input.targetDatabaseName !== null
       || input.targetRoleName !== null
+      || input.targetRoleNoLogin !== null
       || input.targetOwnerRole !== null
     ) {
       throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
@@ -572,6 +777,7 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
     if (input.targetRoleName !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
       throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
     }
+    if (input.targetRoleNoLogin !== true) throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
     if (input.targetDatabaseName !== null || input.targetOwnerRole !== null) {
       throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
     }
@@ -580,6 +786,7 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
   if (input.operation === "GREEN_DATABASE_CREATE") {
     if (!input.targetDatabaseName) throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
     if (input.targetRoleName !== null) throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
+    if (input.targetRoleNoLogin !== null) throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
     if (!input.targetOwnerRole) throw new MvpGreenInfrastructureError("OWNER_ROLE_REQUIRED")
     if (input.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
       throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
@@ -590,6 +797,7 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
     input.operation !== "GREEN_ACQUISITION_START"
     || !input.targetDatabaseName
     || input.targetRoleName !== null
+    || input.targetRoleNoLogin !== null
     || input.targetOwnerRole !== null
   ) {
     throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
@@ -614,6 +822,7 @@ const MVP_GREEN_APPROVAL_FIELDS = Object.freeze([
   "targetGreenBranchId",
   "targetOwnerRole",
   "targetRoleName",
+  "targetRoleNoLogin",
 ] as const)
 
 export function assertMvpGreenOperationApprovalIntegrity(input: {
@@ -702,35 +911,141 @@ export class FetchMvpNeonTransport implements MvpNeonTransport {
     readonly path: string
     readonly body?: Readonly<Record<string, unknown>>
   }): Promise<MvpNeonTransportResponse> {
-    const response = await this.fetchImpl(`${this.baseUrl}${input.path}`, {
-      method: input.method,
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
-        "User-Agent": "QuantTerminal-MvpGreenRelease/1.0",
-      },
-      body: input.body ? JSON.stringify(input.body) : undefined,
-      signal: AbortSignal.timeout(20_000),
-    })
-    let body: unknown = null
     try {
-      body = await response.json()
-    } catch {
-      body = null
+      const response = await this.fetchImpl(`${this.baseUrl}${input.path}`, {
+        method: input.method,
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+          "User-Agent": "QuantTerminal-MvpGreenRelease/1.0",
+        },
+        body: input.body ? JSON.stringify(input.body) : undefined,
+        signal: AbortSignal.timeout(20_000),
+      })
+      const text = await response.text()
+      let body: unknown = null
+      let malformedBody = false
+      if (text.trim()) {
+        try {
+          body = JSON.parse(text)
+        } catch {
+          malformedBody = true
+        }
+      }
+      const headers = Object.freeze({
+        "retry-after": response.headers.get("retry-after") ?? "",
+        "x-request-id": response.headers.get("x-request-id") ?? "",
+        "neon-request-id": response.headers.get("neon-request-id") ?? "",
+      })
+      return Object.freeze({ status: response.status, body, headers, malformedBody })
+    } catch (error) {
+      const timedOut = error instanceof DOMException && error.name === "TimeoutError"
+      throw new MvpGreenInfrastructureError(
+        timedOut ? "NEON_REQUEST_TIMEOUT" : "NEON_TRANSPORT_FAILURE",
+        providerEvidence({
+          requestPath: input.path,
+          operationKind: `${input.method}_NEON_RESOURCE`,
+          responseReceived: false,
+          timedOut,
+        }),
+      )
     }
-    return Object.freeze({ status: response.status, body })
   }
+}
+
+function normalizedEndpoint(input: {
+  readonly projectId: string
+  readonly branchId: string
+  readonly value: NeonEndpoint
+}): MvpGreenEndpointInspection {
+  const endpointId = requiredString(input.value.id, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  const projectId = requiredString(input.value.project_id, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  const branchId = requiredString(input.value.branch_id, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  const endpointType = requiredString(input.value.type, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  if (
+    projectId !== input.projectId
+    || branchId !== input.branchId
+    || !/^ep-[a-z0-9-]{1,57}$/.test(endpointId)
+    || (endpointType !== "read_write" && endpointType !== "read_only")
+    || input.value.disabled === true
+  ) {
+    throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  }
+  return Object.freeze({
+    projectId,
+    branchId,
+    endpointId,
+    endpointType,
+    currentState: requiredString(input.value.current_state, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"),
+    poolerMode: typeof input.value.pooler_mode === "string" ? input.value.pooler_mode : null,
+    createdAt: normalizedProviderIso(input.value.created_at, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"),
+    updatedAt: normalizedProviderIso(input.value.updated_at, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"),
+    status: "VERIFIED" as const,
+    fingerprint: `neon:${projectId}/${branchId}/endpoints/${endpointId}`,
+  })
+}
+
+function normalizedOperation(input: {
+  readonly projectId: string
+  readonly value: NeonOperation
+}): MvpGreenOperationInspection {
+  const operationId = requiredString(input.value.id, "NEON_MALFORMED_RESPONSE")
+  const projectId = requiredString(input.value.project_id, "NEON_MALFORMED_RESPONSE")
+  if (projectId !== input.projectId || !/^[0-9a-f-]{36}$/.test(operationId)) {
+    throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE")
+  }
+  const failuresCount = Number(input.value.failures_count ?? 0)
+  if (!Number.isInteger(failuresCount) || failuresCount < 0) {
+    throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE")
+  }
+  const branchId = input.value.branch_id === null || input.value.branch_id === undefined
+    ? null
+    : requiredString(input.value.branch_id, "NEON_MALFORMED_RESPONSE")
+  const endpointId = input.value.endpoint_id === null || input.value.endpoint_id === undefined
+    ? null
+    : requiredString(input.value.endpoint_id, "NEON_MALFORMED_RESPONSE")
+  return Object.freeze({
+    projectId,
+    operationId,
+    branchId,
+    endpointId,
+    action: requiredString(input.value.action, "NEON_MALFORMED_RESPONSE"),
+    state: requiredString(input.value.status, "NEON_MALFORMED_RESPONSE"),
+    failuresCount,
+    createdAt: normalizedProviderIso(input.value.created_at, "NEON_MALFORMED_RESPONSE"),
+    updatedAt: normalizedProviderIso(input.value.updated_at, "NEON_MALFORMED_RESPONSE"),
+    status: "VERIFIED" as const,
+    fingerprint: `neon:${projectId}/operations/${operationId}`,
+  })
 }
 
 export class LiveMvpNeonGreenInfrastructureAdapter {
   private readonly transport: MvpNeonTransport
   private readonly parentStateReader: MvpGreenParentStateReader
+  private readonly operationPolling: {
+    readonly maxAttempts: number
+    readonly delayMs: number
+    readonly sleep: (milliseconds: number) => Promise<void>
+  }
 
-  constructor(input: { readonly transport: MvpNeonTransport; readonly parentStateReader: MvpGreenParentStateReader }) {
+  constructor(input: {
+    readonly transport: MvpNeonTransport
+    readonly parentStateReader: MvpGreenParentStateReader
+    readonly operationPolling?: {
+      readonly maxAttempts?: number
+      readonly delayMs?: number
+      readonly sleep?: (milliseconds: number) => Promise<void>
+    }
+  }) {
     this.transport = input.transport
     this.parentStateReader = input.parentStateReader
+    this.operationPolling = Object.freeze({
+      maxAttempts: input.operationPolling?.maxAttempts ?? 20,
+      delayMs: input.operationPolling?.delayMs ?? 500,
+      sleep: input.operationPolling?.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))),
+    })
   }
 
   async inspectProject(projectId: string): Promise<MvpGreenProjectInspection> {
@@ -842,6 +1157,96 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     return Object.freeze(rolesFromBody(response.body).map((value) => normalizedRole({ projectId, branchId, value })))
   }
 
+  async listEndpoints(projectId: string, branchId: string): Promise<readonly MvpGreenEndpointInspection[]> {
+    if (projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID || !BRANCH_ID.test(branchId)) {
+      throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    }
+    const path = `/projects/${encoded(projectId)}/branches/${encoded(branchId)}/endpoints`
+    const response = await this.transport.request({ method: "GET", path })
+    requireSuccessful(response, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH", path, "LIST_ENDPOINTS")
+    return Object.freeze(endpointsFromBody(response.body).map((value) => normalizedEndpoint({ projectId, branchId, value })))
+  }
+
+  async inspectEndpoint(projectId: string, endpointId: string): Promise<MvpGreenEndpointInspection | null> {
+    if (projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID || !/^ep-[a-z0-9-]{1,57}$/.test(endpointId)) {
+      throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    }
+    const path = `/projects/${encoded(projectId)}/endpoints/${encoded(endpointId)}`
+    const response = await this.transport.request({ method: "GET", path })
+    if (response.status === 404) return null
+    requireSuccessful(response, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH", path, "INSPECT_ENDPOINT")
+    const endpoint = endpointFromBody(response.body)
+    if (!endpoint || typeof endpoint.branch_id !== "string") {
+      throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    }
+    return normalizedEndpoint({ projectId, branchId: endpoint.branch_id, value: endpoint })
+  }
+
+  async inspectEndpointPrerequisite(projectId: string, branchId: string): Promise<MvpGreenEndpointInventory> {
+    const endpoints = await this.listEndpoints(projectId, branchId)
+    const readWriteEndpointCount = endpoints.filter((endpoint) => endpoint.endpointType === "read_write").length
+    const readOnlyEndpointCount = endpoints.filter((endpoint) => endpoint.endpointType === "read_only").length
+    const prerequisite: MvpGreenEndpointPrerequisite = endpoints.length === 0
+      ? "NO_ENDPOINT"
+      : readWriteEndpointCount === 0
+        ? "READ_ONLY_ONLY"
+        : readWriteEndpointCount === 1
+          ? "READ_WRITE_ENDPOINT_PRESENT"
+          : "ENDPOINT_IDENTITY_UNVERIFIED"
+    return Object.freeze({
+      endpoints,
+      endpointCount: endpoints.length,
+      readWriteEndpointCount,
+      readOnlyEndpointCount,
+      prerequisite,
+    })
+  }
+
+  async inspectOperation(projectId: string, operationId: string): Promise<MvpGreenOperationInspection> {
+    const path = `/projects/${encoded(projectId)}/operations/${encoded(operationId)}`
+    const response = await this.transport.request({ method: "GET", path })
+    requireSuccessful(response, "NEON_OPERATION_FAILED", path, "INSPECT_OPERATION")
+    const operation = operationFromBody(response.body)
+    if (!operation) throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE")
+    return normalizedOperation({ projectId, value: operation })
+  }
+
+  async pollOperation(projectId: string, operationId: string): Promise<MvpGreenOperationInspection> {
+    for (let attempt = 0; attempt < this.operationPolling.maxAttempts; attempt += 1) {
+      const operation = await this.inspectOperation(projectId, operationId)
+      if (operation.state === "finished" || operation.state === "skipped") return operation
+      if (operation.state === "failed" || operation.state === "error" || operation.state === "cancelled") {
+        throw new MvpGreenInfrastructureError("NEON_OPERATION_FAILED", {
+          httpStatus: 200,
+          providerErrorCode: operation.state,
+          providerMessage: null,
+          providerRequestId: null,
+          operationIds: Object.freeze([operationId]),
+          retryAfterMs: null,
+          requestPath: `/projects/${projectId}/operations/${operationId}`,
+          operationKind: "GREEN_OWNER_ROLE_CREATE",
+          responseReceived: true,
+          timedOut: false,
+        })
+      }
+      if (attempt + 1 < this.operationPolling.maxAttempts) {
+        await this.operationPolling.sleep(this.operationPolling.delayMs)
+      }
+    }
+    throw new MvpGreenInfrastructureError("NEON_OPERATION_TIMEOUT", {
+      httpStatus: null,
+      providerErrorCode: null,
+      providerMessage: null,
+      providerRequestId: null,
+      operationIds: Object.freeze([operationId]),
+      retryAfterMs: null,
+      requestPath: `/projects/${projectId}/operations/${operationId}`,
+      operationKind: "GREEN_OWNER_ROLE_CREATE",
+      responseReceived: true,
+      timedOut: true,
+    })
+  }
+
   async inspectRole(projectId: string, branchId: string, roleName: string): Promise<MvpGreenRoleInspection | null> {
     if (
       projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID
@@ -915,11 +1320,13 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
   async readBackCreatedRole(
     release: MvpGreenReleaseIdentity,
     approval: MvpGreenOperationApproval,
+    endpointInventory?: MvpGreenEndpointInventory,
   ): Promise<MvpGreenCreatedRole | null> {
-    if (approval.targetRoleName !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
+    if (approval.targetRoleName !== MVP_GREEN_MIGRATION_OWNER_ROLE || approval.targetRoleNoLogin !== true) {
       throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
     }
     const branch = await this.inspectApprovedGreenBranch(release, approval)
+    const inventory = endpointInventory ?? await this.inspectEndpointPrerequisite(approval.projectId, branch.branchId)
     const roles = await this.listRoles(approval.projectId, branch.branchId)
     const matches = roles.filter((role) => role.roleName === approval.targetRoleName)
     if (!matches.length) return null
@@ -938,6 +1345,16 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       ...role,
       creationStatus: "RECONCILED" as const,
       releaseChecksum: approval.releaseChecksum,
+      endpointPrerequisite: inventory.prerequisite,
+      endpointCount: inventory.endpointCount,
+      readWriteEndpointCount: inventory.readWriteEndpointCount,
+      roleNoLogin: true as const,
+      providerHttpStatus: null,
+      providerErrorCode: null,
+      providerRequestId: null,
+      operationIds: Object.freeze([]),
+      operationPollingResult: "NOT_APPLICABLE" as const,
+      deterministicReadbackResult: "MATCH" as const,
     })
   }
 
@@ -957,23 +1374,100 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     this.assertApprovedParentState(input.parentState, approval)
     const existing = await this.readBackCreatedRole(input.release, approval)
     if (existing) return existing
-    let mutationReturned = false
+    const endpointInventory = await this.inspectEndpointPrerequisite(approval.projectId, approval.targetGreenBranchId!)
+    if (endpointInventory.prerequisite !== "READ_WRITE_ENDPOINT_PRESENT") {
+      throw new MvpGreenInfrastructureError(
+        endpointInventory.prerequisite === "ENDPOINT_IDENTITY_UNVERIFIED"
+          ? "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"
+          : "NEON_ENDPOINT_REQUIRED",
+        {
+        httpStatus: null,
+        providerErrorCode: endpointInventory.prerequisite,
+        providerMessage: null,
+        providerRequestId: null,
+        operationIds: Object.freeze([]),
+        retryAfterMs: null,
+        requestPath: `/projects/${approval.projectId}/branches/${approval.targetGreenBranchId}/endpoints`,
+        operationKind: "GREEN_OWNER_ROLE_CREATE",
+        responseReceived: true,
+        timedOut: false,
+        },
+      )
+    }
+    const path = `/projects/${encoded(approval.projectId)}/branches/${encoded(approval.targetGreenBranchId!)}/roles`
+    let response: MvpNeonTransportResponse | null = null
+    let failure: MvpGreenInfrastructureError | null = null
+    let operationIds: readonly string[] = Object.freeze([])
+    let operationPollingResult: MvpGreenCreatedRole["operationPollingResult"] = "NOT_APPLICABLE"
     try {
-      const response = await this.transport.request({
+      response = await this.transport.request({
         method: "POST",
-        path: `/projects/${encoded(approval.projectId)}/branches/${encoded(approval.targetGreenBranchId!)}/roles`,
-        body: { role: { name: approval.targetRoleName } },
+        path,
+        body: { role: { name: approval.targetRoleName, no_login: approval.targetRoleNoLogin } },
       })
-      requireSuccessful(response, "ROLE_CREATION_FAILED")
-      mutationReturned = Boolean(roleFromBody(response.body))
+      requireSuccessful(response, "ROLE_CREATION_FAILED", path, "GREEN_OWNER_ROLE_CREATE")
+      const providerRole = roleFromBody(response.body)
+      operationIds = Object.freeze(operationsFromBody(response.body).map((operation) => (
+        typeof operation.id === "string" ? operation.id : ""
+      )).filter((operationId) => /^[0-9a-f-]{36}$/.test(operationId)))
+      if (!providerRole && !operationIds.length) {
+        throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE", providerEvidence({
+          response,
+          requestPath: path,
+          operationKind: "GREEN_OWNER_ROLE_CREATE",
+          responseReceived: true,
+          timedOut: false,
+        }))
+      }
+      for (const operationId of operationIds) {
+        await this.pollOperation(approval.projectId, operationId)
+      }
+      operationPollingResult = operationIds.length ? "PASS" : "NOT_APPLICABLE"
     } catch (error) {
-      if (error instanceof MvpGreenInfrastructureError && error.code === "NEON_AUTHENTICATION_FAILURE") throw error
+      failure = error instanceof MvpGreenInfrastructureError
+        ? error
+        : new MvpGreenInfrastructureError("NEON_TRANSPORT_FAILURE", providerEvidence({
+          requestPath: path,
+          operationKind: "GREEN_OWNER_ROLE_CREATE",
+          responseReceived: false,
+          timedOut: false,
+        }))
+      if (failure.code === "NEON_AUTHENTICATION_FAILURE" || failure.code === "NEON_BAD_REQUEST") throw failure
+      if (failure.code === "NEON_OPERATION_FAILED" || failure.code === "NEON_OPERATION_TIMEOUT") {
+        operationPollingResult = "FAIL_RECONCILED"
+      }
     }
-    const readback = await this.readBackCreatedRole(input.release, approval)
+    const readback = await this.readBackCreatedRole(input.release, approval, endpointInventory)
     if (!readback) {
-      throw new MvpGreenInfrastructureError(mutationReturned ? "ROLE_IDENTITY_UNVERIFIED" : "ROLE_CREATION_FAILED")
+      if (failure) throw failure
+      throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED", response
+        ? providerEvidence({
+          response,
+          requestPath: path,
+          operationKind: "GREEN_OWNER_ROLE_CREATE",
+          responseReceived: true,
+          timedOut: false,
+        })
+        : null)
     }
-    return Object.freeze({ ...readback, creationStatus: "CREATED" as const })
+    const evidence = response
+      ? providerEvidence({
+        response,
+        requestPath: path,
+        operationKind: "GREEN_OWNER_ROLE_CREATE",
+        responseReceived: true,
+        timedOut: false,
+      })
+      : failure?.evidence
+    return Object.freeze({
+      ...readback,
+      creationStatus: failure ? "RECONCILED" as const : "CREATED" as const,
+      providerHttpStatus: evidence?.httpStatus ?? null,
+      providerErrorCode: evidence?.providerErrorCode ?? null,
+      providerRequestId: evidence?.providerRequestId ?? null,
+      operationIds,
+      operationPollingResult,
+    })
   }
 
   private assertApprovedParentState(
