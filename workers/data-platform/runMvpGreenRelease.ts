@@ -22,8 +22,10 @@ import {
 type Command =
   | "plan"
   | "preflight"
+  | "preflight-endpoint"
   | "preflight-role"
   | "create-branch"
+  | "create-endpoint"
   | "create-owner-role"
   | "preflight-database"
   | "create-database"
@@ -31,8 +33,10 @@ type Command =
 const COMMANDS: readonly Command[] = Object.freeze([
   "plan",
   "preflight",
+  "preflight-endpoint",
   "preflight-role",
   "create-branch",
+  "create-endpoint",
   "create-owner-role",
   "preflight-database",
   "create-database",
@@ -134,7 +138,7 @@ function assertGreenBranchPreflight(input: {
 }
 
 async function greenPreflight(
-  command: "preflight-role" | "preflight-database",
+  command: "preflight-endpoint" | "preflight-role" | "preflight-database",
   release: MvpGreenReleaseIdentity,
 ) {
   const branchId = requiredFlag("green-branch-id")
@@ -172,9 +176,59 @@ async function greenPreflight(
       throw new Error("OWNER_ROLE_CONTRACT_MISMATCH")
     }
   }
+  const endpointProposal = command === "preflight-endpoint"
+    ? await adapter.inspectEndpointCreationProposal(release, branchId, approvedParentLsn)
+    : null
+  const matchingReadWriteEndpoint = endpointProposal
+    ? endpoints.endpoints.filter((endpoint) => (
+      endpoint.endpointType === endpointProposal.targetEndpointType
+      && (endpoint.currentState === "active" || endpoint.currentState === "idle")
+      && endpoint.region === branch.region
+      && (endpointProposal.targetEndpointAutoscalingMinCu === null
+        || endpoint.autoscalingMinCu === endpointProposal.targetEndpointAutoscalingMinCu)
+      && (endpointProposal.targetEndpointAutoscalingMaxCu === null
+        || endpoint.autoscalingMaxCu === endpointProposal.targetEndpointAutoscalingMaxCu)
+      && (endpointProposal.targetEndpointSuspendTimeoutSeconds === null
+        || endpoint.suspendTimeoutSeconds === endpointProposal.targetEndpointSuspendTimeoutSeconds)
+      && (endpointProposal.targetEndpointPoolerEnabled === null
+        || endpoint.poolerEnabled === endpointProposal.targetEndpointPoolerEnabled)
+      && (endpointProposal.targetEndpointProvisioner === null
+        || endpoint.provisioner === endpointProposal.targetEndpointProvisioner)
+    )).length
+    : 0
+  const endpointCollision = endpoints.readWriteEndpointCount > 1
+    ? "MULTIPLE_READ_WRITE_ENDPOINTS"
+    : endpoints.readWriteEndpointCount === 1
+      ? matchingReadWriteEndpoint === 1
+        ? "ONE_MATCH_SAME_CONTRACT"
+        : "CONFLICTING_READ_WRITE_ENDPOINT"
+      : "NO_MATCH"
+  if (
+    command === "preflight-endpoint"
+    && (endpointCollision === "CONFLICTING_READ_WRITE_ENDPOINT" || endpointCollision === "MULTIPLE_READ_WRITE_ENDPOINTS")
+  ) {
+    throw new Error("MVP_GREEN_ENDPOINT_IDENTITY_COLLISION")
+  }
+  if (
+    command === "preflight-endpoint"
+    && (
+      endpointProposal?.classification === "PROJECT_LIMIT_UNRESOLVED"
+      || endpointProposal?.targetEndpointAutoscalingMinCu === null
+      || endpointProposal?.targetEndpointAutoscalingMaxCu === null
+      || endpointProposal?.targetEndpointSuspendTimeoutSeconds === null
+      || endpointProposal?.targetEndpointPoolerEnabled === null
+      || endpointProposal?.targetEndpointProvisioner === null
+    )
+  ) {
+    throw new Error("MVP_GREEN_ENDPOINT_PROFILE_UNRESOLVED")
+  }
   return Object.freeze({
     command,
-    result: command === "preflight-role" ? "GREEN_ROLE_PREFLIGHT_PASS" : "GREEN_DATABASE_PREFLIGHT_PASS",
+    result: command === "preflight-endpoint"
+      ? "GREEN_ENDPOINT_PREFLIGHT_PASS"
+      : command === "preflight-role"
+        ? "GREEN_ROLE_PREFLIGHT_PASS"
+        : "GREEN_DATABASE_PREFLIGHT_PASS",
     projectId: release.projectId,
     branchId,
     branchName: branch.branchName,
@@ -191,6 +245,14 @@ async function greenPreflight(
     readWriteEndpointCount: endpoints.readWriteEndpointCount,
     readOnlyEndpointCount: endpoints.readOnlyEndpointCount,
     endpointPrerequisite: endpoints.prerequisite,
+    endpointCollision,
+    endpointProfileClassification: endpointProposal?.classification ?? null,
+    proposedEndpointType: endpointProposal?.targetEndpointType ?? null,
+    proposedEndpointAutoscalingMinCu: endpointProposal?.targetEndpointAutoscalingMinCu ?? null,
+    proposedEndpointAutoscalingMaxCu: endpointProposal?.targetEndpointAutoscalingMaxCu ?? null,
+    proposedEndpointSuspendTimeoutSeconds: endpointProposal?.targetEndpointSuspendTimeoutSeconds ?? null,
+    proposedEndpointPoolerEnabled: endpointProposal?.targetEndpointPoolerEnabled ?? null,
+    proposedEndpointProvisioner: endpointProposal?.targetEndpointProvisioner ?? null,
     releaseApplicationCommit: release.applicationCommit,
     releaseChecksum: release.releaseChecksum,
     mutationCalls: 0,
@@ -201,7 +263,7 @@ async function greenPreflight(
 async function main() {
   const command = process.argv[2] as Command | undefined
   if (!command || !COMMANDS.includes(command)) {
-    throw new Error("Usage: runMvpGreenRelease.ts <plan|preflight|preflight-role|create-branch|create-owner-role|preflight-database|create-database> --mode=GREEN_CERTIFICATION_ONLY --application-commit=<frozen-release-sha> --parent-watermark=<iso> --governed-through=<iso> [--green-branch-id=<id> --approved-parent-lsn=<lsn>] [--approval-file=<path>]")
+    throw new Error("Usage: runMvpGreenRelease.ts <plan|preflight|preflight-endpoint|preflight-role|create-branch|create-endpoint|create-owner-role|preflight-database|create-database> --mode=GREEN_CERTIFICATION_ONLY --application-commit=<frozen-release-sha> --parent-watermark=<iso> --governed-through=<iso> [--green-branch-id=<id> --approved-parent-lsn=<lsn>] [--approval-file=<path>]")
   }
   if (command === "plan") {
     console.log(JSON.stringify(sanitizedPlan(), null, 2))
@@ -234,7 +296,7 @@ async function main() {
     }, null, 2))
     return
   }
-  if (command === "preflight-role" || command === "preflight-database") {
+  if (command === "preflight-endpoint" || command === "preflight-role" || command === "preflight-database") {
     const { release } = releaseIdentity()
     console.log(JSON.stringify(await greenPreflight(command, release), null, 2))
     return
@@ -242,9 +304,24 @@ async function main() {
   if (command === "create-database" && hasFlag("owner-role")) {
     throw new Error("MVP_GREEN_UNCHECKED_OWNER_ROLE_FORBIDDEN")
   }
+  if (
+    command === "create-endpoint"
+    && [
+      "endpoint-type",
+      "endpoint-autoscaling-min-cu",
+      "endpoint-autoscaling-max-cu",
+      "endpoint-suspend-timeout-seconds",
+      "endpoint-pooler-enabled",
+      "endpoint-provisioner",
+    ].some(hasFlag)
+  ) {
+    throw new Error("MVP_GREEN_UNCHECKED_ENDPOINT_CONFIGURATION_FORBIDDEN")
+  }
   const approvalAt = new Date().toISOString()
   const expectedOperation = command === "create-branch"
     ? "NEON_BRANCH_CREATE"
+    : command === "create-endpoint"
+      ? "GREEN_ENDPOINT_CREATE"
     : command === "create-owner-role"
       ? "GREEN_OWNER_ROLE_CREATE"
       : "GREEN_DATABASE_CREATE"
@@ -277,6 +354,48 @@ async function main() {
       branchState: branch.branchState,
       inheritedDatabaseCount: branch.inheritedDatabases.length,
       fingerprint: branch.fingerprint,
+      preview: "NOT_APPLICABLE",
+    }, null, 2))
+    return
+  }
+  if (command === "create-endpoint") {
+    const endpoint = await adapter.createGreenEndpoint({
+      release,
+      approval,
+      parentState,
+      at: new Date().toISOString(),
+    })
+    console.log(JSON.stringify({
+      command,
+      operation: approval.operation,
+      approvalSchema: approval.schemaVersion,
+      result: endpoint.creationStatus,
+      projectId: endpoint.projectId,
+      branchId: endpoint.branchId,
+      branchName: approval.targetBranchName,
+      endpointId: endpoint.endpointId,
+      endpointType: endpoint.endpointType,
+      endpointState: endpoint.currentState,
+      autoscalingMinCu: endpoint.autoscalingMinCu,
+      autoscalingMaxCu: endpoint.autoscalingMaxCu,
+      suspendTimeoutSeconds: endpoint.suspendTimeoutSeconds,
+      poolerEnabled: endpoint.poolerEnabled,
+      provisioner: endpoint.provisioner,
+      region: endpoint.region,
+      providerHttpStatus: endpoint.providerHttpStatus,
+      providerErrorCode: endpoint.providerErrorCode,
+      providerRequestId: endpoint.providerRequestId,
+      operationIds: endpoint.operationIds,
+      operationPollingResult: endpoint.operationPollingResult,
+      deterministicReadbackResult: endpoint.deterministicReadbackResult,
+      createdAt: endpoint.createdAt,
+      updatedAt: endpoint.updatedAt,
+      fingerprint: endpoint.fingerprint,
+      releaseChecksum: endpoint.releaseChecksum,
+      approvalInvocationId: approval.invocationId,
+      approvalActorId: approval.actorId,
+      approvalChecksum: approval.approvalChecksum,
+      mutationCalls: endpoint.mutationCalls,
       preview: "NOT_APPLICABLE",
     }, null, 2))
     return

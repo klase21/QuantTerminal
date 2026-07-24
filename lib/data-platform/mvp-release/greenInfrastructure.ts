@@ -3,7 +3,7 @@ import postgres from "postgres"
 import { createMvpBlueGreenBranchPlan, type MvpBlueGreenBranchPlan } from "./blueGreen"
 
 export const MVP_GREEN_INFRASTRUCTURE_SCHEMA_VERSION = "mvp-green-infrastructure/1.0.0" as const
-export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.3.0" as const
+export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.4.0" as const
 export const MVP_GREEN_PRODUCTION_PROJECT_ID = "soft-cell-16396854" as const
 export const MVP_GREEN_PRODUCTION_BRANCH_ID = "br-flat-grass-ao9rtnyr" as const
 export const MVP_GREEN_PRODUCTION_DATABASE = "neondb" as const
@@ -26,11 +26,13 @@ const MAX_LSN_PART = BigInt("4294967295")
 const LSN_LOW_BITS = BigInt(32)
 const CHECKSUM = /^[0-9a-f]{64}$/
 const COMMIT = /^[0-9a-f]{40}$/
+const ENDPOINT_PROVISIONERS = new Set(["k8s-pod", "k8s-neonvm", "serverless-platform"])
 
 export type MvpGreenOperationKind =
   | "NEON_BRANCH_CREATE"
   | "GREEN_OWNER_ROLE_CREATE"
   | "GREEN_DATABASE_CREATE"
+  | "GREEN_ENDPOINT_CREATE"
   | "GREEN_ACQUISITION_START"
 
 export type MvpGreenInfrastructureErrorCode =
@@ -68,6 +70,9 @@ export type MvpGreenInfrastructureErrorCode =
   | "RELEASE_DATABASE_NAME_CONFLICT"
   | "RELEASE_DATABASE_CREATION_FAILED"
   | "RELEASE_DATABASE_IDENTITY_UNVERIFIED"
+  | "ENDPOINT_APPROVAL_BINDING_INVALID"
+  | "ENDPOINT_CREATION_FAILED"
+  | "ENDPOINT_IDENTITY_UNVERIFIED"
 
 export class MvpGreenInfrastructureError extends Error {
   readonly code: MvpGreenInfrastructureErrorCode
@@ -121,6 +126,12 @@ export interface MvpGreenOperationApproval {
   readonly targetRoleName: string | null
   readonly targetRoleNoLogin: boolean | null
   readonly targetOwnerRole: string | null
+  readonly targetEndpointType: "read_write" | null
+  readonly targetEndpointAutoscalingMinCu: number | null
+  readonly targetEndpointAutoscalingMaxCu: number | null
+  readonly targetEndpointSuspendTimeoutSeconds: number | null
+  readonly targetEndpointPoolerEnabled: boolean | null
+  readonly targetEndpointProvisioner: string | null
   readonly invocationId: string
   readonly actorId: string
   readonly issuedAt: string
@@ -230,6 +241,10 @@ export interface MvpNeonTransport {
 export interface MvpGreenProjectInspection {
   readonly projectId: string
   readonly region: string
+  readonly provisioner: string | null
+  readonly defaultEndpointAutoscalingMinCu: number | null
+  readonly defaultEndpointAutoscalingMaxCu: number | null
+  readonly defaultEndpointSuspendTimeoutSeconds: number | null
   readonly status: "VERIFIED"
   readonly fingerprint: string
 }
@@ -297,10 +312,41 @@ export interface MvpGreenEndpointInspection {
   readonly endpointType: "read_write" | "read_only"
   readonly currentState: string
   readonly poolerMode: string | null
+  readonly autoscalingMinCu: number | null
+  readonly autoscalingMaxCu: number | null
+  readonly suspendTimeoutSeconds: number | null
+  readonly poolerEnabled: boolean | null
+  readonly provisioner: string | null
+  readonly region: string | null
   readonly createdAt: string
   readonly updatedAt: string
   readonly status: "VERIFIED"
   readonly fingerprint: string
+}
+
+export interface MvpGreenCreatedEndpoint extends MvpGreenEndpointInspection {
+  readonly creationStatus: "CREATED" | "RECONCILED"
+  readonly releaseChecksum: string
+  readonly providerHttpStatus: number | null
+  readonly providerErrorCode: string | null
+  readonly providerRequestId: string | null
+  readonly operationIds: readonly string[]
+  readonly operationPollingResult: "PASS" | "NOT_APPLICABLE" | "FAIL_RECONCILED"
+  readonly deterministicReadbackResult: "MATCH"
+  readonly mutationCalls: 0 | 1
+}
+
+export interface MvpGreenEndpointProfileProposal {
+  readonly classification:
+    | "MIRROR_PARENT_RUNTIME_PROFILE"
+    | "EXPLICIT_GREEN_PROFILE_REQUIRED"
+    | "PROJECT_LIMIT_UNRESOLVED"
+  readonly targetEndpointType: "read_write"
+  readonly targetEndpointAutoscalingMinCu: number | null
+  readonly targetEndpointAutoscalingMaxCu: number | null
+  readonly targetEndpointSuspendTimeoutSeconds: number | null
+  readonly targetEndpointPoolerEnabled: boolean | null
+  readonly targetEndpointProvisioner: string | null
 }
 
 export interface MvpGreenEndpointInventory {
@@ -348,6 +394,8 @@ export interface MvpGreenCreatedDatabase extends MvpGreenDatabaseInspection {
 interface NeonProject {
   readonly id?: unknown
   readonly region_id?: unknown
+  readonly provisioner?: unknown
+  readonly default_endpoint_settings?: unknown
 }
 
 interface NeonBranch {
@@ -384,6 +432,12 @@ interface NeonEndpoint {
   readonly type?: unknown
   readonly current_state?: unknown
   readonly pooler_mode?: unknown
+  readonly autoscaling_limit_min_cu?: unknown
+  readonly autoscaling_limit_max_cu?: unknown
+  readonly suspend_timeout_seconds?: unknown
+  readonly pooler_enabled?: unknown
+  readonly provisioner?: unknown
+  readonly region_id?: unknown
   readonly disabled?: unknown
   readonly created_at?: unknown
   readonly updated_at?: unknown
@@ -524,7 +578,10 @@ function sanitizedProviderText(value: unknown): string | null {
     .slice(0, 500)
     .replace(/\b(?:postgres(?:ql)?|https?):\/\/\S+/gi, "[REDACTED_URL]")
     .replace(/\bBearer\s+\S+/gi, "Bearer [REDACTED]")
-    .replace(/\b(password|authorization|token|connection[_ ]?uri|connection[_ ]?string)\b\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
+    .replace(
+      /(["']?(?:password|authorization|token|connection[_ ]?uri|connection[_ ]?string)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi,
+      "$1\"[REDACTED]\"",
+    )
 }
 
 function safeProviderField(body: unknown, field: "code" | "message" | "request_id" | "trace_id"): string | null {
@@ -565,7 +622,7 @@ function providerEvidence(input: {
     ),
     operationIds: Object.freeze(operationsFromBody(response?.body).map((operation) => (
       typeof operation.id === "string" ? operation.id : ""
-    )).filter(Boolean)),
+    )).filter((operationId) => /^[0-9a-f-]{36}$/.test(operationId))),
     retryAfterMs: retryAfterMs(response?.headers),
     requestPath: input.requestPath,
     operationKind: input.operationKind,
@@ -738,6 +795,26 @@ export function createMvpGreenOperationApproval(input: Omit<MvpGreenOperationApp
     || (input.targetDatabaseName !== null && !DATABASE_NAME.test(input.targetDatabaseName))
     || (input.targetRoleName !== null && !ROLE_NAME.test(input.targetRoleName))
     || (input.targetOwnerRole !== null && !ROLE_NAME.test(input.targetOwnerRole))
+    || (input.targetEndpointType !== null && input.targetEndpointType !== "read_write")
+    || (input.targetEndpointAutoscalingMinCu !== null && (
+      typeof input.targetEndpointAutoscalingMinCu !== "number"
+      || !Number.isFinite(input.targetEndpointAutoscalingMinCu)
+      || input.targetEndpointAutoscalingMinCu < 0.25
+    ))
+    || (input.targetEndpointAutoscalingMaxCu !== null && (
+      typeof input.targetEndpointAutoscalingMaxCu !== "number"
+      || !Number.isFinite(input.targetEndpointAutoscalingMaxCu)
+      || input.targetEndpointAutoscalingMaxCu < 0
+    ))
+    || (input.targetEndpointAutoscalingMinCu !== null
+      && input.targetEndpointAutoscalingMaxCu !== null
+      && input.targetEndpointAutoscalingMinCu > input.targetEndpointAutoscalingMaxCu)
+    || (input.targetEndpointSuspendTimeoutSeconds !== null && (
+      !Number.isInteger(input.targetEndpointSuspendTimeoutSeconds)
+      || input.targetEndpointSuspendTimeoutSeconds < 0
+    ))
+    || (input.targetEndpointPoolerEnabled !== null && typeof input.targetEndpointPoolerEnabled !== "boolean")
+    || (input.targetEndpointProvisioner !== null && !ENDPOINT_PROVISIONERS.has(input.targetEndpointProvisioner))
     || !input.invocationId.trim()
     || !input.actorId.trim()
   ) {
@@ -752,6 +829,8 @@ export function createMvpGreenOperationApproval(input: Omit<MvpGreenOperationApp
 function assertMvpGreenApprovalOperationMatrix(input: Pick<
   MvpGreenOperationApproval,
   "operation" | "targetGreenBranchId" | "targetDatabaseName" | "targetRoleName" | "targetRoleNoLogin" | "targetOwnerRole"
+  | "targetEndpointType" | "targetEndpointAutoscalingMinCu" | "targetEndpointAutoscalingMaxCu"
+  | "targetEndpointSuspendTimeoutSeconds" | "targetEndpointPoolerEnabled" | "targetEndpointProvisioner"
 >): void {
   const protectedBranch = input.targetGreenBranchId !== null
     && new Set<string>([
@@ -767,6 +846,12 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
       || input.targetRoleName !== null
       || input.targetRoleNoLogin !== null
       || input.targetOwnerRole !== null
+      || input.targetEndpointType !== null
+      || input.targetEndpointAutoscalingMinCu !== null
+      || input.targetEndpointAutoscalingMaxCu !== null
+      || input.targetEndpointSuspendTimeoutSeconds !== null
+      || input.targetEndpointPoolerEnabled !== null
+      || input.targetEndpointProvisioner !== null
     ) {
       throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
     }
@@ -778,7 +863,12 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
       throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
     }
     if (input.targetRoleNoLogin !== true) throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
-    if (input.targetDatabaseName !== null || input.targetOwnerRole !== null) {
+    if (
+      input.targetDatabaseName !== null || input.targetOwnerRole !== null
+      || input.targetEndpointType !== null || input.targetEndpointAutoscalingMinCu !== null
+      || input.targetEndpointAutoscalingMaxCu !== null || input.targetEndpointSuspendTimeoutSeconds !== null
+      || input.targetEndpointPoolerEnabled !== null || input.targetEndpointProvisioner !== null
+    ) {
       throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
     }
     return
@@ -791,6 +881,26 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
     if (input.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
       throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
     }
+    if (
+      input.targetEndpointType !== null || input.targetEndpointAutoscalingMinCu !== null
+      || input.targetEndpointAutoscalingMaxCu !== null || input.targetEndpointSuspendTimeoutSeconds !== null
+      || input.targetEndpointPoolerEnabled !== null || input.targetEndpointProvisioner !== null
+    ) throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
+    return
+  }
+  if (input.operation === "GREEN_ENDPOINT_CREATE") {
+    if (
+      input.targetEndpointType !== "read_write"
+      || input.targetEndpointAutoscalingMinCu === null
+      || input.targetEndpointAutoscalingMaxCu === null
+      || input.targetEndpointSuspendTimeoutSeconds === null
+      || input.targetEndpointPoolerEnabled === null
+      || input.targetEndpointProvisioner === null
+      || input.targetDatabaseName !== null
+      || input.targetRoleName !== null
+      || input.targetRoleNoLogin !== null
+      || input.targetOwnerRole !== null
+    ) throw new MvpGreenInfrastructureError("ENDPOINT_APPROVAL_BINDING_INVALID")
     return
   }
   if (
@@ -799,6 +909,12 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
     || input.targetRoleName !== null
     || input.targetRoleNoLogin !== null
     || input.targetOwnerRole !== null
+    || input.targetEndpointType !== null
+    || input.targetEndpointAutoscalingMinCu !== null
+    || input.targetEndpointAutoscalingMaxCu !== null
+    || input.targetEndpointSuspendTimeoutSeconds !== null
+    || input.targetEndpointPoolerEnabled !== null
+    || input.targetEndpointProvisioner !== null
   ) {
     throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
   }
@@ -819,6 +935,12 @@ const MVP_GREEN_APPROVAL_FIELDS = Object.freeze([
   "schemaVersion",
   "targetBranchName",
   "targetDatabaseName",
+  "targetEndpointAutoscalingMaxCu",
+  "targetEndpointAutoscalingMinCu",
+  "targetEndpointPoolerEnabled",
+  "targetEndpointProvisioner",
+  "targetEndpointSuspendTimeoutSeconds",
+  "targetEndpointType",
   "targetGreenBranchId",
   "targetOwnerRole",
   "targetRoleName",
@@ -854,6 +976,26 @@ export function assertMvpGreenOperationApprovalIntegrity(input: {
     || (approval.targetDatabaseName !== null && !DATABASE_NAME.test(approval.targetDatabaseName))
     || (approval.targetRoleName !== null && !ROLE_NAME.test(approval.targetRoleName))
     || (approval.targetOwnerRole !== null && !ROLE_NAME.test(approval.targetOwnerRole))
+    || (approval.targetEndpointType !== null && approval.targetEndpointType !== "read_write")
+    || (approval.targetEndpointAutoscalingMinCu !== null && (
+      typeof approval.targetEndpointAutoscalingMinCu !== "number"
+      || !Number.isFinite(approval.targetEndpointAutoscalingMinCu)
+      || approval.targetEndpointAutoscalingMinCu < 0.25
+    ))
+    || (approval.targetEndpointAutoscalingMaxCu !== null && (
+      typeof approval.targetEndpointAutoscalingMaxCu !== "number"
+      || !Number.isFinite(approval.targetEndpointAutoscalingMaxCu)
+      || approval.targetEndpointAutoscalingMaxCu < 0
+    ))
+    || (approval.targetEndpointAutoscalingMinCu !== null
+      && approval.targetEndpointAutoscalingMaxCu !== null
+      && approval.targetEndpointAutoscalingMinCu > approval.targetEndpointAutoscalingMaxCu)
+    || (approval.targetEndpointSuspendTimeoutSeconds !== null && (
+      !Number.isInteger(approval.targetEndpointSuspendTimeoutSeconds)
+      || approval.targetEndpointSuspendTimeoutSeconds < 0
+    ))
+    || (approval.targetEndpointPoolerEnabled !== null && typeof approval.targetEndpointPoolerEnabled !== "boolean")
+    || (approval.targetEndpointProvisioner !== null && !ENDPOINT_PROVISIONERS.has(approval.targetEndpointProvisioner))
     || !approval.invocationId.trim()
     || !approval.actorId.trim()
   ) {
@@ -891,6 +1033,30 @@ export function assertMvpGreenOperationApproval(input: {
         : "APPROVAL_REQUIRED",
     )
   }
+}
+
+function finiteNonNegativeNumber(value: unknown, code: MvpGreenInfrastructureErrorCode): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new MvpGreenInfrastructureError(code)
+  }
+  return value
+}
+
+function nonNegativeInteger(value: unknown, code: MvpGreenInfrastructureErrorCode): number {
+  const result = finiteNonNegativeNumber(value, code)
+  if (!Number.isInteger(result)) throw new MvpGreenInfrastructureError(code)
+  return result
+}
+
+function requiredBoolean(value: unknown, code: MvpGreenInfrastructureErrorCode): boolean {
+  if (typeof value !== "boolean") throw new MvpGreenInfrastructureError(code)
+  return value
+}
+
+function endpointProvisioner(value: unknown, code: MvpGreenInfrastructureErrorCode): string {
+  const result = requiredString(value, code)
+  if (!ENDPOINT_PROVISIONERS.has(result)) throw new MvpGreenInfrastructureError(code)
+  return result
 }
 
 export class FetchMvpNeonTransport implements MvpNeonTransport {
@@ -973,6 +1139,24 @@ function normalizedEndpoint(input: {
   ) {
     throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
   }
+  const autoscalingMinCu = input.value.autoscaling_limit_min_cu === null || input.value.autoscaling_limit_min_cu === undefined
+    ? null
+    : finiteNonNegativeNumber(input.value.autoscaling_limit_min_cu, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  const autoscalingMaxCu = input.value.autoscaling_limit_max_cu === null || input.value.autoscaling_limit_max_cu === undefined
+    ? null
+    : finiteNonNegativeNumber(input.value.autoscaling_limit_max_cu, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  if (autoscalingMinCu !== null && autoscalingMaxCu !== null && autoscalingMinCu > autoscalingMaxCu) {
+    throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  }
+  const suspendTimeoutSeconds = input.value.suspend_timeout_seconds === null || input.value.suspend_timeout_seconds === undefined
+    ? null
+    : nonNegativeInteger(input.value.suspend_timeout_seconds, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  const poolerEnabled = input.value.pooler_enabled === null || input.value.pooler_enabled === undefined
+    ? null
+    : requiredBoolean(input.value.pooler_enabled, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  const provisioner = input.value.provisioner === null || input.value.provisioner === undefined
+    ? null
+    : endpointProvisioner(input.value.provisioner, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
   return Object.freeze({
     projectId,
     branchId,
@@ -980,6 +1164,14 @@ function normalizedEndpoint(input: {
     endpointType,
     currentState: requiredString(input.value.current_state, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"),
     poolerMode: typeof input.value.pooler_mode === "string" ? input.value.pooler_mode : null,
+    autoscalingMinCu,
+    autoscalingMaxCu,
+    suspendTimeoutSeconds,
+    poolerEnabled,
+    provisioner,
+    region: typeof input.value.region_id === "string" && input.value.region_id.trim()
+      ? input.value.region_id
+      : null,
     createdAt: normalizedProviderIso(input.value.created_at, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"),
     updatedAt: normalizedProviderIso(input.value.updated_at, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"),
     status: "VERIFIED" as const,
@@ -1057,9 +1249,30 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       : null
     if (!project || project.id !== projectId) throw new MvpGreenInfrastructureError("PROJECT_IDENTITY_MISMATCH")
     const region = requiredString(project.region_id, "PROJECT_IDENTITY_MISMATCH")
+    const defaults = project.default_endpoint_settings && typeof project.default_endpoint_settings === "object"
+      ? project.default_endpoint_settings as Record<string, unknown>
+      : null
+    const defaultEndpointAutoscalingMinCu = defaults?.autoscaling_limit_min_cu === null
+      || defaults?.autoscaling_limit_min_cu === undefined
+      ? null
+      : finiteNonNegativeNumber(defaults.autoscaling_limit_min_cu, "PROJECT_IDENTITY_MISMATCH")
+    const defaultEndpointAutoscalingMaxCu = defaults?.autoscaling_limit_max_cu === null
+      || defaults?.autoscaling_limit_max_cu === undefined
+      ? null
+      : finiteNonNegativeNumber(defaults.autoscaling_limit_max_cu, "PROJECT_IDENTITY_MISMATCH")
+    const defaultEndpointSuspendTimeoutSeconds = defaults?.suspend_timeout_seconds === null
+      || defaults?.suspend_timeout_seconds === undefined
+      ? null
+      : nonNegativeInteger(defaults.suspend_timeout_seconds, "PROJECT_IDENTITY_MISMATCH")
     return Object.freeze({
       projectId,
       region,
+      provisioner: project.provisioner === null || project.provisioner === undefined
+        ? null
+        : endpointProvisioner(project.provisioner, "PROJECT_IDENTITY_MISMATCH"),
+      defaultEndpointAutoscalingMinCu,
+      defaultEndpointAutoscalingMaxCu,
+      defaultEndpointSuspendTimeoutSeconds,
       status: "VERIFIED" as const,
       fingerprint: `neon:${projectId}`,
     })
@@ -1202,6 +1415,188 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     })
   }
 
+  async inspectEndpointCreationProposal(
+    release: MvpGreenReleaseIdentity,
+    greenBranchId: string,
+    approvedParentLsn: string,
+  ): Promise<MvpGreenEndpointProfileProposal> {
+    if (
+      release.projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID
+      || release.parentBranchId !== MVP_GREEN_PRODUCTION_BRANCH_ID
+      || !BRANCH_ID.test(greenBranchId)
+      || greenBranchId === MVP_GREEN_PRODUCTION_BRANCH_ID
+      || greenBranchId === MVP_GREEN_ROLLBACK_BRANCH_ID
+      || greenBranchId === MVP_GREEN_REJECTED_BRANCH_ID
+    ) throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    postgresLsnValue(approvedParentLsn, "APPROVED_PARENT_LSN_INVALID")
+    const greenBranch = await this.inspectBranch(release.projectId, greenBranchId)
+    if (
+      greenBranch.branchName !== release.branchName
+      || greenBranch.parentBranchId !== release.parentBranchId
+      || greenBranch.parentLsn !== approvedParentLsn
+      || greenBranch.state !== "ready"
+    ) throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    const inventory = await this.inspectEndpointPrerequisite(release.projectId, release.parentBranchId)
+    if (inventory.prerequisite !== "READ_WRITE_ENDPOINT_PRESENT") {
+      throw new MvpGreenInfrastructureError("ENDPOINT_IDENTITY_UNVERIFIED")
+    }
+    const parentEndpoint = inventory.endpoints.find((endpoint) => endpoint.endpointType === "read_write")!
+    const project = await this.inspectProject(release.projectId)
+    const projectDefaultsAvailable = project.provisioner !== null
+      && project.defaultEndpointAutoscalingMinCu !== null
+      && project.defaultEndpointAutoscalingMaxCu !== null
+      && project.defaultEndpointSuspendTimeoutSeconds !== null
+    const matchesProjectDefaults = projectDefaultsAvailable
+      && parentEndpoint.provisioner === project.provisioner
+      && parentEndpoint.autoscalingMinCu === project.defaultEndpointAutoscalingMinCu
+      && parentEndpoint.autoscalingMaxCu === project.defaultEndpointAutoscalingMaxCu
+      && parentEndpoint.suspendTimeoutSeconds === project.defaultEndpointSuspendTimeoutSeconds
+    return Object.freeze({
+      classification: !projectDefaultsAvailable
+        ? "PROJECT_LIMIT_UNRESOLVED" as const
+        : matchesProjectDefaults
+          ? "MIRROR_PARENT_RUNTIME_PROFILE" as const
+          : "EXPLICIT_GREEN_PROFILE_REQUIRED" as const,
+      targetEndpointType: "read_write" as const,
+      targetEndpointAutoscalingMinCu: parentEndpoint.autoscalingMinCu,
+      targetEndpointAutoscalingMaxCu: parentEndpoint.autoscalingMaxCu,
+      targetEndpointSuspendTimeoutSeconds: parentEndpoint.suspendTimeoutSeconds,
+      targetEndpointPoolerEnabled: parentEndpoint.poolerEnabled,
+      targetEndpointProvisioner: parentEndpoint.provisioner,
+    })
+  }
+
+  async readBackCreatedEndpoint(
+    release: MvpGreenReleaseIdentity,
+    approval: MvpGreenOperationApproval,
+  ): Promise<MvpGreenCreatedEndpoint | null> {
+    if (approval.targetEndpointType !== "read_write") {
+      throw new MvpGreenInfrastructureError("ENDPOINT_APPROVAL_BINDING_INVALID")
+    }
+    const branch = await this.inspectApprovedGreenBranch(release, approval)
+    const matchesApproval = (endpoint: MvpGreenEndpointInspection): boolean => (
+      endpoint.endpointType === approval.targetEndpointType
+      && (endpoint.currentState === "active" || endpoint.currentState === "idle")
+      && endpoint.region === branch.region
+      && endpoint.autoscalingMinCu === approval.targetEndpointAutoscalingMinCu
+      && endpoint.autoscalingMaxCu === approval.targetEndpointAutoscalingMaxCu
+      && endpoint.suspendTimeoutSeconds === approval.targetEndpointSuspendTimeoutSeconds
+      && endpoint.poolerEnabled === approval.targetEndpointPoolerEnabled
+      && endpoint.provisioner === approval.targetEndpointProvisioner
+    )
+    const readWriteEndpoints = (await this.listEndpoints(approval.projectId, branch.branchId))
+      .filter((endpoint) => endpoint.endpointType === "read_write")
+    if (readWriteEndpoints.length > 1) throw new MvpGreenInfrastructureError("ENDPOINT_IDENTITY_UNVERIFIED")
+    const matches = readWriteEndpoints.filter(matchesApproval)
+    if (readWriteEndpoints.length === 1 && matches.length === 0) {
+      throw new MvpGreenInfrastructureError("ENDPOINT_IDENTITY_UNVERIFIED")
+    }
+    if (!matches.length) return null
+    if (matches.length !== 1) throw new MvpGreenInfrastructureError("ENDPOINT_IDENTITY_UNVERIFIED")
+    const endpoint = await this.inspectEndpoint(approval.projectId, matches[0]!.endpointId)
+    if (!endpoint || endpoint.branchId !== branch.branchId || !matchesApproval(endpoint)) {
+      throw new MvpGreenInfrastructureError("ENDPOINT_IDENTITY_UNVERIFIED")
+    }
+    return Object.freeze({
+      ...endpoint,
+      creationStatus: "RECONCILED" as const,
+      releaseChecksum: approval.releaseChecksum,
+      providerHttpStatus: null,
+      providerErrorCode: null,
+      providerRequestId: null,
+      operationIds: Object.freeze([]),
+      operationPollingResult: "NOT_APPLICABLE" as const,
+      deterministicReadbackResult: "MATCH" as const,
+      mutationCalls: 0 as const,
+    })
+  }
+
+  async createGreenEndpoint(input: {
+    readonly release: MvpGreenReleaseIdentity
+    readonly approval: MvpGreenOperationApproval | null
+    readonly parentState: MvpGreenParentState
+    readonly at: string
+  }): Promise<MvpGreenCreatedEndpoint> {
+    assertMvpGreenOperationApproval({
+      approval: input.approval,
+      operation: "GREEN_ENDPOINT_CREATE",
+      release: input.release,
+      at: input.at,
+    })
+    const approval = Object.freeze({ ...input.approval! })
+    this.assertApprovedParentState(input.parentState, approval)
+    const existing = await this.readBackCreatedEndpoint(input.release, approval)
+    if (existing) return existing
+    const path = `/projects/${encoded(approval.projectId)}/endpoints`
+    const endpoint: Record<string, unknown> = {
+      branch_id: approval.targetGreenBranchId,
+      type: approval.targetEndpointType,
+    }
+    if (approval.targetEndpointAutoscalingMinCu !== null) endpoint.autoscaling_limit_min_cu = approval.targetEndpointAutoscalingMinCu
+    if (approval.targetEndpointAutoscalingMaxCu !== null) endpoint.autoscaling_limit_max_cu = approval.targetEndpointAutoscalingMaxCu
+    if (approval.targetEndpointSuspendTimeoutSeconds !== null) endpoint.suspend_timeout_seconds = approval.targetEndpointSuspendTimeoutSeconds
+    if (approval.targetEndpointPoolerEnabled !== null) endpoint.pooler_enabled = approval.targetEndpointPoolerEnabled
+    if (approval.targetEndpointProvisioner !== null) endpoint.provisioner = approval.targetEndpointProvisioner
+    let response: MvpNeonTransportResponse | null = null
+    let failure: MvpGreenInfrastructureError | null = null
+    let operationIds: readonly string[] = Object.freeze([])
+    let operationPollingResult: MvpGreenCreatedEndpoint["operationPollingResult"] = "NOT_APPLICABLE"
+    try {
+      response = await this.transport.request({ method: "POST", path, body: { endpoint } })
+      requireSuccessful(response, "ENDPOINT_CREATION_FAILED", path, "GREEN_ENDPOINT_CREATE")
+      const providerEndpoint = endpointFromBody(response.body)
+      operationIds = Object.freeze(operationsFromBody(response.body).map((operation) => (
+        typeof operation.id === "string" ? operation.id : ""
+      )).filter((operationId) => /^[0-9a-f-]{36}$/.test(operationId)))
+      if (!providerEndpoint && !operationIds.length) {
+        throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE", providerEvidence({
+          response,
+          requestPath: path,
+          operationKind: "GREEN_ENDPOINT_CREATE",
+          responseReceived: true,
+          timedOut: false,
+        }))
+      }
+      for (const operationId of operationIds) {
+        await this.pollOperation(approval.projectId, operationId, "GREEN_ENDPOINT_CREATE")
+      }
+      operationPollingResult = operationIds.length ? "PASS" : "NOT_APPLICABLE"
+    } catch (error) {
+      failure = error instanceof MvpGreenInfrastructureError
+        ? error
+        : new MvpGreenInfrastructureError("NEON_TRANSPORT_FAILURE", providerEvidence({
+          requestPath: path,
+          operationKind: "GREEN_ENDPOINT_CREATE",
+          responseReceived: false,
+          timedOut: false,
+        }))
+      if (failure.code === "NEON_AUTHENTICATION_FAILURE" || failure.code === "NEON_BAD_REQUEST") throw failure
+      if (failure.code === "NEON_OPERATION_FAILED" || failure.code === "NEON_OPERATION_TIMEOUT") {
+        operationPollingResult = "FAIL_RECONCILED"
+      }
+    }
+    const readback = await this.readBackCreatedEndpoint(input.release, approval)
+    if (!readback) {
+      if (failure) throw failure
+      throw new MvpGreenInfrastructureError("ENDPOINT_IDENTITY_UNVERIFIED", response
+        ? providerEvidence({ response, requestPath: path, operationKind: "GREEN_ENDPOINT_CREATE", responseReceived: true, timedOut: false })
+        : null)
+    }
+    const evidence = response
+      ? providerEvidence({ response, requestPath: path, operationKind: "GREEN_ENDPOINT_CREATE", responseReceived: true, timedOut: false })
+      : failure?.evidence
+    return Object.freeze({
+      ...readback,
+      creationStatus: failure ? "RECONCILED" as const : "CREATED" as const,
+      providerHttpStatus: evidence?.httpStatus ?? null,
+      providerErrorCode: evidence?.providerErrorCode ?? null,
+      providerRequestId: evidence?.providerRequestId ?? null,
+      operationIds,
+      operationPollingResult,
+      mutationCalls: 1 as const,
+    })
+  }
+
   async inspectOperation(projectId: string, operationId: string): Promise<MvpGreenOperationInspection> {
     const path = `/projects/${encoded(projectId)}/operations/${encoded(operationId)}`
     const response = await this.transport.request({ method: "GET", path })
@@ -1211,7 +1606,11 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     return normalizedOperation({ projectId, value: operation })
   }
 
-  async pollOperation(projectId: string, operationId: string): Promise<MvpGreenOperationInspection> {
+  async pollOperation(
+    projectId: string,
+    operationId: string,
+    operationKind: MvpGreenOperationKind = "GREEN_OWNER_ROLE_CREATE",
+  ): Promise<MvpGreenOperationInspection> {
     for (let attempt = 0; attempt < this.operationPolling.maxAttempts; attempt += 1) {
       const operation = await this.inspectOperation(projectId, operationId)
       if (operation.state === "finished" || operation.state === "skipped") return operation
@@ -1224,7 +1623,7 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
           operationIds: Object.freeze([operationId]),
           retryAfterMs: null,
           requestPath: `/projects/${projectId}/operations/${operationId}`,
-          operationKind: "GREEN_OWNER_ROLE_CREATE",
+          operationKind,
           responseReceived: true,
           timedOut: false,
         })
@@ -1241,7 +1640,7 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       operationIds: Object.freeze([operationId]),
       retryAfterMs: null,
       requestPath: `/projects/${projectId}/operations/${operationId}`,
-      operationKind: "GREEN_OWNER_ROLE_CREATE",
+      operationKind,
       responseReceived: true,
       timedOut: true,
     })

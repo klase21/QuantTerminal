@@ -85,7 +85,7 @@ assert.throws(() => compareMvpPostgresLsns("0/100", "a/1"), /APPROVED_PARENT_LSN
 assert.throws(() => compareMvpPostgresLsns("0/100", "00/1"), /APPROVED_PARENT_LSN_INVALID/)
 assert.throws(() => compareMvpPostgresLsns("0/100", "100000000/0"), /APPROVED_PARENT_LSN_INVALID/)
 assert.throws(() => compareMvpPostgresLsns("0/100", "0/100000000"), /APPROVED_PARENT_LSN_INVALID/)
-assert.equal(MVP_GREEN_APPROVAL_SCHEMA_VERSION, "mvp-green-infrastructure-approval/1.3.0")
+assert.equal(MVP_GREEN_APPROVAL_SCHEMA_VERSION, "mvp-green-infrastructure-approval/1.4.0")
 
 const frozenPlan = createMvpGreenCertificationPlan({
   projectId: MVP_GREEN_PRODUCTION_PROJECT_ID,
@@ -129,7 +129,13 @@ type Endpoint = {
   branch_id: string
   type: "read_write" | "read_only"
   current_state: string
+  autoscaling_limit_min_cu?: number
+  autoscaling_limit_max_cu?: number
+  suspend_timeout_seconds?: number
+  pooler_enabled?: boolean
   pooler_mode?: string
+  provisioner?: string
+  region_id?: string
   disabled?: boolean
   created_at: string
   updated_at: string
@@ -161,6 +167,15 @@ class FakeNeonTransport implements MvpNeonTransport {
   rolePostThrowBefore: MvpGreenInfrastructureError | null = null
   rolePostThrowAfter: MvpGreenInfrastructureError | null = null
   rolePostMalformed = false
+  endpointResponseLost = false
+  endpointPostStatus = 201
+  endpointPostCreatesEndpoint = true
+  endpointPostErrorBody: unknown = null
+  endpointPostThrowBefore: MvpGreenInfrastructureError | null = null
+  endpointPostThrowAfter: MvpGreenInfrastructureError | null = null
+  endpointPostMalformed = false
+  endpointPostState = "idle"
+  endpointPostRegion = "aws-ap-southeast-1"
   operationLookupStatus = 200
   operationStates: string[] = ["finished"]
   operationGetCount = 0
@@ -197,13 +212,43 @@ class FakeNeonTransport implements MvpNeonTransport {
         updated_at: "2026-07-01T00:00:00.000Z",
       },
     ])
+    this.endpoints.set(MVP_GREEN_PRODUCTION_BRANCH_ID, [{
+      id: "ep-production-certified-123",
+      project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+      branch_id: MVP_GREEN_PRODUCTION_BRANCH_ID,
+      type: "read_write",
+      current_state: "idle",
+      autoscaling_limit_min_cu: 0.25,
+      autoscaling_limit_max_cu: 2,
+      suspend_timeout_seconds: 0,
+      pooler_enabled: false,
+      pooler_mode: "transaction",
+      provisioner: "k8s-neonvm",
+      region_id: "aws-ap-southeast-1",
+      created_at: NOW,
+      updated_at: NOW,
+    }])
   }
 
   async request(input: { method: "GET" | "POST"; path: string; body?: Readonly<Record<string, unknown>> }): Promise<MvpNeonTransportResponse> {
     this.calls.push({ method: input.method, path: input.path, body: input.body ?? null })
     if (this.authFailure) return { status: 401, body: { error: "redacted" } }
     if (input.method === "GET" && input.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}`) {
-      return { status: 200, body: { project: { id: this.projectId, region_id: this.projectRegion } } }
+      return {
+        status: 200,
+        body: {
+          project: {
+            id: this.projectId,
+            region_id: this.projectRegion,
+            provisioner: "k8s-neonvm",
+            default_endpoint_settings: {
+              autoscaling_limit_min_cu: 0.25,
+              autoscaling_limit_max_cu: 2,
+              suspend_timeout_seconds: 0,
+            },
+          },
+        },
+      }
     }
     const branchDetail = input.path.match(/^\/projects\/[^/]+\/branches\/(br-[^/?]+)$/)
     if (input.method === "GET" && branchDetail) {
@@ -253,6 +298,67 @@ class FakeNeonTransport implements MvpNeonTransport {
       }
       return operation ? { status: 200, body: { operation } } : { status: 404, body: {} }
     }
+    if (input.method === "POST" && input.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`) {
+      if (this.endpointPostThrowBefore) throw this.endpointPostThrowBefore
+      const endpointInput = input.body?.endpoint as {
+        branch_id: string
+        type: "read_write"
+        autoscaling_limit_min_cu?: number
+        autoscaling_limit_max_cu?: number
+        suspend_timeout_seconds?: number
+        pooler_enabled?: boolean
+        provisioner?: string
+      }
+      const endpoint: Endpoint = {
+        id: "ep-green-certified-123",
+        project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+        branch_id: endpointInput.branch_id,
+        type: endpointInput.type,
+        current_state: this.endpointPostState,
+        autoscaling_limit_min_cu: endpointInput.autoscaling_limit_min_cu,
+        autoscaling_limit_max_cu: endpointInput.autoscaling_limit_max_cu,
+        suspend_timeout_seconds: endpointInput.suspend_timeout_seconds,
+        pooler_enabled: endpointInput.pooler_enabled,
+        pooler_mode: "transaction",
+        provisioner: endpointInput.provisioner,
+        region_id: this.endpointPostRegion,
+        created_at: NOW,
+        updated_at: NOW,
+      }
+      if (this.endpointPostCreatesEndpoint) {
+        this.endpoints.set(endpoint.branch_id, [
+          ...(this.endpoints.get(endpoint.branch_id) ?? []),
+          endpoint,
+        ])
+      }
+      if (this.endpointPostThrowAfter) throw this.endpointPostThrowAfter
+      if (this.endpointResponseLost) throw new Error("NETWORK_RESPONSE_LOST_WITH_SECRET:password=must-never-escape")
+      const operation: Operation = {
+        id: "22222222-2222-4222-8222-222222222222",
+        project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+        branch_id: endpoint.branch_id,
+        endpoint_id: endpoint.id,
+        action: "create_compute",
+        status: this.operationStates[0] ?? "finished",
+        failures_count: 0,
+        created_at: NOW,
+        updated_at: NOW,
+      }
+      this.operations.set(operation.id, operation)
+      return {
+        status: this.endpointPostStatus,
+        body: this.endpointPostErrorBody ?? {
+          endpoint,
+          operations: [operation],
+          connection_uri: "postgres://must-never-escape",
+          password: "must-never-escape",
+          token: "must-never-escape",
+          authorization: "Bearer must-never-escape",
+        },
+        headers: { "x-request-id": "req-green-endpoint-123", "retry-after": "2" },
+        malformedBody: this.endpointPostMalformed,
+      }
+    }
     if (input.method === "POST" && input.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches`) {
       const branchInput = input.body?.branch as { name: string; parent_id: string; parent_lsn: string }
       const branch: Branch = {
@@ -283,7 +389,13 @@ class FakeNeonTransport implements MvpNeonTransport {
         branch_id: branch.id,
         type: "read_write",
         current_state: "idle",
+        autoscaling_limit_min_cu: 0.25,
+        autoscaling_limit_max_cu: 2,
+        suspend_timeout_seconds: 0,
+        pooler_enabled: false,
         pooler_mode: "transaction",
+        provisioner: "k8s-neonvm",
+        region_id: "aws-ap-southeast-1",
         created_at: NOW,
         updated_at: NOW,
       }])
@@ -370,7 +482,16 @@ function approval(
   parent: MvpGreenParentState,
   targets: Partial<Pick<
     MvpGreenOperationApproval,
-    "targetGreenBranchId" | "targetDatabaseName" | "targetRoleName" | "targetOwnerRole"
+    | "targetGreenBranchId"
+    | "targetDatabaseName"
+    | "targetRoleName"
+    | "targetOwnerRole"
+    | "targetEndpointType"
+    | "targetEndpointAutoscalingMinCu"
+    | "targetEndpointAutoscalingMaxCu"
+    | "targetEndpointSuspendTimeoutSeconds"
+    | "targetEndpointPoolerEnabled"
+    | "targetEndpointProvisioner"
   >> = {},
 ) {
   const targetsGreenResource = operation !== "NEON_BRANCH_CREATE"
@@ -396,6 +517,24 @@ function approval(
     targetOwnerRole: targets.targetOwnerRole ?? (
       operation === "GREEN_DATABASE_CREATE" ? MVP_GREEN_MIGRATION_OWNER_ROLE : null
     ),
+    targetEndpointType: targets.targetEndpointType ?? (
+      operation === "GREEN_ENDPOINT_CREATE" ? "read_write" : null
+    ),
+    targetEndpointAutoscalingMinCu: targets.targetEndpointAutoscalingMinCu ?? (
+      operation === "GREEN_ENDPOINT_CREATE" ? 0.25 : null
+    ),
+    targetEndpointAutoscalingMaxCu: targets.targetEndpointAutoscalingMaxCu ?? (
+      operation === "GREEN_ENDPOINT_CREATE" ? 2 : null
+    ),
+    targetEndpointSuspendTimeoutSeconds: targets.targetEndpointSuspendTimeoutSeconds ?? (
+      operation === "GREEN_ENDPOINT_CREATE" ? 0 : null
+    ),
+    targetEndpointPoolerEnabled: targets.targetEndpointPoolerEnabled ?? (
+      operation === "GREEN_ENDPOINT_CREATE" ? false : null
+    ),
+    targetEndpointProvisioner: targets.targetEndpointProvisioner ?? (
+      operation === "GREEN_ENDPOINT_CREATE" ? "k8s-neonvm" : null
+    ),
     invocationId: `invocation-${operation.toLowerCase()}`,
     actorId: "jay-local-operator",
     issuedAt: NOW,
@@ -415,13 +554,42 @@ async function preparedRoleFixture() {
   return { ...fixture, parent }
 }
 
+async function preparedEndpointFixture() {
+  const fixture = adapterFixture()
+  const parent = await fixture.adapter.resolveParentState()
+  await fixture.adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  fixture.transport.endpoints.set(GREEN_BRANCH_ID, [])
+  return { ...fixture, parent }
+}
+
 {
   const { adapter } = adapterFixture()
   const parent = await adapter.resolveParentState()
   const branchApproval = approval("NEON_BRANCH_CREATE", release, parent)
+  const endpointApproval = approval("GREEN_ENDPOINT_CREATE", release, parent)
   const roleApproval = approval("GREEN_OWNER_ROLE_CREATE", release, parent)
   const databaseApproval = approval("GREEN_DATABASE_CREATE", release, parent)
   const acquisitionApproval = approval("GREEN_ACQUISITION_START", release, parent)
+  assert.deepEqual(
+    [
+      endpointApproval.targetGreenBranchId,
+      endpointApproval.targetEndpointType,
+      endpointApproval.targetEndpointAutoscalingMinCu,
+      endpointApproval.targetEndpointAutoscalingMaxCu,
+      endpointApproval.targetEndpointSuspendTimeoutSeconds,
+      endpointApproval.targetEndpointPoolerEnabled,
+      endpointApproval.targetEndpointProvisioner,
+      endpointApproval.targetDatabaseName,
+      endpointApproval.targetRoleName,
+      endpointApproval.targetOwnerRole,
+    ],
+    [GREEN_BRANCH_ID, "read_write", 0.25, 2, 0, false, "k8s-neonvm", null, null, null],
+  )
   assert.deepEqual(
     [
       branchApproval.targetGreenBranchId,
@@ -478,6 +646,12 @@ async function preparedRoleFixture() {
       "schemaVersion",
       "targetBranchName",
       "targetDatabaseName",
+      "targetEndpointAutoscalingMaxCu",
+      "targetEndpointAutoscalingMinCu",
+      "targetEndpointPoolerEnabled",
+      "targetEndpointProvisioner",
+      "targetEndpointSuspendTimeoutSeconds",
+      "targetEndpointType",
       "targetGreenBranchId",
       "targetOwnerRole",
       "targetRoleName",
@@ -488,6 +662,74 @@ async function preparedRoleFixture() {
     targetGreenBranchId: "br-other-green-certified",
   })
   assert.notEqual(otherBranchApproval.approvalChecksum, roleApproval.approvalChecksum)
+  assert.notEqual(
+    approval("GREEN_ENDPOINT_CREATE", release, parent, { targetEndpointAutoscalingMaxCu: 4 }).approvalChecksum,
+    endpointApproval.approvalChecksum,
+  )
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: { ...endpointApproval, targetEndpointAutoscalingMaxCu: 4 },
+      operation: "GREEN_ENDPOINT_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: {
+        ...endpointApproval,
+        schemaVersion: "mvp-green-infrastructure-approval/1.3.0",
+      } as unknown as MvpGreenOperationApproval,
+      operation: "GREEN_ENDPOINT_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  const {
+    schemaVersion: _endpointSchema,
+    approvalChecksum: _endpointChecksum,
+    ...endpointBasis
+  } = endpointApproval
+  assert.throws(
+    () => createMvpGreenOperationApproval({
+      approved: true,
+      ...endpointBasis,
+      targetEndpointType: null,
+    }),
+    /ENDPOINT_APPROVAL_BINDING_INVALID/,
+  )
+  for (const missingSetting of [
+    "targetEndpointAutoscalingMinCu",
+    "targetEndpointAutoscalingMaxCu",
+    "targetEndpointSuspendTimeoutSeconds",
+    "targetEndpointPoolerEnabled",
+    "targetEndpointProvisioner",
+  ] as const) {
+    assert.throws(
+      () => createMvpGreenOperationApproval({
+        approved: true,
+        ...endpointBasis,
+        [missingSetting]: null,
+      }),
+      /ENDPOINT_APPROVAL_BINDING_INVALID/,
+    )
+  }
+  assert.throws(
+    () => createMvpGreenOperationApproval({
+      approved: true,
+      ...endpointBasis,
+      targetRoleName: MVP_GREEN_MIGRATION_OWNER_ROLE,
+    }),
+    /ENDPOINT_APPROVAL_BINDING_INVALID/,
+  )
+  assert.throws(
+    () => createMvpGreenOperationApproval({
+      approved: true,
+      ...endpointBasis,
+      targetEndpointProvisioner: "invented-provider",
+    }),
+    /APPROVAL_REQUIRED/,
+  )
   assert.throws(
     () => assertMvpGreenOperationApprovalIntegrity({
       approval: { ...roleApproval, targetGreenBranchId: "br-other-green-certified" },
@@ -667,6 +909,438 @@ async function preparedRoleFixture() {
 }
 
 {
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  const endpointApproval = approval("GREEN_ENDPOINT_CREATE", release, parent)
+  const proposal = await adapter.inspectEndpointCreationProposal(release, GREEN_BRANCH_ID, parent.lsn)
+  assert.deepEqual(proposal, {
+    classification: "MIRROR_PARENT_RUNTIME_PROFILE",
+    targetEndpointType: "read_write",
+    targetEndpointAutoscalingMinCu: 0.25,
+    targetEndpointAutoscalingMaxCu: 2,
+    targetEndpointSuspendTimeoutSeconds: 0,
+    targetEndpointPoolerEnabled: false,
+    targetEndpointProvisioner: "k8s-neonvm",
+  })
+  transport.operationStates = ["running", "finished"]
+  const endpoint = await adapter.createGreenEndpoint({
+    release,
+    approval: endpointApproval,
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(endpoint.creationStatus, "CREATED")
+  assert.equal(endpoint.endpointId, "ep-green-certified-123")
+  assert.equal(endpoint.endpointType, "read_write")
+  assert.equal(endpoint.autoscalingMinCu, 0.25)
+  assert.equal(endpoint.autoscalingMaxCu, 2)
+  assert.equal(endpoint.suspendTimeoutSeconds, 0)
+  assert.equal(endpoint.poolerEnabled, false)
+  assert.equal(endpoint.provisioner, "k8s-neonvm")
+  assert.equal(endpoint.region, "aws-ap-southeast-1")
+  assert.equal(endpoint.operationPollingResult, "PASS")
+  assert.equal(endpoint.mutationCalls, 1)
+  assert.equal(transport.operationGetCount, 2)
+  assert.equal(JSON.stringify(endpoint).includes("must-never-escape"), false)
+  const endpointPosts = transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  ))
+  assert.equal(endpointPosts.length, 1)
+  assert.deepEqual(endpointPosts[0]!.body, {
+    endpoint: {
+      branch_id: GREEN_BRANCH_ID,
+      type: "read_write",
+      autoscaling_limit_min_cu: 0.25,
+      autoscaling_limit_max_cu: 2,
+      suspend_timeout_seconds: 0,
+      pooler_enabled: false,
+      provisioner: "k8s-neonvm",
+    },
+  })
+  const reconciled = await adapter.createGreenEndpoint({
+    release,
+    approval: endpointApproval,
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(reconciled.mutationCalls, 0)
+  assert.equal(transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  )).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.endpoints.set(GREEN_BRANCH_ID, [{
+    id: "ep-green-conflict-123",
+    project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+    branch_id: GREEN_BRANCH_ID,
+    type: "read_write",
+    current_state: "idle",
+    autoscaling_limit_min_cu: 0.25,
+    autoscaling_limit_max_cu: 4,
+    suspend_timeout_seconds: 0,
+    pooler_enabled: false,
+    provisioner: "k8s-neonvm",
+    region_id: "aws-ap-southeast-1",
+    created_at: NOW,
+    updated_at: NOW,
+  }])
+  await assert.rejects(
+    () => adapter.createGreenEndpoint({
+      release,
+      approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /ENDPOINT_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  )).length, 0)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.endpointPostRegion = "aws-us-east-1"
+  await assert.rejects(
+    () => adapter.createGreenEndpoint({
+      release,
+      approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /ENDPOINT_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  )).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.endpointPostState = "init"
+  transport.operationStates = ["error"]
+  await assert.rejects(
+    () => adapter.createGreenEndpoint({
+      release,
+      approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /ENDPOINT_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  )).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.endpoints.set(GREEN_BRANCH_ID, [{
+    id: "ep-green-read-only-456",
+    project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+    branch_id: GREEN_BRANCH_ID,
+    type: "read_only",
+    current_state: "idle",
+    created_at: NOW,
+    updated_at: NOW,
+  }])
+  assert.equal(
+    (await adapter.inspectEndpointPrerequisite(MVP_GREEN_PRODUCTION_PROJECT_ID, GREEN_BRANCH_ID)).prerequisite,
+    "READ_ONLY_ONLY",
+  )
+  assert.equal((await adapter.createGreenEndpoint({
+    release,
+    approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })).creationStatus, "CREATED")
+  assert.equal((transport.endpoints.get(GREEN_BRANCH_ID) ?? []).length, 2)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  const exact = {
+    project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+    branch_id: GREEN_BRANCH_ID,
+    type: "read_write" as const,
+    current_state: "idle",
+    autoscaling_limit_min_cu: 0.25,
+    autoscaling_limit_max_cu: 2,
+    suspend_timeout_seconds: 0,
+    pooler_enabled: false,
+    provisioner: "k8s-neonvm",
+    region_id: "aws-ap-southeast-1",
+    created_at: NOW,
+    updated_at: NOW,
+  }
+  transport.endpoints.set(GREEN_BRANCH_ID, [
+    { ...exact, id: "ep-green-duplicate-1" },
+    { ...exact, id: "ep-green-duplicate-2" },
+  ])
+  await assert.rejects(
+    () => adapter.createGreenEndpoint({
+      release,
+      approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /ENDPOINT_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  )).length, 0)
+}
+
+{
+  const { transport, adapter } = await preparedEndpointFixture()
+  transport.endpoints.set(GREEN_BRANCH_ID, [{
+    id: "ep-green-wrong-branch",
+    project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+    branch_id: "br-wrong-green-branch",
+    type: "read_write",
+    current_state: "idle",
+    created_at: NOW,
+    updated_at: NOW,
+  }])
+  await assert.rejects(
+    () => adapter.inspectEndpointPrerequisite(MVP_GREEN_PRODUCTION_PROJECT_ID, GREEN_BRANCH_ID),
+    /TARGET_GREEN_BRANCH_IDENTITY_MISMATCH/,
+  )
+  transport.authFailure = true
+  await assert.rejects(
+    () => adapter.inspectEndpointPrerequisite(MVP_GREEN_PRODUCTION_PROJECT_ID, GREEN_BRANCH_ID),
+    /NEON_AUTHENTICATION_FAILURE/,
+  )
+}
+
+{
+  for (const [status, code] of [
+    [400, "NEON_BAD_REQUEST"],
+    [401, "NEON_AUTHENTICATION_FAILURE"],
+    [403, "NEON_AUTHENTICATION_FAILURE"],
+    [422, "NEON_BAD_REQUEST"],
+    [423, "NEON_RESOURCE_LOCKED"],
+    [429, "NEON_RATE_LIMIT"],
+  ] as const) {
+    const { transport, adapter, parent } = await preparedEndpointFixture()
+    transport.endpointPostStatus = status
+    transport.endpointPostCreatesEndpoint = false
+    transport.endpointPostErrorBody = {
+      code: `endpoint_${status}`,
+      message: "{\"password\":\"must-never-escape\",\"token\":\"hidden\",\"authorization\":\"Bearer-secret\",\"connection_uri\":\"postgres://secret@host/db\"}",
+      operations: [{ id: "malicious-operation-id-token=must-never-escape" }],
+    }
+    let caught: unknown = null
+    try {
+      await adapter.createGreenEndpoint({
+        release,
+        approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+        parentState: parent,
+        at: NOW,
+      })
+    } catch (error) {
+      caught = error
+    }
+    assert.equal(caught instanceof MvpGreenInfrastructureError, true)
+    assert.equal((caught as MvpGreenInfrastructureError).code, code)
+    assert.equal(JSON.stringify((caught as MvpGreenInfrastructureError).evidence).includes("must-never-escape"), false)
+    assert.equal(JSON.stringify((caught as MvpGreenInfrastructureError).evidence).includes("Bearer-secret"), false)
+    assert.deepEqual((caught as MvpGreenInfrastructureError).evidence?.operationIds, [])
+    assert.equal(transport.calls.filter((call) => (
+      call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+    )).length, 1)
+  }
+}
+
+{
+  for (const status of [409, 500]) {
+    const { transport, adapter, parent } = await preparedEndpointFixture()
+    transport.endpointPostStatus = status
+    transport.endpointPostErrorBody = { code: `endpoint_${status}`, message: "safe failure" }
+    const reconciled = await adapter.createGreenEndpoint({
+      release,
+      approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    })
+    assert.equal(reconciled.creationStatus, "RECONCILED")
+    assert.equal(reconciled.providerHttpStatus, status)
+    assert.equal(reconciled.mutationCalls, 1)
+    assert.equal(transport.calls.filter((call) => (
+      call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+    )).length, 1)
+  }
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.endpointPostThrowAfter = new MvpGreenInfrastructureError("NEON_REQUEST_TIMEOUT", {
+    httpStatus: null,
+    providerErrorCode: null,
+    providerMessage: null,
+    providerRequestId: null,
+    operationIds: Object.freeze([]),
+    retryAfterMs: null,
+    requestPath: `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`,
+    operationKind: "GREEN_ENDPOINT_CREATE",
+    responseReceived: false,
+    timedOut: true,
+  })
+  const reconciled = await adapter.createGreenEndpoint({
+    release,
+    approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(reconciled.mutationCalls, 1)
+  assert.equal(transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  )).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.endpointPostCreatesEndpoint = false
+  transport.endpointPostThrowBefore = new MvpGreenInfrastructureError("NEON_REQUEST_TIMEOUT", {
+    httpStatus: null,
+    providerErrorCode: null,
+    providerMessage: null,
+    providerRequestId: null,
+    operationIds: Object.freeze([]),
+    retryAfterMs: null,
+    requestPath: `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`,
+    operationKind: "GREEN_ENDPOINT_CREATE",
+    responseReceived: false,
+    timedOut: true,
+  })
+  await assert.rejects(
+    () => adapter.createGreenEndpoint({
+      release,
+      approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_REQUEST_TIMEOUT/,
+  )
+  assert.equal(transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  )).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.operationStates = ["running", "running", "running", "running"]
+  const reconciled = await adapter.createGreenEndpoint({
+    release,
+    approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(reconciled.operationPollingResult, "FAIL_RECONCILED")
+  assert.equal(transport.operationGetCount, 4)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.endpointPostCreatesEndpoint = false
+  transport.operationStates = ["error"]
+  await assert.rejects(
+    () => adapter.createGreenEndpoint({
+      release,
+      approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_OPERATION_FAILED/,
+  )
+  assert.equal(transport.calls.filter((call) => (
+    call.method === "POST" && call.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/endpoints`
+  )).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  transport.endpointPostErrorBody = {
+    endpoint: {
+      id: "ep-green-certified-123",
+      project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+      branch_id: GREEN_BRANCH_ID,
+      type: "read_write",
+      current_state: "idle",
+      autoscaling_limit_min_cu: 0.25,
+      autoscaling_limit_max_cu: 2,
+      suspend_timeout_seconds: 0,
+      pooler_enabled: false,
+      provisioner: "k8s-neonvm",
+      region_id: "aws-ap-southeast-1",
+      created_at: NOW,
+      updated_at: NOW,
+    },
+  }
+  const endpoint = await adapter.createGreenEndpoint({
+    release,
+    approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(endpoint.creationStatus, "CREATED")
+  assert.equal(endpoint.operationIds.length, 0)
+  assert.equal(endpoint.operationPollingResult, "NOT_APPLICABLE")
+}
+
+{
+  const { transport, adapter, parent } = await preparedEndpointFixture()
+  const secondOperation: Operation = {
+    id: "33333333-3333-4333-8333-333333333333",
+    project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+    branch_id: GREEN_BRANCH_ID,
+    endpoint_id: "ep-green-certified-123",
+    action: "apply_config",
+    status: "running",
+    failures_count: 0,
+    created_at: NOW,
+    updated_at: NOW,
+  }
+  transport.operations.set(secondOperation.id, secondOperation)
+  const firstOperation = {
+    ...secondOperation,
+    id: "22222222-2222-4222-8222-222222222222",
+    action: "create_compute",
+  }
+  transport.endpointPostErrorBody = {
+    endpoint: {
+      id: "ep-green-certified-123",
+      project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+      branch_id: GREEN_BRANCH_ID,
+      type: "read_write",
+      current_state: "idle",
+      autoscaling_limit_min_cu: 0.25,
+      autoscaling_limit_max_cu: 2,
+      suspend_timeout_seconds: 0,
+      pooler_enabled: false,
+      provisioner: "k8s-neonvm",
+      region_id: "aws-ap-southeast-1",
+      created_at: NOW,
+      updated_at: NOW,
+    },
+    operations: [firstOperation, secondOperation],
+  }
+  transport.operationStates = ["finished", "finished"]
+  const endpoint = await adapter.createGreenEndpoint({
+    release,
+    approval: approval("GREEN_ENDPOINT_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(endpoint.operationIds.length, 2)
+  assert.equal(transport.operationGetCount, 2)
+}
+
+{
   const { transport, adapter } = adapterFixture()
   const branch = transport.branches.get(MVP_GREEN_PRODUCTION_BRANCH_ID)!
   branch.created_at = "2026-07-18T08:29:29Z"
@@ -817,6 +1491,12 @@ async function preparedRoleFixture() {
     targetRoleName: null,
     targetRoleNoLogin: null,
     targetOwnerRole: null,
+    targetEndpointType: null,
+    targetEndpointAutoscalingMinCu: null,
+    targetEndpointAutoscalingMaxCu: null,
+    targetEndpointSuspendTimeoutSeconds: null,
+    targetEndpointPoolerEnabled: null,
+    targetEndpointProvisioner: null,
     invocationId: "stale",
     actorId: "jay-local-operator",
     issuedAt: "2026-07-22T00:00:00.000Z",
@@ -1497,10 +2177,18 @@ async function preparedRoleFixture() {
   assert.equal(runnerSource.includes('"preflight-role"'), true)
   assert.equal(runnerSource.includes('"create-owner-role"'), true)
   assert.equal(runnerSource.includes('"preflight-database"'), true)
+  assert.equal(runnerSource.includes('"preflight-endpoint"'), true)
+  assert.equal(runnerSource.includes('"create-endpoint"'), true)
+  assert.equal(runnerSource.includes('endpoint.currentState === "active" || endpoint.currentState === "idle"'), true)
+  assert.equal(runnerSource.includes("endpoint.region === branch.region"), true)
   const createChildBranchSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createChildBranch.toString()
   assert.equal(createChildBranchSource.includes("this.resolveParentState"), false)
   const createRoleSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createMigrationOwnerRole.toString()
   assert.equal(createRoleSource.includes("this.resolveParentState"), false)
+  const createEndpointSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createGreenEndpoint.toString()
+  assert.equal(createEndpointSource.includes("this.resolveParentState"), false)
+  assert.equal(createEndpointSource.includes("approval.targetGreenBranchId"), true)
+  assert.equal(createEndpointSource.includes("approval.targetEndpointType"), true)
   const createDatabaseSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createReleaseDatabase.toString()
   assert.equal(createDatabaseSource.includes("input.ownerName"), false)
   assert.equal(createDatabaseSource.includes("approval.targetGreenBranchId"), true)
@@ -1517,6 +2205,19 @@ async function preparedRoleFixture() {
     ], { cwd: process.cwd(), encoding: "utf8" })
     assert.notEqual(cli.status, 0)
     assert.match(cli.stderr, /MVP_GREEN_UNCHECKED_OWNER_ROLE_FORBIDDEN/)
+  }
+  for (const endpointArguments of [
+    ["--endpoint-type=read_only"],
+    ["--endpoint-autoscaling-max-cu", "8"],
+  ]) {
+    const cli = spawnSync(process.execPath, [
+      "node_modules/tsx/dist/cli.mjs",
+      "workers/data-platform/runMvpGreenRelease.ts",
+      "create-endpoint",
+      ...endpointArguments,
+    ], { cwd: process.cwd(), encoding: "utf8" })
+    assert.notEqual(cli.status, 0)
+    assert.match(cli.stderr, /MVP_GREEN_UNCHECKED_ENDPOINT_CONFIGURATION_FORBIDDEN/)
   }
 }
 
@@ -1628,6 +2329,13 @@ console.log(JSON.stringify({
   providerErrorPreservation: "PASS",
   httpStatusClassification: "PASS",
   endpointPrerequisite: "PASS",
+  endpointApprovalBinding: "PASS",
+  endpointExactProviderPath: "PASS",
+  endpointReadWriteType: "PASS",
+  endpointOperationPolling: "PASS",
+  endpointUnknownOutcomeReconciliation: "PASS",
+  secondAutomaticEndpointPost: 0,
+  endpointSecretRedaction: "PASS",
   noLoginChecksumBinding: "PASS",
   rolePostNoLogin: true,
   operationPolling: "PASS",
