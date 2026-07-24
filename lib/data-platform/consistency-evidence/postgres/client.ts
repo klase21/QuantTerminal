@@ -22,6 +22,22 @@ export interface D4DatabaseVerification {
   readonly d3PopulationSchemaPresent: boolean
 }
 
+const ROLE_IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/
+const D4_RUNTIME_ROLES = Object.freeze({
+  CONSISTENCY_WORKER: "qt_d4_consistency_worker",
+  EVIDENCE_ASSEMBLER: "qt_d4_evidence_assembler",
+  PROJECTION_BUILDER: "qt_d4_projection_builder",
+  PROJECTION_PUBLISHER: "qt_d4_projection_publisher",
+  READ_ONLY: "qt_d4_read_only",
+} satisfies Record<Exclude<D4RoleIntent, "MIGRATION_OWNER">, string>)
+
+function runtimeRole(intent: D4RoleIntent): string | undefined {
+  if (intent === "MIGRATION_OWNER") return undefined
+  const role = D4_RUNTIME_ROLES[intent]
+  if (!role || !ROLE_IDENTIFIER.test(role)) throw new Error("D4_ROLE_INTENT_INVALID")
+  return role
+}
+
 export class ConsistencyPostgresRuntime {
   private client: postgres.Sql | null = null
   private lifecycleState: D4RuntimeLifecycle = "DISCONNECTED"
@@ -35,6 +51,7 @@ export class ConsistencyPostgresRuntime {
     if (!config.applicationName.trim()) throw new Error("D4_APPLICATION_NAME_REQUIRED")
     if (config.environment.D4_ISOLATED_POSTGRES_URL !== config.connectionString) throw new Error("D4_CONNECTION_MUST_USE_D4_ENVIRONMENT")
     verifyEnvironment(config.environment)
+    runtimeRole(config.roleIntent)
   }
   get state(): D4RuntimeLifecycle { return this.lifecycleState }
   get roleIntent(): D4RoleIntent { return this.config.roleIntent }
@@ -46,7 +63,7 @@ export class ConsistencyPostgresRuntime {
   async connect(): Promise<D4DatabaseVerification> {
     if (this.lifecycleState !== "DISCONNECTED") throw new Error("D4_RUNTIME_CONNECT_STATE_INVALID")
     this.lifecycleState = "CONNECTING"
-    const role = this.config.roleIntent === "MIGRATION_OWNER" ? undefined : this.config.roleIntent === "CONSISTENCY_WORKER" ? "qt_d4_consistency_worker" : this.config.roleIntent === "EVIDENCE_ASSEMBLER" ? "qt_d4_evidence_assembler" : this.config.roleIntent === "PROJECTION_BUILDER" ? "qt_d4_projection_builder" : this.config.roleIntent === "PROJECTION_PUBLISHER" ? "qt_d4_projection_publisher" : "qt_d4_read_only"
+    const role = runtimeRole(this.config.roleIntent)
     const sql = postgres(this.config.connectionString, {
       max: this.config.maxConnections, connect_timeout: this.config.connectTimeoutSeconds, idle_timeout: this.config.idleTimeoutSeconds,
       prepare: false, connection: {
@@ -54,11 +71,11 @@ export class ConsistencyPostgresRuntime {
         statement_timeout: this.config.statementTimeoutMs ?? 15_000,
         lock_timeout: this.config.lockTimeoutMs ?? 5_000,
         idle_in_transaction_session_timeout: this.config.idleTransactionTimeoutMs ?? 15_000,
+        ...(role ? { options: `-c role=${role}` } : {}),
       },
     })
     this.client = sql
     try {
-      if (role) await sql.unsafe(`SET ROLE ${role}`)
       const verification = await verifyDatabase(sql, this.config.environment.D4_EXPECTED_DATABASE_NAME)
       if (role) {
         const session = await sql.unsafe<{ role: string }[]>("SELECT current_user role")
