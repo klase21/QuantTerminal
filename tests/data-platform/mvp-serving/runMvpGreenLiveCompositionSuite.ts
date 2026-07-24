@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import {
   assertMvpGreenStageReceiptSanitized,
+  compareMvpPostgresLsns,
   createMvpBlueGreenBranchPlan,
   createMvpGreenCertificationPlan,
   createMvpGreenOperationApproval,
@@ -61,6 +63,16 @@ assert.throws(
   })),
   /MVP_BLUE_GREEN_CURRENT_WATERMARK_INVALID/,
 )
+assert.equal(compareMvpPostgresLsns("0/100", "0/100"), 0)
+assert.equal(compareMvpPostgresLsns("0/120", "0/100"), 1)
+assert.equal(compareMvpPostgresLsns("0/FF", "0/100"), -1)
+assert.equal(compareMvpPostgresLsns("1/0", "0/FFFFFFFF"), 1)
+assert.throws(() => compareMvpPostgresLsns("not-an-lsn", "0/100"), /PARENT_STATE_UNRESOLVED/)
+assert.throws(() => compareMvpPostgresLsns("0/100", "0\/0001"), /APPROVED_PARENT_LSN_INVALID/)
+assert.throws(() => compareMvpPostgresLsns("0/100", "a/1"), /APPROVED_PARENT_LSN_INVALID/)
+assert.throws(() => compareMvpPostgresLsns("0/100", "00/1"), /APPROVED_PARENT_LSN_INVALID/)
+assert.throws(() => compareMvpPostgresLsns("0/100", "100000000/0"), /APPROVED_PARENT_LSN_INVALID/)
+assert.throws(() => compareMvpPostgresLsns("0/100", "0/100000000"), /APPROVED_PARENT_LSN_INVALID/)
 
 type Branch = {
   id: string
@@ -81,6 +93,7 @@ class FakeNeonTransport implements MvpNeonTransport {
   calls: { method: string; path: string; body: unknown }[] = []
   branchResponseLost = false
   databaseResponseLost = false
+  onBranchLookup: (() => void) | null = null
   authFailure = false
   projectId: string = MVP_GREEN_PRODUCTION_PROJECT_ID
   projectRegion: string | undefined = "aws-ap-southeast-1"
@@ -117,6 +130,7 @@ class FakeNeonTransport implements MvpNeonTransport {
       return branch ? { status: 200, body: { branch } } : { status: 404, body: {} }
     }
     if (input.method === "GET" && input.path.includes("/branches?search=")) {
+      this.onBranchLookup?.()
       return { status: 200, body: { branches: [...this.branches.values()] } }
     }
     const databaseList = input.path.match(/^\/projects\/[^/]+\/branches\/(br-[^/]+)\/databases$/)
@@ -129,13 +143,13 @@ class FakeNeonTransport implements MvpNeonTransport {
       return database ? { status: 200, body: { database } } : { status: 404, body: {} }
     }
     if (input.method === "POST" && input.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches`) {
-      const branchInput = input.body?.branch as { name: string; parent_id: string }
+      const branchInput = input.body?.branch as { name: string; parent_id: string; parent_lsn: string }
       const branch: Branch = {
         id: "br-green-certified-123",
         project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
         name: branchInput.name,
         parent_id: branchInput.parent_id,
-        parent_lsn: parentBasis.lsn,
+        parent_lsn: branchInput.parent_lsn,
         current_state: "ready",
         created_at: NOW,
         updated_at: NOW,
@@ -178,11 +192,15 @@ const parentBasis = {
 
 function adapterFixture() {
   const transport = new FakeNeonTransport()
+  let parentStateInspections = 0
   const adapter = new LiveMvpNeonGreenInfrastructureAdapter({
     transport,
-    parentStateReader: { inspect: async () => parentBasis },
+    parentStateReader: { inspect: async () => {
+      parentStateInspections += 1
+      return parentBasis
+    } },
   })
-  return { transport, adapter }
+  return { transport, adapter, parentStateInspections: () => parentStateInspections }
 }
 
 function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIdentity, parent: MvpGreenParentState) {
@@ -193,6 +211,7 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     projectId: identity.projectId,
     parentBranchId: identity.parentBranchId,
     expectedParentState: parent.stateChecksum,
+    expectedParentLsn: parent.lsn,
     targetBranchName: identity.branchName,
     targetDatabaseName: operation === "NEON_BRANCH_CREATE" ? null : identity.databaseName,
     invocationId: `invocation-${operation.toLowerCase()}`,
@@ -203,7 +222,7 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
 }
 
 {
-  const { transport, adapter } = adapterFixture()
+  const { transport, adapter, parentStateInspections } = adapterFixture()
   const parent = await adapter.resolveParentState()
   assert.equal(parent.readOnlyTransaction, true)
   assert.equal(parent.lsn, "0/2BE2898")
@@ -220,7 +239,19 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
   })
   assert.equal(branch.status, "CREATED")
   assert.equal(branch.parentBranchId, MVP_GREEN_PRODUCTION_BRANCH_ID)
+  assert.equal(branch.parentLsn, parent.lsn)
+  assert.equal(parentStateInspections(), 1)
+  const branchPost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/branches"))
+  assert.equal((branchPost?.body as { branch?: { parent_lsn?: string } }).branch?.parent_lsn, parent.lsn)
   assert.deepEqual(branch.inheritedDatabases.map((database) => database.databaseName), [MVP_GREEN_PRODUCTION_DATABASE])
+  const reconciledBranch = await adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciledBranch.status, "RECONCILED")
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/branches")).length, 1)
   const database = await adapter.createReleaseDatabase({
     release,
     branch,
@@ -354,6 +385,8 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     at: NOW,
   })
   assert.equal(branch.status, "CREATED")
+  assert.equal(branch.parentLsn, parent.lsn)
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/branches")).length, 1)
   transport.databaseResponseLost = true
   const database = await adapter.createReleaseDatabase({
     release,
@@ -376,6 +409,7 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     projectId: release.projectId,
     parentBranchId: release.parentBranchId,
     expectedParentState: parent.stateChecksum,
+    expectedParentLsn: parent.lsn,
     targetBranchName: release.branchName,
     targetDatabaseName: null,
     invocationId: "stale",
@@ -395,14 +429,80 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
 }
 
 {
-  let state = parentBasis
+  let state = { ...parentBasis, lsn: "0/100" }
+  let parentStateInspections = 0
+  const transport = new FakeNeonTransport()
+  const adapter = new LiveMvpNeonGreenInfrastructureAdapter({
+    transport,
+    parentStateReader: { inspect: async () => {
+      parentStateInspections += 1
+      return state
+    } },
+  })
+  const approvedParent = await adapter.resolveParentState()
+  state = { ...state, lsn: "0/120" }
+  const runtimeParent = await adapter.resolveParentState()
+  const branch = await adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, approvedParent),
+    parentState: runtimeParent,
+    at: NOW,
+  })
+  assert.equal(branch.status, "CREATED")
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/branches")).length, 1)
+  assert.equal(branch.parentLsn, "0/100")
+  assert.equal(parentStateInspections, 2)
+  const branchPost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/branches"))
+  assert.equal((branchPost?.body as { branch?: { parent_lsn?: string } }).branch?.parent_lsn, "0/100")
+  const database = await adapter.createReleaseDatabase({
+    release,
+    branch,
+    ownerName: "mvp_green_migration_owner",
+    approval: approval("GREEN_DATABASE_CREATE", release, approvedParent),
+    parentState: runtimeParent,
+    at: NOW,
+  })
+  assert.equal(database.creationStatus, "CREATED")
+}
+
+{
+  let state = { ...parentBasis, lsn: "0/120" }
   const transport = new FakeNeonTransport()
   const adapter = new LiveMvpNeonGreenInfrastructureAdapter({
     transport,
     parentStateReader: { inspect: async () => state },
   })
+  const approvedParent = await adapter.resolveParentState()
+  state = { ...state, lsn: "0/100" }
+  const runtimeParent = await adapter.resolveParentState()
+  await assert.rejects(
+    () => adapter.createChildBranch({
+      release,
+      approval: approval("NEON_BRANCH_CREATE", release, approvedParent),
+      parentState: runtimeParent,
+      at: NOW,
+    }),
+    /APPROVED_PARENT_LSN_AHEAD_OF_CURRENT/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
+}
+
+{
+  const { transport, adapter } = adapterFixture()
   const parent = await adapter.resolveParentState()
-  state = { ...state, lsn: "0/2BE2900" }
+  for (const branchId of ["br-green-duplicate-a", "br-green-duplicate-b"]) {
+    transport.branches.set(branchId, {
+      id: branchId,
+      project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+      name: release.branchName,
+      parent_id: MVP_GREEN_PRODUCTION_BRANCH_ID,
+      parent_lsn: parent.lsn,
+      current_state: "ready",
+      created_at: NOW,
+      updated_at: NOW,
+      region_id: "aws-ap-southeast-1",
+    })
+  }
   await assert.rejects(
     () => adapter.createChildBranch({
       release,
@@ -410,7 +510,65 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
       parentState: parent,
       at: NOW,
     }),
-    /PARENT_STATE_CHANGED/,
+    /BRANCH_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  const mutableApproval = { ...approval("NEON_BRANCH_CREATE", release, parent) }
+  transport.onBranchLookup = () => {
+    ;(mutableApproval as { expectedParentLsn: string }).expectedParentLsn = "0/2BE2899"
+  }
+  const branch = await adapter.createChildBranch({
+    release,
+    approval: mutableApproval,
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(branch.parentLsn, parent.lsn)
+  const branchPost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/branches"))
+  assert.equal((branchPost?.body as { branch?: { parent_lsn?: string } }).branch?.parent_lsn, parent.lsn)
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  const valid = approval("NEON_BRANCH_CREATE", release, parent)
+  assert.equal(Object.prototype.hasOwnProperty.call(valid, "expectedParentLsn"), true)
+  assert.equal(Object.prototype.hasOwnProperty.call(valid, "approved"), false)
+  assert.match(JSON.stringify(valid), new RegExp(valid.expectedParentLsn.replace("/", "\\/")))
+  const alteredLsn = { ...valid, expectedParentLsn: "0/2BE2899" }
+  await assert.rejects(
+    () => adapter.createChildBranch({ release, approval: alteredLsn, parentState: parent, at: NOW }),
+    /APPROVAL_REQUIRED/,
+  )
+  const invalidLsn = { ...valid, expectedParentLsn: "0/nothex" }
+  await assert.rejects(
+    () => adapter.createChildBranch({ release, approval: invalidLsn, parentState: parent, at: NOW }),
+    /APPROVED_PARENT_LSN_INVALID/,
+  )
+  const wrongParent = { ...valid, parentBranchId: "br-wrong-parent" }
+  await assert.rejects(
+    () => adapter.createChildBranch({ release, approval: wrongParent, parentState: parent, at: NOW }),
+    /APPROVAL_REQUIRED/,
+  )
+  const nonNullTargetDatabase = { ...valid, targetDatabaseName: release.databaseName }
+  await assert.rejects(
+    () => adapter.createChildBranch({ release, approval: nonNullTargetDatabase, parentState: parent, at: NOW }),
+    /APPROVAL_REQUIRED/,
+  )
+  const { expectedParentLsn: _expectedParentLsn, ...missingLsn } = valid
+  await assert.rejects(
+    () => adapter.createChildBranch({
+      release,
+      approval: missingLsn as typeof valid,
+      parentState: parent,
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
   )
   assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
 }
@@ -449,6 +607,32 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
 {
   const { transport, adapter } = adapterFixture()
   const parent = await adapter.resolveParentState()
+  transport.branches.set("br-green-wrong-lsn-123", {
+    id: "br-green-wrong-lsn-123",
+    project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+    name: release.branchName,
+    parent_id: MVP_GREEN_PRODUCTION_BRANCH_ID,
+    parent_lsn: "0/2BE2899",
+    current_state: "ready",
+    created_at: NOW,
+    updated_at: NOW,
+    region_id: "aws-ap-southeast-1",
+  })
+  await assert.rejects(
+    () => adapter.createChildBranch({
+      release,
+      approval: approval("NEON_BRANCH_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /BRANCH_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
   const branch = await adapter.createChildBranch({
     release,
     approval: approval("NEON_BRANCH_CREATE", release, parent),
@@ -475,6 +659,20 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     }),
     /RELEASE_DATABASE_NAME_CONFLICT/,
   )
+}
+
+{
+  const runnerSource = readFileSync("workers/data-platform/runMvpGreenRelease.ts", "utf8")
+  const mutationFlow = runnerSource.slice(runnerSource.indexOf("const approvalAt = new Date().toISOString()"))
+  const approvalRead = mutationFlow.indexOf("await approvalFromFile")
+  const releaseDerivation = mutationFlow.indexOf("const { release } = releaseIdentity()")
+  const approvalBinding = mutationFlow.indexOf("assertMvpGreenOperationApproval")
+  const parentResolution = mutationFlow.indexOf("await adapter.resolveParentState()")
+  assert.equal(approvalRead >= 0 && approvalRead < releaseDerivation, true)
+  assert.equal(releaseDerivation < approvalBinding && approvalBinding < parentResolution, true)
+  assert.equal((mutationFlow.match(/await adapter\.resolveParentState\(\)/g) ?? []).length, 1)
+  const createChildBranchSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createChildBranch.toString()
+  assert.equal(createChildBranchSource.includes("this.resolveParentState"), false)
 }
 
 const blockedReceipt = createMvpGreenStageReceipt({
@@ -571,7 +769,11 @@ console.log(JSON.stringify({
   deterministicBranch: release.branchName,
   deterministicDatabase: release.databaseName,
   approvalBoundaries: "PASS",
-  parentStateFencing: "PASS",
+  approvedParentLsnBinding: "PASS",
+  numericLsnOrdering: "PASS",
+  forwardWalAdvancement: "PASS",
+  createCommandStateResolutions: 1,
+  postUsesApprovedParentLsn: "PASS",
   branchReadbackReconciliation: "PASS",
   databaseReadbackReconciliation: "PASS",
   receiptSemantics: "PASS",

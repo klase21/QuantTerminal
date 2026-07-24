@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises"
 
 import {
+  assertMvpGreenOperationApproval,
+  assertMvpGreenOperationApprovalIntegrity,
   createMvpGreenCertificationPlan,
   createMvpGreenReleaseIdentity,
   FetchMvpNeonTransport,
@@ -38,11 +40,14 @@ function releaseIdentity() {
   return Object.freeze({ plan, release: createMvpGreenReleaseIdentity(plan) })
 }
 
-async function approvalFromFile(expectedOperation: MvpGreenOperationApproval["operation"]): Promise<MvpGreenOperationApproval> {
+async function approvalFromFile(
+  expectedOperation: MvpGreenOperationApproval["operation"],
+  at: string,
+): Promise<MvpGreenOperationApproval> {
   const path = requiredFlag("approval-file")
   const approval = JSON.parse(await readFile(path, "utf8")) as MvpGreenOperationApproval
-  if (approval.operation !== expectedOperation) throw new Error("APPROVAL_REQUIRED")
-  return approval
+  assertMvpGreenOperationApprovalIntegrity({ approval, operation: expectedOperation, at })
+  return Object.freeze({ ...approval })
 }
 
 function liveAdapter() {
@@ -83,14 +88,14 @@ async function main() {
     console.log(JSON.stringify(sanitizedPlan(), null, 2))
     return
   }
-  const { release } = releaseIdentity()
-  const adapter = liveAdapter()
-  const parentState = await adapter.resolveParentState()
-  const databases = await adapter.listInheritedDatabases(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)
-  if (!databases.some((database) => database.databaseName === MVP_GREEN_PRODUCTION_DATABASE)) {
-    throw new Error("PARENT_BRANCH_IDENTITY_MISMATCH")
-  }
   if (command === "preflight") {
+    const { release } = releaseIdentity()
+    const adapter = liveAdapter()
+    const parentState = await adapter.resolveParentState()
+    const databases = await adapter.listInheritedDatabases(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)
+    if (!databases.some((database) => database.databaseName === MVP_GREEN_PRODUCTION_DATABASE)) {
+      throw new Error("PARENT_BRANCH_IDENTITY_MISMATCH")
+    }
     console.log(JSON.stringify({
       command,
       result: "PARENT_PREFLIGHT_PASS",
@@ -98,6 +103,7 @@ async function main() {
       parentBranchId: release.parentBranchId,
       parentDatabase: release.parentDatabase,
       parentStateChecksum: parentState.stateChecksum,
+      parentLsn: parentState.lsn,
       inspectedAt: parentState.inspectedAt,
       databaseCount: databases.length,
       branchName: release.branchName,
@@ -107,8 +113,18 @@ async function main() {
     }, null, 2))
     return
   }
+  const approvalAt = new Date().toISOString()
+  const expectedOperation = command === "create-branch" ? "NEON_BRANCH_CREATE" : "GREEN_DATABASE_CREATE"
+  const approval = await approvalFromFile(expectedOperation, approvalAt)
+  const { release } = releaseIdentity()
+  assertMvpGreenOperationApproval({ approval, operation: expectedOperation, release, at: approvalAt })
+  const adapter = liveAdapter()
+  const parentState = await adapter.resolveParentState()
+  const databases = await adapter.listInheritedDatabases(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)
+  if (!databases.some((database) => database.databaseName === MVP_GREEN_PRODUCTION_DATABASE)) {
+    throw new Error("PARENT_BRANCH_IDENTITY_MISMATCH")
+  }
   if (command === "create-branch") {
-    const approval = await approvalFromFile("NEON_BRANCH_CREATE")
     const branch = await adapter.createChildBranch({ release, approval, parentState, at: new Date().toISOString() })
     console.log(JSON.stringify({
       command,
@@ -116,6 +132,11 @@ async function main() {
       projectId: branch.projectId,
       parentBranchId: branch.parentBranchId,
       parentStateChecksum: branch.parentStateChecksum,
+      approvedParentLsn: approval.expectedParentLsn,
+      runtimeParentLsn: parentState.lsn,
+      approvalInvocationId: approval.invocationId,
+      approvalActorId: approval.actorId,
+      approvalChecksum: approval.approvalChecksum,
       branchId: branch.branchId,
       branchName: branch.branchName,
       region: branch.region,
@@ -127,8 +148,7 @@ async function main() {
     }, null, 2))
     return
   }
-  const approval = await approvalFromFile("GREEN_DATABASE_CREATE")
-  const branch = await adapter.readBackCreatedBranch(release, parentState)
+  const branch = await adapter.readBackCreatedBranch(release, approval)
   if (!branch) throw new Error("BRANCH_IDENTITY_UNVERIFIED")
   const database = await adapter.createReleaseDatabase({
     release,

@@ -26,23 +26,25 @@ The cloned `neondb` remains untouched. Build data uses isolated databases and ro
 
 ### Live Green Infrastructure
 
-`LiveMvpNeonGreenInfrastructureAdapter` is the certified provider boundary. Read operations inspect the exact project, branch, and database inventory. The parent-state reader connects as `mvp_serving_reader`, begins an explicit `READ ONLY` transaction, verifies the Neon branch ID and database, and captures the current WAL LSN. The parent-state checksum binds the project, branch, database, LSN, and read-only result. The inspection timestamp remains receipt evidence but is excluded from state equality.
+`LiveMvpNeonGreenInfrastructureAdapter` is the certified provider boundary. Read operations inspect the exact project, branch, and database inventory. The parent-state reader connects as `mvp_serving_reader`, begins an explicit `READ ONLY` transaction, verifies the Neon branch ID and database, and captures the current WAL LSN. The parent-state checksum is approval evidence for the project, branch, database, approved LSN, and read-only result. The inspection timestamp remains receipt evidence but is excluded from state equality.
 
 Branch creation and release-database creation are separate operations. Each requires its own unexpired approval context:
 
-- `NEON_BRANCH_CREATE` binds the release, exact parent-state checksum, target branch name, actor, and invocation.
+- `NEON_BRANCH_CREATE` binds the release, exact approved parent LSN, its parent-state evidence checksum, target branch name, actor, and invocation.
 - `GREEN_DATABASE_CREATE` additionally binds the deterministic database name.
 - `GREEN_ACQUISITION_START` is reserved for the later acquisition command and cannot authorize infrastructure creation.
 
-The adapter re-inspects parent state immediately before branch creation. LSN drift invalidates the approval. A lost mutation response is reconciled by deterministic name and provider readback; an unexpected project, parent, LSN, owner, or identity fails closed. No automatic branch or database deletion is performed.
+The certified command validates approval integrity and release binding before resolving parent state exactly once. The current project, branch, database, reader role, and read-only transaction must remain valid. Current LSN equality or forward advancement is allowed, but a current LSN behind the approved LSN fails closed. Branch creation always uses the approved LSN, never the newer inspected LSN. A lost mutation response is reconciled by deterministic name and provider readback; an unexpected project, parent, approved LSN, region, inherited database, owner, or identity fails closed. No automatic branch or database deletion is performed.
 
 The release database name is derived from the release profile, application commit, watermark transition, and full plan checksum. It is a bounded PostgreSQL identifier, never `neondb`, and never the retained rejected-release database. The sequence is:
 
-1. Create the child branch at the approved parent LSN.
-2. Read back the child and verify project, parent, LSN, region, state, and inherited databases.
-3. Derive the release database name.
-4. Reject a conflicting name or owner.
-5. Create the database and read it back.
+1. Validate the approval checksum and static release binding.
+2. Resolve and verify current parent identity once, requiring current LSN to be at or ahead of the approved LSN.
+3. Create the child branch at the approved parent LSN.
+4. Read back the child and verify project, parent, exact approved LSN, region, state, and inherited databases.
+5. Derive the release database name.
+6. Reject a conflicting name or owner.
+7. Create the database and read it back.
 
 Credential values remain process-injected and never enter receipts. Role metadata is bounded to purpose and scope. The migration owner, acquisition publisher, and `mvp_serving_reader` remain separate roles.
 
@@ -76,7 +78,7 @@ An earlier failure never becomes a chain of false downstream failures.
 The stage-specific worker is `workers/data-platform/runMvpGreenRelease.ts`.
 
 1. `plan` derives sanitized branch, database, and release identities without provider access.
-2. `preflight` performs read-only project, parent branch, LSN, and database inventory inspection.
+2. `preflight` performs read-only project, parent branch, LSN, and database inventory inspection and emits the approved-LSN evidence basis.
 3. `create-branch` requires an exact `NEON_BRANCH_CREATE` approval file.
 4. `create-database` requires a separate `GREEN_DATABASE_CREATE` approval file and explicit migration-owner role.
 

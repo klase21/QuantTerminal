@@ -3,6 +3,7 @@ import postgres from "postgres"
 import { createMvpBlueGreenBranchPlan, type MvpBlueGreenBranchPlan } from "./blueGreen"
 
 export const MVP_GREEN_INFRASTRUCTURE_SCHEMA_VERSION = "mvp-green-infrastructure/1.0.0" as const
+export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.1.0" as const
 export const MVP_GREEN_PRODUCTION_PROJECT_ID = "soft-cell-16396854" as const
 export const MVP_GREEN_PRODUCTION_BRANCH_ID = "br-flat-grass-ao9rtnyr" as const
 export const MVP_GREEN_PRODUCTION_DATABASE = "neondb" as const
@@ -14,7 +15,9 @@ const PROJECT_ID = /^[a-z0-9-]{1,60}$/
 const BRANCH_ID = /^br-[a-z0-9-]{1,57}$/
 const BRANCH_NAME = /^mvp-release-\d{4}-\d{2}-\d{2}-[0-9a-f]{12}$/
 const DATABASE_NAME = /^[a-z][a-z0-9_]{0,62}$/
-const LSN = /^[0-9A-F]+\/[0-9A-F]+$/i
+const LSN = /^(0|[1-9A-F][0-9A-F]*)\/(0|[1-9A-F][0-9A-F]*)$/
+const MAX_LSN_PART = BigInt("4294967295")
+const LSN_LOW_BITS = BigInt(32)
 const CHECKSUM = /^[0-9a-f]{64}$/
 const COMMIT = /^[0-9a-f]{40}$/
 
@@ -26,6 +29,8 @@ export type MvpGreenOperationKind =
 export type MvpGreenInfrastructureErrorCode =
   | "APPROVAL_REQUIRED"
   | "APPROVAL_STALE"
+  | "APPROVED_PARENT_LSN_INVALID"
+  | "APPROVED_PARENT_LSN_AHEAD_OF_CURRENT"
   | "NEON_CONFIGURATION_MISSING"
   | "NEON_AUTHENTICATION_FAILURE"
   | "PROJECT_IDENTITY_MISMATCH"
@@ -62,12 +67,13 @@ export interface MvpGreenReleaseIdentity {
 }
 
 export interface MvpGreenOperationApproval {
-  readonly schemaVersion: typeof MVP_GREEN_INFRASTRUCTURE_SCHEMA_VERSION
+  readonly schemaVersion: typeof MVP_GREEN_APPROVAL_SCHEMA_VERSION
   readonly operation: MvpGreenOperationKind
   readonly releaseChecksum: string
   readonly projectId: string
   readonly parentBranchId: string
   readonly expectedParentState: string
+  readonly expectedParentLsn: string
   readonly targetBranchName: string
   readonly targetDatabaseName: string | null
   readonly invocationId: string
@@ -257,9 +263,38 @@ function exactIso(value: string, code: MvpGreenInfrastructureErrorCode): number 
   return parsed
 }
 
+function postgresLsnValue(value: unknown, code: MvpGreenInfrastructureErrorCode): bigint {
+  if (typeof value !== "string" || !LSN.test(value)) throw new MvpGreenInfrastructureError(code)
+  const [highHex, lowHex] = value.split("/")
+  const high = BigInt(`0x${highHex}`)
+  const low = BigInt(`0x${lowHex}`)
+  if (high > MAX_LSN_PART || low > MAX_LSN_PART) throw new MvpGreenInfrastructureError(code)
+  return (high << LSN_LOW_BITS) + low
+}
+
+export function compareMvpPostgresLsns(currentLsn: string, approvedLsn: string): -1 | 0 | 1 {
+  const current = postgresLsnValue(currentLsn, "PARENT_STATE_UNRESOLVED")
+  const approved = postgresLsnValue(approvedLsn, "APPROVED_PARENT_LSN_INVALID")
+  return current < approved ? -1 : current > approved ? 1 : 0
+}
+
 function requiredString(value: unknown, code: MvpGreenInfrastructureErrorCode): string {
   if (typeof value !== "string" || !value.trim()) throw new MvpGreenInfrastructureError(code)
   return value
+}
+
+function expectedParentStateChecksum(input: {
+  readonly projectId: string
+  readonly parentBranchId: string
+  readonly expectedParentLsn: string
+}): string {
+  return canonicalChecksum({
+    projectId: input.projectId,
+    branchId: input.parentBranchId,
+    databaseName: MVP_GREEN_PRODUCTION_DATABASE,
+    lsn: input.expectedParentLsn,
+    readOnlyTransaction: true,
+  })
 }
 
 function normalizedProviderIso(value: unknown, code: MvpGreenInfrastructureErrorCode): string {
@@ -390,49 +425,102 @@ export function createMvpGreenOperationApproval(input: Omit<MvpGreenOperationApp
   if (!input.approved || !CHECKSUM.test(input.releaseChecksum) || !PROJECT_ID.test(input.projectId)) {
     throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
   }
-  exactIso(input.issuedAt, "APPROVAL_REQUIRED")
-  exactIso(input.expiresAt, "APPROVAL_REQUIRED")
+  postgresLsnValue(input.expectedParentLsn, "APPROVED_PARENT_LSN_INVALID")
+  const issuedAt = exactIso(input.issuedAt, "APPROVAL_REQUIRED")
+  const expiresAt = exactIso(input.expiresAt, "APPROVAL_REQUIRED")
   if (
-    input.projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID
+    expiresAt <= issuedAt
+    || input.projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID
     || input.parentBranchId !== MVP_GREEN_PRODUCTION_BRANCH_ID
     || !CHECKSUM.test(input.expectedParentState)
+    || input.expectedParentState !== expectedParentStateChecksum(input)
     || !BRANCH_NAME.test(input.targetBranchName)
     || (input.targetDatabaseName !== null && !DATABASE_NAME.test(input.targetDatabaseName))
+    || (input.operation === "NEON_BRANCH_CREATE"
+      ? input.targetDatabaseName !== null
+      : input.targetDatabaseName === null)
     || !input.invocationId.trim()
     || !input.actorId.trim()
   ) {
     throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
   }
   const { approved: _approved, ...approvalInput } = input
-  const basis = { schemaVersion: MVP_GREEN_INFRASTRUCTURE_SCHEMA_VERSION, ...approvalInput }
+  const basis = { schemaVersion: MVP_GREEN_APPROVAL_SCHEMA_VERSION, ...approvalInput }
   return Object.freeze({ ...basis, approvalChecksum: canonicalChecksum(basis) })
 }
 
-export function assertMvpGreenOperationApproval(input: {
+const MVP_GREEN_APPROVAL_FIELDS = Object.freeze([
+  "actorId",
+  "approvalChecksum",
+  "expectedParentLsn",
+  "expectedParentState",
+  "expiresAt",
+  "invocationId",
+  "issuedAt",
+  "operation",
+  "parentBranchId",
+  "projectId",
+  "releaseChecksum",
+  "schemaVersion",
+  "targetBranchName",
+  "targetDatabaseName",
+] as const)
+
+export function assertMvpGreenOperationApprovalIntegrity(input: {
   readonly approval: MvpGreenOperationApproval | null
   readonly operation: MvpGreenOperationKind
-  readonly release: MvpGreenReleaseIdentity
-  readonly parentStateChecksum: string
   readonly at: string
 }): void {
   const approval = input.approval
   if (!approval) throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+  const fields = Object.keys(approval).sort()
+  if (
+    fields.length !== MVP_GREEN_APPROVAL_FIELDS.length
+    || fields.some((field, index) => field !== MVP_GREEN_APPROVAL_FIELDS[index])
+  ) {
+    throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+  }
+  postgresLsnValue(approval.expectedParentLsn, "APPROVED_PARENT_LSN_INVALID")
   const { approvalChecksum: _approvalChecksum, ...basis } = approval
   if (
-    canonicalChecksum(basis) !== approval.approvalChecksum
+    approval.schemaVersion !== MVP_GREEN_APPROVAL_SCHEMA_VERSION
+    || canonicalChecksum(basis) !== approval.approvalChecksum
     || approval.operation !== input.operation
-    || approval.releaseChecksum !== input.release.releaseChecksum
-    || approval.projectId !== input.release.projectId
-    || approval.parentBranchId !== input.release.parentBranchId
-    || approval.expectedParentState !== input.parentStateChecksum
-    || approval.targetBranchName !== input.release.branchName
-    || approval.targetDatabaseName !== (input.operation === "NEON_BRANCH_CREATE" ? null : input.release.databaseName)
+    || !CHECKSUM.test(approval.releaseChecksum)
+    || approval.projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID
+    || approval.parentBranchId !== MVP_GREEN_PRODUCTION_BRANCH_ID
+    || approval.expectedParentState !== expectedParentStateChecksum(approval)
+    || !BRANCH_NAME.test(approval.targetBranchName)
+    || (input.operation === "NEON_BRANCH_CREATE"
+      ? approval.targetDatabaseName !== null
+      : typeof approval.targetDatabaseName !== "string" || !DATABASE_NAME.test(approval.targetDatabaseName))
+    || !approval.invocationId.trim()
+    || !approval.actorId.trim()
   ) {
     throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
   }
   const at = exactIso(input.at, "APPROVAL_STALE")
   if (at < exactIso(approval.issuedAt, "APPROVAL_STALE") || at >= exactIso(approval.expiresAt, "APPROVAL_STALE")) {
     throw new MvpGreenInfrastructureError("APPROVAL_STALE")
+  }
+}
+
+export function assertMvpGreenOperationApproval(input: {
+  readonly approval: MvpGreenOperationApproval | null
+  readonly operation: MvpGreenOperationKind
+  readonly release: MvpGreenReleaseIdentity
+  readonly at: string
+}): void {
+  assertMvpGreenOperationApprovalIntegrity(input)
+  const approval = input.approval!
+  if (
+    approval.releaseChecksum !== input.release.releaseChecksum
+    || approval.projectId !== input.release.projectId
+    || approval.parentBranchId !== input.release.parentBranchId
+    || approval.targetBranchName !== input.release.branchName
+    || approval.targetDatabaseName !== (input.operation === "NEON_BRANCH_CREATE" ? null : input.release.databaseName)
+  ) {
+    throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
   }
 }
 
@@ -558,10 +646,10 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       || state.branchId !== MVP_GREEN_PRODUCTION_BRANCH_ID
       || state.databaseName !== MVP_GREEN_PRODUCTION_DATABASE
       || state.readOnlyTransaction !== true
-      || !LSN.test(state.lsn)
     ) {
       throw new MvpGreenInfrastructureError("PARENT_STATE_UNRESOLVED")
     }
+    postgresLsnValue(state.lsn, "PARENT_STATE_UNRESOLVED")
     exactIso(state.inspectedAt, "PARENT_STATE_UNRESOLVED")
     const stateChecksum = canonicalChecksum({
       projectId: state.projectId,
@@ -582,27 +670,43 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     return Object.freeze(databasesFromBody(response.body).map((value) => normalizedDatabase({ projectId, branchId, value })))
   }
 
-  async readBackCreatedBranch(release: MvpGreenReleaseIdentity, parentState: Pick<MvpGreenParentState, "lsn" | "stateChecksum">): Promise<MvpGreenCreatedBranch | null> {
+  async readBackCreatedBranch(
+    release: MvpGreenReleaseIdentity,
+    approval: Pick<
+      MvpGreenOperationApproval,
+      "projectId" | "parentBranchId" | "expectedParentLsn" | "expectedParentState" | "targetBranchName"
+    >,
+  ): Promise<MvpGreenCreatedBranch | null> {
     const response = await this.transport.request({
       method: "GET",
-      path: `/projects/${encoded(release.projectId)}/branches?search=${encoded(release.branchName)}&limit=100`,
+      path: `/projects/${encoded(approval.projectId)}/branches?search=${encoded(approval.targetBranchName)}&limit=100`,
     })
     requireSuccessful(response, "BRANCH_IDENTITY_UNVERIFIED")
-    const matches = branchesFromBody(response.body).filter((branch) => branch.name === release.branchName)
+    const matches = branchesFromBody(response.body).filter((branch) => branch.name === approval.targetBranchName)
     if (!matches.length) return null
     if (matches.length !== 1) throw new MvpGreenInfrastructureError("BRANCH_IDENTITY_UNVERIFIED")
     const branchId = requiredString(matches[0]!.id, "BRANCH_IDENTITY_UNVERIFIED")
-    const branch = await this.inspectBranch(release.projectId, branchId)
-    if (branch.branchName !== release.branchName || branch.parentBranchId !== release.parentBranchId || branch.parentLsn !== parentState.lsn) {
+    const branch = await this.inspectBranch(approval.projectId, branchId)
+    if (
+      release.projectId !== approval.projectId
+      || release.parentBranchId !== approval.parentBranchId
+      || release.branchName !== approval.targetBranchName
+      || branch.branchName !== approval.targetBranchName
+      || branch.parentBranchId !== approval.parentBranchId
+      || branch.parentLsn !== approval.expectedParentLsn
+    ) {
       throw new MvpGreenInfrastructureError("BRANCH_IDENTITY_UNVERIFIED")
     }
-    const inheritedDatabases = await this.listInheritedDatabases(release.projectId, branch.branchId)
+    const inheritedDatabases = await this.listInheritedDatabases(approval.projectId, branch.branchId)
+    if (!inheritedDatabases.some((database) => database.databaseName === MVP_GREEN_PRODUCTION_DATABASE)) {
+      throw new MvpGreenInfrastructureError("BRANCH_IDENTITY_UNVERIFIED")
+    }
     return Object.freeze({
       status: "RECONCILED" as const,
-      projectId: release.projectId,
-      parentBranchId: release.parentBranchId,
-      parentStateChecksum: parentState.stateChecksum,
-      parentLsn: parentState.lsn,
+      projectId: approval.projectId,
+      parentBranchId: approval.parentBranchId,
+      parentStateChecksum: approval.expectedParentState,
+      parentLsn: approval.expectedParentLsn,
       branchId: branch.branchId,
       branchName: branch.branchName,
       region: branch.region,
@@ -623,9 +727,9 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       approval: input.approval,
       operation: "NEON_BRANCH_CREATE",
       release: input.release,
-      parentStateChecksum: input.parentState.stateChecksum,
       at: input.at,
     })
+    const approval = Object.freeze({ ...input.approval! })
     if (
       input.release.parentBranchId !== MVP_GREEN_PRODUCTION_BRANCH_ID
       || [MVP_GREEN_PRODUCTION_BRANCH_ID, MVP_GREEN_ROLLBACK_BRANCH_ID, MVP_GREEN_REJECTED_BRANCH_ID]
@@ -633,11 +737,18 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     ) {
       throw new MvpGreenInfrastructureError("PARENT_BRANCH_IDENTITY_MISMATCH")
     }
-    const current = await this.resolveParentState()
-    if (current.stateChecksum !== input.parentState.stateChecksum || current.lsn !== input.parentState.lsn) {
-      throw new MvpGreenInfrastructureError("PARENT_STATE_CHANGED")
+    if (
+      input.parentState.projectId !== approval.projectId
+      || input.parentState.branchId !== approval.parentBranchId
+      || input.parentState.databaseName !== MVP_GREEN_PRODUCTION_DATABASE
+      || input.parentState.readOnlyTransaction !== true
+    ) {
+      throw new MvpGreenInfrastructureError("PARENT_STATE_UNRESOLVED")
     }
-    const existing = await this.readBackCreatedBranch(input.release, current)
+    if (compareMvpPostgresLsns(input.parentState.lsn, approval.expectedParentLsn) < 0) {
+      throw new MvpGreenInfrastructureError("APPROVED_PARENT_LSN_AHEAD_OF_CURRENT")
+    }
+    const existing = await this.readBackCreatedBranch(input.release, approval)
     if (existing) return existing
     let mutationReturned = false
     try {
@@ -646,9 +757,9 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
         path: `/projects/${encoded(input.release.projectId)}/branches`,
         body: {
           branch: {
-            name: input.release.branchName,
-            parent_id: input.release.parentBranchId,
-            parent_lsn: current.lsn,
+            name: approval.targetBranchName,
+            parent_id: approval.parentBranchId,
+            parent_lsn: approval.expectedParentLsn,
           },
         },
       })
@@ -657,7 +768,7 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     } catch (error) {
       if (error instanceof MvpGreenInfrastructureError && error.code === "NEON_AUTHENTICATION_FAILURE") throw error
     }
-    const readback = await this.readBackCreatedBranch(input.release, current)
+    const readback = await this.readBackCreatedBranch(input.release, approval)
     if (!readback) {
       throw new MvpGreenInfrastructureError(mutationReturned ? "BRANCH_IDENTITY_UNVERIFIED" : "BRANCH_CREATION_FAILED")
     }
@@ -690,21 +801,29 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       approval: input.approval,
       operation: "GREEN_DATABASE_CREATE",
       release: input.release,
-      parentStateChecksum: input.parentState.stateChecksum,
       at: input.at,
     })
+    const approval = Object.freeze({ ...input.approval! })
     if (
       input.branch.parentBranchId !== input.release.parentBranchId
       || input.branch.branchName !== input.release.branchName
+      || input.branch.parentLsn !== approval.expectedParentLsn
       || input.release.databaseName === MVP_GREEN_PRODUCTION_DATABASE
       || input.release.databaseName === MVP_GREEN_REJECTED_DATABASE
       || !input.ownerName.trim()
     ) {
       throw new MvpGreenInfrastructureError("RELEASE_DATABASE_NAME_CONFLICT")
     }
-    const current = await this.resolveParentState()
-    if (current.stateChecksum !== input.parentState.stateChecksum || current.lsn !== input.parentState.lsn) {
-      throw new MvpGreenInfrastructureError("PARENT_STATE_CHANGED")
+    if (
+      input.parentState.projectId !== approval.projectId
+      || input.parentState.branchId !== approval.parentBranchId
+      || input.parentState.databaseName !== MVP_GREEN_PRODUCTION_DATABASE
+      || input.parentState.readOnlyTransaction !== true
+    ) {
+      throw new MvpGreenInfrastructureError("PARENT_STATE_UNRESOLVED")
+    }
+    if (compareMvpPostgresLsns(input.parentState.lsn, approval.expectedParentLsn) < 0) {
+      throw new MvpGreenInfrastructureError("APPROVED_PARENT_LSN_AHEAD_OF_CURRENT")
     }
     const inherited = await this.listInheritedDatabases(input.release.projectId, input.branch.branchId)
     const collision = inherited.find((database) => database.databaseName === input.release.databaseName)
