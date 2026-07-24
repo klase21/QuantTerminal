@@ -5,13 +5,13 @@ import {
   DEFAULT_MVP_REFRESH_POLICY,
   MvpRefreshMigrationRunner,
   MvpRefreshStore,
-  createMvpRefreshClientFromEnvironment,
   createRefreshPlan,
   createRefreshUnits,
   discoverMvpRefreshMigrations,
   resolveNextEligibleWindow,
   verifyAppliedMvpRefreshMigrationChecksum,
 } from "@/lib/data-platform/mvp-refresh"
+import { createMvpRefreshCertificationClientFromEnvironment } from "./disposableCertificationDatabase"
 
 const EXPECTED_RELATIONS = [
   "activation_readiness",
@@ -39,7 +39,7 @@ const EXPECTED_RELATIONS = [
 const EXPECTED_INDEXES = ["controlled_candidate_set_unit_idx", "controlled_commit_set_unit_idx", "controlled_retrieval_unit_idx", "logical_slot_reconciliation_unit_idx", "refresh_event_run_time_idx", "refresh_unit_run_state_idx", "source_watermark_run_idx"] as const
 
 async function main() {
-  const first = createMvpRefreshClientFromEnvironment()
+  const first = createMvpRefreshCertificationClientFromEnvironment()
   const preflight = await first.preflight()
   assert.deepEqual(preflight, { connectionSucceeded: true, expectedDatabase: true, expectedRole: true, postgresMajor16: true, sanitizedErrorCode: null, sanitizedErrorClass: "NONE" })
 
@@ -101,7 +101,7 @@ async function main() {
   await first.sql.unsafe("UPDATE refresh_control.refresh_unit SET checkpoint=$2::jsonb,attempt=1,updated_at=now() WHERE unit_id=$1", [unit.unitId, JSON.stringify(acquiredCheckpoint)])
   await first.shutdown()
 
-  const second = createMvpRefreshClientFromEnvironment()
+  const second = createMvpRefreshCertificationClientFromEnvironment()
   await second.verify()
   const acquired = await readUnit(second, unit.unitId)
   assert.equal(acquired.state, "ACQUIRED")
@@ -113,7 +113,7 @@ async function main() {
   await second.sql.unsafe("UPDATE refresh_control.refresh_unit SET checkpoint=$2::jsonb,updated_at=now() WHERE unit_id=$1", [unit.unitId, JSON.stringify(normalizedCheckpoint)])
   await second.shutdown()
 
-  const third = createMvpRefreshClientFromEnvironment()
+  const third = createMvpRefreshCertificationClientFromEnvironment()
   await third.verify()
   const normalized = await readUnit(third, unit.unitId)
   assert.equal(normalized.state, "NORMALIZED")
@@ -127,7 +127,7 @@ async function main() {
   await third.sql.unsafe("INSERT INTO refresh_control.refresh_candidate(candidate_id,run_id,corpus_id,serving_checksum,governed_through,lifecycle,descriptor,checksum,created_at) VALUES($1,$2,$3,$4,$5,'BUILDING',$6::jsonb,$7,now())", [candidateId, runId, `integration-corpus:${nonce}`, canonicalChecksum("integration-serving"), window.requestedEnd, JSON.stringify({ stage: "MATERIALIZATION_PENDING", productionActivation: false }), candidateChecksum])
   await third.shutdown()
 
-  const fourth = createMvpRefreshClientFromEnvironment()
+  const fourth = createMvpRefreshCertificationClientFromEnvironment()
   await fourth.verify()
   const committed = await readUnit(fourth, unit.unitId)
   assert.equal(committed.state, "COMMITTED")
@@ -154,7 +154,7 @@ async function main() {
   console.log(JSON.stringify({ status: "PASS", migration: reapplied, relationCount: relations.length, explicitIndexCount: EXPECTED_INDEXES.length, totalIndexCount: indexes.length, constraintCount: constraints[0]?.count ?? 0, appendOnlyEventTrigger: true, leaseAndFencing: "PASS", expiredLeaseRecovery: "PASS", staleWorkerRejection: "PASS", checkpointRecovery: ["ACQUIRED", "NORMALIZED", "COMMITTED"], candidateBuildRecovery: "PASS_INACTIVE", secretPersistenceRows: secretRows, sizes: { databaseBytes: Number(databaseSize[0]?.bytes ?? 0), tableBytes: Number(schemaSize[0]?.table_bytes ?? 0), indexBytes: Number(schemaSize[0]?.index_bytes ?? 0), schemaTotalBytes: Number(schemaSize[0]?.total_bytes ?? 0), categories: categorySizes.map((entry) => ({ category: entry.category, bytes: Number(entry.bytes) })) } }, null, 2))
 }
 
-async function readUnit(client: ReturnType<typeof createMvpRefreshClientFromEnvironment>, unitId: string) {
+async function readUnit(client: ReturnType<typeof createMvpRefreshCertificationClientFromEnvironment>, unitId: string) {
   const rows = await client.sql.unsafe<Array<{ state: string; attempt: number; checkpoint: Record<string, unknown> | string }>>("SELECT state,attempt,checkpoint FROM refresh_control.refresh_unit WHERE unit_id=$1", [unitId])
   assert(rows[0])
   return { ...rows[0], checkpoint: typeof rows[0].checkpoint === "string" ? JSON.parse(rows[0].checkpoint) as Record<string, unknown> : rows[0].checkpoint }
