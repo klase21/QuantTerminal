@@ -278,6 +278,7 @@ export interface MvpGreenRoleInspection {
   readonly branchId: string
   readonly roleName: string
   readonly protected: boolean | null
+  readonly authenticationMethod: "password" | "oauth" | "no_login" | null
   readonly createdAt: string
   readonly updatedAt: string
   readonly status: "VERIFIED"
@@ -290,7 +291,9 @@ export interface MvpGreenCreatedRole extends MvpGreenRoleInspection {
   readonly endpointPrerequisite: MvpGreenEndpointPrerequisite
   readonly endpointCount: number
   readonly readWriteEndpointCount: number
+  readonly roleAuthenticationMethod: "no_login"
   readonly roleNoLogin: true
+  readonly roleAuthenticationReadback: "PASS"
   readonly providerHttpStatus: number | null
   readonly providerErrorCode: string | null
   readonly providerRequestId: string | null
@@ -421,6 +424,7 @@ interface NeonRole {
   readonly branch_id?: unknown
   readonly name?: unknown
   readonly protected?: unknown
+  readonly authentication_method?: unknown
   readonly created_at?: unknown
   readonly updated_at?: unknown
 }
@@ -691,6 +695,17 @@ function normalizedRole(input: {
   ) {
     throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
   }
+  let authenticationMethod: MvpGreenRoleInspection["authenticationMethod"] = null
+  if (input.value.authentication_method !== undefined && input.value.authentication_method !== null) {
+    if (
+      input.value.authentication_method !== "password"
+      && input.value.authentication_method !== "oauth"
+      && input.value.authentication_method !== "no_login"
+    ) {
+      throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    }
+    authenticationMethod = input.value.authentication_method
+  }
   const createdAt = normalizedProviderIso(input.value.created_at, "ROLE_IDENTITY_UNVERIFIED")
   const updatedAt = normalizedProviderIso(input.value.updated_at, "ROLE_IDENTITY_UNVERIFIED")
   return Object.freeze({
@@ -698,6 +713,7 @@ function normalizedRole(input: {
     branchId,
     roleName,
     protected: input.value.protected,
+    authenticationMethod,
     createdAt,
     updatedAt,
     status: "VERIFIED" as const,
@@ -1740,6 +1756,13 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     ) {
       throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
     }
+    if (role.authenticationMethod === null) {
+      throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    }
+    const roleNoLogin = role.authenticationMethod === "no_login"
+    if (!roleNoLogin) {
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+    }
     return Object.freeze({
       ...role,
       creationStatus: "RECONCILED" as const,
@@ -1747,7 +1770,9 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       endpointPrerequisite: inventory.prerequisite,
       endpointCount: inventory.endpointCount,
       readWriteEndpointCount: inventory.readWriteEndpointCount,
-      roleNoLogin: true as const,
+      roleAuthenticationMethod: role.authenticationMethod,
+      roleNoLogin,
+      roleAuthenticationReadback: "PASS" as const,
       providerHttpStatus: null,
       providerErrorCode: null,
       providerRequestId: null,
@@ -1806,6 +1831,22 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       })
       requireSuccessful(response, "ROLE_CREATION_FAILED", path, "GREEN_OWNER_ROLE_CREATE")
       const providerRole = roleFromBody(response.body)
+      if (providerRole) {
+        const normalizedProviderRole = normalizedRole({
+          projectId: approval.projectId,
+          branchId: approval.targetGreenBranchId!,
+          value: providerRole,
+        })
+        if (
+          normalizedProviderRole.roleName !== approval.targetRoleName
+          || normalizedProviderRole.authenticationMethod === null
+        ) {
+          throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+        }
+        if (normalizedProviderRole.authenticationMethod !== "no_login") {
+          throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+        }
+      }
       operationIds = Object.freeze(operationsFromBody(response.body).map((operation) => (
         typeof operation.id === "string" ? operation.id : ""
       )).filter((operationId) => /^[0-9a-f-]{36}$/.test(operationId)))
@@ -1831,7 +1872,12 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
           responseReceived: false,
           timedOut: false,
         }))
-      if (failure.code === "NEON_AUTHENTICATION_FAILURE" || failure.code === "NEON_BAD_REQUEST") throw failure
+      if (
+        failure.code === "NEON_AUTHENTICATION_FAILURE"
+        || failure.code === "NEON_BAD_REQUEST"
+        || failure.code === "ROLE_IDENTITY_UNVERIFIED"
+        || failure.code === "OWNER_ROLE_CONTRACT_MISMATCH"
+      ) throw failure
       if (failure.code === "NEON_OPERATION_FAILED" || failure.code === "NEON_OPERATION_TIMEOUT") {
         operationPollingResult = "FAIL_RECONCILED"
       }
@@ -2054,6 +2100,12 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       || owner.branchId !== branch.branchId
       || owner.protected !== false
     ) {
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+    }
+    if (owner.authenticationMethod === null) {
+      throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    }
+    if (owner.authenticationMethod !== "no_login") {
       throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
     }
     const collisions = branch.inheritedDatabases.filter(

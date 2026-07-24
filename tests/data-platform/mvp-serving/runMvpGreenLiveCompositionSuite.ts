@@ -119,6 +119,7 @@ type Role = {
   branch_id: string
   name: string
   protected: boolean
+  authentication_method?: string
   created_at?: string
   updated_at?: string
   password?: string
@@ -167,6 +168,8 @@ class FakeNeonTransport implements MvpNeonTransport {
   rolePostThrowBefore: MvpGreenInfrastructureError | null = null
   rolePostThrowAfter: MvpGreenInfrastructureError | null = null
   rolePostMalformed = false
+  rolePostAuthenticationMethod = "no_login"
+  roleReadbackAuthenticationMethod = "no_login"
   endpointResponseLost = false
   endpointPostStatus = 201
   endpointPostCreatesEndpoint = true
@@ -409,6 +412,7 @@ class FakeNeonTransport implements MvpNeonTransport {
         branch_id: roleList[1]!,
         name: roleInput.name,
         protected: false,
+        authentication_method: this.roleReadbackAuthenticationMethod,
         created_at: NOW,
         updated_at: NOW,
         password: "must-never-escape",
@@ -432,7 +436,10 @@ class FakeNeonTransport implements MvpNeonTransport {
       this.operations.set(operation.id, operation)
       return {
         status: this.rolePostStatus,
-        body: this.rolePostErrorBody ?? { role, operations: [operation] },
+        body: this.rolePostErrorBody ?? {
+          role: { ...role, authentication_method: this.rolePostAuthenticationMethod },
+          operations: [operation],
+        },
         headers: { "x-request-id": "req-green-role-123", "retry-after": "2" },
         malformedBody: this.rolePostMalformed,
       }
@@ -565,6 +572,17 @@ async function preparedEndpointFixture() {
   })
   fixture.transport.endpoints.set(GREEN_BRANCH_ID, [])
   return { ...fixture, parent }
+}
+
+function targetOwnerRole(authenticationMethod?: string): Role {
+  return {
+    branch_id: GREEN_BRANCH_ID,
+    name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+    protected: false,
+    ...(authenticationMethod === undefined ? {} : { authentication_method: authenticationMethod }),
+    created_at: NOW,
+    updated_at: NOW,
+  }
 }
 
 {
@@ -1720,6 +1738,62 @@ async function preparedEndpointFixture() {
 }
 
 {
+  const { adapter } = adapterFixture()
+  const legacyRoles = await adapter.listRoles(MVP_GREEN_PRODUCTION_PROJECT_ID, MVP_GREEN_PRODUCTION_BRANCH_ID)
+  assert.equal(legacyRoles.length, 1)
+  assert.equal(legacyRoles[0]!.roleName, "mvp_serving_reader")
+  assert.equal(legacyRoles[0]!.authenticationMethod, null)
+}
+
+for (const authenticationMethod of ["password", "oauth"] as const) {
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  await adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  transport.roles.set(GREEN_BRANCH_ID, [targetOwnerRole(authenticationMethod)])
+  await assert.rejects(
+    () => adapter.readBackCreatedRole(release, approval("GREEN_OWNER_ROLE_CREATE", release, parent)),
+    /OWNER_ROLE_CONTRACT_MISMATCH/,
+  )
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  await adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  transport.roles.set(GREEN_BRANCH_ID, [targetOwnerRole()])
+  await assert.rejects(
+    () => adapter.readBackCreatedRole(release, approval("GREEN_OWNER_ROLE_CREATE", release, parent)),
+    /ROLE_IDENTITY_UNVERIFIED/,
+  )
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  await adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  transport.roles.set(GREEN_BRANCH_ID, [targetOwnerRole("scram-v2")])
+  await assert.rejects(
+    () => adapter.readBackCreatedRole(release, approval("GREEN_OWNER_ROLE_CREATE", release, parent)),
+    /ROLE_IDENTITY_UNVERIFIED/,
+  )
+}
+
+{
   const { transport, adapter } = adapterFixture()
   const parent = await adapter.resolveParentState()
   await adapter.createChildBranch({
@@ -1735,6 +1809,7 @@ async function preparedEndpointFixture() {
       branch_id: GREEN_BRANCH_ID,
       name: MVP_GREEN_MIGRATION_OWNER_ROLE,
       protected: false,
+      authentication_method: "no_login",
       created_at: NOW,
       updated_at: NOW,
     },
@@ -1742,6 +1817,7 @@ async function preparedEndpointFixture() {
       branch_id: GREEN_BRANCH_ID,
       name: MVP_GREEN_MIGRATION_OWNER_ROLE,
       protected: false,
+      authentication_method: "no_login",
       created_at: NOW,
       updated_at: NOW,
     },
@@ -1766,6 +1842,7 @@ async function preparedEndpointFixture() {
     branch_id: GREEN_BRANCH_ID,
     name: MVP_GREEN_MIGRATION_OWNER_ROLE,
     protected: true,
+    authentication_method: "no_login",
     created_at: NOW,
     updated_at: NOW,
   }])
@@ -2059,11 +2136,46 @@ async function preparedEndpointFixture() {
   assert.equal(role.operationPollingResult, "PASS")
   assert.equal(role.operationIds.length, 1)
   assert.equal(transport.operationGetCount, 2)
+  assert.equal(role.authenticationMethod, "no_login")
+  assert.equal(role.roleAuthenticationMethod, "no_login")
   assert.equal(role.roleNoLogin, true)
+  assert.equal(role.roleAuthenticationReadback, "PASS")
+  assert.equal(role.roleNoLogin, role.authenticationMethod === "no_login")
   const rolePost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/roles"))
   assert.deepEqual(rolePost?.body, {
     role: { name: MVP_GREEN_MIGRATION_OWNER_ROLE, no_login: true },
   })
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.rolePostAuthenticationMethod = "no_login"
+  transport.roleReadbackAuthenticationMethod = "password"
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /OWNER_ROLE_CONTRACT_MISMATCH/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.rolePostAuthenticationMethod = "scram-v2"
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /ROLE_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
 }
 
 {
@@ -2133,6 +2245,35 @@ async function preparedEndpointFixture() {
     at: NOW,
   })
   assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(reconciled.roleAuthenticationMethod, "no_login")
+  assert.equal(reconciled.roleAuthenticationReadback, "PASS")
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedRoleFixture()
+  transport.roleReadbackAuthenticationMethod = "password"
+  transport.rolePostThrowAfter = new MvpGreenInfrastructureError("NEON_REQUEST_TIMEOUT", {
+    httpStatus: null,
+    providerErrorCode: null,
+    providerMessage: null,
+    providerRequestId: null,
+    operationIds: Object.freeze([]),
+    retryAfterMs: null,
+    requestPath: `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/roles`,
+    operationKind: "GREEN_OWNER_ROLE_CREATE",
+    responseReceived: false,
+    timedOut: true,
+  })
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /OWNER_ROLE_CONTRACT_MISMATCH/,
+  )
   assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
 }
 
@@ -2176,6 +2317,8 @@ async function preparedEndpointFixture() {
   assert.equal(runnerSource.includes("MVP_GREEN_UNCHECKED_OWNER_ROLE_FORBIDDEN"), true)
   assert.equal(runnerSource.includes('"preflight-role"'), true)
   assert.equal(runnerSource.includes('"create-owner-role"'), true)
+  assert.equal(runnerSource.includes("roleAuthenticationMethod: role.roleAuthenticationMethod"), true)
+  assert.equal(runnerSource.includes("roleAuthenticationReadback: role.roleAuthenticationReadback"), true)
   assert.equal(runnerSource.includes('"preflight-database"'), true)
   assert.equal(runnerSource.includes('"preflight-endpoint"'), true)
   assert.equal(runnerSource.includes('"create-endpoint"'), true)
@@ -2338,6 +2481,10 @@ console.log(JSON.stringify({
   endpointSecretRedaction: "PASS",
   noLoginChecksumBinding: "PASS",
   rolePostNoLogin: true,
+  roleAuthenticationMethodReadback: "PASS",
+  loginMismatchRejected: "PASS",
+  missingRoleAuthenticationRejected: "PASS",
+  roleNoLoginReceiptDerivation: "PASS",
   operationPolling: "PASS",
   pollingBounded: true,
   secondAutomaticRolePost: 0,

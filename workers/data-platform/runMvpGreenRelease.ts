@@ -170,6 +170,12 @@ async function greenPreflight(
   ) {
     throw new Error("OWNER_ROLE_CONTRACT_MISMATCH")
   }
+  if (ownerMatches.length === 1 && owner?.authenticationMethod === null) {
+    throw new Error("ROLE_IDENTITY_UNVERIFIED")
+  }
+  if (ownerMatches.length === 1 && owner?.authenticationMethod !== "no_login") {
+    throw new Error("OWNER_ROLE_CONTRACT_MISMATCH")
+  }
   if (command === "preflight-database") {
     if (ownerMatches.length !== 1) throw new Error("OWNER_ROLE_MISSING")
     if (databaseMatches.length === 1 && databaseMatches[0]!.ownerName !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
@@ -418,7 +424,9 @@ async function main() {
       endpointPrerequisite: role.endpointPrerequisite,
       endpointCount: role.endpointCount,
       readWriteEndpointCount: role.readWriteEndpointCount,
+      roleAuthenticationMethod: role.roleAuthenticationMethod,
       roleNoLogin: role.roleNoLogin,
+      roleAuthenticationReadback: role.roleAuthenticationReadback,
       providerHttpStatus: role.providerHttpStatus,
       providerErrorCode: role.providerErrorCode,
       providerRequestId: role.providerRequestId,
