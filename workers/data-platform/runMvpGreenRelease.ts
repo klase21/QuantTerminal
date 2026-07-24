@@ -1,24 +1,51 @@
 import { readFile } from "node:fs/promises"
 
 import {
+  assertMvpGreenFrozenReleaseIdentity,
   assertMvpGreenOperationApproval,
   assertMvpGreenOperationApprovalIntegrity,
   createMvpGreenCertificationPlan,
   createMvpGreenReleaseIdentity,
   FetchMvpNeonTransport,
   LiveMvpNeonGreenInfrastructureAdapter,
+  MVP_GREEN_MIGRATION_OWNER_ROLE,
   MVP_GREEN_PRODUCTION_BRANCH_ID,
   MVP_GREEN_PRODUCTION_DATABASE,
   MVP_GREEN_PRODUCTION_PROJECT_ID,
   PostgresMvpGreenParentStateReader,
+  type MvpGreenBranchInspection,
   type MvpGreenOperationApproval,
+  type MvpGreenReleaseIdentity,
 } from "@/lib/data-platform/mvp-release"
 
-type Command = "plan" | "preflight" | "create-branch" | "create-database"
+type Command =
+  | "plan"
+  | "preflight"
+  | "preflight-role"
+  | "create-branch"
+  | "create-owner-role"
+  | "preflight-database"
+  | "create-database"
+
+const COMMANDS: readonly Command[] = Object.freeze([
+  "plan",
+  "preflight",
+  "preflight-role",
+  "create-branch",
+  "create-owner-role",
+  "preflight-database",
+  "create-database",
+])
 
 function flag(name: string): string | undefined {
   const prefix = `--${name}=`
   return process.argv.find((value) => value.startsWith(prefix))?.slice(prefix.length)
+}
+
+function hasFlag(name: string): boolean {
+  const exact = `--${name}`
+  const prefix = `${exact}=`
+  return process.argv.some((value) => value === exact || value.startsWith(prefix))
 }
 
 function requiredFlag(name: string): string {
@@ -37,7 +64,9 @@ function releaseIdentity() {
     currentWatermark: requiredFlag("parent-watermark"),
     governedThrough: requiredFlag("governed-through"),
   })
-  return Object.freeze({ plan, release: createMvpGreenReleaseIdentity(plan) })
+  const release = createMvpGreenReleaseIdentity(plan)
+  assertMvpGreenFrozenReleaseIdentity(release)
+  return Object.freeze({ plan, release })
 }
 
 async function approvalFromFile(
@@ -50,13 +79,19 @@ async function approvalFromFile(
   return Object.freeze({ ...approval })
 }
 
-function liveAdapter() {
+function liveAdapter(requiresParentState = true) {
   return new LiveMvpNeonGreenInfrastructureAdapter({
     transport: new FetchMvpNeonTransport({ apiToken: process.env.NEON_API_KEY }),
-    parentStateReader: new PostgresMvpGreenParentStateReader({
-      connectionString: process.env.MVP_GREEN_PARENT_POSTGRES_URL,
-      expectedRole: "mvp_serving_reader",
-    }),
+    parentStateReader: requiresParentState
+      ? new PostgresMvpGreenParentStateReader({
+        connectionString: process.env.MVP_GREEN_PARENT_POSTGRES_URL,
+        expectedRole: "mvp_serving_reader",
+      })
+      : {
+        inspect: async () => {
+          throw new Error("MVP_GREEN_PARENT_STATE_NOT_AVAILABLE_IN_NEON_ONLY_PREFLIGHT")
+        },
+      },
   })
 }
 
@@ -70,7 +105,8 @@ function sanitizedPlan() {
     parentDatabase: MVP_GREEN_PRODUCTION_DATABASE,
     branchName: release.branchName,
     databaseName: release.databaseName,
-    applicationCommit: plan.applicationCommit,
+    releaseApplicationCommit: plan.applicationCommit,
+    releaseToolingCommit: process.env.RELEASE_TOOLING_COMMIT?.trim() || "UNAVAILABLE",
     parentWatermark: plan.currentWatermark,
     governedThrough: plan.governedThrough,
     releaseChecksum: release.releaseChecksum,
@@ -79,10 +115,87 @@ function sanitizedPlan() {
   })
 }
 
+function assertGreenBranchPreflight(input: {
+  readonly branch: MvpGreenBranchInspection
+  readonly release: MvpGreenReleaseIdentity
+  readonly branchId: string
+  readonly approvedParentLsn: string
+}): void {
+  if (
+    input.branch.branchId !== input.branchId
+    || input.branch.branchName !== input.release.branchName
+    || input.branch.parentBranchId !== input.release.parentBranchId
+    || input.branch.parentLsn !== input.approvedParentLsn
+    || input.branch.state !== "ready"
+  ) {
+    throw new Error("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  }
+}
+
+async function greenPreflight(
+  command: "preflight-role" | "preflight-database",
+  release: MvpGreenReleaseIdentity,
+) {
+  const branchId = requiredFlag("green-branch-id")
+  const approvedParentLsn = requiredFlag("approved-parent-lsn")
+  const adapter = liveAdapter(false)
+  const branch = await adapter.inspectBranch(release.projectId, branchId)
+  assertGreenBranchPreflight({ branch, release, branchId, approvedParentLsn })
+  const databases = await adapter.listInheritedDatabases(release.projectId, branchId)
+  if (!databases.some((database) => database.databaseName === MVP_GREEN_PRODUCTION_DATABASE)) {
+    throw new Error("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  }
+  const roles = await adapter.listRoles(release.projectId, branchId)
+  const ownerMatches = roles.filter((role) => role.roleName === MVP_GREEN_MIGRATION_OWNER_ROLE)
+  const databaseMatches = databases.filter((database) => database.databaseName === release.databaseName)
+  if (ownerMatches.length > 1) throw new Error("ROLE_IDENTITY_UNVERIFIED")
+  if (databaseMatches.length > 1) throw new Error("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+  const owner = ownerMatches.length === 1
+    ? await adapter.inspectRole(release.projectId, branchId, MVP_GREEN_MIGRATION_OWNER_ROLE)
+    : null
+  if (
+    ownerMatches.length === 1
+    && (
+      !owner
+      || owner.branchId !== branchId
+      || owner.roleName !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || owner.protected !== false
+    )
+  ) {
+    throw new Error("OWNER_ROLE_CONTRACT_MISMATCH")
+  }
+  if (command === "preflight-database") {
+    if (ownerMatches.length !== 1) throw new Error("OWNER_ROLE_MISSING")
+    if (databaseMatches.length === 1 && databaseMatches[0]!.ownerName !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
+      throw new Error("OWNER_ROLE_CONTRACT_MISMATCH")
+    }
+  }
+  return Object.freeze({
+    command,
+    result: command === "preflight-role" ? "GREEN_ROLE_PREFLIGHT_PASS" : "GREEN_DATABASE_PREFLIGHT_PASS",
+    projectId: release.projectId,
+    branchId,
+    branchName: branch.branchName,
+    parentBranchId: branch.parentBranchId,
+    approvedParentLsn,
+    region: branch.region,
+    branchState: branch.state,
+    inheritedNeondb: true,
+    ownerRole: MVP_GREEN_MIGRATION_OWNER_ROLE,
+    ownerRoleStatus: ownerMatches.length === 1 ? "PRESENT" : "ABSENT",
+    targetDatabase: release.databaseName,
+    targetDatabaseStatus: databaseMatches.length === 1 ? "PRESENT" : "ABSENT",
+    releaseApplicationCommit: release.applicationCommit,
+    releaseChecksum: release.releaseChecksum,
+    mutationCalls: 0,
+    preview: "NOT_APPLICABLE",
+  })
+}
+
 async function main() {
   const command = process.argv[2] as Command | undefined
-  if (!command || !["plan", "preflight", "create-branch", "create-database"].includes(command)) {
-    throw new Error("Usage: runMvpGreenRelease.ts <plan|preflight|create-branch|create-database> --mode=GREEN_CERTIFICATION_ONLY --application-commit=<sha> --parent-watermark=<iso> --governed-through=<iso> [--approval-file=<path>]")
+  if (!command || !COMMANDS.includes(command)) {
+    throw new Error("Usage: runMvpGreenRelease.ts <plan|preflight|preflight-role|create-branch|create-owner-role|preflight-database|create-database> --mode=GREEN_CERTIFICATION_ONLY --application-commit=<frozen-release-sha> --parent-watermark=<iso> --governed-through=<iso> [--green-branch-id=<id> --approved-parent-lsn=<lsn>] [--approval-file=<path>]")
   }
   if (command === "plan") {
     console.log(JSON.stringify(sanitizedPlan(), null, 2))
@@ -108,13 +221,27 @@ async function main() {
       databaseCount: databases.length,
       branchName: release.branchName,
       databaseName: release.databaseName,
+      releaseApplicationCommit: release.applicationCommit,
+      releaseChecksum: release.releaseChecksum,
       preview: "NOT_APPLICABLE",
       mutationCalls: 0,
     }, null, 2))
     return
   }
+  if (command === "preflight-role" || command === "preflight-database") {
+    const { release } = releaseIdentity()
+    console.log(JSON.stringify(await greenPreflight(command, release), null, 2))
+    return
+  }
+  if (command === "create-database" && hasFlag("owner-role")) {
+    throw new Error("MVP_GREEN_UNCHECKED_OWNER_ROLE_FORBIDDEN")
+  }
   const approvalAt = new Date().toISOString()
-  const expectedOperation = command === "create-branch" ? "NEON_BRANCH_CREATE" : "GREEN_DATABASE_CREATE"
+  const expectedOperation = command === "create-branch"
+    ? "NEON_BRANCH_CREATE"
+    : command === "create-owner-role"
+      ? "GREEN_OWNER_ROLE_CREATE"
+      : "GREEN_DATABASE_CREATE"
   const approval = await approvalFromFile(expectedOperation, approvalAt)
   const { release } = releaseIdentity()
   assertMvpGreenOperationApproval({ approval, operation: expectedOperation, release, at: approvalAt })
@@ -148,12 +275,34 @@ async function main() {
     }, null, 2))
     return
   }
-  const branch = await adapter.readBackCreatedBranch(release, approval)
-  if (!branch) throw new Error("BRANCH_IDENTITY_UNVERIFIED")
+  if (command === "create-owner-role") {
+    const role = await adapter.createMigrationOwnerRole({
+      release,
+      approval,
+      parentState,
+      at: new Date().toISOString(),
+    })
+    console.log(JSON.stringify({
+      command,
+      result: role.creationStatus,
+      projectId: role.projectId,
+      branchId: role.branchId,
+      branchName: approval.targetBranchName,
+      roleName: role.roleName,
+      protected: role.protected,
+      createdAt: role.createdAt,
+      updatedAt: role.updatedAt,
+      fingerprint: role.fingerprint,
+      releaseChecksum: role.releaseChecksum,
+      approvalInvocationId: approval.invocationId,
+      approvalActorId: approval.actorId,
+      approvalChecksum: approval.approvalChecksum,
+      preview: "NOT_APPLICABLE",
+    }, null, 2))
+    return
+  }
   const database = await adapter.createReleaseDatabase({
     release,
-    branch,
-    ownerName: requiredFlag("owner-role"),
     approval,
     parentState,
     at: new Date().toISOString(),
@@ -163,10 +312,14 @@ async function main() {
     result: database.creationStatus,
     projectId: database.projectId,
     branchId: database.branchId,
+    branchName: approval.targetBranchName,
     databaseName: database.databaseName,
     ownerRole: database.ownerName,
     fingerprint: database.fingerprint,
     releaseChecksum: database.releaseChecksum,
+    approvalInvocationId: approval.invocationId,
+    approvalActorId: approval.actorId,
+    approvalChecksum: approval.approvalChecksum,
     preview: "NOT_APPLICABLE",
   }, null, 2))
 }

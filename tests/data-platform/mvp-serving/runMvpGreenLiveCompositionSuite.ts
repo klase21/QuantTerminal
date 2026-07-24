@@ -1,7 +1,10 @@
 import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import {
   assertMvpGreenStageReceiptSanitized,
+  assertMvpGreenFrozenReleaseIdentity,
+  assertMvpGreenOperationApprovalIntegrity,
   compareMvpPostgresLsns,
   createMvpBlueGreenBranchPlan,
   createMvpGreenCertificationPlan,
@@ -10,12 +13,19 @@ import {
   createMvpGreenReleaseIdentity,
   createMvpGreenStageReceipt,
   LiveMvpNeonGreenInfrastructureAdapter,
+  MVP_GREEN_APPROVAL_SCHEMA_VERSION,
+  MVP_GREEN_FROZEN_BRANCH_NAME,
+  MVP_GREEN_FROZEN_DATABASE_NAME,
+  MVP_GREEN_FROZEN_RELEASE_APPLICATION_COMMIT,
+  MVP_GREEN_FROZEN_RELEASE_CHECKSUM,
+  MVP_GREEN_MIGRATION_OWNER_ROLE,
   MVP_GREEN_PRODUCTION_BRANCH_ID,
   MVP_GREEN_PRODUCTION_DATABASE,
   MVP_GREEN_PRODUCTION_PROJECT_ID,
   runMvpBlueGreenCertificationOnlyPipeline,
   type MvpBlueGreenCertificationOnlyPorts,
   type MvpGreenOperationKind,
+  type MvpGreenOperationApproval,
   type MvpGreenParentState,
   type MvpGreenReleaseIdentity,
   type MvpNeonTransport,
@@ -27,6 +37,7 @@ const END = "2026-07-21T00:00:00.000Z"
 const COMMIT = "f".repeat(40)
 const NOW = "2026-07-23T00:00:00.000Z"
 const EXPIRES = "2026-07-23T01:00:00.000Z"
+const GREEN_BRANCH_ID = "br-green-certified-123"
 
 async function main() {
 const plan = createMvpBlueGreenBranchPlan({
@@ -73,6 +84,23 @@ assert.throws(() => compareMvpPostgresLsns("0/100", "a/1"), /APPROVED_PARENT_LSN
 assert.throws(() => compareMvpPostgresLsns("0/100", "00/1"), /APPROVED_PARENT_LSN_INVALID/)
 assert.throws(() => compareMvpPostgresLsns("0/100", "100000000/0"), /APPROVED_PARENT_LSN_INVALID/)
 assert.throws(() => compareMvpPostgresLsns("0/100", "0/100000000"), /APPROVED_PARENT_LSN_INVALID/)
+assert.equal(MVP_GREEN_APPROVAL_SCHEMA_VERSION, "mvp-green-infrastructure-approval/1.2.0")
+
+const frozenPlan = createMvpGreenCertificationPlan({
+  projectId: MVP_GREEN_PRODUCTION_PROJECT_ID,
+  parentBranchId: MVP_GREEN_PRODUCTION_BRANCH_ID,
+  applicationCommit: MVP_GREEN_FROZEN_RELEASE_APPLICATION_COMMIT,
+  currentWatermark: START,
+  governedThrough: END,
+})
+const frozenRelease = createMvpGreenReleaseIdentity(frozenPlan)
+assert.doesNotThrow(() => assertMvpGreenFrozenReleaseIdentity(frozenRelease))
+assert.equal(frozenRelease.branchName, MVP_GREEN_FROZEN_BRANCH_NAME)
+assert.equal(frozenRelease.databaseName, MVP_GREEN_FROZEN_DATABASE_NAME)
+assert.equal(frozenRelease.releaseChecksum, MVP_GREEN_FROZEN_RELEASE_CHECKSUM)
+const futureToolingHead = "b".repeat(40)
+assert.notEqual(futureToolingHead, frozenRelease.applicationCommit)
+assert.deepEqual(createMvpGreenReleaseIdentity(frozenPlan), frozenRelease)
 
 type Branch = {
   id: string
@@ -86,12 +114,22 @@ type Branch = {
   region_id?: string | null
 }
 type Database = { branch_id: string; name: string; owner_name: string; created_at?: string }
+type Role = {
+  branch_id: string
+  name: string
+  protected: boolean
+  created_at?: string
+  updated_at?: string
+  password?: string
+}
 
 class FakeNeonTransport implements MvpNeonTransport {
   readonly branches = new Map<string, Branch>()
   readonly databases = new Map<string, Database[]>()
+  readonly roles = new Map<string, Role[]>()
   calls: { method: string; path: string; body: unknown }[] = []
   branchResponseLost = false
+  roleResponseLost = false
   databaseResponseLost = false
   onBranchLookup: (() => void) | null = null
   authFailure = false
@@ -116,6 +154,15 @@ class FakeNeonTransport implements MvpNeonTransport {
       owner_name: "owner",
       created_at: "2026-07-01T00:00:00.000Z",
     }])
+    this.roles.set(MVP_GREEN_PRODUCTION_BRANCH_ID, [
+      {
+        branch_id: MVP_GREEN_PRODUCTION_BRANCH_ID,
+        name: "mvp_serving_reader",
+        protected: false,
+        created_at: "2026-07-01T00:00:00.000Z",
+        updated_at: "2026-07-01T00:00:00.000Z",
+      },
+    ])
   }
 
   async request(input: { method: "GET" | "POST"; path: string; body?: Readonly<Record<string, unknown>> }): Promise<MvpNeonTransportResponse> {
@@ -142,10 +189,19 @@ class FakeNeonTransport implements MvpNeonTransport {
       const database = (this.databases.get(databaseDetail[1]!) ?? []).find((value) => value.name === databaseDetail[2])
       return database ? { status: 200, body: { database } } : { status: 404, body: {} }
     }
+    const roleList = input.path.match(/^\/projects\/[^/]+\/branches\/(br-[^/]+)\/roles$/)
+    if (input.method === "GET" && roleList) {
+      return { status: 200, body: { roles: this.roles.get(roleList[1]!) ?? [] } }
+    }
+    const roleDetail = input.path.match(/^\/projects\/[^/]+\/branches\/(br-[^/]+)\/roles\/([^/]+)$/)
+    if (input.method === "GET" && roleDetail) {
+      const role = (this.roles.get(roleDetail[1]!) ?? []).find((value) => value.name === roleDetail[2])
+      return role ? { status: 200, body: { role } } : { status: 404, body: {} }
+    }
     if (input.method === "POST" && input.path === `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches`) {
       const branchInput = input.body?.branch as { name: string; parent_id: string; parent_lsn: string }
       const branch: Branch = {
-        id: "br-green-certified-123",
+        id: GREEN_BRANCH_ID,
         project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
         name: branchInput.name,
         parent_id: branchInput.parent_id,
@@ -162,8 +218,26 @@ class FakeNeonTransport implements MvpNeonTransport {
         owner_name: "owner",
         created_at: NOW,
       }])
+      this.roles.set(branch.id, (this.roles.get(MVP_GREEN_PRODUCTION_BRANCH_ID) ?? []).map((role) => ({
+        ...role,
+        branch_id: branch.id,
+      })))
       if (this.branchResponseLost) throw new Error("NETWORK_RESPONSE_LOST")
       return { status: 201, body: { branch } }
+    }
+    if (input.method === "POST" && roleList) {
+      const roleInput = input.body?.role as { name: string }
+      const role: Role = {
+        branch_id: roleList[1]!,
+        name: roleInput.name,
+        protected: false,
+        created_at: NOW,
+        updated_at: NOW,
+        password: "must-never-escape",
+      }
+      this.roles.set(role.branch_id, [...(this.roles.get(role.branch_id) ?? []), role])
+      if (this.roleResponseLost) throw new Error("NETWORK_RESPONSE_LOST_WITH_SECRET:must-never-escape")
+      return { status: 201, body: { role } }
     }
     if (input.method === "POST" && databaseList) {
       const databaseInput = input.body?.database as { name: string; owner_name: string }
@@ -203,7 +277,16 @@ function adapterFixture() {
   return { transport, adapter, parentStateInspections: () => parentStateInspections }
 }
 
-function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIdentity, parent: MvpGreenParentState) {
+function approval(
+  operation: MvpGreenOperationKind,
+  identity: MvpGreenReleaseIdentity,
+  parent: MvpGreenParentState,
+  targets: Partial<Pick<
+    MvpGreenOperationApproval,
+    "targetGreenBranchId" | "targetDatabaseName" | "targetRoleName" | "targetOwnerRole"
+  >> = {},
+) {
+  const targetsGreenResource = operation !== "NEON_BRANCH_CREATE"
   return createMvpGreenOperationApproval({
     approved: true,
     operation,
@@ -213,12 +296,164 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     expectedParentState: parent.stateChecksum,
     expectedParentLsn: parent.lsn,
     targetBranchName: identity.branchName,
-    targetDatabaseName: operation === "NEON_BRANCH_CREATE" ? null : identity.databaseName,
+    targetGreenBranchId: targets.targetGreenBranchId ?? (targetsGreenResource ? GREEN_BRANCH_ID : null),
+    targetDatabaseName: targets.targetDatabaseName ?? (
+      operation === "GREEN_DATABASE_CREATE" || operation === "GREEN_ACQUISITION_START"
+      ? identity.databaseName
+      : null
+    ),
+    targetRoleName: targets.targetRoleName ?? (
+      operation === "GREEN_OWNER_ROLE_CREATE" ? MVP_GREEN_MIGRATION_OWNER_ROLE : null
+    ),
+    targetOwnerRole: targets.targetOwnerRole ?? (
+      operation === "GREEN_DATABASE_CREATE" ? MVP_GREEN_MIGRATION_OWNER_ROLE : null
+    ),
     invocationId: `invocation-${operation.toLowerCase()}`,
     actorId: "jay-local-operator",
     issuedAt: NOW,
     expiresAt: EXPIRES,
   })
+}
+
+{
+  const { adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  const branchApproval = approval("NEON_BRANCH_CREATE", release, parent)
+  const roleApproval = approval("GREEN_OWNER_ROLE_CREATE", release, parent)
+  const databaseApproval = approval("GREEN_DATABASE_CREATE", release, parent)
+  const acquisitionApproval = approval("GREEN_ACQUISITION_START", release, parent)
+  assert.deepEqual(
+    [
+      branchApproval.targetGreenBranchId,
+      branchApproval.targetDatabaseName,
+      branchApproval.targetRoleName,
+      branchApproval.targetOwnerRole,
+    ],
+    [null, null, null, null],
+  )
+  assert.deepEqual(
+    [
+      roleApproval.targetGreenBranchId,
+      roleApproval.targetDatabaseName,
+      roleApproval.targetRoleName,
+      roleApproval.targetOwnerRole,
+    ],
+    [GREEN_BRANCH_ID, null, MVP_GREEN_MIGRATION_OWNER_ROLE, null],
+  )
+  assert.deepEqual(
+    [
+      databaseApproval.targetGreenBranchId,
+      databaseApproval.targetDatabaseName,
+      databaseApproval.targetRoleName,
+      databaseApproval.targetOwnerRole,
+    ],
+    [GREEN_BRANCH_ID, release.databaseName, null, MVP_GREEN_MIGRATION_OWNER_ROLE],
+  )
+  assert.deepEqual(
+    [
+      acquisitionApproval.targetGreenBranchId,
+      acquisitionApproval.targetDatabaseName,
+      acquisitionApproval.targetRoleName,
+      acquisitionApproval.targetOwnerRole,
+    ],
+    [GREEN_BRANCH_ID, release.databaseName, null, null],
+  )
+  assert.deepEqual(
+    Object.keys(roleApproval).sort(),
+    [
+      "actorId",
+      "approvalChecksum",
+      "expectedParentLsn",
+      "expectedParentState",
+      "expiresAt",
+      "invocationId",
+      "issuedAt",
+      "operation",
+      "parentBranchId",
+      "projectId",
+      "releaseChecksum",
+      "schemaVersion",
+      "targetBranchName",
+      "targetDatabaseName",
+      "targetGreenBranchId",
+      "targetOwnerRole",
+      "targetRoleName",
+    ],
+  )
+  const otherBranchApproval = approval("GREEN_OWNER_ROLE_CREATE", release, parent, {
+    targetGreenBranchId: "br-other-green-certified",
+  })
+  assert.notEqual(otherBranchApproval.approvalChecksum, roleApproval.approvalChecksum)
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: { ...roleApproval, targetGreenBranchId: "br-other-green-certified" },
+      operation: "GREEN_OWNER_ROLE_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: { ...databaseApproval, targetOwnerRole: "neondb_owner" },
+      operation: "GREEN_DATABASE_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: { ...roleApproval, targetRoleName: "neondb_owner" },
+      operation: "GREEN_OWNER_ROLE_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  const {
+    schemaVersion: _schemaVersion,
+    approvalChecksum: _approvalChecksum,
+    targetGreenBranchId: _targetGreenBranchId,
+    targetRoleName: _targetRoleName,
+    targetOwnerRole: _targetOwnerRole,
+    ...legacyBasis
+  } = databaseApproval
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: {
+        schemaVersion: "mvp-green-infrastructure-approval/1.1.0",
+        ...legacyBasis,
+        approvalChecksum: databaseApproval.approvalChecksum,
+      } as unknown as MvpGreenOperationApproval,
+      operation: "GREEN_DATABASE_CREATE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  const {
+    schemaVersion: _roleSchema,
+    approvalChecksum: _roleChecksum,
+    ...roleBasis
+  } = roleApproval
+  assert.throws(
+    () => createMvpGreenOperationApproval({
+      approved: true,
+      ...roleBasis,
+      targetDatabaseName: release.databaseName,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  const {
+    schemaVersion: _databaseSchema,
+    approvalChecksum: _databaseChecksum,
+    ...databaseBasis
+  } = databaseApproval
+  assert.throws(
+    () => createMvpGreenOperationApproval({
+      approved: true,
+      ...databaseBasis,
+      targetOwnerRole: null,
+    }),
+    /OWNER_ROLE_REQUIRED/,
+  )
 }
 
 {
@@ -252,20 +487,45 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
   })
   assert.equal(reconciledBranch.status, "RECONCILED")
   assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/branches")).length, 1)
+  const role = await adapter.createMigrationOwnerRole({
+    release,
+    approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(role.creationStatus, "CREATED")
+  assert.equal(role.roleName, MVP_GREEN_MIGRATION_OWNER_ROLE)
+  assert.equal(JSON.stringify(role).includes("must-never-escape"), false)
+  assert.equal((await adapter.createMigrationOwnerRole({
+    release,
+    approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })).creationStatus, "RECONCILED")
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
   const database = await adapter.createReleaseDatabase({
     release,
-    branch,
-    ownerName: "mvp_green_migration_owner",
     approval: approval("GREEN_DATABASE_CREATE", release, parent),
     parentState: parent,
     at: NOW,
   })
   assert.equal(database.creationStatus, "CREATED")
   assert.equal(database.databaseName, release.databaseName)
+  const rolePost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/roles"))
+  assert.equal(rolePost?.path, `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/roles`)
+  assert.equal((rolePost?.body as { role?: { name?: string } }).role?.name, MVP_GREEN_MIGRATION_OWNER_ROLE)
+  const databasePost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/databases"))
+  assert.equal(databasePost?.path, `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/databases`)
+  assert.equal(
+    (databasePost?.body as { database?: { name?: string; owner_name?: string } }).database?.name,
+    release.databaseName,
+  )
+  assert.equal(
+    (databasePost?.body as { database?: { name?: string; owner_name?: string } }).database?.owner_name,
+    MVP_GREEN_MIGRATION_OWNER_ROLE,
+  )
   assert.equal((await adapter.createReleaseDatabase({
     release,
-    branch,
-    ownerName: "mvp_green_migration_owner",
     approval: approval("GREEN_DATABASE_CREATE", release, parent),
     parentState: parent,
     at: NOW,
@@ -387,11 +647,18 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
   assert.equal(branch.status, "CREATED")
   assert.equal(branch.parentLsn, parent.lsn)
   assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/branches")).length, 1)
+  transport.roleResponseLost = true
+  const role = await adapter.createMigrationOwnerRole({
+    release,
+    approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(role.creationStatus, "CREATED")
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
   transport.databaseResponseLost = true
   const database = await adapter.createReleaseDatabase({
     release,
-    branch,
-    ownerName: "mvp_green_migration_owner",
     approval: approval("GREEN_DATABASE_CREATE", release, parent),
     parentState: parent,
     at: NOW,
@@ -411,7 +678,10 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     expectedParentState: parent.stateChecksum,
     expectedParentLsn: parent.lsn,
     targetBranchName: release.branchName,
+    targetGreenBranchId: null,
     targetDatabaseName: null,
+    targetRoleName: null,
+    targetOwnerRole: null,
     invocationId: "stale",
     actorId: "jay-local-operator",
     issuedAt: "2026-07-22T00:00:00.000Z",
@@ -454,10 +724,14 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
   assert.equal(parentStateInspections, 2)
   const branchPost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/branches"))
   assert.equal((branchPost?.body as { branch?: { parent_lsn?: string } }).branch?.parent_lsn, "0/100")
+  await adapter.createMigrationOwnerRole({
+    release,
+    approval: approval("GREEN_OWNER_ROLE_CREATE", release, approvedParent),
+    parentState: runtimeParent,
+    at: NOW,
+  })
   const database = await adapter.createReleaseDatabase({
     release,
-    branch,
-    ownerName: "mvp_green_migration_owner",
     approval: approval("GREEN_DATABASE_CREATE", release, approvedParent),
     parentState: runtimeParent,
     at: NOW,
@@ -483,6 +757,53 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
       at: NOW,
     }),
     /APPROVED_PARENT_LSN_AHEAD_OF_CURRENT/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  await assert.rejects(
+    () => adapter.createChildBranch({
+      release,
+      approval: approval("NEON_BRANCH_CREATE", release, parent),
+      parentState: { ...parent, lsn: "0/2BE2999" },
+      at: NOW,
+    }),
+    /PARENT_STATE_UNRESOLVED/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  transport.branches.set(GREEN_BRANCH_ID, {
+    id: GREEN_BRANCH_ID,
+    project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+    name: release.branchName,
+    parent_id: MVP_GREEN_PRODUCTION_BRANCH_ID,
+    parent_lsn: parent.lsn,
+    current_state: "initializing",
+    created_at: NOW,
+    updated_at: NOW,
+    region_id: "aws-ap-southeast-1",
+  })
+  transport.databases.set(GREEN_BRANCH_ID, [{
+    branch_id: GREEN_BRANCH_ID,
+    name: MVP_GREEN_PRODUCTION_DATABASE,
+    owner_name: "owner",
+    created_at: NOW,
+  }])
+  await assert.rejects(
+    () => adapter.createChildBranch({
+      release,
+      approval: approval("NEON_BRANCH_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /BRANCH_IDENTITY_UNVERIFIED/,
   )
   assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
 }
@@ -577,6 +898,144 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
   const { transport, adapter } = adapterFixture()
   transport.authFailure = true
   await assert.rejects(() => adapter.inspectProject(MVP_GREEN_PRODUCTION_PROJECT_ID), /NEON_AUTHENTICATION_FAILURE/)
+  await assert.rejects(
+    () => adapter.listRoles(MVP_GREEN_PRODUCTION_PROJECT_ID, GREEN_BRANCH_ID),
+    /NEON_AUTHENTICATION_FAILURE/,
+  )
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  await adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  const roleApproval = approval("GREEN_OWNER_ROLE_CREATE", release, parent)
+  assert.equal(await adapter.readBackCreatedRole(release, roleApproval), null)
+  transport.roles.set(GREEN_BRANCH_ID, [
+    {
+      branch_id: GREEN_BRANCH_ID,
+      name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+      protected: false,
+      created_at: NOW,
+      updated_at: NOW,
+    },
+    {
+      branch_id: GREEN_BRANCH_ID,
+      name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+      protected: false,
+      created_at: NOW,
+      updated_at: NOW,
+    },
+  ])
+  await assert.rejects(
+    () => adapter.readBackCreatedRole(release, roleApproval),
+    /ROLE_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 0)
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  await adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  transport.roles.set(GREEN_BRANCH_ID, [{
+    branch_id: GREEN_BRANCH_ID,
+    name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+    protected: true,
+    created_at: NOW,
+    updated_at: NOW,
+  }])
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /ROLE_IDENTITY_UNVERIFIED/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 0)
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  await assert.rejects(
+    () => adapter.createMigrationOwnerRole({
+      release,
+      approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent, {
+        targetGreenBranchId: "br-wrong-green-identity",
+      }),
+      parentState: parent,
+      at: NOW,
+    }),
+    /TARGET_GREEN_BRANCH_IDENTITY_MISMATCH/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST").length, 0)
+  const validRoleApproval = approval("GREEN_OWNER_ROLE_CREATE", release, parent)
+  const {
+    schemaVersion: _schemaVersion,
+    approvalChecksum: _approvalChecksum,
+    ...validRoleBasis
+  } = validRoleApproval
+  assert.throws(
+    () => createMvpGreenOperationApproval({
+      approved: true,
+      ...validRoleBasis,
+      targetRoleName: "neondb_owner",
+    }),
+    /OWNER_ROLE_CONTRACT_MISMATCH/,
+  )
+}
+
+{
+  const { transport, adapter } = adapterFixture()
+  const parent = await adapter.resolveParentState()
+  await adapter.createChildBranch({
+    release,
+    approval: approval("NEON_BRANCH_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /OWNER_ROLE_MISSING/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/databases")).length, 0)
+  for (const protectedBranchId of [
+    MVP_GREEN_PRODUCTION_BRANCH_ID,
+    "br-royal-block-aop70mzq",
+    "br-odd-leaf-ao61pbg4",
+  ]) {
+    const validDatabaseApproval = approval("GREEN_DATABASE_CREATE", release, parent)
+    const {
+      schemaVersion: _schemaVersion,
+      approvalChecksum: _approvalChecksum,
+      ...validDatabaseBasis
+    } = validDatabaseApproval
+    assert.throws(
+      () => createMvpGreenOperationApproval({
+        approved: true,
+        ...validDatabaseBasis,
+        targetGreenBranchId: protectedBranchId,
+      }),
+      /TARGET_GREEN_BRANCH_IDENTITY_MISMATCH/,
+    )
+  }
 }
 
 {
@@ -639,6 +1098,12 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
     parentState: parent,
     at: NOW,
   })
+  await adapter.createMigrationOwnerRole({
+    release,
+    approval: approval("GREEN_OWNER_ROLE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
   transport.databases.set(branch.branchId, [
     ...branch.inheritedDatabases.map((database) => ({
       branch_id: database.branchId,
@@ -651,13 +1116,11 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
   await assert.rejects(
     () => adapter.createReleaseDatabase({
       release,
-      branch,
-      ownerName: "mvp_green_migration_owner",
       approval: approval("GREEN_DATABASE_CREATE", release, parent),
       parentState: parent,
       at: NOW,
     }),
-    /RELEASE_DATABASE_NAME_CONFLICT/,
+    /OWNER_ROLE_CONTRACT_MISMATCH/,
   )
 }
 
@@ -671,8 +1134,32 @@ function approval(operation: MvpGreenOperationKind, identity: MvpGreenReleaseIde
   assert.equal(approvalRead >= 0 && approvalRead < releaseDerivation, true)
   assert.equal(releaseDerivation < approvalBinding && approvalBinding < parentResolution, true)
   assert.equal((mutationFlow.match(/await adapter\.resolveParentState\(\)/g) ?? []).length, 1)
+  assert.equal(runnerSource.includes('requiredFlag("owner-role")'), false)
+  assert.equal(runnerSource.includes("MVP_GREEN_UNCHECKED_OWNER_ROLE_FORBIDDEN"), true)
+  assert.equal(runnerSource.includes('"preflight-role"'), true)
+  assert.equal(runnerSource.includes('"create-owner-role"'), true)
+  assert.equal(runnerSource.includes('"preflight-database"'), true)
   const createChildBranchSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createChildBranch.toString()
   assert.equal(createChildBranchSource.includes("this.resolveParentState"), false)
+  const createRoleSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createMigrationOwnerRole.toString()
+  assert.equal(createRoleSource.includes("this.resolveParentState"), false)
+  const createDatabaseSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createReleaseDatabase.toString()
+  assert.equal(createDatabaseSource.includes("input.ownerName"), false)
+  assert.equal(createDatabaseSource.includes("approval.targetGreenBranchId"), true)
+  assert.equal(createDatabaseSource.includes("approval.targetOwnerRole"), true)
+  for (const ownerArguments of [
+    ["--owner-role=neondb_owner"],
+    ["--owner-role", "neondb_owner"],
+  ]) {
+    const cli = spawnSync(process.execPath, [
+      "node_modules/tsx/dist/cli.mjs",
+      "workers/data-platform/runMvpGreenRelease.ts",
+      "create-database",
+      ...ownerArguments,
+    ], { cwd: process.cwd(), encoding: "utf8" })
+    assert.notEqual(cli.status, 0)
+    assert.match(cli.stderr, /MVP_GREEN_UNCHECKED_OWNER_ROLE_FORBIDDEN/)
+  }
 }
 
 const blockedReceipt = createMvpGreenStageReceipt({
@@ -768,14 +1255,21 @@ console.log(JSON.stringify({
   status: "PASS",
   deterministicBranch: release.branchName,
   deterministicDatabase: release.databaseName,
+  approvalSchema: MVP_GREEN_APPROVAL_SCHEMA_VERSION,
   approvalBoundaries: "PASS",
+  greenBranchIdBinding: "PASS",
+  targetRoleBinding: "PASS",
+  databaseOwnerBinding: "PASS",
   approvedParentLsnBinding: "PASS",
   numericLsnOrdering: "PASS",
   forwardWalAdvancement: "PASS",
   createCommandStateResolutions: 1,
   postUsesApprovedParentLsn: "PASS",
   branchReadbackReconciliation: "PASS",
+  roleReadbackReconciliation: "PASS",
+  roleSecretRedaction: "PASS",
   databaseReadbackReconciliation: "PASS",
+  frozenReleaseIdentity: "PASS",
   receiptSemantics: "PASS",
   certificationOnly: "PASS",
   previewCalls: 0,

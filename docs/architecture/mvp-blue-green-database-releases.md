@@ -28,13 +28,18 @@ The cloned `neondb` remains untouched. Build data uses isolated databases and ro
 
 `LiveMvpNeonGreenInfrastructureAdapter` is the certified provider boundary. Read operations inspect the exact project, branch, and database inventory. The parent-state reader connects as `mvp_serving_reader`, begins an explicit `READ ONLY` transaction, verifies the Neon branch ID and database, and captures the current WAL LSN. The parent-state checksum is approval evidence for the project, branch, database, approved LSN, and read-only result. The inspection timestamp remains receipt evidence but is excluded from state equality.
 
-Branch creation and release-database creation are separate operations. Each requires its own unexpired approval context:
+Branch creation, branch-scoped migration-owner creation, and release-database creation are separate operations. Each requires its own unexpired approval context under `mvp-green-infrastructure-approval/1.2.0`:
 
-- `NEON_BRANCH_CREATE` binds the release, exact approved parent LSN, its parent-state evidence checksum, target branch name, actor, and invocation.
-- `GREEN_DATABASE_CREATE` additionally binds the deterministic database name.
-- `GREEN_ACQUISITION_START` is reserved for the later acquisition command and cannot authorize infrastructure creation.
+- `NEON_BRANCH_CREATE` binds the release, exact approved parent LSN, its parent-state evidence checksum, and target branch name. Green branch ID, database, target role, and owner role are null.
+- `GREEN_OWNER_ROLE_CREATE` additionally binds the exact created Green branch ID and the sole permitted target role, `mvp_green_migration_owner`. Database and owner-role fields are null.
+- `GREEN_DATABASE_CREATE` binds the exact created Green branch ID, deterministic database name, and exact owner `mvp_green_migration_owner`. The separate target-role field is null.
+- `GREEN_ACQUISITION_START` binds the exact created Green branch ID and deterministic database name; infrastructure role fields are null. It remains reserved for the later acquisition command and cannot authorize infrastructure creation.
 
-The certified command validates approval integrity and release binding before resolving parent state exactly once. The current project, branch, database, reader role, and read-only transaction must remain valid. Current LSN equality or forward advancement is allowed, but a current LSN behind the approved LSN fails closed. Branch creation always uses the approved LSN, never the newer inspected LSN. A lost mutation response is reconciled by deterministic name and provider readback; an unexpected project, parent, approved LSN, region, inherited database, owner, or identity fails closed. No automatic branch or database deletion is performed.
+The exact 1.2 field inventory is `schemaVersion`, `operation`, `releaseChecksum`, `projectId`, `parentBranchId`, `expectedParentState`, `expectedParentLsn`, `targetBranchName`, `targetGreenBranchId`, `targetDatabaseName`, `targetRoleName`, `targetOwnerRole`, `invocationId`, `actorId`, `issuedAt`, `expiresAt`, and `approvalChecksum`. Every non-checksum field participates in the canonical approval checksum, while exact-field validation also requires the checksum field itself. The checksum protects canonical serialization and detects unrecomputed edits; operator authorization remains an external approval-channel responsibility rather than a cryptographic signer-identity claim. Schema 1.1 approvals are rejected for new role and database operations, while already emitted branch-creation receipts remain historical evidence.
+
+The certified command validates approval integrity and frozen-release binding before resolving parent state exactly once. The current project, branch, database, reader role, and read-only transaction must remain valid, including a recomputation of the runtime parent-state checksum. Current LSN equality or forward advancement is allowed, but a current LSN behind the approved LSN fails closed. Branch creation always uses the approved LSN, never the newer inspected LSN. A lost mutation response is reconciled by deterministic name and provider readback; an unexpected project, parent, approved LSN, region, inherited database, role, owner, or identity fails closed. No automatic branch, role, or database deletion is performed.
+
+The migration owner is a branch-scoped release-infrastructure role. It must be named exactly `mvp_green_migration_owner`, exist on the approved Green branch, be uniquely identified, and not be provider-protected. `neondb_owner`, serving roles, and inactive runtime roles are never substitutes. Role create/readback returns only project, branch, name, protected status, timestamps, status, and fingerprint. Neon-generated passwords and all other credentials are discarded at the provider boundary and never enter logs, receipts, errors, snapshots, or Git files. Credential handoff for the later migration stage is a separate future gate.
 
 The release database name is derived from the release profile, application commit, watermark transition, and full plan checksum. It is a bounded PostgreSQL identifier, never `neondb`, and never the retained rejected-release database. The sequence is:
 
@@ -42,11 +47,17 @@ The release database name is derived from the release profile, application commi
 2. Resolve and verify current parent identity once, requiring current LSN to be at or ahead of the approved LSN.
 3. Create the child branch at the approved parent LSN.
 4. Read back the child and verify project, parent, exact approved LSN, region, state, and inherited databases.
-5. Derive the release database name.
-6. Reject a conflicting name or owner.
-7. Create the database and read it back.
+5. Separately approve creation of `mvp_green_migration_owner` on the exact Green branch.
+6. Verify role absence, issue at most one role POST, and deterministically read back the exact non-protected role after success or an uncertain response.
+7. Separately approve the deterministic database name and owner on the exact Green branch.
+8. Verify the exact branch, inherited `neondb`, owner role, and database collision state.
+9. Issue at most one database POST using only approval-bound values and deterministically read the database back.
 
 Credential values remain process-injected and never enter receipts. Role metadata is bounded to purpose and scope. The migration owner, acquisition publisher, and `mvp_serving_reader` remain separate roles.
+
+### Frozen Release Identity And Tooling
+
+The release application commit and release-tooling commit are different identities. This release remains frozen to application commit `a4590b21dd8929df679f9eb2aa823d6c019a0b31`, release checksum `894b0cea24a869817d2cdbb3ca94c3b240c18ae5d0ec128353893a4dfcf9587a`, branch `mvp-release-2026-07-21-ef67d73549b7`, and database `mvp_release_20260721_9c177d6309`. Later commits may change certified tooling, but they never replace `--application-commit` and never rotate those release resources. The worker rejects a derived identity that differs from this frozen release.
 
 ## Incremental Build
 
@@ -77,10 +88,13 @@ An earlier failure never becomes a chain of false downstream failures.
 
 The stage-specific worker is `workers/data-platform/runMvpGreenRelease.ts`.
 
-1. `plan` derives sanitized branch, database, and release identities without provider access.
+1. `plan` derives sanitized branch, database, and frozen release identities without provider access.
 2. `preflight` performs read-only project, parent branch, LSN, and database inventory inspection and emits the approved-LSN evidence basis.
 3. `create-branch` requires an exact `NEON_BRANCH_CREATE` approval file.
-4. `create-database` requires a separate `GREEN_DATABASE_CREATE` approval file and explicit migration-owner role.
+4. `preflight-role` verifies the exact Green branch and reports the dedicated owner-role collision without mutation.
+5. `create-owner-role` requires a separate `GREEN_OWNER_ROLE_CREATE` approval and performs at most one role POST.
+6. `preflight-database` verifies the exact Green branch, owner role, inherited `neondb`, and target database collision without mutation.
+7. `create-database` requires a separate `GREEN_DATABASE_CREATE` approval and performs at most one database POST. The branch ID, database name, and owner role come only from the approval; `--owner-role` is rejected.
 
 Every command requires `--mode=GREEN_CERTIFICATION_ONLY`. The worker has no Preview, deployment, alias, Production-write, or deletion command. Migration, acquisition, corpus construction, and certification remain later resumable stages and require their own contracts and approvals.
 

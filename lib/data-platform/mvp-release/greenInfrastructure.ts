@@ -3,18 +3,24 @@ import postgres from "postgres"
 import { createMvpBlueGreenBranchPlan, type MvpBlueGreenBranchPlan } from "./blueGreen"
 
 export const MVP_GREEN_INFRASTRUCTURE_SCHEMA_VERSION = "mvp-green-infrastructure/1.0.0" as const
-export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.1.0" as const
+export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.2.0" as const
 export const MVP_GREEN_PRODUCTION_PROJECT_ID = "soft-cell-16396854" as const
 export const MVP_GREEN_PRODUCTION_BRANCH_ID = "br-flat-grass-ao9rtnyr" as const
 export const MVP_GREEN_PRODUCTION_DATABASE = "neondb" as const
 export const MVP_GREEN_ROLLBACK_BRANCH_ID = "br-royal-block-aop70mzq" as const
 export const MVP_GREEN_REJECTED_BRANCH_ID = "br-odd-leaf-ao61pbg4" as const
 export const MVP_GREEN_REJECTED_DATABASE = "mvp_release_20260719" as const
+export const MVP_GREEN_MIGRATION_OWNER_ROLE = "mvp_green_migration_owner" as const
+export const MVP_GREEN_FROZEN_RELEASE_APPLICATION_COMMIT = "a4590b21dd8929df679f9eb2aa823d6c019a0b31" as const
+export const MVP_GREEN_FROZEN_RELEASE_CHECKSUM = "894b0cea24a869817d2cdbb3ca94c3b240c18ae5d0ec128353893a4dfcf9587a" as const
+export const MVP_GREEN_FROZEN_BRANCH_NAME = "mvp-release-2026-07-21-ef67d73549b7" as const
+export const MVP_GREEN_FROZEN_DATABASE_NAME = "mvp_release_20260721_9c177d6309" as const
 
 const PROJECT_ID = /^[a-z0-9-]{1,60}$/
 const BRANCH_ID = /^br-[a-z0-9-]{1,57}$/
 const BRANCH_NAME = /^mvp-release-\d{4}-\d{2}-\d{2}-[0-9a-f]{12}$/
 const DATABASE_NAME = /^[a-z][a-z0-9_]{0,62}$/
+const ROLE_NAME = /^[a-z_][a-z0-9_]{0,62}$/
 const LSN = /^(0|[1-9A-F][0-9A-F]*)\/(0|[1-9A-F][0-9A-F]*)$/
 const MAX_LSN_PART = BigInt("4294967295")
 const LSN_LOW_BITS = BigInt(32)
@@ -23,6 +29,7 @@ const COMMIT = /^[0-9a-f]{40}$/
 
 export type MvpGreenOperationKind =
   | "NEON_BRANCH_CREATE"
+  | "GREEN_OWNER_ROLE_CREATE"
   | "GREEN_DATABASE_CREATE"
   | "GREEN_ACQUISITION_START"
 
@@ -39,6 +46,14 @@ export type MvpGreenInfrastructureErrorCode =
   | "PARENT_STATE_UNRESOLVED"
   | "BRANCH_CREATION_FAILED"
   | "BRANCH_IDENTITY_UNVERIFIED"
+  | "TARGET_GREEN_BRANCH_REQUIRED"
+  | "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"
+  | "OWNER_ROLE_REQUIRED"
+  | "OWNER_ROLE_CONTRACT_MISMATCH"
+  | "OWNER_ROLE_MISSING"
+  | "ROLE_CREATION_FAILED"
+  | "ROLE_IDENTITY_UNVERIFIED"
+  | "DATABASE_APPROVAL_BINDING_INVALID"
   | "RELEASE_DATABASE_NAME_CONFLICT"
   | "RELEASE_DATABASE_CREATION_FAILED"
   | "RELEASE_DATABASE_IDENTITY_UNVERIFIED"
@@ -75,7 +90,10 @@ export interface MvpGreenOperationApproval {
   readonly expectedParentState: string
   readonly expectedParentLsn: string
   readonly targetBranchName: string
+  readonly targetGreenBranchId: string | null
   readonly targetDatabaseName: string | null
+  readonly targetRoleName: string | null
+  readonly targetOwnerRole: string | null
   readonly invocationId: string
   readonly actorId: string
   readonly issuedAt: string
@@ -211,6 +229,22 @@ export interface MvpGreenDatabaseInspection {
   readonly fingerprint: string
 }
 
+export interface MvpGreenRoleInspection {
+  readonly projectId: string
+  readonly branchId: string
+  readonly roleName: string
+  readonly protected: boolean | null
+  readonly createdAt: string
+  readonly updatedAt: string
+  readonly status: "VERIFIED"
+  readonly fingerprint: string
+}
+
+export interface MvpGreenCreatedRole extends MvpGreenRoleInspection {
+  readonly creationStatus: "CREATED" | "RECONCILED"
+  readonly releaseChecksum: string
+}
+
 export interface MvpGreenCreatedBranch {
   readonly status: "CREATED" | "RECONCILED"
   readonly projectId: string
@@ -253,6 +287,14 @@ interface NeonDatabase {
   readonly name?: unknown
   readonly owner_name?: unknown
   readonly created_at?: unknown
+}
+
+interface NeonRole {
+  readonly branch_id?: unknown
+  readonly name?: unknown
+  readonly protected?: unknown
+  readonly created_at?: unknown
+  readonly updated_at?: unknown
 }
 
 function exactIso(value: string, code: MvpGreenInfrastructureErrorCode): number {
@@ -332,6 +374,18 @@ function databaseFromBody(body: unknown): NeonDatabase | null {
   return record.database && typeof record.database === "object" ? record.database as NeonDatabase : null
 }
 
+function rolesFromBody(body: unknown): readonly NeonRole[] {
+  if (!body || typeof body !== "object") return []
+  const values = (body as { roles?: unknown }).roles
+  return Array.isArray(values) ? values.filter((value): value is NeonRole => Boolean(value && typeof value === "object")) : []
+}
+
+function roleFromBody(body: unknown): NeonRole | null {
+  if (!body || typeof body !== "object") return null
+  const record = body as { role?: unknown }
+  return record.role && typeof record.role === "object" ? record.role as NeonRole : null
+}
+
 function requireSuccessful(response: MvpNeonTransportResponse, fallback: MvpGreenInfrastructureErrorCode): void {
   if (response.status === 401 || response.status === 403) throw new MvpGreenInfrastructureError("NEON_AUTHENTICATION_FAILURE")
   if (response.status < 200 || response.status >= 300) throw new MvpGreenInfrastructureError(fallback)
@@ -357,6 +411,36 @@ function normalizedDatabase(input: {
     createdAt,
     status: "VERIFIED" as const,
     fingerprint: `neon:${input.projectId}/${branchId}/${databaseName}`,
+  })
+}
+
+function normalizedRole(input: {
+  readonly projectId: string
+  readonly branchId: string
+  readonly value: NeonRole
+}): MvpGreenRoleInspection {
+  const roleName = requiredString(input.value.name, "ROLE_IDENTITY_UNVERIFIED")
+  const branchId = requiredString(input.value.branch_id, "ROLE_IDENTITY_UNVERIFIED")
+  if (
+    input.projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID
+    || branchId !== input.branchId
+    || !BRANCH_ID.test(branchId)
+    || !ROLE_NAME.test(roleName)
+    || typeof input.value.protected !== "boolean"
+  ) {
+    throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+  }
+  const createdAt = normalizedProviderIso(input.value.created_at, "ROLE_IDENTITY_UNVERIFIED")
+  const updatedAt = normalizedProviderIso(input.value.updated_at, "ROLE_IDENTITY_UNVERIFIED")
+  return Object.freeze({
+    projectId: input.projectId,
+    branchId,
+    roleName,
+    protected: input.value.protected,
+    createdAt,
+    updatedAt,
+    status: "VERIFIED" as const,
+    fingerprint: `neon:${input.projectId}/${branchId}/roles/${roleName}`,
   })
 }
 
@@ -407,6 +491,17 @@ export function createMvpGreenReleaseIdentity(plan: MvpBlueGreenBranchPlan): Mvp
   return Object.freeze({ ...basis, releaseChecksum: canonicalChecksum(basis) })
 }
 
+export function assertMvpGreenFrozenReleaseIdentity(release: MvpGreenReleaseIdentity): void {
+  if (
+    release.applicationCommit !== MVP_GREEN_FROZEN_RELEASE_APPLICATION_COMMIT
+    || release.releaseChecksum !== MVP_GREEN_FROZEN_RELEASE_CHECKSUM
+    || release.branchName !== MVP_GREEN_FROZEN_BRANCH_NAME
+    || release.databaseName !== MVP_GREEN_FROZEN_DATABASE_NAME
+  ) {
+    throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
+  }
+}
+
 export function createMvpGreenCertificationPlan(input: {
   readonly projectId: string
   readonly parentBranchId: string
@@ -435,18 +530,70 @@ export function createMvpGreenOperationApproval(input: Omit<MvpGreenOperationApp
     || !CHECKSUM.test(input.expectedParentState)
     || input.expectedParentState !== expectedParentStateChecksum(input)
     || !BRANCH_NAME.test(input.targetBranchName)
+    || (input.targetGreenBranchId !== null && !BRANCH_ID.test(input.targetGreenBranchId))
     || (input.targetDatabaseName !== null && !DATABASE_NAME.test(input.targetDatabaseName))
-    || (input.operation === "NEON_BRANCH_CREATE"
-      ? input.targetDatabaseName !== null
-      : input.targetDatabaseName === null)
+    || (input.targetRoleName !== null && !ROLE_NAME.test(input.targetRoleName))
+    || (input.targetOwnerRole !== null && !ROLE_NAME.test(input.targetOwnerRole))
     || !input.invocationId.trim()
     || !input.actorId.trim()
   ) {
     throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
   }
+  assertMvpGreenApprovalOperationMatrix(input)
   const { approved: _approved, ...approvalInput } = input
   const basis = { schemaVersion: MVP_GREEN_APPROVAL_SCHEMA_VERSION, ...approvalInput }
   return Object.freeze({ ...basis, approvalChecksum: canonicalChecksum(basis) })
+}
+
+function assertMvpGreenApprovalOperationMatrix(input: Pick<
+  MvpGreenOperationApproval,
+  "operation" | "targetGreenBranchId" | "targetDatabaseName" | "targetRoleName" | "targetOwnerRole"
+>): void {
+  const protectedBranch = input.targetGreenBranchId !== null
+    && new Set<string>([
+      MVP_GREEN_PRODUCTION_BRANCH_ID,
+      MVP_GREEN_ROLLBACK_BRANCH_ID,
+      MVP_GREEN_REJECTED_BRANCH_ID,
+    ]).has(input.targetGreenBranchId)
+  if (protectedBranch) throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  if (input.operation === "NEON_BRANCH_CREATE") {
+    if (
+      input.targetGreenBranchId !== null
+      || input.targetDatabaseName !== null
+      || input.targetRoleName !== null
+      || input.targetOwnerRole !== null
+    ) {
+      throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+    }
+    return
+  }
+  if (!input.targetGreenBranchId) throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_REQUIRED")
+  if (input.operation === "GREEN_OWNER_ROLE_CREATE") {
+    if (input.targetRoleName !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+    }
+    if (input.targetDatabaseName !== null || input.targetOwnerRole !== null) {
+      throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+    }
+    return
+  }
+  if (input.operation === "GREEN_DATABASE_CREATE") {
+    if (!input.targetDatabaseName) throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
+    if (input.targetRoleName !== null) throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
+    if (!input.targetOwnerRole) throw new MvpGreenInfrastructureError("OWNER_ROLE_REQUIRED")
+    if (input.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+    }
+    return
+  }
+  if (
+    input.operation !== "GREEN_ACQUISITION_START"
+    || !input.targetDatabaseName
+    || input.targetRoleName !== null
+    || input.targetOwnerRole !== null
+  ) {
+    throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+  }
 }
 
 const MVP_GREEN_APPROVAL_FIELDS = Object.freeze([
@@ -464,6 +611,9 @@ const MVP_GREEN_APPROVAL_FIELDS = Object.freeze([
   "schemaVersion",
   "targetBranchName",
   "targetDatabaseName",
+  "targetGreenBranchId",
+  "targetOwnerRole",
+  "targetRoleName",
 ] as const)
 
 export function assertMvpGreenOperationApprovalIntegrity(input: {
@@ -491,14 +641,16 @@ export function assertMvpGreenOperationApprovalIntegrity(input: {
     || approval.parentBranchId !== MVP_GREEN_PRODUCTION_BRANCH_ID
     || approval.expectedParentState !== expectedParentStateChecksum(approval)
     || !BRANCH_NAME.test(approval.targetBranchName)
-    || (input.operation === "NEON_BRANCH_CREATE"
-      ? approval.targetDatabaseName !== null
-      : typeof approval.targetDatabaseName !== "string" || !DATABASE_NAME.test(approval.targetDatabaseName))
+    || (approval.targetGreenBranchId !== null && !BRANCH_ID.test(approval.targetGreenBranchId))
+    || (approval.targetDatabaseName !== null && !DATABASE_NAME.test(approval.targetDatabaseName))
+    || (approval.targetRoleName !== null && !ROLE_NAME.test(approval.targetRoleName))
+    || (approval.targetOwnerRole !== null && !ROLE_NAME.test(approval.targetOwnerRole))
     || !approval.invocationId.trim()
     || !approval.actorId.trim()
   ) {
     throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
   }
+  assertMvpGreenApprovalOperationMatrix(approval)
   const at = exactIso(input.at, "APPROVAL_STALE")
   if (at < exactIso(approval.issuedAt, "APPROVAL_STALE") || at >= exactIso(approval.expiresAt, "APPROVAL_STALE")) {
     throw new MvpGreenInfrastructureError("APPROVAL_STALE")
@@ -518,9 +670,17 @@ export function assertMvpGreenOperationApproval(input: {
     || approval.projectId !== input.release.projectId
     || approval.parentBranchId !== input.release.parentBranchId
     || approval.targetBranchName !== input.release.branchName
-    || approval.targetDatabaseName !== (input.operation === "NEON_BRANCH_CREATE" ? null : input.release.databaseName)
+    || approval.targetDatabaseName !== (
+      input.operation === "GREEN_DATABASE_CREATE" || input.operation === "GREEN_ACQUISITION_START"
+        ? input.release.databaseName
+        : null
+    )
   ) {
-    throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+    throw new MvpGreenInfrastructureError(
+      input.operation === "GREEN_DATABASE_CREATE"
+        ? "DATABASE_APPROVAL_BINDING_INVALID"
+        : "APPROVAL_REQUIRED",
+    )
   }
 }
 
@@ -670,6 +830,177 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     return Object.freeze(databasesFromBody(response.body).map((value) => normalizedDatabase({ projectId, branchId, value })))
   }
 
+  async listRoles(projectId: string, branchId: string): Promise<readonly MvpGreenRoleInspection[]> {
+    if (projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID || !BRANCH_ID.test(branchId)) {
+      throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    }
+    const response = await this.transport.request({
+      method: "GET",
+      path: `/projects/${encoded(projectId)}/branches/${encoded(branchId)}/roles`,
+    })
+    requireSuccessful(response, "ROLE_IDENTITY_UNVERIFIED")
+    return Object.freeze(rolesFromBody(response.body).map((value) => normalizedRole({ projectId, branchId, value })))
+  }
+
+  async inspectRole(projectId: string, branchId: string, roleName: string): Promise<MvpGreenRoleInspection | null> {
+    if (
+      projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID
+      || !BRANCH_ID.test(branchId)
+      || !ROLE_NAME.test(roleName)
+    ) {
+      throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    }
+    const response = await this.transport.request({
+      method: "GET",
+      path: `/projects/${encoded(projectId)}/branches/${encoded(branchId)}/roles/${encoded(roleName)}`,
+    })
+    if (response.status === 404) return null
+    requireSuccessful(response, "ROLE_IDENTITY_UNVERIFIED")
+    const role = roleFromBody(response.body)
+    return role ? normalizedRole({ projectId, branchId, value: role }) : null
+  }
+
+  async inspectApprovedGreenBranch(
+    release: MvpGreenReleaseIdentity,
+    approval: MvpGreenOperationApproval,
+  ): Promise<MvpGreenCreatedBranch> {
+    const branchId = approval.targetGreenBranchId
+    if (!branchId) throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_REQUIRED")
+    if (
+      [MVP_GREEN_PRODUCTION_BRANCH_ID, MVP_GREEN_ROLLBACK_BRANCH_ID, MVP_GREEN_REJECTED_BRANCH_ID]
+        .some((protectedBranch) => protectedBranch === branchId)
+    ) {
+      throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    }
+    let branch: MvpGreenBranchInspection
+    try {
+      branch = await this.inspectBranch(approval.projectId, branchId)
+    } catch (error) {
+      if (error instanceof MvpGreenInfrastructureError && error.code === "NEON_AUTHENTICATION_FAILURE") throw error
+      throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    }
+    if (
+      release.projectId !== approval.projectId
+      || release.parentBranchId !== approval.parentBranchId
+      || release.branchName !== approval.targetBranchName
+      || release.releaseChecksum !== approval.releaseChecksum
+      || branch.branchId !== branchId
+      || branch.branchName !== approval.targetBranchName
+      || branch.parentBranchId !== approval.parentBranchId
+      || branch.parentLsn !== approval.expectedParentLsn
+      || branch.state !== "ready"
+    ) {
+      throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    }
+    const inheritedDatabases = await this.listInheritedDatabases(approval.projectId, branchId)
+    if (!inheritedDatabases.some((database) => database.databaseName === MVP_GREEN_PRODUCTION_DATABASE)) {
+      throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    }
+    return Object.freeze({
+      status: "RECONCILED" as const,
+      projectId: approval.projectId,
+      parentBranchId: approval.parentBranchId,
+      parentStateChecksum: approval.expectedParentState,
+      parentLsn: approval.expectedParentLsn,
+      branchId,
+      branchName: branch.branchName,
+      region: branch.region,
+      createdAt: branch.createdAt,
+      branchState: branch.state,
+      inheritedDatabases,
+      fingerprint: branch.fingerprint,
+    })
+  }
+
+  async readBackCreatedRole(
+    release: MvpGreenReleaseIdentity,
+    approval: MvpGreenOperationApproval,
+  ): Promise<MvpGreenCreatedRole | null> {
+    if (approval.targetRoleName !== MVP_GREEN_MIGRATION_OWNER_ROLE) {
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+    }
+    const branch = await this.inspectApprovedGreenBranch(release, approval)
+    const roles = await this.listRoles(approval.projectId, branch.branchId)
+    const matches = roles.filter((role) => role.roleName === approval.targetRoleName)
+    if (!matches.length) return null
+    if (matches.length !== 1) throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    const role = await this.inspectRole(approval.projectId, branch.branchId, approval.targetRoleName)
+    if (
+      !role
+      || role.projectId !== approval.projectId
+      || role.branchId !== branch.branchId
+      || role.roleName !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || role.protected !== false
+    ) {
+      throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    }
+    return Object.freeze({
+      ...role,
+      creationStatus: "RECONCILED" as const,
+      releaseChecksum: approval.releaseChecksum,
+    })
+  }
+
+  async createMigrationOwnerRole(input: {
+    readonly release: MvpGreenReleaseIdentity
+    readonly approval: MvpGreenOperationApproval | null
+    readonly parentState: MvpGreenParentState
+    readonly at: string
+  }): Promise<MvpGreenCreatedRole> {
+    assertMvpGreenOperationApproval({
+      approval: input.approval,
+      operation: "GREEN_OWNER_ROLE_CREATE",
+      release: input.release,
+      at: input.at,
+    })
+    const approval = Object.freeze({ ...input.approval! })
+    this.assertApprovedParentState(input.parentState, approval)
+    const existing = await this.readBackCreatedRole(input.release, approval)
+    if (existing) return existing
+    let mutationReturned = false
+    try {
+      const response = await this.transport.request({
+        method: "POST",
+        path: `/projects/${encoded(approval.projectId)}/branches/${encoded(approval.targetGreenBranchId!)}/roles`,
+        body: { role: { name: approval.targetRoleName } },
+      })
+      requireSuccessful(response, "ROLE_CREATION_FAILED")
+      mutationReturned = Boolean(roleFromBody(response.body))
+    } catch (error) {
+      if (error instanceof MvpGreenInfrastructureError && error.code === "NEON_AUTHENTICATION_FAILURE") throw error
+    }
+    const readback = await this.readBackCreatedRole(input.release, approval)
+    if (!readback) {
+      throw new MvpGreenInfrastructureError(mutationReturned ? "ROLE_IDENTITY_UNVERIFIED" : "ROLE_CREATION_FAILED")
+    }
+    return Object.freeze({ ...readback, creationStatus: "CREATED" as const })
+  }
+
+  private assertApprovedParentState(
+    parentState: MvpGreenParentState,
+    approval: MvpGreenOperationApproval,
+  ): void {
+    const runtimeStateChecksum = canonicalChecksum({
+      projectId: parentState.projectId,
+      branchId: parentState.branchId,
+      databaseName: parentState.databaseName,
+      lsn: parentState.lsn,
+      readOnlyTransaction: parentState.readOnlyTransaction,
+    })
+    if (
+      parentState.projectId !== approval.projectId
+      || parentState.branchId !== approval.parentBranchId
+      || parentState.databaseName !== MVP_GREEN_PRODUCTION_DATABASE
+      || parentState.readOnlyTransaction !== true
+      || parentState.stateChecksum !== runtimeStateChecksum
+    ) {
+      throw new MvpGreenInfrastructureError("PARENT_STATE_UNRESOLVED")
+    }
+    if (compareMvpPostgresLsns(parentState.lsn, approval.expectedParentLsn) < 0) {
+      throw new MvpGreenInfrastructureError("APPROVED_PARENT_LSN_AHEAD_OF_CURRENT")
+    }
+  }
+
   async readBackCreatedBranch(
     release: MvpGreenReleaseIdentity,
     approval: Pick<
@@ -694,6 +1025,7 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       || branch.branchName !== approval.targetBranchName
       || branch.parentBranchId !== approval.parentBranchId
       || branch.parentLsn !== approval.expectedParentLsn
+      || branch.state !== "ready"
     ) {
       throw new MvpGreenInfrastructureError("BRANCH_IDENTITY_UNVERIFIED")
     }
@@ -737,17 +1069,7 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     ) {
       throw new MvpGreenInfrastructureError("PARENT_BRANCH_IDENTITY_MISMATCH")
     }
-    if (
-      input.parentState.projectId !== approval.projectId
-      || input.parentState.branchId !== approval.parentBranchId
-      || input.parentState.databaseName !== MVP_GREEN_PRODUCTION_DATABASE
-      || input.parentState.readOnlyTransaction !== true
-    ) {
-      throw new MvpGreenInfrastructureError("PARENT_STATE_UNRESOLVED")
-    }
-    if (compareMvpPostgresLsns(input.parentState.lsn, approval.expectedParentLsn) < 0) {
-      throw new MvpGreenInfrastructureError("APPROVED_PARENT_LSN_AHEAD_OF_CURRENT")
-    }
+    this.assertApprovedParentState(input.parentState, approval)
     const existing = await this.readBackCreatedBranch(input.release, approval)
     if (existing) return existing
     let mutationReturned = false
@@ -776,23 +1098,29 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
   }
 
   async inspectReleaseDatabase(input: {
-    readonly release: MvpGreenReleaseIdentity
+    readonly projectId: string
     readonly branchId: string
+    readonly databaseName: string
   }): Promise<MvpGreenDatabaseInspection | null> {
+    if (
+      input.projectId !== MVP_GREEN_PRODUCTION_PROJECT_ID
+      || !BRANCH_ID.test(input.branchId)
+      || !DATABASE_NAME.test(input.databaseName)
+    ) {
+      throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+    }
     const response = await this.transport.request({
       method: "GET",
-      path: `/projects/${encoded(input.release.projectId)}/branches/${encoded(input.branchId)}/databases/${encoded(input.release.databaseName)}`,
+      path: `/projects/${encoded(input.projectId)}/branches/${encoded(input.branchId)}/databases/${encoded(input.databaseName)}`,
     })
     if (response.status === 404) return null
     requireSuccessful(response, "RELEASE_DATABASE_IDENTITY_UNVERIFIED")
     const database = databaseFromBody(response.body)
-    return database ? normalizedDatabase({ projectId: input.release.projectId, branchId: input.branchId, value: database }) : null
+    return database ? normalizedDatabase({ projectId: input.projectId, branchId: input.branchId, value: database }) : null
   }
 
   async createReleaseDatabase(input: {
     readonly release: MvpGreenReleaseIdentity
-    readonly branch: MvpGreenCreatedBranch
-    readonly ownerName: string
     readonly approval: MvpGreenOperationApproval | null
     readonly parentState: MvpGreenParentState
     readonly at: string
@@ -805,31 +1133,52 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     })
     const approval = Object.freeze({ ...input.approval! })
     if (
-      input.branch.parentBranchId !== input.release.parentBranchId
-      || input.branch.branchName !== input.release.branchName
-      || input.branch.parentLsn !== approval.expectedParentLsn
-      || input.release.databaseName === MVP_GREEN_PRODUCTION_DATABASE
-      || input.release.databaseName === MVP_GREEN_REJECTED_DATABASE
-      || !input.ownerName.trim()
+      approval.targetDatabaseName !== input.release.databaseName
+      || approval.targetDatabaseName === MVP_GREEN_PRODUCTION_DATABASE
+      || approval.targetDatabaseName === MVP_GREEN_REJECTED_DATABASE
+      || approval.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || approval.targetRoleName !== null
+      || !approval.targetGreenBranchId
     ) {
-      throw new MvpGreenInfrastructureError("RELEASE_DATABASE_NAME_CONFLICT")
+      throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
     }
+    this.assertApprovedParentState(input.parentState, approval)
+    const branch = await this.inspectApprovedGreenBranch(input.release, approval)
+    const roles = await this.listRoles(approval.projectId, branch.branchId)
+    const ownerMatches = roles.filter((role) => role.roleName === approval.targetOwnerRole)
+    if (!ownerMatches.length) throw new MvpGreenInfrastructureError("OWNER_ROLE_MISSING")
     if (
-      input.parentState.projectId !== approval.projectId
-      || input.parentState.branchId !== approval.parentBranchId
-      || input.parentState.databaseName !== MVP_GREEN_PRODUCTION_DATABASE
-      || input.parentState.readOnlyTransaction !== true
+      ownerMatches.length !== 1
+      || ownerMatches[0]!.branchId !== branch.branchId
+      || ownerMatches[0]!.protected !== false
     ) {
-      throw new MvpGreenInfrastructureError("PARENT_STATE_UNRESOLVED")
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
     }
-    if (compareMvpPostgresLsns(input.parentState.lsn, approval.expectedParentLsn) < 0) {
-      throw new MvpGreenInfrastructureError("APPROVED_PARENT_LSN_AHEAD_OF_CURRENT")
+    const owner = await this.inspectRole(approval.projectId, branch.branchId, approval.targetOwnerRole)
+    if (
+      !owner
+      || owner.roleName !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || owner.branchId !== branch.branchId
+      || owner.protected !== false
+    ) {
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
     }
-    const inherited = await this.listInheritedDatabases(input.release.projectId, input.branch.branchId)
-    const collision = inherited.find((database) => database.databaseName === input.release.databaseName)
-    if (collision) {
-      if (collision.ownerName !== input.ownerName) {
-        throw new MvpGreenInfrastructureError("RELEASE_DATABASE_NAME_CONFLICT")
+    const collisions = branch.inheritedDatabases.filter(
+      (database) => database.databaseName === approval.targetDatabaseName,
+    )
+    if (collisions.length > 1) throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+    if (collisions.length === 1) {
+      const collision = await this.inspectReleaseDatabase({
+        projectId: approval.projectId,
+        branchId: approval.targetGreenBranchId,
+        databaseName: approval.targetDatabaseName,
+      })
+      if (
+        !collision
+        || collision.branchId !== branch.branchId
+        || collision.ownerName !== approval.targetOwnerRole
+      ) {
+        throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
       }
       return Object.freeze({ ...collision, creationStatus: "RECONCILED" as const, releaseChecksum: input.release.releaseChecksum })
     }
@@ -837,17 +1186,24 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     try {
       const response = await this.transport.request({
         method: "POST",
-        path: `/projects/${encoded(input.release.projectId)}/branches/${encoded(input.branch.branchId)}/databases`,
-        body: { database: { name: input.release.databaseName, owner_name: input.ownerName } },
+        path: `/projects/${encoded(approval.projectId)}/branches/${encoded(approval.targetGreenBranchId)}/databases`,
+        body: { database: { name: approval.targetDatabaseName, owner_name: approval.targetOwnerRole } },
       })
       requireSuccessful(response, "RELEASE_DATABASE_CREATION_FAILED")
       mutationReturned = Boolean(databaseFromBody(response.body))
     } catch (error) {
       if (error instanceof MvpGreenInfrastructureError && error.code === "NEON_AUTHENTICATION_FAILURE") throw error
     }
-    const readback = await this.inspectReleaseDatabase({ release: input.release, branchId: input.branch.branchId })
+    const readback = await this.inspectReleaseDatabase({
+      projectId: approval.projectId,
+      branchId: approval.targetGreenBranchId,
+      databaseName: approval.targetDatabaseName,
+    })
     if (!readback) {
       throw new MvpGreenInfrastructureError(mutationReturned ? "RELEASE_DATABASE_IDENTITY_UNVERIFIED" : "RELEASE_DATABASE_CREATION_FAILED")
+    }
+    if (readback.ownerName !== approval.targetOwnerRole || readback.branchId !== approval.targetGreenBranchId) {
+      throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
     }
     return Object.freeze({ ...readback, creationStatus: "CREATED" as const, releaseChecksum: input.release.releaseChecksum })
   }
