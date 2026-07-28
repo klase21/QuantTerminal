@@ -311,6 +311,12 @@ async function main() {
     throw new Error("MVP_GREEN_UNCHECKED_OWNER_ROLE_FORBIDDEN")
   }
   if (
+    command === "create-database"
+    && ["database-name", "green-branch-id", "branch-id"].some(hasFlag)
+  ) {
+    throw new Error("MVP_GREEN_UNCHECKED_DATABASE_CONFIGURATION_FORBIDDEN")
+  }
+  if (
     command === "create-endpoint"
     && [
       "endpoint-type",
@@ -452,12 +458,28 @@ async function main() {
   })
   console.log(JSON.stringify({
     command,
+    operation: "GREEN_DATABASE_CREATE",
     result: database.creationStatus,
+    approvalSchema: approval.schemaVersion,
     projectId: database.projectId,
     branchId: database.branchId,
     branchName: approval.targetBranchName,
     databaseName: database.databaseName,
     ownerRole: database.ownerName,
+    ownerAuthenticationMethod: database.ownerAuthenticationMethod,
+    ownerAuthenticationReadback: database.ownerAuthenticationReadback,
+    endpointPrerequisite: database.endpointPrerequisite,
+    endpointId: database.endpointId,
+    providerHttpStatus: database.providerHttpStatus,
+    providerErrorCode: database.providerErrorCode,
+    providerRequestId: database.providerRequestId,
+    operationIds: database.operationIds,
+    operationPollingResult: database.operationPollingResult,
+    deterministicReadbackResult: database.deterministicReadbackResult,
+    creationStatus: database.creationStatus,
+    mutationCalls: database.mutationCalls,
+    databasePostCalls: database.databasePostCalls,
+    automaticPostRetries: database.automaticPostRetries,
     fingerprint: database.fingerprint,
     releaseChecksum: database.releaseChecksum,
     approvalInvocationId: approval.invocationId,

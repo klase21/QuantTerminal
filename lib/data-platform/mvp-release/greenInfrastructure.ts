@@ -392,6 +392,19 @@ export interface MvpGreenCreatedBranch {
 export interface MvpGreenCreatedDatabase extends MvpGreenDatabaseInspection {
   readonly creationStatus: "CREATED" | "RECONCILED"
   readonly releaseChecksum: string
+  readonly ownerAuthenticationMethod: "no_login"
+  readonly ownerAuthenticationReadback: "PASS"
+  readonly endpointPrerequisite: "READ_WRITE_ENDPOINT_PRESENT"
+  readonly endpointId: string
+  readonly providerHttpStatus: number | null
+  readonly providerErrorCode: string | null
+  readonly providerRequestId: string | null
+  readonly operationIds: readonly string[]
+  readonly operationPollingResult: "PASS" | "NOT_APPLICABLE" | "FAIL_RECONCILED"
+  readonly deterministicReadbackResult: "MATCH"
+  readonly mutationCalls: 0 | 1
+  readonly databasePostCalls: 0 | 1
+  readonly automaticPostRetries: 0
 }
 
 interface NeonProject {
@@ -2053,9 +2066,11 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       path: `/projects/${encoded(input.projectId)}/branches/${encoded(input.branchId)}/databases/${encoded(input.databaseName)}`,
     })
     if (response.status === 404) return null
-    requireSuccessful(response, "RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+    const path = `/projects/${encoded(input.projectId)}/branches/${encoded(input.branchId)}/databases/${encoded(input.databaseName)}`
+    requireSuccessful(response, "RELEASE_DATABASE_IDENTITY_UNVERIFIED", path, "GREEN_DATABASE_CREATE")
     const database = databaseFromBody(response.body)
-    return database ? normalizedDatabase({ projectId: input.projectId, branchId: input.branchId, value: database }) : null
+    if (!database) throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+    return normalizedDatabase({ projectId: input.projectId, branchId: input.branchId, value: database })
   }
 
   async createReleaseDatabase(input: {
@@ -2083,6 +2098,18 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
     }
     this.assertApprovedParentState(input.parentState, approval)
     const branch = await this.inspectApprovedGreenBranch(input.release, approval)
+    const endpointInventory = await this.inspectEndpointPrerequisite(approval.projectId, branch.branchId)
+    if (endpointInventory.prerequisite !== "READ_WRITE_ENDPOINT_PRESENT") {
+      throw new MvpGreenInfrastructureError(
+        endpointInventory.prerequisite === "ENDPOINT_IDENTITY_UNVERIFIED"
+          ? "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"
+          : "NEON_ENDPOINT_REQUIRED",
+      )
+    }
+    const endpoint = endpointInventory.endpoints.find((candidate) => candidate.endpointType === "read_write")
+    if (!endpoint || endpoint.branchId !== branch.branchId) {
+      throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+    }
     const roles = await this.listRoles(approval.projectId, branch.branchId)
     const ownerMatches = roles.filter((role) => role.roleName === approval.targetOwnerRole)
     if (!ownerMatches.length) throw new MvpGreenInfrastructureError("OWNER_ROLE_MISSING")
@@ -2121,35 +2148,195 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       if (
         !collision
         || collision.branchId !== branch.branchId
-        || collision.ownerName !== approval.targetOwnerRole
       ) {
+        throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+      }
+      if (collision.ownerName !== approval.targetOwnerRole) {
         throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
       }
-      return Object.freeze({ ...collision, creationStatus: "RECONCILED" as const, releaseChecksum: input.release.releaseChecksum })
+      return Object.freeze({
+        ...collision,
+        creationStatus: "RECONCILED" as const,
+        releaseChecksum: input.release.releaseChecksum,
+        ownerAuthenticationMethod: "no_login" as const,
+        ownerAuthenticationReadback: "PASS" as const,
+        endpointPrerequisite: "READ_WRITE_ENDPOINT_PRESENT" as const,
+        endpointId: endpoint.endpointId,
+        providerHttpStatus: null,
+        providerErrorCode: null,
+        providerRequestId: null,
+        operationIds: Object.freeze([]),
+        operationPollingResult: "NOT_APPLICABLE" as const,
+        deterministicReadbackResult: "MATCH" as const,
+        mutationCalls: 0 as const,
+        databasePostCalls: 0 as const,
+        automaticPostRetries: 0 as const,
+      })
     }
-    let mutationReturned = false
+    const path = `/projects/${encoded(approval.projectId)}/branches/${encoded(approval.targetGreenBranchId)}/databases`
+    let response: MvpNeonTransportResponse | null = null
+    let failure: MvpGreenInfrastructureError | null = null
+    let operationIds: readonly string[] = Object.freeze([])
+    let operationPollingResult: MvpGreenCreatedDatabase["operationPollingResult"] = "NOT_APPLICABLE"
     try {
-      const response = await this.transport.request({
+      response = await this.transport.request({
         method: "POST",
-        path: `/projects/${encoded(approval.projectId)}/branches/${encoded(approval.targetGreenBranchId)}/databases`,
+        path,
         body: { database: { name: approval.targetDatabaseName, owner_name: approval.targetOwnerRole } },
       })
-      requireSuccessful(response, "RELEASE_DATABASE_CREATION_FAILED")
-      mutationReturned = Boolean(databaseFromBody(response.body))
+      requireSuccessful(response, "RELEASE_DATABASE_CREATION_FAILED", path, "GREEN_DATABASE_CREATE")
+      const providerDatabase = databaseFromBody(response.body)
+      if (providerDatabase) {
+        if (
+          typeof providerDatabase.branch_id !== "string"
+          || typeof providerDatabase.name !== "string"
+          || typeof providerDatabase.owner_name !== "string"
+          || typeof providerDatabase.created_at !== "string"
+        ) {
+          throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE", providerEvidence({
+            response,
+            requestPath: path,
+            operationKind: "GREEN_DATABASE_CREATE",
+            responseReceived: true,
+            timedOut: false,
+          }))
+        }
+        if (
+          providerDatabase.branch_id !== approval.targetGreenBranchId
+          || providerDatabase.name !== approval.targetDatabaseName
+        ) {
+          throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+        }
+        if (providerDatabase.owner_name !== approval.targetOwnerRole) {
+          throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+        }
+        try {
+          normalizedDatabase({
+            projectId: approval.projectId,
+            branchId: approval.targetGreenBranchId,
+            value: providerDatabase,
+          })
+        } catch {
+          throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE", providerEvidence({
+            response,
+            requestPath: path,
+            operationKind: "GREEN_DATABASE_CREATE",
+            responseReceived: true,
+            timedOut: false,
+          }))
+        }
+      }
+      operationIds = Object.freeze(operationsFromBody(response.body).map((operation) => (
+        typeof operation.id === "string" ? operation.id : ""
+      )).filter((operationId) => /^[0-9a-f-]{36}$/.test(operationId)))
+      if (!providerDatabase && !operationIds.length) {
+        throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE", providerEvidence({
+          response,
+          requestPath: path,
+          operationKind: "GREEN_DATABASE_CREATE",
+          responseReceived: true,
+          timedOut: false,
+        }))
+      }
+      for (const operationId of operationIds) {
+        await this.pollOperation(approval.projectId, operationId, "GREEN_DATABASE_CREATE")
+      }
+      operationPollingResult = operationIds.length ? "PASS" : "NOT_APPLICABLE"
     } catch (error) {
-      if (error instanceof MvpGreenInfrastructureError && error.code === "NEON_AUTHENTICATION_FAILURE") throw error
+      failure = error instanceof MvpGreenInfrastructureError
+        ? error
+        : new MvpGreenInfrastructureError("NEON_TRANSPORT_FAILURE", providerEvidence({
+          requestPath: path,
+          operationKind: "GREEN_DATABASE_CREATE",
+          responseReceived: false,
+          timedOut: false,
+        }))
+      if (
+        failure.code === "NEON_AUTHENTICATION_FAILURE"
+        || failure.code === "NEON_BAD_REQUEST"
+        || failure.code === "RELEASE_DATABASE_IDENTITY_UNVERIFIED"
+        || failure.code === "OWNER_ROLE_CONTRACT_MISMATCH"
+      ) throw failure
+      if (failure.code === "NEON_OPERATION_FAILED" || failure.code === "NEON_OPERATION_TIMEOUT") {
+        operationPollingResult = "FAIL_RECONCILED"
+      }
     }
-    const readback = await this.inspectReleaseDatabase({
-      projectId: approval.projectId,
-      branchId: approval.targetGreenBranchId,
-      databaseName: approval.targetDatabaseName,
-    })
+    let readback: MvpGreenDatabaseInspection | null
+    try {
+      const postMutationInventory = await this.listInheritedDatabases(
+        approval.projectId,
+        approval.targetGreenBranchId,
+      )
+      const postMutationMatches = postMutationInventory.filter(
+        (database) => database.databaseName === approval.targetDatabaseName,
+      )
+      if (postMutationMatches.length > 1) {
+        throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+      }
+      if (!postMutationMatches.length) {
+        if (failure) throw failure
+        throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+      }
+      readback = await this.inspectReleaseDatabase({
+        projectId: approval.projectId,
+        branchId: approval.targetGreenBranchId,
+        databaseName: approval.targetDatabaseName,
+      })
+    } catch (readbackError) {
+      if (
+        readbackError instanceof MvpGreenInfrastructureError
+        && (
+          readbackError.code === "RELEASE_DATABASE_IDENTITY_UNVERIFIED"
+          || readbackError.code === "OWNER_ROLE_CONTRACT_MISMATCH"
+        )
+      ) throw readbackError
+      if (failure) throw failure
+      throw readbackError
+    }
     if (!readback) {
-      throw new MvpGreenInfrastructureError(mutationReturned ? "RELEASE_DATABASE_IDENTITY_UNVERIFIED" : "RELEASE_DATABASE_CREATION_FAILED")
+      if (failure) throw failure
+      throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED", response
+        ? providerEvidence({
+          response,
+          requestPath: path,
+          operationKind: "GREEN_DATABASE_CREATE",
+          responseReceived: true,
+          timedOut: false,
+        })
+        : null)
     }
-    if (readback.ownerName !== approval.targetOwnerRole || readback.branchId !== approval.targetGreenBranchId) {
+    if (readback.branchId !== approval.targetGreenBranchId) {
       throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
     }
-    return Object.freeze({ ...readback, creationStatus: "CREATED" as const, releaseChecksum: input.release.releaseChecksum })
+    if (readback.ownerName !== approval.targetOwnerRole) {
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+    }
+    const evidence = response
+      ? providerEvidence({
+        response,
+        requestPath: path,
+        operationKind: "GREEN_DATABASE_CREATE",
+        responseReceived: true,
+        timedOut: false,
+      })
+      : failure?.evidence
+    return Object.freeze({
+      ...readback,
+      creationStatus: failure ? "RECONCILED" as const : "CREATED" as const,
+      releaseChecksum: input.release.releaseChecksum,
+      ownerAuthenticationMethod: "no_login" as const,
+      ownerAuthenticationReadback: "PASS" as const,
+      endpointPrerequisite: "READ_WRITE_ENDPOINT_PRESENT" as const,
+      endpointId: endpoint.endpointId,
+      providerHttpStatus: evidence?.httpStatus ?? null,
+      providerErrorCode: evidence?.providerErrorCode ?? null,
+      providerRequestId: evidence?.providerRequestId ?? null,
+      operationIds,
+      operationPollingResult,
+      deterministicReadbackResult: "MATCH" as const,
+      mutationCalls: 1 as const,
+      databasePostCalls: 1 as const,
+      automaticPostRetries: 0 as const,
+    })
   }
 }

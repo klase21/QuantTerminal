@@ -183,6 +183,17 @@ class FakeNeonTransport implements MvpNeonTransport {
   operationStates: string[] = ["finished"]
   operationGetCount = 0
   databaseResponseLost = false
+  databasePostStatus = 201
+  databasePostCreatesDatabase = true
+  databasePostErrorBody: unknown = null
+  databasePostThrowBefore: MvpGreenInfrastructureError | null = null
+  databasePostThrowAfter: MvpGreenInfrastructureError | null = null
+  databasePostMalformed = false
+  databasePostIncludesOperation = false
+  databasePostOperationCount = 1
+  databasePostIncludesDatabase = true
+  databaseReadbackOwnerName: string | null = null
+  databaseDetailMalformed = false
   onBranchLookup: (() => void) | null = null
   authFailure = false
   projectId: string = MVP_GREEN_PRODUCTION_PROJECT_ID
@@ -269,7 +280,8 @@ class FakeNeonTransport implements MvpNeonTransport {
     const databaseDetail = input.path.match(/^\/projects\/[^/]+\/branches\/(br-[^/]+)\/databases\/([^/]+)$/)
     if (input.method === "GET" && databaseDetail) {
       const database = (this.databases.get(databaseDetail[1]!) ?? []).find((value) => value.name === databaseDetail[2])
-      return database ? { status: 200, body: { database } } : { status: 404, body: {} }
+      if (!database) return { status: 404, body: {} }
+      return this.databaseDetailMalformed ? { status: 200, body: {} } : { status: 200, body: { database } }
     }
     const roleList = input.path.match(/^\/projects\/[^/]+\/branches\/(br-[^/]+)\/roles$/)
     if (input.method === "GET" && roleList) {
@@ -445,16 +457,46 @@ class FakeNeonTransport implements MvpNeonTransport {
       }
     }
     if (input.method === "POST" && databaseList) {
+      if (this.databasePostThrowBefore) throw this.databasePostThrowBefore
       const databaseInput = input.body?.database as { name: string; owner_name: string }
       const database: Database = {
         branch_id: databaseList[1]!,
         name: databaseInput.name,
-        owner_name: databaseInput.owner_name,
+        owner_name: this.databaseReadbackOwnerName ?? databaseInput.owner_name,
         created_at: NOW,
       }
-      this.databases.set(database.branch_id, [...(this.databases.get(database.branch_id) ?? []), database])
+      if (this.databasePostCreatesDatabase) {
+        this.databases.set(database.branch_id, [...(this.databases.get(database.branch_id) ?? []), database])
+      }
+      if (this.databasePostThrowAfter) throw this.databasePostThrowAfter
       if (this.databaseResponseLost) throw new Error("NETWORK_RESPONSE_LOST")
-      return { status: 201, body: { database } }
+      const operations = Array.from({ length: this.databasePostOperationCount }, (_, index): Operation => ({
+        id: `33333333-3333-4333-8333-${String(index + 1).padStart(12, "0")}`,
+        project_id: MVP_GREEN_PRODUCTION_PROJECT_ID,
+        branch_id: database.branch_id,
+        endpoint_id: this.endpoints.get(database.branch_id)?.[0]?.id ?? null,
+        action: "create_database",
+        status: this.operationStates[0] ?? "finished",
+        failures_count: 0,
+        created_at: NOW,
+        updated_at: NOW,
+      }))
+      if (this.databasePostIncludesOperation) {
+        for (const operation of operations) this.operations.set(operation.id, operation)
+      }
+      return {
+        status: this.databasePostStatus,
+        body: this.databasePostErrorBody ?? {
+          ...(this.databasePostIncludesDatabase ? { database } : {}),
+          ...(this.databasePostIncludesOperation ? { operations } : {}),
+          connection_uri: "postgres://must-never-escape",
+          password: "must-never-escape",
+          token: "must-never-escape",
+          authorization: "Bearer must-never-escape",
+        },
+        headers: { "x-request-id": "req-green-database-123", "retry-after": "2" },
+        malformedBody: this.databasePostMalformed,
+      }
     }
     return { status: 404, body: {} }
   }
@@ -583,6 +625,15 @@ function targetOwnerRole(authenticationMethod?: string): Role {
     created_at: NOW,
     updated_at: NOW,
   }
+}
+
+async function preparedDatabaseFixture() {
+  const fixture = await preparedRoleFixture()
+  fixture.transport.roles.set(GREEN_BRANCH_ID, [
+    ...(fixture.transport.roles.get(GREEN_BRANCH_ID) ?? []),
+    targetOwnerRole("no_login"),
+  ])
+  return fixture
 }
 
 {
@@ -904,6 +955,13 @@ function targetOwnerRole(authenticationMethod?: string): Role {
   })
   assert.equal(database.creationStatus, "CREATED")
   assert.equal(database.databaseName, release.databaseName)
+  assert.equal(database.ownerAuthenticationMethod, "no_login")
+  assert.equal(database.ownerAuthenticationReadback, "PASS")
+  assert.equal(database.endpointPrerequisite, "READ_WRITE_ENDPOINT_PRESENT")
+  assert.equal(database.databasePostCalls, 1)
+  assert.equal(database.automaticPostRetries, 0)
+  assert.equal(database.operationPollingResult, "NOT_APPLICABLE")
+  assert.equal(JSON.stringify(database).includes("must-never-escape"), false)
   const rolePost = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/roles"))
   assert.equal(rolePost?.path, `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/roles`)
   assert.equal((rolePost?.body as { role?: { name?: string } }).role?.name, MVP_GREEN_MIGRATION_OWNER_ROLE)
@@ -924,6 +982,7 @@ function targetOwnerRole(authenticationMethod?: string): Role {
     parentState: parent,
     at: NOW,
   })).creationStatus, "RECONCILED")
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/databases")).length, 1)
 }
 
 {
@@ -1489,7 +1548,9 @@ function targetOwnerRole(authenticationMethod?: string): Role {
     parentState: parent,
     at: NOW,
   })
-  assert.equal(database.creationStatus, "CREATED")
+  assert.equal(database.creationStatus, "RECONCILED")
+  assert.equal(database.databasePostCalls, 1)
+  assert.equal(database.automaticPostRetries, 0)
 }
 
 {
@@ -2349,6 +2410,20 @@ for (const authenticationMethod of ["password", "oauth"] as const) {
     assert.notEqual(cli.status, 0)
     assert.match(cli.stderr, /MVP_GREEN_UNCHECKED_OWNER_ROLE_FORBIDDEN/)
   }
+  for (const databaseArguments of [
+    ["--database-name=unchecked_database"],
+    ["--green-branch-id=br-unchecked-branch"],
+    ["--branch-id", "br-unchecked-branch"],
+  ]) {
+    const cli = spawnSync(process.execPath, [
+      "node_modules/tsx/dist/cli.mjs",
+      "workers/data-platform/runMvpGreenRelease.ts",
+      "create-database",
+      ...databaseArguments,
+    ], { cwd: process.cwd(), encoding: "utf8" })
+    assert.notEqual(cli.status, 0)
+    assert.match(cli.stderr, /MVP_GREEN_UNCHECKED_DATABASE_CONFIGURATION_FORBIDDEN/)
+  }
   for (const endpointArguments of [
     ["--endpoint-type=read_only"],
     ["--endpoint-autoscaling-max-cu", "8"],
@@ -2389,6 +2464,345 @@ assert.deepEqual(
   ],
 )
 assert.doesNotThrow(() => assertMvpGreenStageReceiptSanitized(blockedReceipt))
+
+// Database provider error preservation, optional operation polling, and
+// deterministic unknown-outcome reconciliation all use fake transport only.
+{
+  for (const [roles, code] of [
+    [[{ ...targetOwnerRole("no_login"), protected: true }], "OWNER_ROLE_CONTRACT_MISMATCH"],
+    [[targetOwnerRole("password")], "OWNER_ROLE_CONTRACT_MISMATCH"],
+    [[targetOwnerRole("oauth")], "OWNER_ROLE_CONTRACT_MISMATCH"],
+    [[targetOwnerRole()], "ROLE_IDENTITY_UNVERIFIED"],
+    [[targetOwnerRole("no_login"), targetOwnerRole("no_login")], "OWNER_ROLE_CONTRACT_MISMATCH"],
+  ] as const) {
+    const { transport, adapter, parent } = await preparedDatabaseFixture()
+    transport.roles.set(GREEN_BRANCH_ID, [...roles])
+    await assert.rejects(
+      () => adapter.createReleaseDatabase({
+        release,
+        approval: approval("GREEN_DATABASE_CREATE", release, parent),
+        parentState: parent,
+        at: NOW,
+      }),
+      new RegExp(code),
+    )
+    assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/databases")).length, 0)
+  }
+}
+
+{
+  for (const [status, code] of [
+    [400, "NEON_BAD_REQUEST"],
+    [401, "NEON_AUTHENTICATION_FAILURE"],
+    [403, "NEON_AUTHENTICATION_FAILURE"],
+    [409, "NEON_CONFLICT"],
+    [422, "NEON_BAD_REQUEST"],
+    [423, "NEON_RESOURCE_LOCKED"],
+    [429, "NEON_RATE_LIMIT"],
+    [500, "NEON_PROVIDER_TRANSIENT_FAILURE"],
+    [503, "NEON_PROVIDER_TRANSIENT_FAILURE"],
+  ] as const) {
+    const { transport, adapter, parent } = await preparedDatabaseFixture()
+    transport.databasePostStatus = status
+    transport.databasePostCreatesDatabase = false
+    transport.databasePostErrorBody = {
+      code: `database_${status}`,
+      message: "{\"password\":\"must-never-escape\",\"token\":\"hidden\",\"authorization\":\"Bearer-secret\",\"connection_uri\":\"postgres://secret@host/db\"}",
+    }
+    let caught: unknown = null
+    try {
+      await adapter.createReleaseDatabase({
+        release,
+        approval: approval("GREEN_DATABASE_CREATE", release, parent),
+        parentState: parent,
+        at: NOW,
+      })
+    } catch (error) {
+      caught = error
+    }
+    assert.equal(caught instanceof MvpGreenInfrastructureError, true)
+    assert.equal((caught as MvpGreenInfrastructureError).code, code)
+    assert.equal((caught as MvpGreenInfrastructureError).evidence?.httpStatus, status)
+    assert.equal((caught as MvpGreenInfrastructureError).evidence?.providerRequestId, "req-green-database-123")
+    if (status === 429) assert.equal((caught as MvpGreenInfrastructureError).evidence?.retryAfterMs, 2_000)
+    assert.equal(JSON.stringify((caught as MvpGreenInfrastructureError).evidence).includes("must-never-escape"), false)
+    assert.equal(JSON.stringify((caught as MvpGreenInfrastructureError).evidence).includes("Bearer-secret"), false)
+    assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/databases")).length, 1)
+  }
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databasePostCreatesDatabase = false
+  transport.databaseResponseLost = true
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_TRANSPORT_FAILURE/,
+  )
+}
+
+{
+  for (const status of [409, 423, 429, 500, 503]) {
+    const { transport, adapter, parent } = await preparedDatabaseFixture()
+    transport.databasePostStatus = status
+    transport.databasePostErrorBody = { code: `database_${status}`, message: "safe provider failure" }
+    const reconciled = await adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    })
+    assert.equal(reconciled.creationStatus, "RECONCILED")
+    assert.equal(reconciled.providerHttpStatus, status)
+    assert.equal(reconciled.databasePostCalls, 1)
+    assert.equal(reconciled.automaticPostRetries, 0)
+    assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/databases")).length, 1)
+  }
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databases.get(GREEN_BRANCH_ID)!.push({
+    branch_id: GREEN_BRANCH_ID,
+    name: release.databaseName,
+    owner_name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+    created_at: NOW,
+  })
+  transport.databaseDetailMalformed = true
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /RELEASE_DATABASE_IDENTITY_UNVERIFIED/,
+  )
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databasePostThrowAfter = new MvpGreenInfrastructureError("NEON_REQUEST_TIMEOUT", {
+    httpStatus: null,
+    providerErrorCode: null,
+    providerMessage: null,
+    providerRequestId: null,
+    operationIds: Object.freeze([]),
+    retryAfterMs: null,
+    requestPath: `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/databases`,
+    operationKind: "GREEN_DATABASE_CREATE",
+    responseReceived: false,
+    timedOut: true,
+  })
+  const reconciled = await adapter.createReleaseDatabase({
+    release,
+    approval: approval("GREEN_DATABASE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(reconciled.databasePostCalls, 1)
+  assert.equal(reconciled.providerHttpStatus, null)
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/databases")).length, 1)
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databasePostCreatesDatabase = false
+  transport.databasePostThrowBefore = new MvpGreenInfrastructureError("NEON_REQUEST_TIMEOUT", {
+    httpStatus: null,
+    providerErrorCode: null,
+    providerMessage: null,
+    providerRequestId: null,
+    operationIds: Object.freeze([]),
+    retryAfterMs: null,
+    requestPath: `/projects/${MVP_GREEN_PRODUCTION_PROJECT_ID}/branches/${GREEN_BRANCH_ID}/databases`,
+    operationKind: "GREEN_DATABASE_CREATE",
+    responseReceived: false,
+    timedOut: true,
+  })
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_REQUEST_TIMEOUT/,
+  )
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databasePostCreatesDatabase = false
+  transport.databasePostIncludesDatabase = false
+  transport.databasePostMalformed = true
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_MALFORMED_RESPONSE/,
+  )
+  transport.databasePostMalformed = false
+  transport.databasePostCreatesDatabase = true
+  const reconciled = await adapter.createReleaseDatabase({
+    release,
+    approval: approval("GREEN_DATABASE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databasePostIncludesOperation = true
+  transport.databasePostOperationCount = 2
+  transport.operationStates = ["running", "finished", "finished"]
+  const created = await adapter.createReleaseDatabase({
+    release,
+    approval: approval("GREEN_DATABASE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(created.creationStatus, "CREATED")
+  assert.equal(created.operationIds.length, 2)
+  assert.equal(created.operationPollingResult, "PASS")
+  assert.equal(transport.operationGetCount, 3)
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databasePostIncludesOperation = true
+  transport.operationStates = ["error"]
+  const reconciled = await adapter.createReleaseDatabase({
+    release,
+    approval: approval("GREEN_DATABASE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(reconciled.operationPollingResult, "FAIL_RECONCILED")
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databasePostIncludesOperation = true
+  transport.operationStates = ["running", "running", "running", "running"]
+  const reconciled = await adapter.createReleaseDatabase({
+    release,
+    approval: approval("GREEN_DATABASE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(reconciled.operationPollingResult, "FAIL_RECONCILED")
+  assert.equal(transport.operationGetCount, 4)
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databasePostCreatesDatabase = false
+  transport.databasePostIncludesOperation = true
+  transport.operationStates = ["error"]
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_OPERATION_FAILED/,
+  )
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databases.get(GREEN_BRANCH_ID)!.push({
+    branch_id: GREEN_BRANCH_ID,
+    name: release.databaseName,
+    owner_name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+    created_at: NOW,
+  })
+  const existing = await adapter.createReleaseDatabase({
+    release,
+    approval: approval("GREEN_DATABASE_CREATE", release, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  assert.equal(existing.creationStatus, "RECONCILED")
+  assert.equal(existing.databasePostCalls, 0)
+  assert.equal(existing.mutationCalls, 0)
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databases.get(GREEN_BRANCH_ID)!.push({
+    branch_id: GREEN_BRANCH_ID,
+    name: release.databaseName,
+    owner_name: "neondb_owner",
+    created_at: NOW,
+  })
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /OWNER_ROLE_CONTRACT_MISMATCH/,
+  )
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/databases")).length, 0)
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.databases.get(GREEN_BRANCH_ID)!.push(
+    {
+      branch_id: GREEN_BRANCH_ID,
+      name: release.databaseName,
+      owner_name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+      created_at: NOW,
+    },
+    {
+      branch_id: GREEN_BRANCH_ID,
+      name: release.databaseName,
+      owner_name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+      created_at: NOW,
+    },
+  )
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /RELEASE_DATABASE_IDENTITY_UNVERIFIED/,
+  )
+}
+
+{
+  const { transport, adapter, parent } = await preparedDatabaseFixture()
+  transport.endpoints.set(GREEN_BRANCH_ID, [])
+  await assert.rejects(
+    () => adapter.createReleaseDatabase({
+      release,
+      approval: approval("GREEN_DATABASE_CREATE", release, parent),
+      parentState: parent,
+      at: NOW,
+    }),
+    /NEON_ENDPOINT_REQUIRED/,
+  )
+}
 
 {
   const order: string[] = []
@@ -2490,6 +2904,16 @@ console.log(JSON.stringify({
   secondAutomaticRolePost: 0,
   roleSecretRedaction: "PASS",
   databaseReadbackReconciliation: "PASS",
+  databaseExactProviderPath: "PASS",
+  databaseOwnerNoLoginVerification: "PASS",
+  databaseProviderErrorPreservation: "PASS",
+  databaseHttpStatusClassification: "PASS",
+  databaseOptionalOperationParsing: "PASS",
+  databaseOperationPolling: "PASS",
+  databaseUnknownOutcomeReconciliation: "PASS",
+  databaseCreatedVersusReconciled: "PASS",
+  secondAutomaticDatabasePost: 0,
+  databaseSecretRedaction: "PASS",
   frozenReleaseIdentity: "PASS",
   receiptSemantics: "PASS",
   certificationOnly: "PASS",
