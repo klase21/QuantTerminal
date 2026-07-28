@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
+import { randomBytes } from "node:crypto"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import {
+  AtomicJsonDpapiEnvelopeStore,
   MVP_GREEN_MIGRATION_CREDENTIAL_STORE_SCOPE,
   MVP_GREEN_MIGRATION_EXECUTION_SCHEMA_VERSION,
   MVP_GREEN_MIGRATION_GRANT_EXECUTOR_ROLE,
@@ -15,6 +20,7 @@ import {
   discoverMvpGreenServingMigrationPlan,
   executeMvpGreenSetRoleServingMigrations,
   TargetBoundWindowsUserScopeDpapiCredentialStore,
+  WindowsCurrentUserDpapiProtector,
   verifyMvpGreenServingMigrationPlan,
   verifyMvpGreenTargetBoundDpapiEnvelope,
   type MvpGreenDpapiEnvelopeStore,
@@ -85,6 +91,36 @@ async function main() {
   assert.deepEqual(protector.calls.map((call) => call.operation), ["protect", "unprotect"])
   await assert.rejects(credentials.get("C:\\isolated-test\\credential.dpapi.json", loginRole, "e".repeat(64)), /MVP_GREEN_DPAPI_ENVELOPE_INVALID/)
   assert.throws(() => new TargetBoundWindowsUserScopeDpapiCredentialStore({ scope: "MACHINE" as never, protect: protector.protect.bind(protector), unprotect: protector.unprotect.bind(protector) }, envelopes), /MVP_GREEN_DPAPI_CURRENT_USER_REQUIRED/)
+  if (process.platform === "win32") {
+    const directory = await mkdtemp(join(tmpdir(), "qt-green-dpapi-suite-"))
+    const storePath = join(directory, "credential.dpapi.json")
+    let secret = randomBytes(48).toString("base64url")
+    try {
+      const windowsCredentials = new TargetBoundWindowsUserScopeDpapiCredentialStore(
+        new WindowsCurrentUserDpapiProtector(),
+        new AtomicJsonDpapiEnvelopeStore(process.cwd()),
+      )
+      await windowsCredentials.put({
+        path: storePath,
+        credentialId: loginRole,
+        targetChecksum: credentialTargetChecksum,
+        projectId: target.projectId,
+        branchId: target.branchId,
+        databaseName: target.databaseName,
+        roleName: loginRole,
+        releaseChecksum: "d".repeat(64),
+        creationInvocationId: "windows-dpapi-subprocess-test",
+        createdAt: "2026-07-28T00:00:00.000Z",
+        secret,
+        allowWrite: true,
+      })
+      assert.equal((await readFile(storePath, "utf8")).includes(secret), false)
+      assert.equal(await windowsCredentials.get(storePath, loginRole, credentialTargetChecksum), secret)
+    } finally {
+      secret = ""
+      await rm(directory, { recursive: true, force: true })
+    }
+  }
   assert.doesNotThrow(() => assertMvpGreenGrantExecutorTarget(target, observed))
   assert.throws(() => assertMvpGreenGrantExecutorTarget({ ...target, executorRole: target.ownerRole } as unknown as typeof target, observed), /MVP_GREEN_GRANT_EXECUTOR_TARGET_INVALID/)
   assert.throws(() => assertMvpGreenGrantExecutorTarget(target, { ...observed, transactionReadOnly: "on" }), /MVP_GREEN_GRANT_EXECUTOR_TARGET_MISMATCH/)

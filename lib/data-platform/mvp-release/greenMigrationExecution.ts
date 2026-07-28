@@ -142,16 +142,28 @@ export class TargetBoundWindowsUserScopeDpapiCredentialStore {
   }
 }
 
-const PROTECT_SCRIPT = "$p=[Console]::In.ReadToEnd();$e=[Convert]::FromBase64String($env:QT_GREEN_DPAPI_ENTROPY);$b=[Text.Encoding]::UTF8.GetBytes($p);$c=[Security.Cryptography.ProtectedData]::Protect($b,$e,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($c))"
-const UNPROTECT_SCRIPT = "$c=[Convert]::FromBase64String([Console]::In.ReadToEnd());$e=[Convert]::FromBase64String($env:QT_GREEN_DPAPI_ENTROPY);$b=[Security.Cryptography.ProtectedData]::Unprotect($c,$e,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($b))"
+const DPAPI_TYPE_RESOLUTION_SCRIPT = "$ErrorActionPreference='Stop';try{$null=[System.Security.Cryptography.ProtectedData];$null=[System.Security.Cryptography.DataProtectionScope]}catch{Add-Type -AssemblyName System.Security -ErrorAction Stop;$null=[System.Security.Cryptography.ProtectedData];$null=[System.Security.Cryptography.DataProtectionScope]};"
+const PROTECT_SCRIPT = `${DPAPI_TYPE_RESOLUTION_SCRIPT}$b=[Convert]::FromBase64String([Console]::In.ReadToEnd());$e=[Convert]::FromBase64String($env:QT_GREEN_DPAPI_ENTROPY);$c=[System.Security.Cryptography.ProtectedData]::Protect($b,$e,[System.Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($c))`
+const UNPROTECT_SCRIPT = `${DPAPI_TYPE_RESOLUTION_SCRIPT}$c=[Convert]::FromBase64String([Console]::In.ReadToEnd());$e=[Convert]::FromBase64String($env:QT_GREEN_DPAPI_ENTROPY);$b=[System.Security.Cryptography.ProtectedData]::Unprotect($c,$e,[System.Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($b))`
 
-async function runDpapiPowerShell(script: string, input: Uint8Array | string, entropy: Uint8Array): Promise<Uint8Array> {
+async function runDpapiPowerShell(
+  script: string,
+  input: Uint8Array,
+  entropy: Uint8Array,
+  failureCode: "MVP_GREEN_DPAPI_PROTECT_FAILED" | "MVP_GREEN_DPAPI_UNPROTECT_FAILED",
+): Promise<Uint8Array> {
   if (process.platform !== "win32") throw new Error("MVP_GREEN_DPAPI_WINDOWS_REQUIRED")
   const encodedScript = Buffer.from(script, "utf16le").toString("base64")
   const windowsRoot = process.env.SystemRoot ?? process.env.WINDIR
   if (!windowsRoot) throw new Error("MVP_GREEN_DPAPI_RUNTIME_UNAVAILABLE")
   const executable = path.join(windowsRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
   return new Promise<Uint8Array>((resolve, reject) => {
+    let settled = false
+    const fail = () => {
+      if (settled) return
+      settled = true
+      reject(new Error(failureCode))
+    }
     const child = spawn(executable, ["-NoProfile", "-NonInteractive", "-EncodedCommand", encodedScript], {
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
@@ -171,12 +183,17 @@ async function runDpapiPowerShell(script: string, input: Uint8Array | string, en
       if (outputBytes <= 1024 * 1024) output.push(chunk)
     })
     child.stderr.resume()
-    child.once("error", () => reject(new Error("MVP_GREEN_DPAPI_PROCESS_FAILED")))
+    child.once("error", fail)
     child.once("exit", (code) => {
-      if (code !== 0 || outputBytes > 1024 * 1024) return reject(new Error("MVP_GREEN_DPAPI_PROCESS_FAILED"))
-      resolve(Buffer.concat(output))
+      if (code !== 0 || outputBytes > 1024 * 1024) return fail()
+      const encoded = Buffer.concat(output).toString("ascii")
+      if (!encoded || encoded.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) return fail()
+      const decoded = Buffer.from(encoded, "base64")
+      if (!decoded.length || decoded.toString("base64") !== encoded) return fail()
+      settled = true
+      resolve(decoded)
     })
-    child.stdin.end(input)
+    child.stdin.end(Buffer.from(input).toString("base64"), "utf8")
   })
 }
 
@@ -205,12 +222,11 @@ async function restrictCurrentWindowsUserAcl(pathname: string): Promise<void> {
 
 export class WindowsCurrentUserDpapiProtector implements MvpGreenDpapiProtector {
   readonly scope = MVP_GREEN_MIGRATION_CREDENTIAL_STORE_SCOPE
-  async protect(plaintext: Uint8Array, entropy: Uint8Array): Promise<Uint8Array> {
-    const encoded = await runDpapiPowerShell(PROTECT_SCRIPT, plaintext, entropy)
-    try { return Buffer.from(Buffer.from(encoded).toString("utf8"), "base64") } catch { throw new Error("MVP_GREEN_DPAPI_PROCESS_FAILED") }
+  protect(plaintext: Uint8Array, entropy: Uint8Array): Promise<Uint8Array> {
+    return runDpapiPowerShell(PROTECT_SCRIPT, plaintext, entropy, "MVP_GREEN_DPAPI_PROTECT_FAILED")
   }
   unprotect(ciphertext: Uint8Array, entropy: Uint8Array): Promise<Uint8Array> {
-    return runDpapiPowerShell(UNPROTECT_SCRIPT, Buffer.from(ciphertext).toString("base64"), entropy)
+    return runDpapiPowerShell(UNPROTECT_SCRIPT, ciphertext, entropy, "MVP_GREEN_DPAPI_UNPROTECT_FAILED")
   }
 }
 
