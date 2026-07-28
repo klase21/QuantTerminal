@@ -3,7 +3,7 @@ import postgres from "postgres"
 import { createMvpBlueGreenBranchPlan, type MvpBlueGreenBranchPlan } from "./blueGreen"
 
 export const MVP_GREEN_INFRASTRUCTURE_SCHEMA_VERSION = "mvp-green-infrastructure/1.0.0" as const
-export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.4.0" as const
+export const MVP_GREEN_APPROVAL_SCHEMA_VERSION = "mvp-green-infrastructure-approval/1.5.0" as const
 export const MVP_GREEN_PRODUCTION_PROJECT_ID = "soft-cell-16396854" as const
 export const MVP_GREEN_PRODUCTION_BRANCH_ID = "br-flat-grass-ao9rtnyr" as const
 export const MVP_GREEN_PRODUCTION_DATABASE = "neondb" as const
@@ -11,6 +11,9 @@ export const MVP_GREEN_ROLLBACK_BRANCH_ID = "br-royal-block-aop70mzq" as const
 export const MVP_GREEN_REJECTED_BRANCH_ID = "br-odd-leaf-ao61pbg4" as const
 export const MVP_GREEN_REJECTED_DATABASE = "mvp_release_20260719" as const
 export const MVP_GREEN_MIGRATION_OWNER_ROLE = "mvp_green_migration_owner" as const
+export const MVP_GREEN_MIGRATION_LOGIN_ROLE = "mvp_green_migration_login_9c177d6309" as const
+export const MVP_GREEN_GRANT_EXECUTOR_ROLE = "neondb_owner" as const
+export const MVP_GREEN_CREDENTIAL_HANDOFF_TYPE = "WINDOWS_DPAPI_USER_SCOPE" as const
 export const MVP_GREEN_FROZEN_RELEASE_APPLICATION_COMMIT = "a4590b21dd8929df679f9eb2aa823d6c019a0b31" as const
 export const MVP_GREEN_FROZEN_RELEASE_CHECKSUM = "894b0cea24a869817d2cdbb3ca94c3b240c18ae5d0ec128353893a4dfcf9587a" as const
 export const MVP_GREEN_FROZEN_BRANCH_NAME = "mvp-release-2026-07-21-ef67d73549b7" as const
@@ -33,6 +36,10 @@ export type MvpGreenOperationKind =
   | "GREEN_OWNER_ROLE_CREATE"
   | "GREEN_DATABASE_CREATE"
   | "GREEN_ENDPOINT_CREATE"
+  | "GREEN_MIGRATION_LOGIN_ROLE_CREATE"
+  | "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT"
+  | "GREEN_MIGRATION_EXECUTE"
+  | "GREEN_MIGRATION_ROLE_MEMBERSHIP_REVOKE"
   | "GREEN_ACQUISITION_START"
 
 export type MvpGreenInfrastructureErrorCode =
@@ -66,6 +73,8 @@ export type MvpGreenInfrastructureErrorCode =
   | "OWNER_ROLE_MISSING"
   | "ROLE_CREATION_FAILED"
   | "ROLE_IDENTITY_UNVERIFIED"
+  | "ROLE_CREDENTIAL_HANDOFF_FAILED"
+  | "MIGRATION_LOGIN_ROLE_CONTRACT_MISMATCH"
   | "DATABASE_APPROVAL_BINDING_INVALID"
   | "RELEASE_DATABASE_NAME_CONFLICT"
   | "RELEASE_DATABASE_CREATION_FAILED"
@@ -132,6 +141,13 @@ export interface MvpGreenOperationApproval {
   readonly targetEndpointSuspendTimeoutSeconds: number | null
   readonly targetEndpointPoolerEnabled: boolean | null
   readonly targetEndpointProvisioner: string | null
+  readonly targetGrantExecutorRole: string | null
+  readonly targetMembershipAdminOption: boolean | null
+  readonly targetLoginRoleInherit: boolean | null
+  readonly targetMembershipSetRole: boolean | null
+  readonly targetCredentialHandoffType: typeof MVP_GREEN_CREDENTIAL_HANDOFF_TYPE | null
+  readonly targetMigrationPlanChecksum: string | null
+  readonly targetMigrationCount: number | null
   readonly invocationId: string
   readonly actorId: string
   readonly issuedAt: string
@@ -302,6 +318,51 @@ export interface MvpGreenCreatedRole extends MvpGreenRoleInspection {
   readonly deterministicReadbackResult: "MATCH"
 }
 
+export interface MvpGreenCredentialHandoffReceipt {
+  readonly status: "STORED"
+  readonly handoffId: string
+  readonly encryptedStorePathFingerprint: string
+  readonly createdAt: string
+}
+
+export interface MvpGreenMigrationCredentialSink {
+  readonly ready: boolean
+  store(input: {
+    readonly projectId: string
+    readonly branchId: string
+    readonly databaseName: string
+    readonly roleName: string
+    readonly releaseChecksum: string
+    readonly creationInvocationId: string
+    readonly password: string
+  }): Promise<MvpGreenCredentialHandoffReceipt>
+  inspect(input: {
+    readonly projectId: string
+    readonly branchId: string
+    readonly databaseName: string
+    readonly roleName: string
+    readonly releaseChecksum: string
+  }): Promise<"AVAILABLE" | "ABSENT" | "IDENTITY_MISMATCH">
+}
+
+export interface MvpGreenCreatedMigrationLoginRole extends MvpGreenRoleInspection {
+  readonly creationStatus: "CREATED" | "RECONCILED"
+  readonly releaseChecksum: string
+  readonly roleAuthenticationMethod: "password"
+  readonly roleAuthenticationReadback: "PASS"
+  readonly credentialAvailability: "AVAILABLE" | "UNVERIFIED_EXISTING_ROLE"
+  readonly credentialHandoff: MvpGreenCredentialHandoffReceipt | null
+  readonly providerHttpStatus: number | null
+  readonly providerErrorCode: string | null
+  readonly providerRequestId: string | null
+  readonly operationIds: readonly string[]
+  readonly operationPollingResult: "PASS" | "NOT_APPLICABLE" | "FAIL_RECONCILED"
+  readonly deterministicReadbackResult: "MATCH"
+  readonly mutationCalls: 0 | 1
+  readonly rolePostCalls: 0 | 1
+  readonly automaticPostRetries: 0
+}
+
 export type MvpGreenEndpointPrerequisite =
   | "READ_WRITE_ENDPOINT_PRESENT"
   | "NO_ENDPOINT"
@@ -312,6 +373,7 @@ export interface MvpGreenEndpointInspection {
   readonly projectId: string
   readonly branchId: string
   readonly endpointId: string
+  readonly connectionHost: string | null
   readonly endpointType: "read_write" | "read_only"
   readonly currentState: string
   readonly poolerMode: string | null
@@ -444,6 +506,7 @@ interface NeonRole {
 
 interface NeonEndpoint {
   readonly id?: unknown
+  readonly host?: unknown
   readonly project_id?: unknown
   readonly branch_id?: unknown
   readonly type?: unknown
@@ -559,6 +622,13 @@ function roleFromBody(body: unknown): NeonRole | null {
   if (!body || typeof body !== "object") return null
   const record = body as { role?: unknown }
   return record.role && typeof record.role === "object" ? record.role as NeonRole : null
+}
+
+function generatedRolePasswordFromBody(body: unknown): string | null {
+  const role = roleFromBody(body)
+  if (!role || typeof (role as { password?: unknown }).password !== "string") return null
+  const password = (role as { password: string }).password
+  return password.length > 0 ? password : null
 }
 
 function endpointsFromBody(body: unknown): readonly NeonEndpoint[] {
@@ -844,6 +914,13 @@ export function createMvpGreenOperationApproval(input: Omit<MvpGreenOperationApp
     ))
     || (input.targetEndpointPoolerEnabled !== null && typeof input.targetEndpointPoolerEnabled !== "boolean")
     || (input.targetEndpointProvisioner !== null && !ENDPOINT_PROVISIONERS.has(input.targetEndpointProvisioner))
+    || (input.targetGrantExecutorRole !== null && !ROLE_NAME.test(input.targetGrantExecutorRole))
+    || (input.targetMembershipAdminOption !== null && typeof input.targetMembershipAdminOption !== "boolean")
+    || (input.targetLoginRoleInherit !== null && typeof input.targetLoginRoleInherit !== "boolean")
+    || (input.targetMembershipSetRole !== null && typeof input.targetMembershipSetRole !== "boolean")
+    || (input.targetCredentialHandoffType !== null && input.targetCredentialHandoffType !== MVP_GREEN_CREDENTIAL_HANDOFF_TYPE)
+    || (input.targetMigrationPlanChecksum !== null && !CHECKSUM.test(input.targetMigrationPlanChecksum))
+    || (input.targetMigrationCount !== null && (!Number.isInteger(input.targetMigrationCount) || input.targetMigrationCount <= 0))
     || !input.invocationId.trim()
     || !input.actorId.trim()
   ) {
@@ -860,6 +937,8 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
   "operation" | "targetGreenBranchId" | "targetDatabaseName" | "targetRoleName" | "targetRoleNoLogin" | "targetOwnerRole"
   | "targetEndpointType" | "targetEndpointAutoscalingMinCu" | "targetEndpointAutoscalingMaxCu"
   | "targetEndpointSuspendTimeoutSeconds" | "targetEndpointPoolerEnabled" | "targetEndpointProvisioner"
+  | "targetGrantExecutorRole" | "targetMembershipAdminOption" | "targetLoginRoleInherit"
+  | "targetMembershipSetRole" | "targetCredentialHandoffType" | "targetMigrationPlanChecksum" | "targetMigrationCount"
 >): void {
   const protectedBranch = input.targetGreenBranchId !== null
     && new Set<string>([
@@ -868,6 +947,19 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
       MVP_GREEN_REJECTED_BRANCH_ID,
     ]).has(input.targetGreenBranchId)
   if (protectedBranch) throw new MvpGreenInfrastructureError("TARGET_GREEN_BRANCH_IDENTITY_MISMATCH")
+  const endpointFieldsNull = input.targetEndpointType === null
+    && input.targetEndpointAutoscalingMinCu === null
+    && input.targetEndpointAutoscalingMaxCu === null
+    && input.targetEndpointSuspendTimeoutSeconds === null
+    && input.targetEndpointPoolerEnabled === null
+    && input.targetEndpointProvisioner === null
+  const migrationFieldsNull = input.targetGrantExecutorRole === null
+    && input.targetMembershipAdminOption === null
+    && input.targetLoginRoleInherit === null
+    && input.targetMembershipSetRole === null
+    && input.targetCredentialHandoffType === null
+    && input.targetMigrationPlanChecksum === null
+    && input.targetMigrationCount === null
   if (input.operation === "NEON_BRANCH_CREATE") {
     if (
       input.targetGreenBranchId !== null
@@ -881,6 +973,7 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
       || input.targetEndpointSuspendTimeoutSeconds !== null
       || input.targetEndpointPoolerEnabled !== null
       || input.targetEndpointProvisioner !== null
+      || !migrationFieldsNull
     ) {
       throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
     }
@@ -897,6 +990,7 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
       || input.targetEndpointType !== null || input.targetEndpointAutoscalingMinCu !== null
       || input.targetEndpointAutoscalingMaxCu !== null || input.targetEndpointSuspendTimeoutSeconds !== null
       || input.targetEndpointPoolerEnabled !== null || input.targetEndpointProvisioner !== null
+      || !migrationFieldsNull
     ) {
       throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
     }
@@ -914,6 +1008,7 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
       input.targetEndpointType !== null || input.targetEndpointAutoscalingMinCu !== null
       || input.targetEndpointAutoscalingMaxCu !== null || input.targetEndpointSuspendTimeoutSeconds !== null
       || input.targetEndpointPoolerEnabled !== null || input.targetEndpointProvisioner !== null
+      || !migrationFieldsNull
     ) throw new MvpGreenInfrastructureError("DATABASE_APPROVAL_BINDING_INVALID")
     return
   }
@@ -929,7 +1024,79 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
       || input.targetRoleName !== null
       || input.targetRoleNoLogin !== null
       || input.targetOwnerRole !== null
+      || !migrationFieldsNull
     ) throw new MvpGreenInfrastructureError("ENDPOINT_APPROVAL_BINDING_INVALID")
+    return
+  }
+  if (input.operation === "GREEN_MIGRATION_LOGIN_ROLE_CREATE") {
+    if (
+      input.targetDatabaseName !== MVP_GREEN_FROZEN_DATABASE_NAME
+      || input.targetRoleName !== MVP_GREEN_MIGRATION_LOGIN_ROLE
+      || input.targetRoleNoLogin !== false
+      || input.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || input.targetCredentialHandoffType !== MVP_GREEN_CREDENTIAL_HANDOFF_TYPE
+      || input.targetGrantExecutorRole !== null
+      || input.targetMembershipAdminOption !== null
+      || input.targetLoginRoleInherit !== null
+      || input.targetMembershipSetRole !== null
+      || input.targetMigrationPlanChecksum !== null
+      || input.targetMigrationCount !== null
+      || !endpointFieldsNull
+    ) throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+    return
+  }
+  if (input.operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT") {
+    if (
+      input.targetDatabaseName !== MVP_GREEN_FROZEN_DATABASE_NAME
+      || input.targetRoleName !== MVP_GREEN_MIGRATION_LOGIN_ROLE
+      || input.targetRoleNoLogin !== null
+      || input.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || input.targetGrantExecutorRole !== MVP_GREEN_GRANT_EXECUTOR_ROLE
+      || input.targetMembershipAdminOption !== false
+      || input.targetLoginRoleInherit !== false
+      || input.targetMembershipSetRole !== true
+      || input.targetCredentialHandoffType !== null
+      || input.targetMigrationPlanChecksum !== null
+      || input.targetMigrationCount !== null
+      || !endpointFieldsNull
+    ) throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+    return
+  }
+  if (input.operation === "GREEN_MIGRATION_EXECUTE") {
+    if (
+      input.targetDatabaseName !== MVP_GREEN_FROZEN_DATABASE_NAME
+      || input.targetRoleName !== MVP_GREEN_MIGRATION_LOGIN_ROLE
+      || input.targetRoleNoLogin !== null
+      || input.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || input.targetGrantExecutorRole !== null
+      || input.targetMembershipAdminOption !== null
+      || input.targetLoginRoleInherit !== false
+      || input.targetMembershipSetRole !== true
+      || input.targetCredentialHandoffType !== MVP_GREEN_CREDENTIAL_HANDOFF_TYPE
+      || input.targetMigrationPlanChecksum === null
+      || !CHECKSUM.test(input.targetMigrationPlanChecksum)
+      || input.targetMigrationCount === null
+      || !Number.isInteger(input.targetMigrationCount)
+      || input.targetMigrationCount <= 0
+      || !endpointFieldsNull
+    ) throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
+    return
+  }
+  if (input.operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_REVOKE") {
+    if (
+      input.targetDatabaseName !== MVP_GREEN_FROZEN_DATABASE_NAME
+      || input.targetRoleName !== MVP_GREEN_MIGRATION_LOGIN_ROLE
+      || input.targetRoleNoLogin !== null
+      || input.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || input.targetGrantExecutorRole !== MVP_GREEN_GRANT_EXECUTOR_ROLE
+      || input.targetMembershipAdminOption !== null
+      || input.targetLoginRoleInherit !== null
+      || input.targetMembershipSetRole !== null
+      || input.targetCredentialHandoffType !== null
+      || input.targetMigrationPlanChecksum !== null
+      || input.targetMigrationCount !== null
+      || !endpointFieldsNull
+    ) throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
     return
   }
   if (
@@ -944,6 +1111,7 @@ function assertMvpGreenApprovalOperationMatrix(input: Pick<
     || input.targetEndpointSuspendTimeoutSeconds !== null
     || input.targetEndpointPoolerEnabled !== null
     || input.targetEndpointProvisioner !== null
+    || !migrationFieldsNull
   ) {
     throw new MvpGreenInfrastructureError("APPROVAL_REQUIRED")
   }
@@ -963,6 +1131,7 @@ const MVP_GREEN_APPROVAL_FIELDS = Object.freeze([
   "releaseChecksum",
   "schemaVersion",
   "targetBranchName",
+  "targetCredentialHandoffType",
   "targetDatabaseName",
   "targetEndpointAutoscalingMaxCu",
   "targetEndpointAutoscalingMinCu",
@@ -970,7 +1139,13 @@ const MVP_GREEN_APPROVAL_FIELDS = Object.freeze([
   "targetEndpointProvisioner",
   "targetEndpointSuspendTimeoutSeconds",
   "targetEndpointType",
+  "targetGrantExecutorRole",
   "targetGreenBranchId",
+  "targetLoginRoleInherit",
+  "targetMembershipAdminOption",
+  "targetMembershipSetRole",
+  "targetMigrationCount",
+  "targetMigrationPlanChecksum",
   "targetOwnerRole",
   "targetRoleName",
   "targetRoleNoLogin",
@@ -1025,6 +1200,13 @@ export function assertMvpGreenOperationApprovalIntegrity(input: {
     ))
     || (approval.targetEndpointPoolerEnabled !== null && typeof approval.targetEndpointPoolerEnabled !== "boolean")
     || (approval.targetEndpointProvisioner !== null && !ENDPOINT_PROVISIONERS.has(approval.targetEndpointProvisioner))
+    || (approval.targetGrantExecutorRole !== null && !ROLE_NAME.test(approval.targetGrantExecutorRole))
+    || (approval.targetMembershipAdminOption !== null && typeof approval.targetMembershipAdminOption !== "boolean")
+    || (approval.targetLoginRoleInherit !== null && typeof approval.targetLoginRoleInherit !== "boolean")
+    || (approval.targetMembershipSetRole !== null && typeof approval.targetMembershipSetRole !== "boolean")
+    || (approval.targetCredentialHandoffType !== null && approval.targetCredentialHandoffType !== MVP_GREEN_CREDENTIAL_HANDOFF_TYPE)
+    || (approval.targetMigrationPlanChecksum !== null && !CHECKSUM.test(approval.targetMigrationPlanChecksum))
+    || (approval.targetMigrationCount !== null && (!Number.isInteger(approval.targetMigrationCount) || approval.targetMigrationCount <= 0))
     || !approval.invocationId.trim()
     || !approval.actorId.trim()
   ) {
@@ -1051,7 +1233,12 @@ export function assertMvpGreenOperationApproval(input: {
     || approval.parentBranchId !== input.release.parentBranchId
     || approval.targetBranchName !== input.release.branchName
     || approval.targetDatabaseName !== (
-      input.operation === "GREEN_DATABASE_CREATE" || input.operation === "GREEN_ACQUISITION_START"
+      input.operation === "GREEN_DATABASE_CREATE"
+        || input.operation === "GREEN_ACQUISITION_START"
+        || input.operation === "GREEN_MIGRATION_LOGIN_ROLE_CREATE"
+        || input.operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT"
+        || input.operation === "GREEN_MIGRATION_EXECUTE"
+        || input.operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_REVOKE"
         ? input.release.databaseName
         : null
     )
@@ -1190,6 +1377,11 @@ function normalizedEndpoint(input: {
     projectId,
     branchId,
     endpointId,
+    connectionHost: typeof input.value.host === "string"
+      && /^[a-z0-9.-]+$/i.test(input.value.host)
+      && !input.value.host.includes("@")
+      ? input.value.host
+      : null,
     endpointType,
     currentState: requiredString(input.value.current_state, "TARGET_GREEN_BRANCH_IDENTITY_MISMATCH"),
     poolerMode: typeof input.value.pooler_mode === "string" ? input.value.pooler_mode : null,
@@ -1925,6 +2117,214 @@ export class LiveMvpNeonGreenInfrastructureAdapter {
       providerRequestId: evidence?.providerRequestId ?? null,
       operationIds,
       operationPollingResult,
+    })
+  }
+
+  async readBackMigrationLoginRole(
+    release: MvpGreenReleaseIdentity,
+    approval: MvpGreenOperationApproval,
+    credentialSink?: MvpGreenMigrationCredentialSink,
+  ): Promise<MvpGreenCreatedMigrationLoginRole | null> {
+    if (
+      approval.operation !== "GREEN_MIGRATION_LOGIN_ROLE_CREATE"
+      || approval.targetRoleName !== MVP_GREEN_MIGRATION_LOGIN_ROLE
+      || approval.targetRoleNoLogin !== false
+      || approval.targetOwnerRole !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || approval.targetDatabaseName !== MVP_GREEN_FROZEN_DATABASE_NAME
+    ) throw new MvpGreenInfrastructureError("MIGRATION_LOGIN_ROLE_CONTRACT_MISMATCH")
+    const branch = await this.inspectApprovedGreenBranch(release, approval)
+    const endpoints = await this.inspectEndpointPrerequisite(approval.projectId, branch.branchId)
+    if (endpoints.prerequisite !== "READ_WRITE_ENDPOINT_PRESENT") {
+      throw new MvpGreenInfrastructureError("NEON_ENDPOINT_REQUIRED")
+    }
+    const databases = await this.listInheritedDatabases(approval.projectId, branch.branchId)
+    const targetDatabases = databases.filter((database) => database.databaseName === approval.targetDatabaseName)
+    if (
+      targetDatabases.length !== 1
+      || targetDatabases[0]!.ownerName !== MVP_GREEN_MIGRATION_OWNER_ROLE
+      || !databases.some((database) => database.databaseName === MVP_GREEN_PRODUCTION_DATABASE)
+    ) throw new MvpGreenInfrastructureError("RELEASE_DATABASE_IDENTITY_UNVERIFIED")
+    const owner = await this.inspectRole(approval.projectId, branch.branchId, MVP_GREEN_MIGRATION_OWNER_ROLE)
+    if (!owner || owner.protected !== false || owner.authenticationMethod !== "no_login") {
+      throw new MvpGreenInfrastructureError("OWNER_ROLE_CONTRACT_MISMATCH")
+    }
+    const roles = await this.listRoles(approval.projectId, branch.branchId)
+    const matches = roles.filter((role) => role.roleName === MVP_GREEN_MIGRATION_LOGIN_ROLE)
+    if (!matches.length) return null
+    if (matches.length !== 1) throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    const role = await this.inspectRole(approval.projectId, branch.branchId, MVP_GREEN_MIGRATION_LOGIN_ROLE)
+    if (
+      !role
+      || role.projectId !== approval.projectId
+      || role.branchId !== branch.branchId
+      || role.roleName !== MVP_GREEN_MIGRATION_LOGIN_ROLE
+      || role.protected !== false
+    ) throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    if (role.authenticationMethod === null) throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    if (role.authenticationMethod !== "password") {
+      throw new MvpGreenInfrastructureError("MIGRATION_LOGIN_ROLE_CONTRACT_MISMATCH")
+    }
+    const credentialState = credentialSink
+      ? await credentialSink.inspect({
+        projectId: approval.projectId,
+        branchId: branch.branchId,
+        databaseName: approval.targetDatabaseName,
+        roleName: role.roleName,
+        releaseChecksum: approval.releaseChecksum,
+      })
+      : "ABSENT"
+    if (credentialState === "IDENTITY_MISMATCH") {
+      throw new MvpGreenInfrastructureError("ROLE_CREDENTIAL_HANDOFF_FAILED")
+    }
+    return Object.freeze({
+      ...role,
+      creationStatus: "RECONCILED" as const,
+      releaseChecksum: approval.releaseChecksum,
+      roleAuthenticationMethod: "password" as const,
+      roleAuthenticationReadback: "PASS" as const,
+      credentialAvailability: credentialState === "AVAILABLE" ? "AVAILABLE" as const : "UNVERIFIED_EXISTING_ROLE" as const,
+      credentialHandoff: null,
+      providerHttpStatus: null,
+      providerErrorCode: null,
+      providerRequestId: null,
+      operationIds: Object.freeze([]),
+      operationPollingResult: "NOT_APPLICABLE" as const,
+      deterministicReadbackResult: "MATCH" as const,
+      mutationCalls: 0 as const,
+      rolePostCalls: 0 as const,
+      automaticPostRetries: 0 as const,
+    })
+  }
+
+  async createMigrationLoginRole(input: {
+    readonly release: MvpGreenReleaseIdentity
+    readonly approval: MvpGreenOperationApproval | null
+    readonly parentState: MvpGreenParentState
+    readonly credentialSink: MvpGreenMigrationCredentialSink
+    readonly at: string
+  }): Promise<MvpGreenCreatedMigrationLoginRole> {
+    assertMvpGreenOperationApproval({
+      approval: input.approval,
+      operation: "GREEN_MIGRATION_LOGIN_ROLE_CREATE",
+      release: input.release,
+      at: input.at,
+    })
+    const approval = Object.freeze({ ...input.approval! })
+    this.assertApprovedParentState(input.parentState, approval)
+    if (!input.credentialSink.ready) throw new MvpGreenInfrastructureError("ROLE_CREDENTIAL_HANDOFF_FAILED")
+    const existing = await this.readBackMigrationLoginRole(input.release, approval, input.credentialSink)
+    if (existing) return existing
+    const path = `/projects/${encoded(approval.projectId)}/branches/${encoded(approval.targetGreenBranchId!)}/roles`
+    let response: MvpNeonTransportResponse | null = null
+    let failure: MvpGreenInfrastructureError | null = null
+    let password: string | null = null
+    let operationIds: readonly string[] = Object.freeze([])
+    let operationPollingResult: MvpGreenCreatedMigrationLoginRole["operationPollingResult"] = "NOT_APPLICABLE"
+    try {
+      response = await this.transport.request({
+        method: "POST",
+        path,
+        body: { role: { name: approval.targetRoleName, no_login: approval.targetRoleNoLogin } },
+      })
+      requireSuccessful(response, "ROLE_CREATION_FAILED", path, "GREEN_MIGRATION_LOGIN_ROLE_CREATE")
+      password = generatedRolePasswordFromBody(response.body)
+      const providerRole = roleFromBody(response.body)
+      if (providerRole) {
+        const normalized = normalizedRole({
+          projectId: approval.projectId,
+          branchId: approval.targetGreenBranchId!,
+          value: providerRole,
+        })
+        if (
+          normalized.roleName !== MVP_GREEN_MIGRATION_LOGIN_ROLE
+          || normalized.protected !== false
+          || normalized.authenticationMethod !== "password"
+        ) throw new MvpGreenInfrastructureError("MIGRATION_LOGIN_ROLE_CONTRACT_MISMATCH")
+      }
+      operationIds = Object.freeze(operationsFromBody(response.body).map((operation) => (
+        typeof operation.id === "string" ? operation.id : ""
+      )).filter((operationId) => /^[0-9a-f-]{36}$/.test(operationId)))
+      if (!providerRole && !operationIds.length) {
+        throw new MvpGreenInfrastructureError("NEON_MALFORMED_RESPONSE", providerEvidence({
+          response,
+          requestPath: path,
+          operationKind: "GREEN_MIGRATION_LOGIN_ROLE_CREATE",
+          responseReceived: true,
+          timedOut: false,
+        }))
+      }
+      for (const operationId of operationIds) {
+        await this.pollOperation(approval.projectId, operationId, "GREEN_MIGRATION_LOGIN_ROLE_CREATE")
+      }
+      operationPollingResult = operationIds.length ? "PASS" : "NOT_APPLICABLE"
+    } catch (error) {
+      failure = error instanceof MvpGreenInfrastructureError
+        ? error
+        : new MvpGreenInfrastructureError("NEON_TRANSPORT_FAILURE", providerEvidence({
+          requestPath: path,
+          operationKind: "GREEN_MIGRATION_LOGIN_ROLE_CREATE",
+          responseReceived: false,
+          timedOut: false,
+        }))
+      if (
+        failure.code === "NEON_AUTHENTICATION_FAILURE"
+        || failure.code === "NEON_BAD_REQUEST"
+        || failure.code === "MIGRATION_LOGIN_ROLE_CONTRACT_MISMATCH"
+      ) throw failure
+      if (failure.code === "NEON_OPERATION_FAILED" || failure.code === "NEON_OPERATION_TIMEOUT") {
+        operationPollingResult = "FAIL_RECONCILED"
+      }
+    }
+    const readback = await this.readBackMigrationLoginRole(input.release, approval, input.credentialSink)
+    if (!readback) {
+      if (failure) throw failure
+      throw new MvpGreenInfrastructureError("ROLE_IDENTITY_UNVERIFIED")
+    }
+    if (failure) return Object.freeze({
+      ...readback,
+      creationStatus: "RECONCILED" as const,
+      providerHttpStatus: failure.evidence?.httpStatus ?? null,
+      providerErrorCode: failure.evidence?.providerErrorCode ?? null,
+      providerRequestId: failure.evidence?.providerRequestId ?? null,
+      operationIds,
+      operationPollingResult,
+    })
+    if (!password) throw new MvpGreenInfrastructureError("ROLE_CREDENTIAL_HANDOFF_FAILED")
+    let credentialHandoff: MvpGreenCredentialHandoffReceipt
+    try {
+      credentialHandoff = await input.credentialSink.store({
+        projectId: approval.projectId,
+        branchId: approval.targetGreenBranchId!,
+        databaseName: approval.targetDatabaseName!,
+        roleName: approval.targetRoleName!,
+        releaseChecksum: approval.releaseChecksum,
+        creationInvocationId: approval.invocationId,
+        password,
+      })
+    } catch {
+      throw new MvpGreenInfrastructureError("ROLE_CREDENTIAL_HANDOFF_FAILED")
+    } finally {
+      password = null
+    }
+    const evidence = response ? providerEvidence({
+      response,
+      requestPath: path,
+      operationKind: "GREEN_MIGRATION_LOGIN_ROLE_CREATE",
+      responseReceived: true,
+      timedOut: false,
+    }) : null
+    return Object.freeze({
+      ...readback,
+      creationStatus: "CREATED" as const,
+      credentialAvailability: "AVAILABLE" as const,
+      credentialHandoff,
+      providerHttpStatus: evidence?.httpStatus ?? null,
+      providerErrorCode: evidence?.providerErrorCode ?? null,
+      providerRequestId: evidence?.providerRequestId ?? null,
+      operationIds,
+      operationPollingResult,
+      mutationCalls: 1 as const,
+      rolePostCalls: 1 as const,
     })
   }
 

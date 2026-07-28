@@ -19,6 +19,9 @@ import {
   MVP_GREEN_FROZEN_DATABASE_NAME,
   MVP_GREEN_FROZEN_RELEASE_APPLICATION_COMMIT,
   MVP_GREEN_FROZEN_RELEASE_CHECKSUM,
+  MVP_GREEN_CREDENTIAL_HANDOFF_TYPE,
+  MVP_GREEN_GRANT_EXECUTOR_ROLE,
+  MVP_GREEN_MIGRATION_LOGIN_ROLE,
   MVP_GREEN_MIGRATION_OWNER_ROLE,
   MVP_GREEN_PRODUCTION_BRANCH_ID,
   MVP_GREEN_PRODUCTION_DATABASE,
@@ -85,7 +88,7 @@ assert.throws(() => compareMvpPostgresLsns("0/100", "a/1"), /APPROVED_PARENT_LSN
 assert.throws(() => compareMvpPostgresLsns("0/100", "00/1"), /APPROVED_PARENT_LSN_INVALID/)
 assert.throws(() => compareMvpPostgresLsns("0/100", "100000000/0"), /APPROVED_PARENT_LSN_INVALID/)
 assert.throws(() => compareMvpPostgresLsns("0/100", "0/100000000"), /APPROVED_PARENT_LSN_INVALID/)
-assert.equal(MVP_GREEN_APPROVAL_SCHEMA_VERSION, "mvp-green-infrastructure-approval/1.4.0")
+assert.equal(MVP_GREEN_APPROVAL_SCHEMA_VERSION, "mvp-green-infrastructure-approval/1.5.0")
 
 const frozenPlan = createMvpGreenCertificationPlan({
   projectId: MVP_GREEN_PRODUCTION_PROJECT_ID,
@@ -541,6 +544,13 @@ function approval(
     | "targetEndpointSuspendTimeoutSeconds"
     | "targetEndpointPoolerEnabled"
     | "targetEndpointProvisioner"
+    | "targetGrantExecutorRole"
+    | "targetMembershipAdminOption"
+    | "targetLoginRoleInherit"
+    | "targetMembershipSetRole"
+    | "targetCredentialHandoffType"
+    | "targetMigrationPlanChecksum"
+    | "targetMigrationCount"
   >> = {},
 ) {
   const targetsGreenResource = operation !== "NEON_BRANCH_CREATE"
@@ -555,16 +565,31 @@ function approval(
     targetBranchName: identity.branchName,
     targetGreenBranchId: targets.targetGreenBranchId ?? (targetsGreenResource ? GREEN_BRANCH_ID : null),
     targetDatabaseName: targets.targetDatabaseName ?? (
-      operation === "GREEN_DATABASE_CREATE" || operation === "GREEN_ACQUISITION_START"
+      operation === "GREEN_DATABASE_CREATE"
+        || operation === "GREEN_ACQUISITION_START"
+        || operation === "GREEN_MIGRATION_LOGIN_ROLE_CREATE"
+        || operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT"
+        || operation === "GREEN_MIGRATION_EXECUTE"
+        || operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_REVOKE"
       ? identity.databaseName
       : null
     ),
     targetRoleName: targets.targetRoleName ?? (
-      operation === "GREEN_OWNER_ROLE_CREATE" ? MVP_GREEN_MIGRATION_OWNER_ROLE : null
+      operation === "GREEN_OWNER_ROLE_CREATE"
+        ? MVP_GREEN_MIGRATION_OWNER_ROLE
+        : operation.startsWith("GREEN_MIGRATION_")
+          ? MVP_GREEN_MIGRATION_LOGIN_ROLE
+          : null
     ),
-    targetRoleNoLogin: operation === "GREEN_OWNER_ROLE_CREATE" ? true : null,
+    targetRoleNoLogin: operation === "GREEN_OWNER_ROLE_CREATE"
+      ? true
+      : operation === "GREEN_MIGRATION_LOGIN_ROLE_CREATE"
+        ? false
+        : null,
     targetOwnerRole: targets.targetOwnerRole ?? (
-      operation === "GREEN_DATABASE_CREATE" ? MVP_GREEN_MIGRATION_OWNER_ROLE : null
+      operation === "GREEN_DATABASE_CREATE" || operation.startsWith("GREEN_MIGRATION_")
+        ? MVP_GREEN_MIGRATION_OWNER_ROLE
+        : null
     ),
     targetEndpointType: targets.targetEndpointType ?? (
       operation === "GREEN_ENDPOINT_CREATE" ? "read_write" : null
@@ -583,6 +608,32 @@ function approval(
     ),
     targetEndpointProvisioner: targets.targetEndpointProvisioner ?? (
       operation === "GREEN_ENDPOINT_CREATE" ? "k8s-neonvm" : null
+    ),
+    targetGrantExecutorRole: targets.targetGrantExecutorRole ?? (
+      operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT"
+        || operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_REVOKE"
+        ? MVP_GREEN_GRANT_EXECUTOR_ROLE
+        : null
+    ),
+    targetMembershipAdminOption: targets.targetMembershipAdminOption ?? (
+      operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT" ? false : null
+    ),
+    targetLoginRoleInherit: targets.targetLoginRoleInherit ?? (
+      operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT" || operation === "GREEN_MIGRATION_EXECUTE" ? false : null
+    ),
+    targetMembershipSetRole: targets.targetMembershipSetRole ?? (
+      operation === "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT" || operation === "GREEN_MIGRATION_EXECUTE" ? true : null
+    ),
+    targetCredentialHandoffType: targets.targetCredentialHandoffType ?? (
+      operation === "GREEN_MIGRATION_LOGIN_ROLE_CREATE" || operation === "GREEN_MIGRATION_EXECUTE"
+        ? MVP_GREEN_CREDENTIAL_HANDOFF_TYPE
+        : null
+    ),
+    targetMigrationPlanChecksum: targets.targetMigrationPlanChecksum ?? (
+      operation === "GREEN_MIGRATION_EXECUTE" ? "d".repeat(64) : null
+    ),
+    targetMigrationCount: targets.targetMigrationCount ?? (
+      operation === "GREEN_MIGRATION_EXECUTE" ? 5 : null
     ),
     invocationId: `invocation-${operation.toLowerCase()}`,
     actorId: "jay-local-operator",
@@ -634,6 +685,33 @@ async function preparedDatabaseFixture() {
     targetOwnerRole("no_login"),
   ])
   return fixture
+}
+
+async function preparedMigrationLoginFixture() {
+  const fixture = adapterFixture()
+  const parent = await fixture.adapter.resolveParentState()
+  await fixture.adapter.createChildBranch({
+    release: frozenRelease,
+    approval: approval("NEON_BRANCH_CREATE", frozenRelease, parent),
+    parentState: parent,
+    at: NOW,
+  })
+  fixture.transport.roles.set(GREEN_BRANCH_ID, [
+    ...(fixture.transport.roles.get(GREEN_BRANCH_ID) ?? []),
+    targetOwnerRole("no_login"),
+  ])
+  fixture.transport.databases.set(GREEN_BRANCH_ID, [
+    ...(fixture.transport.databases.get(GREEN_BRANCH_ID) ?? []),
+    {
+      branch_id: GREEN_BRANCH_ID,
+      name: MVP_GREEN_FROZEN_DATABASE_NAME,
+      owner_name: MVP_GREEN_MIGRATION_OWNER_ROLE,
+      created_at: NOW,
+    },
+  ])
+  fixture.transport.rolePostAuthenticationMethod = "password"
+  fixture.transport.roleReadbackAuthenticationMethod = "password"
+  return { ...fixture, parent }
 }
 
 {
@@ -714,6 +792,7 @@ async function preparedDatabaseFixture() {
       "releaseChecksum",
       "schemaVersion",
       "targetBranchName",
+      "targetCredentialHandoffType",
       "targetDatabaseName",
       "targetEndpointAutoscalingMaxCu",
       "targetEndpointAutoscalingMinCu",
@@ -721,11 +800,56 @@ async function preparedDatabaseFixture() {
       "targetEndpointProvisioner",
       "targetEndpointSuspendTimeoutSeconds",
       "targetEndpointType",
+      "targetGrantExecutorRole",
       "targetGreenBranchId",
+      "targetLoginRoleInherit",
+      "targetMembershipAdminOption",
+      "targetMembershipSetRole",
+      "targetMigrationCount",
+      "targetMigrationPlanChecksum",
       "targetOwnerRole",
       "targetRoleName",
       "targetRoleNoLogin",
     ],
+  )
+  const loginApproval = approval("GREEN_MIGRATION_LOGIN_ROLE_CREATE", frozenRelease, parent)
+  const grantApproval = approval("GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT", frozenRelease, parent)
+  const migrationApproval = approval("GREEN_MIGRATION_EXECUTE", frozenRelease, parent)
+  const revokeApproval = approval("GREEN_MIGRATION_ROLE_MEMBERSHIP_REVOKE", frozenRelease, parent)
+  assert.deepEqual(
+    [loginApproval.targetDatabaseName, loginApproval.targetRoleName, loginApproval.targetRoleNoLogin, loginApproval.targetOwnerRole, loginApproval.targetCredentialHandoffType],
+    [MVP_GREEN_FROZEN_DATABASE_NAME, MVP_GREEN_MIGRATION_LOGIN_ROLE, false, MVP_GREEN_MIGRATION_OWNER_ROLE, MVP_GREEN_CREDENTIAL_HANDOFF_TYPE],
+  )
+  assert.deepEqual(
+    [grantApproval.targetGrantExecutorRole, grantApproval.targetMembershipAdminOption, grantApproval.targetLoginRoleInherit, grantApproval.targetMembershipSetRole],
+    [MVP_GREEN_GRANT_EXECUTOR_ROLE, false, false, true],
+  )
+  assert.deepEqual(
+    [migrationApproval.targetMigrationPlanChecksum, migrationApproval.targetMigrationCount, migrationApproval.targetCredentialHandoffType],
+    ["d".repeat(64), 5, MVP_GREEN_CREDENTIAL_HANDOFF_TYPE],
+  )
+  assert.deepEqual(
+    [revokeApproval.targetGrantExecutorRole, revokeApproval.targetMembershipAdminOption, revokeApproval.targetLoginRoleInherit, revokeApproval.targetMembershipSetRole],
+    [MVP_GREEN_GRANT_EXECUTOR_ROLE, null, null, null],
+  )
+  for (const current of [loginApproval, grantApproval, migrationApproval, revokeApproval]) {
+    assert.doesNotThrow(() => assertMvpGreenOperationApprovalIntegrity({ approval: current, operation: current.operation, at: NOW }))
+  }
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: { ...migrationApproval, targetMigrationCount: 6 },
+      operation: "GREEN_MIGRATION_EXECUTE",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
+  )
+  assert.throws(
+    () => assertMvpGreenOperationApprovalIntegrity({
+      approval: { ...grantApproval, schemaVersion: "mvp-green-infrastructure-approval/1.4.0" } as unknown as MvpGreenOperationApproval,
+      operation: "GREEN_MIGRATION_ROLE_MEMBERSHIP_GRANT",
+      at: NOW,
+    }),
+    /APPROVAL_REQUIRED/,
   )
   const otherBranchApproval = approval("GREEN_OWNER_ROLE_CREATE", release, parent, {
     targetGreenBranchId: "br-other-green-certified",
@@ -898,6 +1022,50 @@ async function preparedDatabaseFixture() {
     }),
     /OWNER_ROLE_REQUIRED/,
   )
+}
+
+{
+  const { transport, adapter, parent } = await preparedMigrationLoginFixture()
+  let storedPasswordSeen = false
+  const credentialSink = {
+    ready: true,
+    store: async (input: { readonly password: string }) => {
+      storedPasswordSeen = input.password === "must-never-escape"
+      return Object.freeze({
+        status: "STORED" as const,
+        handoffId: "safe-handoff-id",
+        encryptedStorePathFingerprint: "a".repeat(64),
+        createdAt: NOW,
+      })
+    },
+    inspect: async () => "ABSENT" as const,
+  }
+  const created = await adapter.createMigrationLoginRole({
+    release: frozenRelease,
+    approval: approval("GREEN_MIGRATION_LOGIN_ROLE_CREATE", frozenRelease, parent),
+    parentState: parent,
+    credentialSink,
+    at: NOW,
+  })
+  assert.equal(created.creationStatus, "CREATED")
+  assert.equal(created.roleAuthenticationMethod, "password")
+  assert.equal(created.credentialAvailability, "AVAILABLE")
+  assert.equal(created.rolePostCalls, 1)
+  assert.equal(created.automaticPostRetries, 0)
+  assert.equal(storedPasswordSeen, true)
+  assert.equal(JSON.stringify(created).includes("must-never-escape"), false)
+  const post = transport.calls.find((call) => call.method === "POST" && call.path.endsWith("/roles"))
+  assert.deepEqual(post?.body, { role: { name: MVP_GREEN_MIGRATION_LOGIN_ROLE, no_login: false } })
+  const reconciled = await adapter.createMigrationLoginRole({
+    release: frozenRelease,
+    approval: approval("GREEN_MIGRATION_LOGIN_ROLE_CREATE", frozenRelease, parent),
+    parentState: parent,
+    credentialSink: { ...credentialSink, inspect: async () => "AVAILABLE" as const },
+    at: NOW,
+  })
+  assert.equal(reconciled.creationStatus, "RECONCILED")
+  assert.equal(reconciled.rolePostCalls, 0)
+  assert.equal(transport.calls.filter((call) => call.method === "POST" && call.path.endsWith("/roles")).length, 1)
 }
 
 {
@@ -1576,6 +1744,13 @@ async function preparedDatabaseFixture() {
     targetEndpointSuspendTimeoutSeconds: null,
     targetEndpointPoolerEnabled: null,
     targetEndpointProvisioner: null,
+    targetGrantExecutorRole: null,
+    targetMembershipAdminOption: null,
+    targetLoginRoleInherit: null,
+    targetMembershipSetRole: null,
+    targetCredentialHandoffType: null,
+    targetMigrationPlanChecksum: null,
+    targetMigrationCount: null,
     invocationId: "stale",
     actorId: "jay-local-operator",
     issuedAt: "2026-07-22T00:00:00.000Z",
@@ -2366,7 +2541,7 @@ for (const authenticationMethod of ["password", "oauth"] as const) {
 
 {
   const runnerSource = readFileSync("workers/data-platform/runMvpGreenRelease.ts", "utf8")
-  const mutationFlow = runnerSource.slice(runnerSource.indexOf("const approvalAt = new Date().toISOString()"))
+  const mutationFlow = runnerSource.slice(runnerSource.indexOf("const expectedOperation ="))
   const approvalRead = mutationFlow.indexOf("await approvalFromFile")
   const releaseDerivation = mutationFlow.indexOf("const { release } = releaseIdentity()")
   const approvalBinding = mutationFlow.indexOf("assertMvpGreenOperationApproval")
@@ -2383,6 +2558,14 @@ for (const authenticationMethod of ["password", "oauth"] as const) {
   assert.equal(runnerSource.includes('"preflight-database"'), true)
   assert.equal(runnerSource.includes('"preflight-endpoint"'), true)
   assert.equal(runnerSource.includes('"create-endpoint"'), true)
+  assert.equal(runnerSource.includes('"preflight-migration-login-role"'), true)
+  assert.equal(runnerSource.includes('"create-migration-login-role"'), true)
+  assert.equal(runnerSource.includes('"preflight-migration-membership"'), true)
+  assert.equal(runnerSource.includes('"grant-migration-membership"'), true)
+  assert.equal(runnerSource.includes('"revoke-migration-membership"'), true)
+  assert.equal(runnerSource.includes('"preflight-green-migration"'), true)
+  assert.equal(runnerSource.includes('"execute-green-migration"'), true)
+  assert.equal(runnerSource.includes('"execute-green-migration-sequence"'), true)
   assert.equal(runnerSource.includes('endpoint.currentState === "active" || endpoint.currentState === "idle"'), true)
   assert.equal(runnerSource.includes("endpoint.region === branch.region"), true)
   const createChildBranchSource = LiveMvpNeonGreenInfrastructureAdapter.prototype.createChildBranch.toString()
