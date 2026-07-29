@@ -16,6 +16,8 @@ import {
   MVP_GREEN_PRODUCTION_DATABASE,
   MVP_GREEN_PRODUCTION_PROJECT_ID,
   PostgresMvpGreenParentStateReader,
+  executeMvpGreenAcquisition,
+  MVP_GREEN_ACQUISITION_TARGET,
   type MvpGreenBranchInspection,
   type MvpGreenOperationApproval,
   type MvpGreenReleaseIdentity,
@@ -55,6 +57,7 @@ type Command =
   | "preflight-green-migration"
   | "execute-green-migration"
   | "execute-green-migration-sequence"
+  | "acquire-green-candidate"
 
 const COMMANDS: readonly Command[] = Object.freeze([
   "plan",
@@ -74,6 +77,7 @@ const COMMANDS: readonly Command[] = Object.freeze([
   "preflight-green-migration",
   "execute-green-migration",
   "execute-green-migration-sequence",
+  "acquire-green-candidate",
 ])
 
 function flag(name: string): string | undefined {
@@ -512,7 +516,7 @@ async function runGreenMigration(
 async function main() {
   const command = process.argv[2] as Command | undefined
   if (!command || !COMMANDS.includes(command)) {
-    throw new Error("Usage: runMvpGreenRelease.ts <plan|preflight|preflight-endpoint|preflight-role|create-branch|create-endpoint|create-owner-role|preflight-database|create-database|preflight-migration-login-role|create-migration-login-role|preflight-migration-membership|grant-migration-membership|revoke-migration-membership|preflight-green-migration|execute-green-migration|execute-green-migration-sequence> --mode=GREEN_CERTIFICATION_ONLY --application-commit=<frozen-release-sha> --parent-watermark=<iso> --governed-through=<iso> [--green-branch-id=<id> --approved-parent-lsn=<lsn>] [--approval-file=<path>]")
+    throw new Error("Usage: runMvpGreenRelease.ts <plan|preflight|preflight-endpoint|preflight-role|create-branch|create-endpoint|create-owner-role|preflight-database|create-database|preflight-migration-login-role|create-migration-login-role|preflight-migration-membership|grant-migration-membership|revoke-migration-membership|preflight-green-migration|execute-green-migration|execute-green-migration-sequence|acquire-green-candidate> --mode=GREEN_CERTIFICATION_ONLY --application-commit=<frozen-release-sha> --parent-watermark=<iso> --governed-through=<iso> [--green-branch-id=<id> --approved-parent-lsn=<lsn>] [--approval-file=<path>]")
   }
   if (command === "plan") {
     console.log(JSON.stringify(sanitizedPlan(), null, 2))
@@ -548,6 +552,53 @@ async function main() {
   if (command === "preflight-endpoint" || command === "preflight-role" || command === "preflight-database") {
     const { release } = releaseIdentity()
     console.log(JSON.stringify(await greenPreflight(command, release), null, 2))
+    return
+  }
+  if (command === "acquire-green-candidate") {
+    const approvalAt = new Date().toISOString()
+    const approval = await approvalFromFile("GREEN_ACQUISITION_START", approvalAt)
+    const { release } = releaseIdentity()
+    assertMvpGreenOperationApproval({ approval, operation: "GREEN_ACQUISITION_START", release, at: approvalAt })
+    const greenBranchId = requiredFlag("green-branch-id")
+    const approvedParentLsn = requiredFlag("approved-parent-lsn")
+    if (
+      approval.targetGreenBranchId !== greenBranchId
+      || approval.targetGreenBranchId !== MVP_GREEN_ACQUISITION_TARGET.branchId
+      || approval.targetDatabaseName !== MVP_GREEN_ACQUISITION_TARGET.databaseName
+      || approval.expectedParentLsn !== approvedParentLsn
+      || approval.expectedParentLsn !== MVP_GREEN_ACQUISITION_TARGET.approvedParentLsn
+    ) throw new Error("MVP_GREEN_ACQUISITION_APPROVAL_BINDING_MISMATCH")
+    const adapter = liveAdapter(false)
+    const branch = await adapter.inspectBranch(release.projectId, greenBranchId)
+    assertGreenBranchPreflight({ branch, release, branchId: greenBranchId, approvedParentLsn })
+    const endpoints = await adapter.inspectEndpointPrerequisite(release.projectId, greenBranchId)
+    const endpoint = endpoints.endpoints.filter((value) => value.endpointId === MVP_GREEN_ACQUISITION_TARGET.endpointId)
+    if (endpoint.length !== 1 || endpoint[0]!.endpointType !== "read_write" || endpoint[0]!.poolerEnabled !== false) {
+      throw new Error("MVP_GREEN_ACQUISITION_ENDPOINT_MISMATCH")
+    }
+    const result = await executeMvpGreenAcquisition({
+      greenBranchId,
+      approvedParentLsn,
+      acquisitionManifestPath: requiredFlag("acquisition-manifest"),
+      acquisitionManifestChecksum: requiredFlag("acquisition-manifest-checksum"),
+      bundleDirectory: requiredFlag("bundle-directory"),
+      bundleAggregateChecksum: requiredFlag("bundle-aggregate-checksum"),
+      candidateIdentity: requiredFlag("candidate-identity"),
+      writerConnectionString: process.env.MVP_GREEN_ACQUISITION_WRITER_POSTGRES_URL,
+      readerConnectionString: process.env.MVP_GREEN_ACQUISITION_READER_POSTGRES_URL,
+    })
+    console.log(JSON.stringify({
+      ...result,
+      approvalOperation: "GREEN_ACQUISITION_START",
+      approvalInvocationId: approval.invocationId,
+      targetProjectId: MVP_GREEN_ACQUISITION_TARGET.projectId,
+      targetBranchId: MVP_GREEN_ACQUISITION_TARGET.branchId,
+      targetEndpointId: MVP_GREEN_ACQUISITION_TARGET.endpointId,
+      targetDatabaseName: MVP_GREEN_ACQUISITION_TARGET.databaseName,
+      deployment: "NOT_EXECUTED",
+      guardedCutover: "INACTIVE",
+      productionMutationCalls: 0,
+    }, null, 2))
     return
   }
   if (

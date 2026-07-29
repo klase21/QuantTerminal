@@ -1,0 +1,99 @@
+{
+  "manifestVersion": "mvp-green-acquisition-manifest/1.0.0",
+  "acquisitionType": "CERTIFIED_INACTIVE_CANDIDATE_COPY",
+  "sourceArtifactIdentity": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "sourceArtifactCommit": "760697dc8342fec3ba76348cc0aae4df4be5cf54",
+  "sourceDatabaseIdentity": "quantterminal_mvp8i_serving_760697d8i1",
+  "sourceManifestId": "mvp8i-manifest:df394d92051d3838bf737ecd6edebdfe360b3096a03b2be07bc011abc27e63a4",
+  "sourceManifestChecksum": "df394d92051d3838bf737ecd6edebdfe360b3096a03b2be07bc011abc27e63a4",
+  "sourceCandidateChecksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "sourcePayloadAggregateChecksum": "d5d26fa7ff03b93fe64d44ef17a0cfee9467cc8a9493e28b8510ef6b4f489027",
+  "sourcePayloadFiles": [
+    {
+      "path": "candidate-manifest.json",
+      "sha256": "79a609f8fd4f3a7b25a8e45cdbb2c5c89907cc0823899755ab12139049dfd63a"
+    },
+    {
+      "path": "corpus-members.json",
+      "sha256": "93b6a99c9f9437abda99577dada3429940bd0bff21b4fd9ed3c58aab6edaba46"
+    },
+    {
+      "path": "corpus.json",
+      "sha256": "3a438650cb1f0206e0ebdab023f1e4a7522c1c21ffb37c9fe2692de5809dfb07"
+    },
+    {
+      "path": "evidence-summaries.json",
+      "sha256": "e02000770f0d7de4d1622018eebe014ae8033e54f45ab0c404755d4257805643"
+    },
+    {
+      "path": "projections.json",
+      "sha256": "4b7c447039b849d9ada42577e58af9f8eb3fbd1fff0ec0c5fc75ef59ed3ee010"
+    },
+    {
+      "path": "replay-snapshots.json",
+      "sha256": "fbac47c3f1784c0cd4a523396bbd1c3fe508d0698fe535248e98daa39ae4aa4f"
+    }
+  ],
+  "sourcePayloadInventory": {
+    "corpus": 2,
+    "projections": 62,
+    "evidenceSummaries": 6,
+    "replaySnapshots": 6,
+    "corpusMembers": 74,
+    "candidateManifest": 1,
+    "releaseInventory": 0
+  },
+  "sourceGenesisCorpusId": "mvp8i-genesis:b3e63ca7d1c632e13195f07fbff8f237dda010f1c1f885fe5beac5eeb8ba8abb",
+  "sourceVerifiedCorpusId": "mvp8i-verified-source:e9580ab39e018e16072b1d7fa212ad4cced413c710784df481918a6680c03696",
+  "datasetInventory": [
+    "ohlcv",
+    "openInterest",
+    "funding",
+    "aggTrades"
+  ],
+  "instrumentInventory": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "DOGEUSDT"
+  ],
+  "eventTimeStart": "2026-07-15T00:00:00.000Z",
+  "eventTimeEnd": "2026-07-16T00:00:00.000Z",
+  "maximumKnowledgeTimeCutoff": "2026-07-17T13:35:16.000Z",
+  "commonWatermarkId": "mre_a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+  "commonWatermarkValue": "2026-07-16T00:00:00.000Z",
+  "commonWatermarkChecksum": "a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+  "memberSetChecksum": "021b8ad9ea4710060dd5ab380174ade2a54ac1e57fa5a229affe6807e62a527e",
+  "targetApplicationCommit": "a4590b21dd8929df679f9eb2aa823d6c019a0b31",
+  "targetApplicationChecksum": "894b0cea24a869817d2cdbb3ca94c3b240c18ae5d0ec128353893a4dfcf9587a",
+  "targetProjectId": "soft-cell-16396854",
+  "targetBranchId": "br-muddy-unit-ao3o6iid",
+  "targetEndpointId": "ep-wandering-salad-aocwtmax",
+  "targetDatabaseName": "mvp_release_20260721_9c177d6309",
+  "targetDatabaseOwner": "mvp_green_sql_owner_9c177d6309",
+  "approvedParentLsn": "0/2CFC128",
+  "migrationPlanChecksum": "df1c8e05dcfea91ddb74301da331bf534e38e3f7e2afc45f4331565b71b16373",
+  "candidateIdentity": "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "candidateChecksum": "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  "expectedRowCounts": {
+    "corpus": 2,
+    "projections": 62,
+    "evidenceSummaries": 6,
+    "replaySnapshots": 6,
+    "corpusMembers": 74,
+    "candidateManifest": 1,
+    "releaseInventory": 0
+  },
+  "transformationVersion": "mvp-green-acquisition-transform/1.0.0",
+  "transformationChecksum": "213284248f87b26208a70ce69936481be31b8f2cc2425e03cb162108edd3ca99",
+  "compatibilityVerdict": "COMPATIBLE_WITH_FROZEN_APPLICATION",
+  "acquisitionStateContract": "ATOMIC_MANIFEST_LAST_DERIVED_STATE_V1",
+  "limitations": [
+    "Inactive candidate acquisition only; deployment, activation, and cutover are excluded.",
+    "The external bundle directory is runtime transport and is excluded from immutable identities.",
+    "No source-to-target payload transformation is permitted."
+  ],
+  "manifestChecksum": "d956e4ecefd495128a5ad3bf1ccd055434314d9496d874ae8276c583380f5b19"
+}
