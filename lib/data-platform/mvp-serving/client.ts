@@ -17,7 +17,7 @@ export class MvpServingPostgresClient {
     const rows = await this.sql.unsafe<Array<{ database: string; role: string; version: number }>>("SELECT current_database() database,current_user role,current_setting('server_version_num')::int version")
     const expectedRole = this.expectedIdentity?.role ?? (this.roleIntent === "READER" ? "mvp_serving_reader" : "mvp_serving_publisher")
     const expectedDatabase = this.expectedIdentity?.database ?? "quantterminal_mvp_serving_isolated"
-    if ((this.targetKind !== "MANAGED_POSTGRES" && rows[0]?.database !== expectedDatabase) || rows[0]?.role !== expectedRole || rows[0].version < 160000 || rows[0].version >= 170000) throw new Error("MVP_SERVING_DATABASE_VERIFICATION_FAILED")
+    if (rows[0]?.database !== expectedDatabase || rows[0]?.role !== expectedRole || rows[0].version < 160000 || rows[0].version >= 170000) throw new Error("MVP_SERVING_DATABASE_VERIFICATION_FAILED")
   }
   transaction<T>(work: (sql: postgres.TransactionSql) => Promise<T>): Promise<T> { return this.sql.begin("ISOLATION LEVEL SERIALIZABLE", work) as Promise<T> }
   readOnlyTransaction<T>(work: (sql: postgres.TransactionSql) => Promise<T>): Promise<T> {
@@ -33,7 +33,18 @@ export class MvpServingPostgresClient {
   shutdown(): Promise<void> { return this.sql.end({ timeout: 5 }) }
 }
 
-export function createMvpServingManagedClient(connectionString: string, intent: MvpServingRoleIntent): MvpServingPostgresClient { return new MvpServingPostgresClient(connectionString, intent, process.env, "MANAGED_POSTGRES") }
+export function createMvpServingManagedClient(connectionString: string, intent: MvpServingRoleIntent): MvpServingPostgresClient {
+  let url: URL
+  try { url = new URL(connectionString) } catch { throw new Error("MVP_SERVING_MANAGED_IDENTITY_INVALID") }
+  const database = decodeURIComponent(url.pathname.replace(/^\//, ""))
+  const role = decodeURIComponent(url.username)
+  if (!database || !role) throw new Error("MVP_SERVING_MANAGED_IDENTITY_REQUIRED")
+  const roleMatchesIntent = intent === "READER"
+    ? role === "mvp_serving_reader" || role === "qt_inactive_reader"
+    : role === "mvp_serving_publisher"
+  if (!roleMatchesIntent) throw new Error("MVP_SERVING_MANAGED_ROLE_INTENT_MISMATCH")
+  return new MvpServingPostgresClient(connectionString, intent, process.env, "MANAGED_POSTGRES", { database, role })
+}
 
 export function createMvpServingReaderClientFromEnvironment(): MvpServingPostgresClient {
   const managed = process.env.MVP_SERVING_POSTGRES_URL

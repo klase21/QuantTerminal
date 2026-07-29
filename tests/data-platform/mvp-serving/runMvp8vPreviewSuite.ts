@@ -32,6 +32,15 @@ function expectReject(environment: Record<string, string | undefined>, code: Reg
   assert.throws(() => resolveMvpServingPreviewCandidate(environment), code)
 }
 
+function managedUrl(role: string, database: string, host = "managed.example.invalid", credential = "synthetic"): string {
+  const url = new URL(`postgresql://${host}`)
+  url.username = role
+  url["password"] = credential
+  url.pathname = database ? `/${database}` : ""
+  url.searchParams.set("sslmode", "require")
+  return url.toString()
+}
+
 async function main() {
   assert.equal(resolveMvpServingPreviewCandidate({}), null)
   assert.equal(resolveMvpServingPreviewCandidate(previewEnvironment)?.candidateId, MVP8V_APPROVED_CANDIDATE_ID)
@@ -44,8 +53,30 @@ async function main() {
   // A pooled connection may be off between transactions; only in-transaction state is authoritative.
   assert.doesNotThrow(() => ({ default_transaction_read_only: "off", transaction_read_only: "off" }))
   assert.doesNotThrow(() => verifyMvpServingReadOnlyTransactionState({ database: "neondb", role: "mvp_serving_reader", read_only: "on" }, { database: "neondb", role: "mvp_serving_reader" }))
+  assert.doesNotThrow(() => verifyMvpServingReadOnlyTransactionState({ database: "mvp_release_20260721_9c177d6309", role: "qt_inactive_reader", read_only: "on" }, { database: "mvp_release_20260721_9c177d6309", role: "qt_inactive_reader" }))
+  assert.throws(() => verifyMvpServingReadOnlyTransactionState({ database: "neondb", role: "qt_inactive_reader", read_only: "on" }, { database: "mvp_release_20260721_9c177d6309", role: "qt_inactive_reader" }), /MVP_SERVING_READ_ONLY_TRANSACTION_VERIFICATION_FAILED/)
   assert.throws(() => verifyMvpServingReadOnlyTransactionState({ database: "neondb", role: "mvp_serving_reader", read_only: "off" }, { database: "neondb", role: "mvp_serving_reader" }), /MVP_SERVING_READ_ONLY_TRANSACTION_VERIFICATION_FAILED/)
   assert.throws(() => verifyMvpServingReadOnlyTransactionState({ database: "neondb", role: "qt_prod_candidate_reader", read_only: "on" }, { database: "neondb", role: "mvp_serving_reader" }), /MVP_SERVING_READ_ONLY_TRANSACTION_VERIFICATION_FAILED/)
+
+  const managedGreenUrl = managedUrl("qt_inactive_reader", "mvp_release_20260721_9c177d6309")
+  const managedGreen = createMvpServingManagedClient(managedGreenUrl, "READER")
+  assert.deepEqual(
+    (managedGreen as unknown as { expectedIdentity: { database: string; role: string } }).expectedIdentity,
+    { database: "mvp_release_20260721_9c177d6309", role: "qt_inactive_reader" },
+  )
+  await managedGreen.shutdown()
+  const managedNeondb = createMvpServingManagedClient(managedUrl("mvp_serving_reader", "neondb"), "READER")
+  assert.deepEqual(
+    (managedNeondb as unknown as { expectedIdentity: { database: string; role: string } }).expectedIdentity,
+    { database: "neondb", role: "mvp_serving_reader" },
+  )
+  await managedNeondb.shutdown()
+  assert.throws(() => createMvpServingManagedClient(managedUrl("mvp_serving_reader", ""), "READER"), /MVP_SERVING_MANAGED_IDENTITY_REQUIRED/)
+  assert.throws(() => createMvpServingManagedClient(managedUrl("", "mvp_release_20260721_9c177d6309"), "READER"), /MVP_SERVING_MANAGED_IDENTITY_REQUIRED/)
+  assert.throws(() => createMvpServingManagedClient(managedUrl("unexpected_reader", "mvp_release_20260721_9c177d6309"), "READER"), /MVP_SERVING_MANAGED_ROLE_INTENT_MISMATCH/)
+  assert.throws(() => createMvpServingManagedClient(managedUrl("mvp_serving_reader", "mvp_release_20260721_9c177d6309"), "PUBLISHER"), /MVP_SERVING_MANAGED_ROLE_INTENT_MISMATCH/)
+  assert.throws(() => createMvpServingManagedClient(managedUrl("qt_inactive_reader", "mvp_release_20260721_9c177d6309", "localhost"), "READER"), /MANAGED_POSTGRES_REMOTE_HOST_REQUIRED/)
+  assert.throws(() => createMvpServingManagedClient(managedUrl("qt_inactive_reader", "mvp_release_20260721_9c177d6309", "managed.example.invalid", ""), "READER"), /SERVING_MANAGED_PASSWORD_REQUIRED/)
 
   const projection = createMvpProjection({ kind: "DashboardMarketStateProjection", subjectId: "MVP_SIX_INSTRUMENTS", eventTimeStart: "2026-07-15T00:00:00.000Z", eventTimeEnd: "2026-07-16T00:00:00.000Z", knowledgeTimeCutoff: "2026-07-16T00:00:00.000Z", payload: { state: "NO DATA", reason: "Bounded unit fixture" }, dependencies: [{ dependencyType: "STREAM_SEGMENT", dependencyId: "mvp8v-test", dependencyVersion: "1", dependencyChecksum: canonicalChecksum("mvp8v-test") }] })
   const source: MvpConsumerProjectionSource = Object.freeze({ latest: (kind, subject) => Promise.resolve(kind === projection.projectionKind && subject === projection.subjectId ? projection : null), byVersion: () => Promise.resolve(null), list: () => Promise.resolve([]), exposure: () => Promise.resolve(null) })
