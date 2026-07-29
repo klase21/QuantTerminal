@@ -10,8 +10,9 @@ export const MVP8V_APPROVED_MEMBER_SET_CHECKSUM = "021b8ad9ea4710060dd5ab380174a
 export const MVP8V_APPROVED_WATERMARK_CHECKSUM = "a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a" as const
 export const MVP8V_PRODUCTION_TARGET_ID = "neon:soft-cell-16396854/br-royal-block-aop70mzq/neondb" as const
 export const MVP8Z2_CANDIDATE_TARGET_ID = "neon:soft-cell-16396854/br-flat-grass-ao9rtnyr/neondb" as const
+export const MVP_GREEN_PREVIEW_CANDIDATE_TARGET_ID = "neon:soft-cell-16396854/br-muddy-unit-ao3o6iid/mvp_release_20260721_9c177d6309" as const
 
-type MvpServingPreviewTargetId = typeof MVP8V_PRODUCTION_TARGET_ID | typeof MVP8Z2_CANDIDATE_TARGET_ID
+type MvpServingPreviewTargetId = typeof MVP8V_PRODUCTION_TARGET_ID | typeof MVP_GREEN_PREVIEW_CANDIDATE_TARGET_ID
 
 export interface MvpServingPreviewCandidateConfig {
   readonly candidateId: typeof MVP8V_APPROVED_CANDIDATE_ID
@@ -19,7 +20,7 @@ export interface MvpServingPreviewCandidateConfig {
   readonly memberSetChecksum: typeof MVP8V_APPROVED_MEMBER_SET_CHECKSUM
   readonly commonWatermarkChecksum: typeof MVP8V_APPROVED_WATERMARK_CHECKSUM
   readonly targetId: MvpServingPreviewTargetId
-  readonly branchId: "br-royal-block-aop70mzq" | "br-flat-grass-ao9rtnyr"
+  readonly branchId: "br-royal-block-aop70mzq" | "br-muddy-unit-ao3o6iid"
   readonly reviewMode: "PRODUCTION_INACTIVE" | "SEPARATE_CANDIDATE_DB"
   readonly retry?: Readonly<{ approvalId: string; binding: RolledBackCandidateRetryBinding }>
 }
@@ -37,7 +38,7 @@ export function resolveMvpServingPreviewCandidate(environment: Readonly<Record<s
   }
   if (Object.values(values).some((value) => !value || /[*,]/.test(value))) throw new Error("SERVING_PREVIEW_BINDING_INVALID")
   const separateCandidateDb = mode === "EXPLICIT_CANDIDATE_DB_REVIEW"
-  const expectedTargetId: MvpServingPreviewTargetId = separateCandidateDb ? MVP8Z2_CANDIDATE_TARGET_ID : MVP8V_PRODUCTION_TARGET_ID
+  const expectedTargetId: MvpServingPreviewTargetId = separateCandidateDb ? MVP_GREEN_PREVIEW_CANDIDATE_TARGET_ID : MVP8V_PRODUCTION_TARGET_ID
   if (values.candidateId !== MVP8V_APPROVED_CANDIDATE_ID || values.candidateChecksum !== MVP8V_APPROVED_CANDIDATE_CHECKSUM || values.memberSetChecksum !== MVP8V_APPROVED_MEMBER_SET_CHECKSUM || values.commonWatermarkChecksum !== MVP8V_APPROVED_WATERMARK_CHECKSUM || values.targetId !== expectedTargetId) throw new Error("SERVING_PREVIEW_BINDING_MISMATCH")
   const target = Object.freeze({
     candidateId: MVP8V_APPROVED_CANDIDATE_ID,
@@ -45,7 +46,7 @@ export function resolveMvpServingPreviewCandidate(environment: Readonly<Record<s
     memberSetChecksum: MVP8V_APPROVED_MEMBER_SET_CHECKSUM,
     commonWatermarkChecksum: MVP8V_APPROVED_WATERMARK_CHECKSUM,
     targetId: expectedTargetId,
-    branchId: separateCandidateDb ? "br-flat-grass-ao9rtnyr" as const : "br-royal-block-aop70mzq" as const,
+    branchId: separateCandidateDb ? "br-muddy-unit-ao3o6iid" as const : "br-royal-block-aop70mzq" as const,
     reviewMode: separateCandidateDb ? "SEPARATE_CANDIDATE_DB" as const : "PRODUCTION_INACTIVE" as const,
   })
   const approvalId = environment.MVP_SERVING_PREVIEW_RETRY_APPROVAL_ID
