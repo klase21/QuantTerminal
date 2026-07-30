@@ -322,7 +322,7 @@ async function main() {
   if (["build-candidate", "compare", "manifest"].includes(command)) return print({ command, status: "BLOCKED", reasons: ["SOURCE_AVAILABILITY_INSPECTION_REQUIRED"], candidateActivation: false })
   if (command === "status") return print({ command, result: await status() })
   if (command === "reset-isolated") return print({ command, result: await reset() })
-  throw new Error("Usage: runMvpRefresh.ts <catch-up-current-candidate --start=<UTC-midnight> --through=<UTC-midnight> --execution-mode=<dry-run|live> --confirm-local-inactive-candidate=<true|false> [--max-concurrency=<1|2>]|repair-current-catchup-d3-schema --confirm-apply-migration-005=true|backfill-doctor --start=<UTC-midnight> --through=<UTC-midnight>|inspect-connection|preflight|migrate|plan|availability|run|resume|verify|build-candidate|compare|manifest|status|reset-isolated --confirm-isolated>")
+  throw new Error("Usage: runMvpRefresh.ts <catch-up-current-candidate --start=<UTC-midnight> --through=<UTC-midnight> --execution-mode=<dry-run|live> --confirm-local-inactive-candidate=<true|false> [--max-concurrency=<1|2>] [--max-windows-this-run=<positive-integer>]|repair-current-catchup-d3-schema --confirm-apply-migration-005=true|backfill-doctor --start=<UTC-midnight> --through=<UTC-midnight>|inspect-connection|preflight|migrate|plan|availability|run|resume|verify|build-candidate|compare|manifest|status|reset-isolated --confirm-isolated>")
 }
 
 function print(value: unknown): void { console.log(JSON.stringify(value, null, 2)) }

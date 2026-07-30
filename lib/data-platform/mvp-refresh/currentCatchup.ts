@@ -17,6 +17,7 @@ export interface CurrentCatchupWorkerOptions {
   readonly executionMode: "dry-run" | "live"
   readonly confirmLocalInactiveCandidate: boolean
   readonly maxConcurrency: 1 | 2
+  readonly maxWindowsThisRun: number | null
 }
 
 export interface CurrentCatchupWindow {
@@ -116,7 +117,7 @@ export interface CurrentCatchupDayReport {
 
 export interface CurrentCatchupResult {
   readonly version: typeof CURRENT_CATCHUP_VERSION
-  readonly status: "DRY_RUN" | "COMPLETE" | "BLOCKED"
+  readonly status: "DRY_RUN" | "COMPLETE" | "PAUSED" | "BLOCKED"
   readonly catchupId: string
   readonly baseline: typeof CURRENT_MVP_CANDIDATE_BASELINE
   readonly requestedStart: string
@@ -135,6 +136,7 @@ export interface CurrentCatchupResult {
     readonly resumeBehavior: "AUTO_RESUME_DETERMINISTIC_INCOMPLETE_RUN"
   }
   readonly operationalMutationCalls: number
+  readonly windowsCompletedThisInvocation: number
   readonly retainedPayloadBytes: number
   readonly candidateExposed: false
   readonly blocker: string | null
@@ -164,6 +166,7 @@ export function parseCurrentCatchupWorkerOptions(argv: readonly string[]): Curre
   const through = exactUtcMidnight(option(argv, "through") ?? "", "CURRENT_CATCHUP_THROUGH_EXACT_UTC_MIDNIGHT_REQUIRED")
   const executionMode = option(argv, "execution-mode")
   const maximum = Number(option(argv, "max-concurrency") ?? "2")
+  const executionLimitArguments = argv.filter((value) => value === "--max-windows-this-run" || value.startsWith("--max-windows-this-run="))
   if (executionMode !== "dry-run" && executionMode !== "live") throw new Error("CURRENT_CATCHUP_EXECUTION_MODE_INVALID")
   if (maximum !== 1 && maximum !== 2) throw new Error("CURRENT_CATCHUP_CONCURRENCY_INVALID")
   const confirmationArguments = argv.filter((value) => value.startsWith("--confirm-local-inactive-candidate"))
@@ -172,7 +175,12 @@ export function parseCurrentCatchupWorkerOptions(argv: readonly string[]): Curre
   if (executionMode === "live" && !confirmLocalInactiveCandidate) throw new Error("CURRENT_CATCHUP_LIVE_CONFIRMATION_REQUIRED")
   if (start !== CURRENT_MVP_CANDIDATE_BASELINE.governedThrough) throw new Error("CURRENT_CATCHUP_BASELINE_WATERMARK_MISMATCH")
   if (Date.parse(through) <= Date.parse(start)) throw new Error("CURRENT_CATCHUP_WINDOW_INVALID")
-  return Object.freeze({ command: "catch-up-current-candidate", start, through, executionMode, confirmLocalInactiveCandidate, maxConcurrency: maximum })
+  const windowCount = (Date.parse(through) - Date.parse(start)) / CURRENT_CATCHUP_DAY_MS
+  const executionLimitValue = option(argv, "max-windows-this-run")
+  if (executionLimitArguments.length > 1 || (executionLimitArguments.length === 1 && (!executionLimitValue || !/^[1-9]\d*$/.test(executionLimitValue)))) throw new Error("CURRENT_CATCHUP_EXECUTION_WINDOW_LIMIT_INVALID")
+  const maxWindowsThisRun = executionLimitValue === undefined ? null : Number(executionLimitValue)
+  if (maxWindowsThisRun !== null && maxWindowsThisRun > windowCount) throw new Error("CURRENT_CATCHUP_EXECUTION_WINDOW_LIMIT_EXCEEDS_RANGE")
+  return Object.freeze({ command: "catch-up-current-candidate", start, through, executionMode, confirmLocalInactiveCandidate, maxConcurrency: maximum, maxWindowsThisRun })
 }
 
 export function expandCurrentCatchupWindows(start: string, through: string): readonly CurrentCatchupWindow[] {
@@ -263,6 +271,7 @@ export async function runCurrentCandidateCatchup(options: CurrentCatchupWorkerOp
   if (options.executionMode === "live" && !options.confirmLocalInactiveCandidate) throw new Error("CURRENT_CATCHUP_LIVE_CONFIRMATION_REQUIRED")
   if (options.maxConcurrency < 1 || options.maxConcurrency > CURRENT_CATCHUP_MAX_CONCURRENCY) throw new Error("CURRENT_CATCHUP_CONCURRENCY_INVALID")
   const windows = expandCurrentCatchupWindows(options.start, options.through)
+  if (options.maxWindowsThisRun !== null && (!Number.isInteger(options.maxWindowsThisRun) || options.maxWindowsThisRun < 1 || options.maxWindowsThisRun > windows.length)) throw new Error("CURRENT_CATCHUP_EXECUTION_WINDOW_LIMIT_INVALID")
   const identity = currentCatchupIdentity(options.start, options.through)
   const days: CurrentCatchupDayReport[] = []
   let contiguousSourceReadyThrough = options.start
@@ -271,7 +280,9 @@ export async function runCurrentCandidateCatchup(options: CurrentCatchupWorkerOp
   const sourceStatusCounts = emptySourceStatusCounts()
   let estimatedDownloadBytes = 0
   let operationalMutationCalls = 0
+  let windowsCompletedThisInvocation = 0
   let blocker: string | null = null
+  let paused = false
   let previousPlan: CertifiedLiveResumePlan | null = null
   let candidateBaseline: CurrentCatchupBaselineCursor = CURRENT_MVP_CANDIDATE_BASELINE
 
@@ -326,10 +337,15 @@ export async function runCurrentCandidateCatchup(options: CurrentCatchupWorkerOp
     completedThrough = window.intervalEnd
     days.push(Object.freeze({ ...base, executionState: "COMPLETE" }))
     previousPlan = plan
+    windowsCompletedThisInvocation += 1
+    if (options.maxWindowsThisRun !== null && windowsCompletedThisInvocation >= options.maxWindowsThisRun && completedThrough !== options.through) {
+      paused = true
+      break
+    }
   }
 
   const liveCommand = command(options)
-  const status = blocker ? "BLOCKED" : options.executionMode === "dry-run" ? "DRY_RUN" : completedThrough === options.through ? "COMPLETE" : "BLOCKED"
+  const status = blocker ? "BLOCKED" : options.executionMode === "dry-run" ? "DRY_RUN" : paused ? "PAUSED" : completedThrough === options.through ? "COMPLETE" : "BLOCKED"
   return Object.freeze({
     version: CURRENT_CATCHUP_VERSION,
     status,
@@ -347,6 +363,7 @@ export async function runCurrentCandidateCatchup(options: CurrentCatchupWorkerOp
     days: Object.freeze(days),
     commands: Object.freeze({ live: liveCommand, resume: liveCommand, resumeBehavior: "AUTO_RESUME_DETERMINISTIC_INCOMPLETE_RUN" }),
     operationalMutationCalls,
+    windowsCompletedThisInvocation,
     retainedPayloadBytes: 0,
     candidateExposed: false,
     blocker: blocker ?? (status === "BLOCKED" ? "CURRENT_CATCHUP_INCOMPLETE" : null),

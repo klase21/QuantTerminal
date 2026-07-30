@@ -69,10 +69,13 @@ const dryOptions = parseCurrentCatchupWorkerOptions([
 ])
 assert.equal(dryOptions.confirmLocalInactiveCandidate, false)
 assert.equal(dryOptions.maxConcurrency, 2)
+assert.equal(dryOptions.maxWindowsThisRun, null)
 assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", `--start=${START}`, `--through=${THROUGH}`, "--execution-mode=live", "--confirm-local-inactive-candidate=false"]), /CURRENT_CATCHUP_LIVE_CONFIRMATION_REQUIRED/)
 assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", "--start=2026-07-16T01:00:00.000Z", `--through=${THROUGH}`, "--execution-mode=dry-run", "--confirm-local-inactive-candidate=false"]), /CURRENT_CATCHUP_START_EXACT_UTC_MIDNIGHT_REQUIRED/)
 assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", `--start=${START}`, `--through=${THROUGH}`, "--execution-mode=dry-run", "--confirm-local-inactive-candidate=false", "--max-concurrency=3"]), /CURRENT_CATCHUP_CONCURRENCY_INVALID/)
 assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", `--start=${START}`, `--through=${THROUGH}`, "--execution-mode=dry-run", "--confirm-local-inactive-candidate"]), /CURRENT_CATCHUP_CONFIRMATION_FLAG_INVALID/)
+assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", `--start=${START}`, `--through=${THROUGH}`, "--execution-mode=dry-run", "--confirm-local-inactive-candidate=false", "--max-windows-this-run=0"]), /CURRENT_CATCHUP_EXECUTION_WINDOW_LIMIT_INVALID/)
+assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", `--start=${START}`, `--through=${THROUGH}`, "--execution-mode=dry-run", "--confirm-local-inactive-candidate=false", "--max-windows-this-run=14"]), /CURRENT_CATCHUP_EXECUTION_WINDOW_LIMIT_EXCEEDS_RANGE/)
 
 const verifiedResumableStatus = currentCatchupStatus()
 assert.equal(verifiedResumableStatus.effectiveExecutionState, "BLOCKED")
@@ -105,6 +108,26 @@ assert.equal(firstPlan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIV
 assert.equal(firstPlan.slots.filter((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT").length, 0)
 assert.equal(firstPlan.planIdentity, repeatedPlan.planIdentity)
 assert.equal(liveResumeRunIdentity(firstPlan).runId, liveResumeRunIdentity(repeatedPlan).runId)
+const existingFullRangePlan = createCurrentCatchupDayPlan({
+  catchupId: catchup.catchupId,
+  window: windows[0]!,
+  reconciliation: {
+    attempts: Object.freeze([]),
+    authorities: Object.freeze([]),
+    existingExecution: Object.freeze({ plan: firstPlan, runId: liveResumeRunIdentity(firstPlan).runId, unitIds: Object.freeze([]) }),
+  },
+})
+assert.equal(existingFullRangePlan.planIdentity, firstPlan.planIdentity)
+const narrowedCatchup = currentCatchupIdentity(START, "2026-07-17T00:00:00.000Z")
+assert.throws(() => createCurrentCatchupDayPlan({
+  catchupId: narrowedCatchup.catchupId,
+  window: windows[0]!,
+  reconciliation: {
+    attempts: Object.freeze([]),
+    authorities: Object.freeze([]),
+    existingExecution: Object.freeze({ plan: firstPlan, runId: liveResumeRunIdentity(firstPlan).runId, unitIds: Object.freeze([]) }),
+  },
+}), /CURRENT_CATCHUP_EXISTING_EXECUTION_CONFLICT/)
 
 const dryCheckpoints = new Map<string, LiveResumeStageCheckpoint>()
 let dryAuthorityCalls = 0
@@ -157,6 +180,7 @@ assert.equal(dryResult.estimatedDownloadBytes, 31_200)
 assert.equal(dryResult.contiguousSourceReadyThrough, THROUGH)
 assert.equal(dryResult.completedThrough, START)
 assert.equal(dryResult.operationalMutationCalls, 0)
+assert.equal(dryResult.windowsCompletedThisInvocation, 0)
 assert.equal(dryResult.retainedPayloadBytes, 0)
 assert.equal(dryResult.candidateExposed, false)
 assert.equal(dryResult.days.every((day) => day.executionState === "PLANNED" && day.sourceSlots === 24 && day.readySourceSlots === 24), true)
@@ -245,6 +269,66 @@ assert.equal(stopped.days[0]?.executionState, "COMPLETE")
 assert.equal(stopped.days[1]?.executionState, "BLOCKED")
 assert.equal(liveExecutions, 1)
 assert.equal(liveReconciliations, 2)
+
+const limitedOptions = parseCurrentCatchupWorkerOptions([
+  "catch-up-current-candidate",
+  `--start=${START}`,
+  `--through=${THROUGH}`,
+  "--execution-mode=live",
+  "--confirm-local-inactive-candidate=true",
+  "--max-concurrency=2",
+  "--max-windows-this-run=1",
+])
+assert.equal(limitedOptions.maxWindowsThisRun, 1)
+assert.deepEqual(currentCatchupIdentity(limitedOptions.start, limitedOptions.through), currentCatchupIdentity(liveOptions.start, liveOptions.through))
+const limitedTouchedWindows: number[] = []
+let limitedIntent: "RUN" | "RESUME" | null = null
+const limitedPorts: CurrentCatchupPorts = {
+  reconcile: async (window) => {
+    limitedTouchedWindows.push(window.ordinal)
+    return window.ordinal === 0
+      ? Object.freeze({
+        attempts: Object.freeze([]),
+        authorities: Object.freeze([]),
+        existingExecution: Object.freeze({ plan: firstPlan, runId: liveResumeRunIdentity(firstPlan).runId, unitIds: Object.freeze([]) }),
+      })
+      : Object.freeze({ attempts: Object.freeze([]), authorities: Object.freeze([]) })
+  },
+  inspectSources: async ({ plan }) => Object.freeze(plan.slots.map((slot) => Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, status: "READY_FOR_DOWNLOAD" as const, reusableRawObjects: 0, contentLength: null, reason: null }))),
+  readExecutionState: async () => Object.freeze({ state: "INCOMPLETE" as const, candidateBaseline: null }),
+  execute: async ({ plan, intent }) => {
+    limitedIntent = intent
+    return completeResult(plan)
+  },
+}
+const paused = await runCurrentCandidateCatchup(limitedOptions, limitedPorts)
+assert.equal(limitedIntent, "RESUME")
+assert.deepEqual(limitedTouchedWindows, [0])
+assert.equal(paused.status, "PAUSED")
+assert.equal(currentCatchupProcessExitCode(paused.status), 0)
+assert.equal(paused.windowsCompletedThisInvocation, 1)
+assert.equal(paused.completedThrough, "2026-07-17T00:00:00.000Z")
+assert.equal(paused.requestedThrough, THROUGH)
+assert.equal(paused.candidateExposed, false)
+assert.doesNotMatch(paused.commands.resume, /max-windows-this-run/)
+
+const resumedTouchedWindows: number[] = []
+const continuePorts: CurrentCatchupPorts = {
+  reconcile: async (window) => {
+    resumedTouchedWindows.push(window.ordinal)
+    return Object.freeze({ attempts: Object.freeze([]), authorities: Object.freeze([]) })
+  },
+  inspectSources: async ({ plan }) => Object.freeze(plan.slots.map((slot) => Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, status: "READY_FOR_DOWNLOAD" as const, reusableRawObjects: 0, contentLength: null, reason: null }))),
+  readExecutionState: async (plan) => plan.intervalStart === START
+    ? Object.freeze({ state: "COMPLETE" as const, candidateBaseline: completeResult(plan).candidateBaseline! })
+    : Object.freeze({ state: "BLOCKED" as const, candidateBaseline: null }),
+  execute: async () => { throw new Error("CONTINUATION_TEST_MUST_NOT_EXECUTE_BLOCKED_SECOND_DAY") },
+}
+const continued = await runCurrentCandidateCatchup(liveOptions, continuePorts)
+assert.equal(continued.status, "BLOCKED")
+assert.deepEqual(resumedTouchedWindows, [0, 1])
+assert.equal(continued.days[0]?.executionState, "COMPLETE")
+assert.equal(continued.days[1]?.executionState, "BLOCKED")
 
 console.log(JSON.stringify({ status: "PASS", windows: windows.length, logicalSlots: dryResult.logicalSlotCount, readySourceSlots: dryResult.readySourceSlotCount, deterministicPlanId: firstPlan.planIdentity, deterministicRunId: liveResumeRunIdentity(firstPlan).runId, operationalMutationCalls: dryResult.operationalMutationCalls, candidateExposed: dryResult.candidateExposed }))
 }
