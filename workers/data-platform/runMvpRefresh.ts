@@ -21,14 +21,26 @@ import {
   runCurrentCandidateCatchup,
   runInitialBoundedRefresh,
   ControlledOhlcvRecoveryStore,
+  parseBackfillDoctorOptions,
+  runBackfillDoctor,
+  currentCatchupProcessExitCode,
+  type BackfillDoctorPorts,
   type CurrentCatchupPorts,
   type CurrentCatchupSourceAvailability,
   type CurrentCatchupWindow,
   type RefreshLogicalDataset,
 } from "@/lib/data-platform/mvp-refresh"
 import { createProcessLiveResumeBindings } from "@/lib/data-platform/mvp-refresh/liveResumeLocalBootstrap"
+import {
+  classifyPre005D3Structure,
+  createCurrentCatchupSchemaRepairPort,
+  createDurableD3PostgresClientFromEnvironment,
+  discoverD3Migrations,
+  isExactPost005CurrentCatchupStructure,
+  repairCurrentCatchupSchema,
+} from "@/lib/data-platform/population/postgres"
 
-type Command = "inspect-connection" | "preflight" | "migrate" | "plan" | "availability" | "run" | "resume" | "verify" | "build-candidate" | "compare" | "manifest" | "status" | "reset-isolated"
+type Command = "inspect-connection" | "preflight" | "migrate" | "plan" | "availability" | "run" | "resume" | "verify" | "build-candidate" | "compare" | "manifest" | "status" | "reset-isolated" | "repair-current-catchup-d3-schema" | "backfill-doctor"
 
 const CURRENT_CATCHUP_INSTRUMENTS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const)
 const CURRENT_CATCHUP_DATASETS = Object.freeze(["ohlcv", "open-interest", "funding", "agg-trade"] as const)
@@ -152,6 +164,116 @@ async function runCurrentCatchup(argv: readonly string[]) {
   }
 }
 
+function createCurrentCatchupD3Client(roleIntent: "MIGRATION_OWNER" | "READ_ONLY", applicationName: string) {
+  return createDurableD3PostgresClientFromEnvironment(
+    { roleIntent, maxConnections: 1, applicationName, targetPurpose: "INTEGRATED_BACKFILL" },
+    process.env,
+  )
+}
+
+async function requireCurrentCatchupD3Identity(client: ReturnType<typeof createCurrentCatchupD3Client>): Promise<void> {
+  const rows = await client.sql.unsafe<Array<{ readonly database_ok: boolean; readonly role_ok: boolean; readonly version_ok: boolean }>>(
+    "SELECT current_database()='quantterminal_backfill' database_ok,current_user='qt_d3_backfill_owner' role_ok,current_setting('server_version_num')::int BETWEEN 160000 AND 169999 version_ok",
+  )
+  if (!rows[0]?.database_ok) throw new Error("CURRENT_CATCHUP_D3_DATABASE_MISMATCH")
+  if (!rows[0]?.role_ok) throw new Error("CURRENT_CATCHUP_D3_ROLE_MISMATCH")
+  if (!rows[0]?.version_ok) throw new Error("CURRENT_CATCHUP_D3_POSTGRES_VERSION_MISMATCH")
+}
+
+async function repairCurrentCatchupD3Schema(argv: readonly string[]) {
+  if (argv.length !== 2 || argv[0] !== "repair-current-catchup-d3-schema" || argv[1] !== "--confirm-apply-migration-005=true") throw new Error("CURRENT_CATCHUP_D3_REPAIR_CONFIRMATION_REQUIRED")
+  const client = createCurrentCatchupD3Client("MIGRATION_OWNER", "mvp-current-catchup-d3-schema-repair")
+  try {
+    await requireCurrentCatchupD3Identity(client)
+    const port = await createCurrentCatchupSchemaRepairPort(client)
+    const artifacts = await discoverD3Migrations()
+    const artifactChecksums = new Map(artifacts.map((artifact) => [artifact.migrationId, artifact.checksum]))
+    const beforeLedger = await port.readLedger()
+    const beforeStructure = await port.inspectPre005Structure()
+    const structureState = classifyPre005D3Structure(beforeStructure)
+    const historicalChecksumMismatches = beforeLedger.filter((entry) => ["001", "002", "003", "004"].includes(entry.migrationId) && artifactChecksums.get(entry.migrationId) !== entry.checksum).length
+    const result = await repairCurrentCatchupSchema(port, "mvp-current-catchup-d3-schema-repair")
+    const [afterLedger, afterStructure] = await Promise.all([port.readLedger(), port.inspectPre005Structure()])
+    const beforeHistorical = beforeLedger.filter((entry) => ["001", "002", "003", "004"].includes(entry.migrationId))
+    const afterHistorical = afterLedger.filter((entry) => ["001", "002", "003", "004"].includes(entry.migrationId))
+    if (JSON.stringify(beforeHistorical) !== JSON.stringify(afterHistorical)) throw new Error("CURRENT_CATCHUP_D3_HISTORICAL_LEDGER_MUTATED")
+    const migration005 = afterLedger.filter((entry) => entry.migrationId === "005")
+    if (migration005.length !== 1 || !isExactPost005CurrentCatchupStructure(afterStructure)) throw new Error("CURRENT_CATCHUP_D3_005_VERIFICATION_FAILED")
+    return Object.freeze({
+      status: result.status === "REPAIRED" ? "APPLIED" as const : "ALREADY_APPLIED" as const,
+      structuralContract: structureState === "EXACT" ? "STRUCTURALLY_COMPATIBLE" as const : structureState,
+      migrationId: result.migrationId,
+      migrationChecksum: result.checksum,
+      historicalChecksumMismatches,
+      historicalLedgerRowsModified: 0,
+      migration005LedgerRows: 1,
+      productionMutation: false,
+      neonMutation: false,
+    })
+  } finally {
+    await client.shutdown()
+  }
+}
+
+async function runCurrentCatchupBackfillDoctor(argv: readonly string[]) {
+  const options = parseBackfillDoctorOptions(argv.slice(1))
+  const refresh = createMvpRefreshClientFromEnvironment()
+  const d3 = createCurrentCatchupD3Client("READ_ONLY", "mvp-current-catchup-backfill-doctor")
+  await Promise.all([refresh.verify(), requireCurrentCatchupD3Identity(d3)])
+  const executions = new PostgresLiveResumeExecutionStore(refresh)
+  const d3Port = await createCurrentCatchupSchemaRepairPort(d3)
+  const ports: BackfillDoctorPorts = {
+    preflightEnvironment: async ({ requiredEnvironmentNames }) => {
+      const missingEnvironmentNames = requiredEnvironmentNames.filter((name) => !process.env[name]?.trim())
+      if (missingEnvironmentNames.length) return Object.freeze({ passed: false, missingEnvironmentNames: Object.freeze(missingEnvironmentNames), diagnostics: Object.freeze([]) })
+      const preflight = await preflightLocalLiveResumeEnvironment(process.env)
+      return Object.freeze({
+        passed: preflight.passed,
+        missingEnvironmentNames: Object.freeze([]),
+        diagnostics: Object.freeze(preflight.capabilities.filter((capability) => capability.bindingName !== "candidate-activation" && capability.diagnostic !== "READY").map((capability) => `${capability.bindingName.toUpperCase().replaceAll("-", "_")}_${capability.diagnostic}`)),
+      })
+    },
+    inspectD3Schema: async () => {
+      const [structure, ledger] = await Promise.all([d3Port.inspectPre005Structure(), d3Port.readLedger()])
+      const migration005 = ledger.find((entry) => entry.migrationId === "005")
+      const artifact005 = (await discoverD3Migrations()).find((entry) => entry.migrationId === "005")
+      const ready = classifyPre005D3Structure(structure) === "EXACT" && isExactPost005CurrentCatchupStructure(structure) && Boolean(migration005 && artifact005 && migration005.checksum === artifact005.checksum)
+      return Object.freeze({ passedThroughMigration: ready ? 5 : 4, diagnostic: ready ? null : "D3_SCHEMA_THROUGH_005_REQUIRED" })
+    },
+    inspectRun: async ({ runId, start, through }) => {
+      const execution = await executions.readPersistedExecution(start, through)
+      const snapshot = execution ? await executions.status(execution.plan) : null
+      const terminalUnitCount = snapshot ? Object.entries(snapshot.unitCountsByState).filter(([state]) => !["PENDING", "LEASED", "ACQUIRED", "NORMALIZED", "COMMITTED", "VALIDATED", "MATERIALIZED", "COMPLETE"].includes(state)).reduce((total, [, count]) => total + count, 0) : 0
+      return Object.freeze({
+        runId: execution?.runId ?? null,
+        executionGenerationState: snapshot?.disposition ?? null,
+        resumeEligible: snapshot?.resumeEligible ?? false,
+        leaseState: snapshot?.leaseState ?? "ABSENT",
+        persistedUnitCount: snapshot?.persistedUnitCount ?? 0,
+        recoverableSlots: snapshot?.recoverableSlots ?? 0,
+        blockedSlots: snapshot?.blockedSlots ?? 0,
+        unitCountsByState: snapshot?.unitCountsByState ?? Object.freeze({}),
+        terminalUnitCount,
+        retainedArtifacts: Object.freeze({ count: snapshot?.retainedArtifacts ?? 0, allAttributedToRun: execution?.runId === runId }),
+        candidateCount: snapshot?.retainedCandidates ?? 0,
+        commonWatermark: snapshot?.commonWatermark ?? null,
+      })
+    },
+    inspectProviderAvailability: async ({ start, through }) => {
+      const execution = await executions.readPersistedExecution(start, through)
+      if (!execution) return Object.freeze({ available: false, diagnostic: "PROVIDERS_EXECUTION_PLAN_MISSING" })
+      const sources = await inspectCurrentCatchupSources({ ordinal: 0, intervalStart: start, intervalEnd: through }, execution.plan, 2)
+      const available = sources.length === 24 && sources.every((source) => source.status === "READY_FOR_DOWNLOAD" || source.status === "REUSE_CERTIFIED_EXISTING")
+      return Object.freeze({ available, diagnostic: available ? null : "PROVIDERS_ONE_DAY_WINDOW_UNAVAILABLE" })
+    },
+  }
+  try {
+    return await runBackfillDoctor(options, ports)
+  } finally {
+    await Promise.all([refresh.shutdown(), d3.shutdown()])
+  }
+}
+
 async function withClient<T>(work: (client: ReturnType<typeof createMvpRefreshClientFromEnvironment>) => Promise<T>): Promise<T> {
   const client = createMvpRefreshClientFromEnvironment()
   await client.verify()
@@ -177,8 +299,18 @@ async function reset() {
 }
 
 async function main() {
-  if (process.argv[2] === "catch-up-current-candidate") return print({ command: "catch-up-current-candidate", result: await runCurrentCatchup(process.argv.slice(2)) })
+  if (process.argv[2] === "catch-up-current-candidate") {
+    const result = await runCurrentCatchup(process.argv.slice(2))
+    process.exitCode = currentCatchupProcessExitCode(result.status)
+    return print({ command: "catch-up-current-candidate", result })
+  }
   const command = process.argv[2] as Command
+  if (command === "repair-current-catchup-d3-schema") return print({ command, result: await repairCurrentCatchupD3Schema(process.argv.slice(2)) })
+  if (command === "backfill-doctor") {
+    const result = await runCurrentCatchupBackfillDoctor(process.argv.slice(2))
+    process.exitCode = result.status === "READY" ? 0 : 1
+    return print({ command, result })
+  }
   if (command === "inspect-connection") return print({ command, result: inspectMvpRefreshConnectionFromEnvironment() })
   if (command === "preflight") return print({ command, result: await preflightMvpRefreshClientFromEnvironment() })
   if (command === "migrate") return print({ command, result: await migrate() })
@@ -190,7 +322,7 @@ async function main() {
   if (["build-candidate", "compare", "manifest"].includes(command)) return print({ command, status: "BLOCKED", reasons: ["SOURCE_AVAILABILITY_INSPECTION_REQUIRED"], candidateActivation: false })
   if (command === "status") return print({ command, result: await status() })
   if (command === "reset-isolated") return print({ command, result: await reset() })
-  throw new Error("Usage: runMvpRefresh.ts <catch-up-current-candidate --start=<UTC-midnight> --through=<UTC-midnight> --execution-mode=<dry-run|live> --confirm-local-inactive-candidate=<true|false> [--max-concurrency=<1|2>]|inspect-connection|preflight|migrate|plan|availability|run|resume|verify|build-candidate|compare|manifest|status|reset-isolated --confirm-isolated>")
+  throw new Error("Usage: runMvpRefresh.ts <catch-up-current-candidate --start=<UTC-midnight> --through=<UTC-midnight> --execution-mode=<dry-run|live> --confirm-local-inactive-candidate=<true|false> [--max-concurrency=<1|2>]|repair-current-catchup-d3-schema --confirm-apply-migration-005=true|backfill-doctor --start=<UTC-midnight> --through=<UTC-midnight>|inspect-connection|preflight|migrate|plan|availability|run|resume|verify|build-candidate|compare|manifest|status|reset-isolated --confirm-isolated>")
 }
 
 function print(value: unknown): void { console.log(JSON.stringify(value, null, 2)) }

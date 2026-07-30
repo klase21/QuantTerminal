@@ -140,6 +140,10 @@ export interface CurrentCatchupResult {
   readonly blocker: string | null
 }
 
+export function currentCatchupProcessExitCode(status: CurrentCatchupResult["status"]): 0 | 1 {
+  return status === "BLOCKED" ? 1 : 0
+}
+
 function option(argv: readonly string[], name: string): string | undefined {
   const prefix = `--${name}=`
   const inline = argv.find((value) => value.startsWith(prefix))

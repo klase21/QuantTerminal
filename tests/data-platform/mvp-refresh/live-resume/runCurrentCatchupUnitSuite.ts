@@ -5,6 +5,7 @@ import {
   createDryRunLiveResumeExecutionSetup,
   createCurrentCatchupDayPlan,
   classifyCurrentCatchupExecutionState,
+  currentCatchupProcessExitCode,
   currentCatchupIdentity,
   expandCurrentCatchupWindows,
   liveResumeRunIdentity,
@@ -235,6 +236,9 @@ const livePorts: CurrentCatchupPorts = {
 }
 const stopped = await runCurrentCandidateCatchup(liveOptions, livePorts)
 assert.equal(stopped.status, "BLOCKED")
+assert.equal(currentCatchupProcessExitCode(stopped.status), 1)
+assert.equal(currentCatchupProcessExitCode(resumed.status), 0)
+assert.equal(currentCatchupProcessExitCode(dryResult.status), 0)
 assert.equal(stopped.completedThrough, "2026-07-17T00:00:00.000Z")
 assert.equal(stopped.days.length, 2)
 assert.equal(stopped.days[0]?.executionState, "COMPLETE")

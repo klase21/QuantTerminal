@@ -1,5 +1,6 @@
 export * from "./adapter"
 export * from "./client"
+export * from "./currentCatchupSchemaRepair"
 export * from "./durableClientFactory"
 export * from "./migrationRunner"
 export * from "./reset"
