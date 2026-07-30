@@ -276,9 +276,16 @@ export class PostgresLiveResumeCoordinatorControlPlane {
   }
 
   async read(runId: string, stage: LiveResumeStage): Promise<LiveResumeStageCheckpoint | null> {
-    const rows = await this.client.sql.unsafe<Array<{ payload: LiveResumeStageCheckpoint | string }>>("SELECT payload FROM refresh_control.refresh_event WHERE entity_kind='live_resume_coordinator' AND entity_id=$1 AND event_kind=$2 ORDER BY occurred_at,event_id", [runId, `STAGE_${stage}`])
-    if (rows.length > 1) throw new Error("LIVE_RESUME_CHECKPOINT_MULTIPLE_EVENTS")
-    return rows[0] ? checkpointFromJson(rows[0].payload) : null
+    const rows = await this.client.sql.unsafe<Array<{ event_kind: string; payload: LiveResumeStageCheckpoint | string }>>("SELECT event_kind,payload FROM refresh_control.refresh_event WHERE entity_kind='live_resume_coordinator' AND entity_id=$1 AND event_kind IN ($2,$3) ORDER BY occurred_at DESC,event_id DESC", [runId, `STAGE_${stage}`, `STAGE_FAILURE_${stage}`])
+    const checkpoints = rows.map((row) => {
+      const checkpoint = checkpointFromJson(row.payload)
+      const expectedEventKind = checkpoint.state === "COMPLETE" ? `STAGE_${stage}` : `STAGE_FAILURE_${stage}`
+      if (checkpoint.coordinatorRunId !== runId || checkpoint.stage !== stage || row.event_kind !== expectedEventKind) throw new Error("LIVE_RESUME_CHECKPOINT_IDENTITY_INVALID")
+      return checkpoint
+    })
+    const complete = checkpoints.filter((checkpoint) => checkpoint.state === "COMPLETE")
+    if (complete.length > 1) throw new Error("LIVE_RESUME_CHECKPOINT_MULTIPLE_EVENTS")
+    return complete[0] ?? checkpoints.find((checkpoint) => checkpoint.state === "FAILED") ?? null
   }
 
   async append(checkpoint: LiveResumeStageCheckpoint): Promise<"CREATED" | "DUPLICATE"> {

@@ -37,7 +37,7 @@ async function main() {
   const client = createMvpRefreshClientFromEnvironment()
   await client.verify()
   const plan = certifiedPlan(), identity = liveResumeRunIdentity(plan)
-  let setupVerified = false, checkpointVerified = false, statusVerified = false, appendOnlyMutationRejected = false
+  let setupVerified = false, checkpointVerified = false, failureHistoryVerified = false, statusVerified = false, appendOnlyMutationRejected = false
   try {
     await client.sql.begin(async (sql) => {
       const transactionClient = { sql, transaction: async <T>(work: (value: typeof sql) => Promise<T>) => work(sql) } as unknown as MvpRefreshPostgresClient
@@ -85,9 +85,16 @@ async function main() {
       const output = liveResumeStageOutput({ logicalSlots: 24 }, [plan.planChecksum])
       const basis: Omit<LiveResumeStageCheckpoint, "checksum"> = { coordinatorRunId: setup.persistedRunId, stage: "PLAN_VERIFIED", intervalStart: start, intervalEnd: end, plannerIdentity: plan.planIdentity, plannerChecksum: plan.planChecksum, inputChecksum: canonicalChecksum({ input: "certification" }), output, previousStage: null, previousStageChecksum: null, fencingToken: lease.fencingToken, state: "COMPLETE", failureClassification: null, resumeEligible: true }
       const checkpoint = Object.freeze({ ...basis, checksum: canonicalChecksum(basis) })
+      const failedBasis: Omit<LiveResumeStageCheckpoint, "checksum"> = { ...basis, output: liveResumeStageOutput({ failed: true }, []), state: "FAILED", failureClassification: "TEST_FAILURE", resumeEligible: true }
+      const failedCheckpoint = Object.freeze({ ...failedBasis, checksum: canonicalChecksum(failedBasis) })
+      assert.equal(await control.appendFailure(failedCheckpoint), "CREATED")
+      assert.equal((await control.read(setup.persistedRunId, "PLAN_VERIFIED"))?.state, "FAILED")
       assert.equal(await control.append(checkpoint), "CREATED")
       assert.equal(await control.append(checkpoint), "DUPLICATE")
       assert.equal((await control.read(setup.persistedRunId, "PLAN_VERIFIED"))?.checksum, checkpoint.checksum)
+      const checkpointHistory = await sql.unsafe<Array<{ event_kind: string }>>("SELECT event_kind FROM refresh_control.refresh_event WHERE entity_kind='live_resume_coordinator' AND entity_id=$1 AND event_kind IN ('STAGE_PLAN_VERIFIED','STAGE_FAILURE_PLAN_VERIFIED') ORDER BY event_kind", [setup.persistedRunId])
+      assert.deepEqual(checkpointHistory.map((row) => row.event_kind), ["STAGE_FAILURE_PLAN_VERIFIED", "STAGE_PLAN_VERIFIED"])
+      failureHistoryVerified = true
       await control.release(setup.persistedRunId, lease.fencingToken)
       setupVerified = true
       checkpointVerified = true
@@ -158,7 +165,7 @@ async function main() {
   }
 
   await client.shutdown()
-  console.log(JSON.stringify({ status: "PASS", setupVerified, checkpointVerified, statusVerified, appendOnlyMutationRejected, exactResume: "DUPLICATE", persistedRunIdPropagated: true, atomicRollback: true, retainedRows: 0 }))
+  console.log(JSON.stringify({ status: "PASS", setupVerified, checkpointVerified, failureHistoryVerified, statusVerified, appendOnlyMutationRejected, exactResume: "DUPLICATE", persistedRunIdPropagated: true, atomicRollback: true, retainedRows: 0 }))
 }
 
 void main().catch((error) => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1 })

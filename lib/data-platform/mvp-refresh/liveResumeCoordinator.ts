@@ -149,6 +149,12 @@ export interface LiveResumeStageCheckpoint {
   readonly checksum: string
 }
 
+export function classifyStoredLiveResumeCheckpoint(checkpoint: LiveResumeStageCheckpoint): "REUSE_COMPLETE" | "RETRY_FAILED" {
+  if (checkpoint.state === "COMPLETE") return "REUSE_COMPLETE"
+  if (!checkpoint.resumeEligible) throw new Error(`LIVE_RESUME_STAGE_FAILURE_NOT_RESUMABLE:${checkpoint.stage}:${checkpoint.failureClassification ?? "UNCLASSIFIED_FAILURE"}`)
+  return "RETRY_FAILED"
+}
+
 export interface LiveResumeCoordinatorPorts {
   readonly targets: { classify(): Promise<LiveResumeTargetClassification> }
   readonly execution: {
@@ -497,8 +503,10 @@ export class MvpLiveResumeCoordinator {
       const stored = await this.ports.checkpoints.read(coordinatorRunId, stageName)
       if (stored) {
         if (stored.inputChecksum !== inputChecksum || stored.previousStage !== (previous?.stage ?? null) || stored.previousStageChecksum !== (previous?.checksum ?? null) || stored.plannerChecksum !== input.plan.planChecksum || stored.fencingToken > lease.fencingToken) throw new Error("LIVE_RESUME_STAGE_CHECKSUM_CONFLICT")
-        checkpoints.push(stored)
-        return stored.output
+        if (classifyStoredLiveResumeCheckpoint(stored) === "REUSE_COMPLETE") {
+          checkpoints.push(stored)
+          return stored.output
+        }
       }
       let output: LiveResumeStageOutput
       try { output = await execute() } catch (error) {

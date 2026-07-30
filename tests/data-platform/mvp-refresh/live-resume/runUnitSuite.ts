@@ -6,6 +6,7 @@ import {
   LIVE_RESUME_STAGES,
   MvpLiveResumeCoordinator,
   assertSanitizedLiveResumeOutput,
+  classifyStoredLiveResumeCheckpoint,
   createCertifiedLiveResumePlan,
   createCleanCertifiedLiveResumePlan,
   createCleanExecutionGenerationContext,
@@ -59,7 +60,7 @@ function fixture() {
       return setup
     } },
     lease: { acquire: async () => ({ fencingToken: fence }), assert: async (_runId, token) => { if (token !== fence) throw new Error("STALE") }, release: async () => undefined },
-    checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? null, append: async (value) => { const key = `${value.coordinatorRunId}:${value.stage}`, existing = checkpoints.get(key); if (existing && existing.checksum !== value.checksum) throw new Error("CONFLICT"); if (existing) return "DUPLICATE"; checkpoints.set(key, value); return "CREATED" }, appendFailure: async (value) => { checkpoints.set(`${value.coordinatorRunId}:failure:${value.stage}:${value.checksum}`, value); return "CREATED" } },
+    checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? [...checkpoints.entries()].filter(([key, value]) => key.startsWith(`${runId}:failure:${stage}:`) && value.state === "FAILED").at(-1)?.[1] ?? null, append: async (value) => { const key = `${value.coordinatorRunId}:${value.stage}`, existing = checkpoints.get(key); if (existing && existing.checksum !== value.checksum) throw new Error("CONFLICT"); if (existing) return "DUPLICATE"; checkpoints.set(key, value); return "CREATED" }, appendFailure: async (value) => { checkpoints.set(`${value.coordinatorRunId}:failure:${value.stage}:${value.checksum}`, value); return "CREATED" } },
     authoritativeOhlcv: { reuse: async (slot) => slotResult(slot, null) },
     executors: Object.fromEntries(Object.keys(contracts).map((dataset) => [dataset, { execute: async (slot: ReturnType<typeof plan>["slots"][number], unit: { unitId: string | null }) => { executorCalls.push(`${slot.dataset}:${slot.instrument}`); return slotResult(slot, unit.unitId) } }])) as unknown as LiveResumeCoordinatorPorts["executors"],
     watermarks: { persistDataset: async (dataset, through, slots) => liveResumeStageOutput({ dataset, through, logicalSlots: slots.length }, [`watermark:${dataset}:${through}`]), persistCommon: async (through, datasets) => liveResumeStageOutput({ through, datasets: datasets.length }, [`watermark:common:${through}`]) },
@@ -124,6 +125,40 @@ async function main() {
   await assert.rejects(() => new MvpLiveResumeCoordinator(failure.ports).execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION", failAfterStage: "CANONICAL_COMMITTED" }), /LIVE_RESUME_INJECTED_FAILURE/)
   assert.equal([...failure.checkpoints.values()].some((value) => value.stage === "COMMON_WATERMARK_VALIDATED"), false)
   assert.equal([...failure.checkpoints.values()].some((value) => value.stage === "CANDIDATE_MEMBERSHIP_ASSEMBLED"), false)
+
+  const failedCoverage = fixture()
+  const coverage = failedCoverage.ports.downstream.coverage
+  let coverageCalls = 0
+  ;(failedCoverage.ports.downstream as Record<string, unknown>).coverage = async (...args: Parameters<typeof coverage>) => {
+    coverageCalls += 1
+    if (coverageCalls === 1) throw new Error("COVERAGE_RETRY_FIXTURE")
+    return coverage(...args)
+  }
+  const failedCoverageCoordinator = new MvpLiveResumeCoordinator(failedCoverage.ports)
+  await assert.rejects(() => failedCoverageCoordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION" }), /COVERAGE_RETRY_FIXTURE/)
+  const coverageFailure = [...failedCoverage.checkpoints.entries()].find(([key, value]) => key.includes(":failure:COVERAGE_PERSISTED:") && value.state === "FAILED")
+  assert.ok(coverageFailure)
+  assert.equal(failedCoverage.downstreamCalls.length, 0)
+  const recoveredCoverage = await failedCoverageCoordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION" })
+  assert.equal(recoveredCoverage.status, "COMPLETE")
+  assert.equal(coverageCalls, 2)
+  assert.deepEqual(failedCoverage.downstreamCalls, ["coverage", "consistency", "evidence", "projections", "replay"])
+  assert.equal(failedCoverage.checkpoints.has(coverageFailure![0]), true)
+  assert.equal(failedCoverage.checkpoints.get(`${coverageFailure![1].coordinatorRunId}:COVERAGE_PERSISTED`)?.state, "COMPLETE")
+  for (const stage of LIVE_RESUME_STAGES) {
+    assert.equal(classifyStoredLiveResumeCheckpoint(Object.freeze({ ...coverageFailure![1], stage, state: "FAILED", resumeEligible: true })), "RETRY_FAILED")
+    assert.equal(classifyStoredLiveResumeCheckpoint(Object.freeze({ ...coverageFailure![1], stage, state: "COMPLETE", resumeEligible: true })), "REUSE_COMPLETE")
+  }
+
+  const nonResumable = fixture()
+  const nonResumableCoverage = nonResumable.ports.downstream.coverage
+  ;(nonResumable.ports.downstream as Record<string, unknown>).coverage = async () => { throw new Error("NON_RESUMABLE_FIXTURE") }
+  const nonResumableCoordinator = new MvpLiveResumeCoordinator(nonResumable.ports)
+  await assert.rejects(() => nonResumableCoordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION" }), /NON_RESUMABLE_FIXTURE/)
+  const nonResumableEntry = [...nonResumable.checkpoints.entries()].find(([key]) => key.includes(":failure:COVERAGE_PERSISTED:"))!
+  nonResumable.checkpoints.set(nonResumableEntry[0], Object.freeze({ ...nonResumableEntry[1], resumeEligible: false }))
+  ;(nonResumable.ports.downstream as Record<string, unknown>).coverage = nonResumableCoverage
+  await assert.rejects(() => nonResumableCoordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION" }), /LIVE_RESUME_STAGE_FAILURE_NOT_RESUMABLE:COVERAGE_PERSISTED/)
 
   let failurePointsCertified = 0
   for (const failureStage of LIVE_RESUME_STAGES) {
