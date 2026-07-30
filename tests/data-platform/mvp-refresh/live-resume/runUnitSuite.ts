@@ -50,7 +50,7 @@ function slotResult(slot: ReturnType<typeof plan>["slots"][number], unitId: stri
 }
 
 function fixture() {
-  const checkpoints = new Map<string, LiveResumeStageCheckpoint>(), createdUnits: string[] = [], executorCalls: string[] = [], downstreamCalls: string[] = []
+  const checkpoints = new Map<string, LiveResumeStageCheckpoint>(), createdUnits: string[] = [], executorCalls: string[] = [], downstreamCalls: string[] = [], completeAppendCalls: string[] = []
   let fence = 1, candidateAssembled = false, candidateExposed = false
   const ports: LiveResumeCoordinatorPorts = {
     targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
@@ -60,14 +60,14 @@ function fixture() {
       return setup
     } },
     lease: { acquire: async () => ({ fencingToken: fence }), assert: async (_runId, token) => { if (token !== fence) throw new Error("STALE") }, release: async () => undefined },
-    checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? [...checkpoints.entries()].filter(([key, value]) => key.startsWith(`${runId}:failure:${stage}:`) && value.state === "FAILED").at(-1)?.[1] ?? null, append: async (value) => { const key = `${value.coordinatorRunId}:${value.stage}`, existing = checkpoints.get(key); if (existing && existing.checksum !== value.checksum) throw new Error("CONFLICT"); if (existing) return "DUPLICATE"; checkpoints.set(key, value); return "CREATED" }, appendFailure: async (value) => { checkpoints.set(`${value.coordinatorRunId}:failure:${value.stage}:${value.checksum}`, value); return "CREATED" } },
+    checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? [...checkpoints.entries()].filter(([key, value]) => key.startsWith(`${runId}:failure:${stage}:`) && value.state === "FAILED").at(-1)?.[1] ?? null, append: async (value) => { completeAppendCalls.push(value.stage); const key = `${value.coordinatorRunId}:${value.stage}`, existing = checkpoints.get(key); if (existing && existing.checksum !== value.checksum) throw new Error("CONFLICT"); if (existing) return "DUPLICATE"; checkpoints.set(key, value); return "CREATED" }, appendFailure: async (value) => { checkpoints.set(`${value.coordinatorRunId}:failure:${value.stage}:${value.checksum}`, value); return "CREATED" } },
     authoritativeOhlcv: { reuse: async (slot) => slotResult(slot, null) },
     executors: Object.fromEntries(Object.keys(contracts).map((dataset) => [dataset, { execute: async (slot: ReturnType<typeof plan>["slots"][number], unit: { unitId: string | null }) => { executorCalls.push(`${slot.dataset}:${slot.instrument}`); return slotResult(slot, unit.unitId) } }])) as unknown as LiveResumeCoordinatorPorts["executors"],
     watermarks: { persistDataset: async (dataset, through, slots) => liveResumeStageOutput({ dataset, through, logicalSlots: slots.length }, [`watermark:${dataset}:${through}`]), persistCommon: async (through, datasets) => liveResumeStageOutput({ through, datasets: datasets.length }, [`watermark:common:${through}`]) },
     downstream: Object.fromEntries(["coverage", "consistency", "evidence", "projections", "replay"].map((name) => [name, async (input: { intervalStart: string; intervalEnd: string; slots: readonly LiveResumeSlotResult[] }) => { downstreamCalls.push(name); return liveResumeStageOutput({ intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, slots: input.slots.length }, [`${name}:${input.intervalStart}`]) }])) as unknown as LiveResumeCoordinatorPorts["downstream"],
     candidate: { assemble: async () => { candidateAssembled = true; return liveResumeStageOutput({ lifecycle: "WITHHELD", exposure: "INTERNAL_ONLY" }, ["candidate:fixture"]) }, persistManifest: async () => liveResumeStageOutput({ channel: "candidate" }, ["manifest:fixture"]), compare: async () => { if (!candidateAssembled) throw new Error("CANDIDATE_REQUIRED"); return liveResumeStageOutput({ unexpectedDeletions: 0 }, ["comparison:fixture"]) } },
   }
-  return { ports, checkpoints, createdUnits, executorCalls, downstreamCalls, stale: () => { fence += 1 }, exposed: () => candidateExposed }
+  return { ports, checkpoints, createdUnits, executorCalls, downstreamCalls, completeAppendCalls, stale: () => { fence += 1 }, exposed: () => candidateExposed }
 }
 
 async function main() {
@@ -115,11 +115,25 @@ async function main() {
   assert.equal(complete.commonWatermark, end)
   assert.equal(complete.candidateExposed, false)
   assert.equal(live.exposed(), false)
+  assert.equal(live.completeAppendCalls.filter((stage) => stage === "COVERAGE_PERSISTED").length, 1)
 
   const rerun = await coordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION", maxConcurrency: 2 })
   assert.equal(rerun.status, "COMPLETE")
   assert.equal(live.createdUnits.length, 23)
   assert.equal(live.executorCalls.length, 23)
+  assert.equal(live.completeAppendCalls.filter((stage) => stage === "COVERAGE_PERSISTED").length, 1)
+  assert.equal(live.downstreamCalls.filter((stage) => stage === "coverage").length, 2)
+
+  const materializationConflict = fixture(), materializationCoordinator = new MvpLiveResumeCoordinator(materializationConflict.ports)
+  await materializationCoordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION" })
+  const originalCoverageOutput = materializationConflict.ports.downstream.coverage
+  ;(materializationConflict.ports.downstream as Record<string, unknown>).coverage = async (...args: Parameters<typeof originalCoverageOutput>) => {
+    const output = await originalCoverageOutput(...args)
+    return Object.freeze({ ...output, checksum: "f".repeat(64) })
+  }
+  await assert.rejects(() => materializationCoordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION" }), /LIVE_RESUME_STAGE_MATERIALIZATION_OUTPUT_CONFLICT:COVERAGE_PERSISTED/)
+  assert.equal(materializationConflict.completeAppendCalls.filter((stage) => stage === "COVERAGE_PERSISTED").length, 1)
+  assert.deepEqual(materializationConflict.downstreamCalls.slice(-1), ["coverage"])
 
   const failure = fixture()
   await assert.rejects(() => new MvpLiveResumeCoordinator(failure.ports).execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION", failAfterStage: "CANONICAL_COMMITTED" }), /LIVE_RESUME_INJECTED_FAILURE/)

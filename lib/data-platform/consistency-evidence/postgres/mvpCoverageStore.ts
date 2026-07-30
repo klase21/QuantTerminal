@@ -100,7 +100,7 @@ export class MvpCoverageStore {
     if (!row) return null
     return Object.freeze({
       coverageVersionId: String(row.coverage_version_id), datasetId: String(row.dataset_id), venue: String(row.venue), subject: String(row.subject),
-      windowStart: new Date(String(row.window_start)).toISOString(), windowEnd: new Date(String(row.window_end)).toISOString(), sourceWatermark: String(row.source_watermark),
+      windowStart: new Date(String(row.window_start)).toISOString(), windowEnd: new Date(String(row.window_end)).toISOString(), sourceWatermark: new Date(String(row.source_watermark)).toISOString(),
       sourceRecordSetDigest: String(row.source_record_set_digest), status: "AVAILABLE", policyVersionId: String(row.policy_version_id), providerId: String(row.provider_id),
       providerSnapshotIds: Object.freeze([...(row.provider_snapshot_ids as string[])]), inputCommitIds: Object.freeze([...(row.input_commit_ids as string[])]),
       coverageChecksum: String(row.coverage_checksum), computedAt: new Date(String(row.computed_at)).toISOString(),

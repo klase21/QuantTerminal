@@ -196,6 +196,10 @@ export interface LiveResumeCoordinatorInput {
   readonly failAfterStage?: LiveResumeStage
 }
 
+interface LiveResumeStageOptions {
+  readonly reconcileStoredComplete?: () => Promise<LiveResumeStageOutput>
+}
+
 export interface LiveResumeCoordinatorResult {
   readonly status: "DRY_RUN" | "COMPLETE"
   readonly coordinatorRunId: string
@@ -496,7 +500,7 @@ export class MvpLiveResumeCoordinator {
     const checkpoints: LiveResumeStageCheckpoint[] = []
     const concurrency = input.maxConcurrency ?? LIVE_RESUME_MAX_CONCURRENCY
 
-    const stage = async (stageName: LiveResumeStage, inputBasis: unknown, execute: () => Promise<LiveResumeStageOutput>): Promise<LiveResumeStageOutput> => {
+    const stage = async (stageName: LiveResumeStage, inputBasis: unknown, execute: () => Promise<LiveResumeStageOutput>, options?: LiveResumeStageOptions): Promise<LiveResumeStageOutput> => {
       await this.ports.lease.assert(coordinatorRunId, lease.fencingToken)
       const previous = checkpoints.at(-1) ?? null
       const inputChecksum = canonicalChecksum({ stage: stageName, input: inputBasis })
@@ -504,6 +508,10 @@ export class MvpLiveResumeCoordinator {
       if (stored) {
         if (stored.inputChecksum !== inputChecksum || stored.previousStage !== (previous?.stage ?? null) || stored.previousStageChecksum !== (previous?.checksum ?? null) || stored.plannerChecksum !== input.plan.planChecksum || stored.fencingToken > lease.fencingToken) throw new Error("LIVE_RESUME_STAGE_CHECKSUM_CONFLICT")
         if (classifyStoredLiveResumeCheckpoint(stored) === "REUSE_COMPLETE") {
+          if (options?.reconcileStoredComplete) {
+            const reconciled = await options.reconcileStoredComplete()
+            if (reconciled.checksum !== stored.output.checksum || reconciled.identities.length !== stored.output.identities.length || reconciled.identities.some((identity, index) => identity !== stored.output.identities[index])) throw new Error(`LIVE_RESUME_STAGE_MATERIALIZATION_OUTPUT_CONFLICT:${stageName}`)
+          }
           checkpoints.push(stored)
           return stored.output
         }
@@ -591,8 +599,11 @@ export class MvpLiveResumeCoordinator {
       }
       await stage("COMMON_WATERMARK_VALIDATED", { end: input.plan.intervalEnd, datasetChecksums: datasetOutputs.map((value) => value.checksum) }, async () => this.ports.watermarks.persistCommon(input.plan.intervalEnd, datasetOutputs))
 
-      const downstreamStage = async (stageName: LiveResumeStage, key: keyof LiveResumeCoordinatorPorts["downstream"]) => stage(stageName, { intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, slotChecksums: slotResults.map((value) => value.candidateChecksum), prior: checkpoints.map((value) => value.checksum) }, async () => this.ports.downstream[key]({ intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, slots: slotResults, prior: Object.freeze([...checkpoints]) }))
-      await downstreamStage("COVERAGE_PERSISTED", "coverage")
+      const downstreamStage = async (stageName: LiveResumeStage, key: keyof LiveResumeCoordinatorPorts["downstream"], reconcileStoredComplete = false) => {
+        const execute = async () => this.ports.downstream[key]({ intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, slots: slotResults, prior: Object.freeze([...checkpoints]) })
+        return stage(stageName, { intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, slotChecksums: slotResults.map((value) => value.candidateChecksum), prior: checkpoints.map((value) => value.checksum) }, execute, reconcileStoredComplete ? { reconcileStoredComplete: execute } : undefined)
+      }
+      await downstreamStage("COVERAGE_PERSISTED", "coverage", true)
       await downstreamStage("CONSISTENCY_PERSISTED", "consistency")
       await downstreamStage("EVIDENCE_PERSISTED", "evidence")
       await downstreamStage("PROJECTIONS_PERSISTED", "projections")

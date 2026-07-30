@@ -10,7 +10,7 @@ import { createCandidateId, createJobRequestIdentity, createPopulationJobId, cre
 import { createPopulationPostgresAdapter, type D3PostgresClient, type PopulationPostgresAdapter } from "@/lib/data-platform/population/postgres"
 import { AGG_TRADES_SEGMENT_NORMALIZER_VERSION, AGG_TRADES_SEGMENT_ORDER_POLICY, AGG_TRADES_SEGMENT_SCHEMA_VERSION, createD3ToD2CanonicalCommitPort, createFilesystemObjectStorage, createIntegratedBackfillClientsFromEnvironment, ProductionNormalizerRegistry, PRODUCTION_NORMALIZER_VERSION, type D3CanonicalCommitPort, type OpenInterestSourceRow } from "@/lib/data-platform/population/backfill"
 import type { ObjectStoragePort } from "@/lib/data-platform/population/contracts"
-import { ConsistencyPostgresRuntime } from "@/lib/data-platform/consistency-evidence/postgres"
+import { ConsistencyPostgresRuntime, MvpCoverageStore } from "@/lib/data-platform/consistency-evidence/postgres"
 import { loadMvpProjectionEvidenceInputs, MvpProjectionStore } from "@/lib/data-platform/consistency-evidence/postgres"
 import { persistMvpConsistencyWindow, persistMvpEvidenceWindow, readMvpEvidenceWindows, type MvpEvidenceWindowData } from "@/lib/data-platform/consistency"
 import { MVP_PROJECTION_DEFINITIONS, type MvpProjectionVersion } from "@/lib/data-platform/evidence-platform"
@@ -40,6 +40,7 @@ import { MvpRefreshStore } from "./store"
 import type { LiveResumeLocalBindingSet, LiveResumeBindingCapability, LiveResumeEnvironmentMode } from "./liveResumeEnvironment"
 import type { LiveResumeCandidateBaseline, LiveResumeSlotResult, LiveResumeStageOutput } from "./liveResumeCoordinator"
 import type { RefreshLogicalDataset, RefreshLogicalInstrument, RefreshSlotResumePlanEntry } from "./unitReconciliation"
+import { materializeLiveResumeCoverage } from "./liveResumeCoverage"
 
 const INSTRUMENTS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const)
 const DATASETS = Object.freeze(["ohlcv", "open-interest", "funding", "agg-trade"] as const)
@@ -561,6 +562,7 @@ export function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresC
       if (value.stage === "coverage") {
         windows = await readMvpEvidenceWindows({ d2: input.d2, objectRoot: input.objectRoot, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, instruments: INSTRUMENTS })
         if (windows.length !== 6 || windows.some((window) => window.measurement.completeness !== "COMPLETE")) throw new Error("LIVE_BOUNDED_COVERAGE_INCOMPLETE")
+        await materializeLiveResumeCoverage({ windows, intervalStart: value.intervalStart, intervalEnd: value.intervalEnd, instruments: INSTRUMENTS, canonical: input.d2, store: new MvpCoverageStore(input.consistency) })
         const outputs = windows.map((window) => sanitizedIdentity("mrl_coverage", { instrument: window.measurement.instrument, start: value.intervalStart, end: value.intervalEnd, coverage: window.measurement.coverage }))
         for (const output of outputs) await input.refresh.appendEvent(null, "live_resume_coverage", output.identity, "BOUNDED_COVERAGE_VALIDATED", null, "COMPLETE", { checksum: output.checksum })
         return Object.freeze({ identities: Object.freeze(outputs.map((output) => output.identity)), checksum: canonicalChecksum(outputs) })
