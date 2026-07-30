@@ -4,6 +4,7 @@ import {
   CURRENT_MVP_CANDIDATE_BASELINE,
   createDryRunLiveResumeExecutionSetup,
   createCurrentCatchupDayPlan,
+  classifyCurrentCatchupExecutionState,
   currentCatchupIdentity,
   expandCurrentCatchupWindows,
   liveResumeRunIdentity,
@@ -15,10 +16,46 @@ import {
   type LiveResumeCoordinatorResult,
   type LiveResumeCoordinatorPorts,
   type LiveResumeStageCheckpoint,
+  type LiveResumeStatusSnapshot,
 } from "@/lib/data-platform/mvp-refresh"
 
 const START = "2026-07-16T00:00:00.000Z"
 const THROUGH = "2026-07-29T00:00:00.000Z"
+
+function currentCatchupStatus(overrides: Partial<LiveResumeStatusSnapshot> = {}): LiveResumeStatusSnapshot {
+  return Object.freeze({
+    planId: `mrlp_${"a".repeat(64)}`,
+    planChecksum: "a".repeat(64),
+    persistedRunId: `mrlr_${"b".repeat(64)}`,
+    runState: "PLANNED",
+    unitCountsByState: Object.freeze({ PENDING: 24 }),
+    unitCountsByDataset: Object.freeze({ ohlcv: 6, "open-interest": 6, funding: 6, "agg-trade": 6 }),
+    authoritativeReuse: 0,
+    createdSlots: 0,
+    reusedSlots: 0,
+    resumableSlots: 24,
+    missingSlots: 0,
+    currentCoordinatorStage: "UNITS_RESOLVED",
+    leaseState: "RELEASED",
+    candidateState: null,
+    commonWatermark: null,
+    blockers: Object.freeze(["STAGE_FAILURE:SOURCES_ACQUIRED"]),
+    persistedUnitCount: 24,
+    recoverableSlots: 24,
+    blockedSlots: 0,
+    retainedArtifacts: 2,
+    retainedCandidates: 0,
+    effectiveExecutionState: "BLOCKED",
+    disposition: "ACTIVE",
+    resumeEligible: true,
+    quarantineReason: null,
+    incidentChecksum: null,
+    quarantineSagaState: null,
+    missingQuarantineSteps: Object.freeze([]),
+    quarantineReceiptId: null,
+    ...overrides,
+  })
+}
 
 async function main(): Promise<void> {
 const dryOptions = parseCurrentCatchupWorkerOptions([
@@ -35,6 +72,20 @@ assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidat
 assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", "--start=2026-07-16T01:00:00.000Z", `--through=${THROUGH}`, "--execution-mode=dry-run", "--confirm-local-inactive-candidate=false"]), /CURRENT_CATCHUP_START_EXACT_UTC_MIDNIGHT_REQUIRED/)
 assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", `--start=${START}`, `--through=${THROUGH}`, "--execution-mode=dry-run", "--confirm-local-inactive-candidate=false", "--max-concurrency=3"]), /CURRENT_CATCHUP_CONCURRENCY_INVALID/)
 assert.throws(() => parseCurrentCatchupWorkerOptions(["catch-up-current-candidate", `--start=${START}`, `--through=${THROUGH}`, "--execution-mode=dry-run", "--confirm-local-inactive-candidate"]), /CURRENT_CATCHUP_CONFIRMATION_FLAG_INVALID/)
+
+const verifiedResumableStatus = currentCatchupStatus()
+assert.equal(verifiedResumableStatus.effectiveExecutionState, "BLOCKED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: verifiedResumableStatus, completeCheckpoint: null }), "INCOMPLETE")
+assert.equal(verifiedResumableStatus.retainedArtifacts, 2)
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ leaseState: "ACTIVE" }), completeCheckpoint: null }), "BLOCKED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ blockedSlots: 1 }), completeCheckpoint: null }), "BLOCKED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ disposition: "QUARANTINED", resumeEligible: false, blockers: Object.freeze(["EXECUTION_GENERATION_QUARANTINED"]) }), completeCheckpoint: null }), "BLOCKED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ disposition: "SUPERSEDED", resumeEligible: false, blockers: Object.freeze(["EXECUTION_GENERATION_SUPERSEDED"]) }), completeCheckpoint: null }), "BLOCKED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ resumeEligible: false }), completeCheckpoint: null }), "BLOCKED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ recoverableSlots: 23 }), completeCheckpoint: null }), "BLOCKED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ blockers: Object.freeze(["IMMUTABLE_LOGICAL_SLOT_CONFLICT"]) }), completeCheckpoint: null }), "BLOCKED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ persistedRunId: null, runState: null, effectiveExecutionState: "NOT_STARTED", unitCountsByState: Object.freeze({}), unitCountsByDataset: Object.freeze({}), persistedUnitCount: 0, recoverableSlots: 0, resumableSlots: 0, blockers: Object.freeze([]) }), completeCheckpoint: null }), "NOT_STARTED")
+assert.equal(classifyCurrentCatchupExecutionState({ status: currentCatchupStatus({ effectiveExecutionState: "COMPLETE", resumeEligible: false }), completeCheckpoint: "COMPLETE" }), "COMPLETE")
 
 const windows = expandCurrentCatchupWindows(START, THROUGH)
 assert.equal(windows.length, 13)
@@ -134,6 +185,28 @@ function completeResult(plan: CertifiedLiveResumePlan): LiveResumeCoordinatorRes
     candidateExposed: false,
   })
 }
+
+const resumeOptions = parseCurrentCatchupWorkerOptions([
+  "catch-up-current-candidate",
+  `--start=${START}`,
+  "--through=2026-07-17T00:00:00.000Z",
+  "--execution-mode=live",
+  "--confirm-local-inactive-candidate=true",
+  "--max-concurrency=1",
+])
+let selectedResumeIntent: "RUN" | "RESUME" | null = null
+const resumablePorts: CurrentCatchupPorts = {
+  reconcile: async () => Object.freeze({ attempts: Object.freeze([]), authorities: Object.freeze([]) }),
+  inspectSources: async ({ plan }) => Object.freeze(plan.slots.map((slot) => Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, status: "READY_FOR_DOWNLOAD" as const, reusableRawObjects: 0, contentLength: null, reason: null }))),
+  readExecutionState: async () => Object.freeze({ state: "INCOMPLETE" as const, candidateBaseline: null }),
+  execute: async ({ plan, intent }) => {
+    selectedResumeIntent = intent
+    return completeResult(plan)
+  },
+}
+const resumed = await runCurrentCandidateCatchup(resumeOptions, resumablePorts)
+assert.equal(selectedResumeIntent, "RESUME")
+assert.equal(resumed.status, "COMPLETE")
 
 const liveOptions = parseCurrentCatchupWorkerOptions([
   "catch-up-current-candidate",

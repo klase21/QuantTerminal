@@ -2,6 +2,7 @@ import {
   createBoundedArchiveRequest,
   createBoundedFundingRequest,
   createBoundedFundingSourceUrl,
+  classifyCurrentCatchupExecutionState,
   createMvpRefreshClientFromEnvironment,
   CURRENT_MVP_CANDIDATE_BASELINE,
   inspectBoundedArchiveAvailability,
@@ -114,10 +115,10 @@ async function runCurrentCatchup(argv: readonly string[]) {
     inspectSources: async ({ window, plan, maxConcurrency }) => inspectCurrentCatchupSources(window, plan, maxConcurrency),
     readExecutionState: async (plan) => {
       const status = await executions.status(plan)
-      if (!status.persistedRunId) return Object.freeze({ state: "NOT_STARTED" as const, candidateBaseline: null })
-      if (status.effectiveExecutionState === "BLOCKED") return Object.freeze({ state: "BLOCKED" as const, candidateBaseline: null })
-      const complete = await coordinatorControl.read(status.persistedRunId, "COMPLETE")
-      if (!complete || complete.state !== "COMPLETE") return Object.freeze({ state: "INCOMPLETE" as const, candidateBaseline: null })
+      const complete = status.persistedRunId ? await coordinatorControl.read(status.persistedRunId, "COMPLETE") : null
+      const state = classifyCurrentCatchupExecutionState({ status, completeCheckpoint: complete?.state === "COMPLETE" ? "COMPLETE" : null })
+      if (state === "NOT_STARTED" || state === "BLOCKED" || state === "INCOMPLETE") return Object.freeze({ state, candidateBaseline: null })
+      if (!status.persistedRunId) throw new Error("CURRENT_CATCHUP_COMPLETE_RUN_MISSING")
       const candidate = await coordinatorControl.read(status.persistedRunId, "CANDIDATE_MEMBERSHIP_ASSEMBLED")
       if (!candidate || candidate.state !== "COMPLETE") throw new Error("CURRENT_CATCHUP_COMPLETE_CANDIDATE_CHECKPOINT_MISSING")
       return Object.freeze({ state: "COMPLETE" as const, candidateBaseline: readLiveResumeCandidateBaseline(candidate.output) })

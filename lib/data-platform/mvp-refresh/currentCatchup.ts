@@ -1,6 +1,7 @@
 import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import { createCertifiedLiveResumePlan, type CertifiedLiveResumePlan, type LiveResumeCandidateBaseline, type LiveResumeCoordinatorResult } from "./liveResumeCoordinator"
 import { liveResumeRunIdentity } from "./liveResumePostgres"
+import type { LiveResumeStatusSnapshot } from "./liveResumePostgres"
 import { CURRENT_MVP_CANDIDATE_BASELINE } from "./service"
 import { buildRefreshSlotResumePlan, type RefreshLogicalDataset, type RefreshLogicalInstrument, type RefreshUnitAttemptAudit } from "./unitReconciliation"
 import type { AuthoritativeSlotReconciliation } from "./controlledOhlcvRecovery"
@@ -45,6 +46,42 @@ export interface CurrentCatchupReconciliation {
 }
 
 export type CurrentCatchupExecutionState = "NOT_STARTED" | "INCOMPLETE" | "COMPLETE" | "BLOCKED"
+
+/**
+ * Classifies an existing current-catch-up execution without treating a
+ * resumable stage-failure receipt as a terminal disposition. The persisted
+ * execution, lease, unit-state, and complete-checkpoint contracts remain the
+ * authority; failure receipts are diagnostic evidence only when every other
+ * resume condition is satisfied.
+ */
+export function classifyCurrentCatchupExecutionState(input: {
+  readonly status: LiveResumeStatusSnapshot
+  readonly completeCheckpoint: "COMPLETE" | null
+}): CurrentCatchupExecutionState {
+  const { status, completeCheckpoint } = input
+  if (!status.persistedRunId) return "NOT_STARTED"
+  if (completeCheckpoint === "COMPLETE") return "COMPLETE"
+
+  const hasTerminalBlocker = status.blockers.some((blocker) => !blocker.startsWith("STAGE_FAILURE:"))
+  const allPersistedUnitsRecoverableOrComplete = status.recoverableSlots + status.reusedSlots === status.persistedUnitCount
+  if (
+    status.disposition === "QUARANTINED" ||
+    status.disposition === "SUPERSEDED" ||
+    status.blockedSlots > 0 ||
+    !status.resumeEligible ||
+    status.leaseState === "ACTIVE" ||
+    !allPersistedUnitsRecoverableOrComplete ||
+    hasTerminalBlocker
+  ) return "BLOCKED"
+
+  if (
+    status.disposition === "ACTIVE" &&
+    (status.leaseState === "RELEASED" || status.leaseState === "EXPIRED" || status.leaseState === "ABSENT") &&
+    status.persistedUnitCount > 0
+  ) return "INCOMPLETE"
+
+  return "BLOCKED"
+}
 
 export interface CurrentCatchupPorts {
   reconcile(window: CurrentCatchupWindow): Promise<CurrentCatchupReconciliation>
