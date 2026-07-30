@@ -7,8 +7,10 @@ import {
   createCertifiedLiveResumePlan,
   createCleanCertifiedLiveResumePlan,
   createCleanExecutionGenerationContext,
+  createCurrentCatchupDayPlan,
   createMandatoryRefreshLogicalSlots,
   createMvpRefreshClientFromEnvironment,
+  currentCatchupIdentity,
   liveResumeRunIdentity,
   liveResumeStageOutput,
   type LiveResumeStageCheckpoint,
@@ -100,6 +102,32 @@ async function main() {
 
   const retained = await client.sql.unsafe<Array<{ plans: number; runs: number; units: number }>>("SELECT (SELECT count(*)::int FROM refresh_control.refresh_plan WHERE plan_id=$1) plans,(SELECT count(*)::int FROM refresh_control.refresh_run WHERE run_id=$2) runs,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$2) units", [plan.planIdentity, identity.runId])
   assert.deepEqual(retained[0], { plans: 0, runs: 0, units: 0 })
+
+  const freshStart = "2026-07-16T00:00:00.000Z", freshEnd = "2026-07-17T00:00:00.000Z"
+  const freshPlan = createCurrentCatchupDayPlan({
+    catchupId: currentCatchupIdentity(freshStart, freshEnd).catchupId,
+    window: { ordinal: 0, intervalStart: freshStart, intervalEnd: freshEnd },
+    reconciliation: { attempts: Object.freeze([]), authorities: Object.freeze([]) },
+  })
+  const freshIdentity = liveResumeRunIdentity(freshPlan)
+  try {
+    await client.sql.begin(async (sql) => {
+      const transactionClient = { sql, transaction: async <T>(work: (value: typeof sql) => Promise<T>) => work(sql) } as unknown as MvpRefreshPostgresClient
+      const execution = new PostgresLiveResumeExecutionStore(transactionClient)
+      const setup = await execution.resolveOrCreate({ plan: freshPlan, mode: "CERTIFICATION", intent: "RUN" })
+      assert.equal(setup.unitOutcomes.length, 24)
+      assert.equal(setup.unitOutcomes.filter((unit) => unit.dataset === "ohlcv" && unit.instrument === "BTCUSDT").length, 1)
+      const status = await execution.status(freshPlan)
+      assert.equal(status.authoritativeReuse, 0)
+      assert.equal(status.persistedUnitCount, 24)
+      assert.equal(status.missingSlots, 0)
+      const persisted = await sql.unsafe<Array<{ active_corpus_id: string; active_serving_checksum: string; units: number; btc_ohlcv: number }>>("SELECT p.active_corpus_id,p.active_serving_checksum,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$2) units,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$2 AND dataset_id='ohlcv' AND instrument='BTCUSDT') btc_ohlcv FROM refresh_control.refresh_plan p WHERE p.plan_id=$1", [freshPlan.planIdentity, freshIdentity.runId])
+      assert.deepEqual(persisted[0], { active_corpus_id: freshPlan.currentCatchup!.baseline.candidateId, active_serving_checksum: freshPlan.currentCatchup!.baseline.candidateChecksum, units: 24, btc_ohlcv: 1 })
+      throw new Error("FRESH_CURRENT_CATCHUP_CERTIFICATION_ROLLBACK")
+    })
+  } catch (error) { if (!(error instanceof Error) || error.message !== "FRESH_CURRENT_CATCHUP_CERTIFICATION_ROLLBACK") throw error }
+  const freshRetained = await client.sql.unsafe<Array<{ plans: number; runs: number; units: number }>>("SELECT (SELECT count(*)::int FROM refresh_control.refresh_plan WHERE plan_id=$1) plans,(SELECT count(*)::int FROM refresh_control.refresh_run WHERE run_id=$2) runs,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$2) units", [freshPlan.planIdentity, freshIdentity.runId])
+  assert.deepEqual(freshRetained[0], { plans: 0, runs: 0, units: 0 })
 
   const manifestBasis = { schemaVersion: "mvp-clean-generation-input/1.0.0" as const, sourceGenerationId: `mrlr_${"a".repeat(64)}`, certifiedPlanContext: { planId: plan.planIdentity, planChecksum: plan.planChecksum }, targetInterval: { start, end }, logicalSlotIds: plan.slots.map((slot) => slot.logicalSlotId).sort(), reusableRawPayloadBytes: Object.freeze([]), excludedExecutionIdentities: { populationRunAttempts: Object.freeze([]), retrievalAttempts: Object.freeze([]), candidates: Object.freeze([]), checkpoints: Object.freeze([]) }, freshLineagePolicy: "FRESH_RETRIEVAL_CANDIDATE_FACT_DOWNSTREAM_WATERMARK_REPLAY_MANIFEST" as const }
   const manifest = Object.freeze({ ...manifestBasis, checksum: canonicalChecksum(manifestBasis) })

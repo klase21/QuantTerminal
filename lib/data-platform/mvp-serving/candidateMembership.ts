@@ -38,6 +38,29 @@ export interface CandidateMembershipComparison {
   readonly uiContractImpact: "NONE" | "ADDITIVE" | "BLOCKED"
   readonly checksum: string
 }
+export interface CertifiedInactiveCandidateExpectation {
+  readonly candidateId: string
+  readonly candidateChecksum: string
+  readonly governedThrough: string
+  readonly sourceLineageIdentity?: string
+}
+export interface CertifiedInactiveCandidateBaseline {
+  readonly corpusId: string
+  readonly servingChecksum: string
+  readonly governedThrough: string
+  readonly members: readonly ServingCorpusMember[]
+  readonly manifestId: string
+  readonly manifestChecksum: string
+  readonly memberSetChecksum: string
+  readonly commonWatermarkId: string
+  readonly commonWatermarkValue: string
+  readonly commonWatermarkChecksum: string
+}
+export interface InactiveCandidateWatermarkBinding {
+  readonly commonWatermarkId: string
+  readonly commonWatermarkValue: string
+  readonly commonWatermarkChecksum: string
+}
 
 const kinds: readonly ServingCorpusMemberKind[] = Object.freeze(["PROJECTION", "EVIDENCE_SUMMARY", "REPLAY_SNAPSHOT", "DEMO_PROFILE", "SUPPLEMENTAL_CONTEXT", "RELEASE_INVENTORY", "RELEASE_MANIFEST"])
 const emptyByKind = (): Record<ServingCorpusMemberKind, string[]> => Object.fromEntries(kinds.map((kind) => [kind, []])) as Record<ServingCorpusMemberKind, string[]>
@@ -87,6 +110,10 @@ export class LocalInactiveCandidateAssemblyService {
     const corpus = await this.client.sql.unsafe<Array<{ corpus_id: string; serving_checksum: string; governed_through: string }>>("SELECT c.corpus_id,c.serving_checksum,c.governed_through::text FROM serving.serving_exposure e JOIN serving.serving_corpus c ON c.corpus_id=e.corpus_id WHERE e.exposure_state='CONSUMER_VISIBLE' ORDER BY e.effective_from DESC,e.exposure_id DESC LIMIT 1")
     if (!corpus[0]) throw new Error("ACTIVE_SERVING_CORPUS_MISSING")
     return Object.freeze({ corpusId: corpus[0].corpus_id, servingChecksum: corpus[0].serving_checksum, governedThrough: new Date(corpus[0].governed_through).toISOString(), members: await readPhysicalMembers(this.client.sql, corpus[0].corpus_id) })
+  }
+
+  async certifiedInactiveBaseline(expected: CertifiedInactiveCandidateExpectation): Promise<CertifiedInactiveCandidateBaseline> {
+    return readCertifiedInactiveBaseline(this.client.sql, expected)
   }
 
   async assembleGenesis(input: { readonly candidate: CandidateCorpusDescriptor }): Promise<{ readonly status: "CREATED" | "DUPLICATE"; readonly servingChecksum: string; readonly manifestChecksum: string; readonly exposureUnchanged: true }> {
@@ -146,11 +173,162 @@ export class LocalInactiveCandidateAssemblyService {
       return Object.freeze({ status: "CREATED" as const, servingChecksum, manifestChecksum, comparison, exposureUnchanged: true as const })
     })
   }
+
+  async assembleFromCertifiedInactiveBaseline(input: {
+    readonly candidate: CandidateCorpusDescriptor
+    readonly expectedBaseline: CertifiedInactiveCandidateExpectation
+    readonly binding: InactiveCandidateWatermarkBinding
+    readonly requiredBaselineMemberKeys?: readonly string[]
+    readonly injectFailureAfter?: "HEADER" | "MEMBERS" | "MANIFEST"
+  }): Promise<{
+    readonly status: "CREATED" | "DUPLICATE"
+    readonly servingChecksum: string
+    readonly manifestId: string
+    readonly manifestChecksum: string
+    readonly memberSetChecksum: string
+    readonly commonWatermarkId: string
+    readonly commonWatermarkValue: string
+    readonly commonWatermarkChecksum: string
+    readonly comparison: CandidateMembershipComparison
+    readonly exposureUnchanged: true
+  }> {
+    const members = canonicalizeServingCorpusMembers(input.candidate.members)
+    const servingChecksum = computeCandidateServingChecksum({ governedThrough: input.candidate.governedThrough, schemaVersion: input.candidate.schemaVersion, members })
+    const commonWatermarkValue = exactIso(input.binding.commonWatermarkValue, "SERVING_CANDIDATE_COMMON_WATERMARK_INVALID")
+    if (
+      !input.binding.commonWatermarkId
+      || !isChecksum(input.binding.commonWatermarkChecksum)
+      || commonWatermarkValue !== exactIso(input.candidate.governedThrough, "SERVING_CANDIDATE_GOVERNED_THROUGH_INVALID")
+    ) throw new Error("SERVING_CANDIDATE_COMMON_WATERMARK_BINDING_INVALID")
+    return this.client.transaction(async (sql) => {
+      const exposureBefore = await exposureFingerprint(sql)
+      const baseline = await readCertifiedInactiveBaseline(sql, input.expectedBaseline)
+      if (
+        input.candidate.sourceCorpusId !== baseline.corpusId
+        || input.candidate.sourceCorpusChecksum !== baseline.servingChecksum
+        || Date.parse(input.candidate.governedThrough) <= Date.parse(baseline.governedThrough)
+      ) throw new Error("INACTIVE_SERVING_BASELINE_MISMATCH")
+      const comparison = compareServingCorpusMembership({
+        activeMembers: baseline.members,
+        candidateMembers: members,
+        activeChecksum: baseline.servingChecksum,
+        candidateChecksum: servingChecksum,
+        activeGovernedThrough: baseline.governedThrough,
+        candidateGovernedThrough: input.candidate.governedThrough,
+        requiredActiveMemberKeys: input.requiredBaselineMemberKeys,
+      })
+      if (comparison.status === "BLOCKED") throw new Error("SERVING_CANDIDATE_UNEXPECTED_DELETION")
+      const memberSetChecksum = canonicalChecksum(members.map(memberIdentity))
+      const manifest = Object.freeze({
+        corpusId: input.candidate.corpusId,
+        servingChecksum,
+        previousCorpusId: baseline.corpusId,
+        previousServingChecksum: baseline.servingChecksum,
+        governedThrough: commonWatermarkValue,
+        schemaVersion: input.candidate.schemaVersion,
+        memberCount: members.length,
+        memberSetChecksum,
+        commonWatermarkId: input.binding.commonWatermarkId,
+        commonWatermarkValue,
+        commonWatermarkChecksum: input.binding.commonWatermarkChecksum,
+        lifecycle: "WITHHELD",
+        exposure: "INTERNAL_ONLY",
+        exposureEligibility: "INELIGIBLE",
+        limitations: input.candidate.limitations,
+      })
+      const manifestChecksum = canonicalChecksum(manifest)
+      const manifestId = `mvp-candidate-manifest:${manifestChecksum}`
+      const existing = await sql.unsafe<Array<{ serving_checksum: string; lifecycle: string; exposure: string }>>("SELECT serving_checksum,lifecycle,exposure FROM serving.serving_corpus WHERE corpus_id=$1", [input.candidate.corpusId])
+      if (existing[0]) {
+        if (existing[0].serving_checksum !== servingChecksum || existing[0].lifecycle !== "WITHHELD" || existing[0].exposure !== "INTERNAL_ONLY") throw new Error("SERVING_CANDIDATE_IMMUTABLE_CONFLICT")
+        const stored = await readCertifiedInactiveBaseline(sql, { candidateId: input.candidate.corpusId, candidateChecksum: servingChecksum, governedThrough: commonWatermarkValue, sourceLineageIdentity: manifestId })
+        if (
+          stored.manifestChecksum !== manifestChecksum
+          || stored.memberSetChecksum !== memberSetChecksum
+          || stored.commonWatermarkId !== input.binding.commonWatermarkId
+          || stored.commonWatermarkChecksum !== input.binding.commonWatermarkChecksum
+        ) throw new Error("SERVING_CANDIDATE_MANIFEST_BINDING_CONFLICT")
+        if (await exposureFingerprint(sql) !== exposureBefore) throw new Error("CANDIDATE_EXPOSURE_CHANGED")
+        return Object.freeze({ status: "DUPLICATE" as const, servingChecksum, manifestId, manifestChecksum, memberSetChecksum, ...input.binding, commonWatermarkValue, comparison, exposureUnchanged: true as const })
+      }
+      const count = (kind: ServingCorpusMemberKind) => members.filter((member) => member.memberKind === kind).length
+      await sql.unsafe("INSERT INTO serving.serving_corpus VALUES($1,'mvp-serving-candidate/1.0.0',$2,$3,$4,$5,$6,$7,'WITHHELD','INTERNAL_ONLY',$8,$9,$10,$11,$12,0)", [input.candidate.corpusId,baseline.corpusId,baseline.servingChecksum,servingChecksum,input.candidate.schemaVersion,input.candidate.generatedAt,commonWatermarkValue,count("PROJECTION")+count("SUPPLEMENTAL_CONTEXT"),count("EVIDENCE_SUMMARY"),count("REPLAY_SNAPSHOT"),count("DEMO_PROFILE"),count("RELEASE_INVENTORY")])
+      if (input.injectFailureAfter === "HEADER") throw new Error("INJECTED_CANDIDATE_FAILURE_HEADER")
+      for (const member of members) await sql.unsafe("INSERT INTO serving.serving_corpus_member VALUES($1,$2,$3,$4,$5,$6,$7,$8::text::jsonb,$9)", [input.candidate.corpusId,member.memberKind,member.memberId,member.memberChecksum,member.canonicalSortKey,member.inheritedSourceCorpusId,member.schemaVersion,JSON.stringify(member.metadata),input.candidate.generatedAt])
+      if (input.injectFailureAfter === "MEMBERS") throw new Error("INJECTED_CANDIDATE_FAILURE_MEMBERS")
+      await sql.unsafe("INSERT INTO serving.serving_candidate_manifest (manifest_id,corpus_id,previous_corpus_id,previous_serving_checksum,manifest_checksum,schema_version,lifecycle,exposure_eligibility,manifest,created_at,common_watermark_id,common_watermark_value,common_watermark_checksum,member_set_checksum) VALUES($1,$2,$3,$4,$5,$6,'CANDIDATE','INELIGIBLE',$7::text::jsonb,$8,$9,$10,$11,$12)", [manifestId,input.candidate.corpusId,baseline.corpusId,baseline.servingChecksum,manifestChecksum,input.candidate.schemaVersion,JSON.stringify(manifest),input.candidate.generatedAt,input.binding.commonWatermarkId,commonWatermarkValue,input.binding.commonWatermarkChecksum,memberSetChecksum])
+      if (input.injectFailureAfter === "MANIFEST") throw new Error("INJECTED_CANDIDATE_FAILURE_MANIFEST")
+      const candidateExposures = await sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure WHERE corpus_id=$1", [input.candidate.corpusId])
+      if (candidateExposures[0]?.count !== 0 || await exposureFingerprint(sql) !== exposureBefore) throw new Error("CANDIDATE_EXPOSURE_CHANGED")
+      return Object.freeze({ status: "CREATED" as const, servingChecksum, manifestId, manifestChecksum, memberSetChecksum, ...input.binding, commonWatermarkValue, comparison, exposureUnchanged: true as const })
+    })
+  }
 }
 
 async function activeExposure(sql: postgres.Sql | postgres.TransactionSql) {
   const rows = await sql.unsafe<Array<{ corpus_id: string; serving_checksum: string; governed_through: string; exposure_id: string }>>("SELECT e.exposure_id,c.corpus_id,c.serving_checksum,c.governed_through::text FROM serving.serving_exposure e JOIN serving.serving_corpus c ON c.corpus_id=e.corpus_id WHERE e.exposure_state='CONSUMER_VISIBLE' ORDER BY e.effective_from DESC,e.exposure_id DESC LIMIT 1")
   return rows[0] ? Object.freeze({ exposureId: rows[0].exposure_id, corpusId: rows[0].corpus_id, servingChecksum: rows[0].serving_checksum, governedThrough: new Date(rows[0].governed_through).toISOString() }) : null
+}
+async function exposureFingerprint(sql: postgres.Sql | postgres.TransactionSql): Promise<string> {
+  const rows = await sql.unsafe<Record<string, unknown>[]>("SELECT exposure_id,corpus_id,exposure_state,effective_from,checksum,publication_note,created_at FROM serving.serving_exposure ORDER BY exposure_id")
+  return canonicalChecksum(rows)
+}
+async function readCertifiedInactiveBaseline(sql: postgres.Sql | postgres.TransactionSql, expected: CertifiedInactiveCandidateExpectation): Promise<CertifiedInactiveCandidateBaseline> {
+  const governedThrough = exactIso(expected.governedThrough, "INACTIVE_SERVING_BASELINE_WATERMARK_INVALID")
+  if (!expected.candidateId || !isChecksum(expected.candidateChecksum)) throw new Error("INACTIVE_SERVING_BASELINE_IDENTITY_INVALID")
+  const [corpusRows, manifestRows, exposureRows] = await Promise.all([
+    sql.unsafe<Array<{ corpus_id: string; serving_checksum: string; governed_through: string; lifecycle: string; exposure: string }>>("SELECT corpus_id,serving_checksum,governed_through::text,lifecycle,exposure FROM serving.serving_corpus WHERE corpus_id=$1", [expected.candidateId]),
+    sql.unsafe<Array<{ manifest_id: string; manifest_checksum: string; lifecycle: string; exposure_eligibility: string; manifest: unknown; common_watermark_id: string | null; common_watermark_value: string | null; common_watermark_checksum: string | null; member_set_checksum: string | null }>>("SELECT manifest_id,manifest_checksum,lifecycle,exposure_eligibility,manifest,common_watermark_id,common_watermark_value::text,common_watermark_checksum,member_set_checksum FROM serving.serving_candidate_manifest WHERE corpus_id=$1 ORDER BY manifest_id", [expected.candidateId]),
+    sql.unsafe<Array<{ count: number }>>("SELECT count(*)::int count FROM serving.serving_exposure WHERE corpus_id=$1", [expected.candidateId]),
+  ])
+  const corpus = corpusRows[0]
+  if (
+    corpusRows.length !== 1
+    || !corpus
+    || corpus.corpus_id !== expected.candidateId
+    || corpus.serving_checksum !== expected.candidateChecksum
+    || normalizeDatabaseTimestamp(corpus.governed_through, "INACTIVE_SERVING_BASELINE_WATERMARK_INVALID") !== governedThrough
+    || corpus.lifecycle !== "WITHHELD"
+    || corpus.exposure !== "INTERNAL_ONLY"
+  ) throw new Error("INACTIVE_SERVING_BASELINE_MISMATCH")
+  if (manifestRows.length !== 1 || exposureRows[0]?.count !== 0) throw new Error("INACTIVE_SERVING_BASELINE_NOT_ISOLATED")
+  const row = manifestRows[0]!
+  const manifest = requireRecord(row.manifest, "INACTIVE_SERVING_BASELINE_MANIFEST_MALFORMED")
+  const commonWatermarkValue = normalizeDatabaseTimestamp(row.common_watermark_value, "INACTIVE_SERVING_BASELINE_WATERMARK_INVALID")
+  if (
+    row.lifecycle !== "CANDIDATE"
+    || row.exposure_eligibility !== "INELIGIBLE"
+    || (expected.sourceLineageIdentity !== undefined && row.manifest_id !== expected.sourceLineageIdentity)
+    || !isChecksum(row.manifest_checksum)
+    || canonicalChecksum(manifest) !== row.manifest_checksum
+    || !row.common_watermark_id
+    || !isChecksum(row.common_watermark_checksum)
+    || !isChecksum(row.member_set_checksum)
+    || commonWatermarkValue !== governedThrough
+    || manifest.corpusId !== expected.candidateId
+    || manifest.servingChecksum !== expected.candidateChecksum
+    || manifest.commonWatermarkId !== row.common_watermark_id
+    || manifest.commonWatermarkValue !== commonWatermarkValue
+    || manifest.commonWatermarkChecksum !== row.common_watermark_checksum
+    || manifest.memberSetChecksum !== row.member_set_checksum
+    || manifest.lifecycle !== "WITHHELD"
+    || manifest.exposure !== "INTERNAL_ONLY"
+    || manifest.exposureEligibility !== "INELIGIBLE"
+  ) throw new Error("INACTIVE_SERVING_BASELINE_MANIFEST_BINDING_MISMATCH")
+  const members = await readStoredMembers(sql, expected.candidateId)
+  if (!members.length || canonicalChecksum(members.map(memberIdentity)) !== row.member_set_checksum) throw new Error("INACTIVE_SERVING_BASELINE_MEMBER_SET_MISMATCH")
+  return Object.freeze({
+    corpusId: expected.candidateId,
+    servingChecksum: expected.candidateChecksum,
+    governedThrough,
+    members,
+    manifestId: row.manifest_id,
+    manifestChecksum: row.manifest_checksum,
+    memberSetChecksum: row.member_set_checksum,
+    commonWatermarkId: row.common_watermark_id,
+    commonWatermarkValue,
+    commonWatermarkChecksum: row.common_watermark_checksum,
+  })
 }
 async function storedManifestChecksum(sql: postgres.Sql | postgres.TransactionSql, corpusId: string): Promise<string> { const rows = await sql.unsafe<Array<{ manifest_checksum: string }>>("SELECT manifest_checksum FROM serving.serving_candidate_manifest WHERE corpus_id=$1", [corpusId]); if (!rows[0]) throw new Error("SERVING_CANDIDATE_MANIFEST_MISSING"); return rows[0].manifest_checksum }
 async function readStoredMembers(sql: postgres.Sql | postgres.TransactionSql, corpusId: string): Promise<readonly ServingCorpusMember[]> {
@@ -170,3 +348,8 @@ async function readPhysicalMembers(sql: postgres.Sql | postgres.TransactionSql, 
   return Object.freeze(rows.map((row) => Object.freeze({ memberKind: row.kind, memberId: row.id, memberChecksum: row.checksum, canonicalSortKey: row.sort_key, inheritedSourceCorpusId: corpusId, schemaVersion: row.schema_version || MVP_SERVING_SCHEMA_VERSION, metadata: Object.freeze({ inherited: true }) })))
 }
 function mapMember(row: Record<string, unknown>): ServingCorpusMember { return Object.freeze({ memberKind: String(row.member_kind) as ServingCorpusMemberKind, memberId: String(row.member_id), memberChecksum: String(row.member_checksum), canonicalSortKey: String(row.canonical_sort_key), inheritedSourceCorpusId: row.inherited_source_corpus_id ? String(row.inherited_source_corpus_id) : null, schemaVersion: String(row.schema_version), metadata: Object.freeze((row.metadata as Record<string, unknown>) ?? {}) }) }
+function memberIdentity(member: ServingCorpusMember) { return { kind: member.memberKind, id: member.memberId, checksum: member.memberChecksum, sortKey: member.canonicalSortKey, inheritedSourceCorpusId: member.inheritedSourceCorpusId, schemaVersion: member.schemaVersion, metadata: member.metadata } }
+function isChecksum(value: unknown): value is string { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value) }
+function exactIso(value: unknown, code: string): string { try { const iso = new Date(String(value)).toISOString(); if (typeof value !== "string" || iso !== value) throw new Error(code); return iso } catch { throw new Error(code) } }
+function normalizeDatabaseTimestamp(value: unknown, code: string): string { try { const timestamp = value instanceof Date ? value : new Date(String(value)); if (!Number.isFinite(timestamp.getTime())) throw new Error(code); return timestamp.toISOString() } catch { throw new Error(code) } }
+function requireRecord(value: unknown, code: string): Record<string, unknown> { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(code); return value as Record<string, unknown> }

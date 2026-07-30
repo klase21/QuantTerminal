@@ -17,6 +17,7 @@ import {
   type ServingCorpusMember,
 } from "@/lib/data-platform/mvp-serving"
 import type { ReplaySequenceModel } from "@/lib/replay-sequence"
+import { createCurrentCatchupServingInput } from "@/lib/data-platform/mvp-refresh/liveResumeLocalBootstrap"
 
 const START = "2026-07-15T00:00:00.000Z", END = "2026-07-16T00:00:00.000Z"
 const SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"])
@@ -27,7 +28,7 @@ function projection(kind: MvpProjectionVersion["projectionKind"], subjectId: str
 }
 
 function replayModel(source: MvpProjectionVersion): ReplaySequenceModel {
-  const base = { status: "AVAILABLE" as const, modelVersion: "mvp-replay-sequence/1.0.0" as const, instrument: source.subjectId, eventTimeStart: START, eventTimeEnd: END, sourceProjectionVersionId: source.projectionVersionId, sourceProjectionChecksum: source.projectionChecksum, marketState: "NEUTRAL", evidencePacketId: `packet:${source.subjectId}`, price: Object.freeze([]), openInterest: Object.freeze([]), funding: Object.freeze([]), flow: Object.freeze([]), sequence: Object.freeze([]), sampleCounts: Object.freeze({ price: 288, openInterest: 288, funding: 3, flow: 48 }), limitations: Object.freeze([]) }
+  const base = { status: "AVAILABLE" as const, modelVersion: "mvp-replay-sequence/1.0.0" as const, instrument: source.subjectId, eventTimeStart: START, eventTimeEnd: END, sourceProjectionVersionId: source.projectionVersionId, sourceProjectionChecksum: source.projectionChecksum, marketState: "NEUTRAL", evidencePacketId: `packet:${source.subjectId}`, price: Object.freeze([]), openInterest: Object.freeze([]), funding: Object.freeze([0, 8, 16].map((hour) => Object.freeze({ eventTime: new Date(Date.parse(START) + hour * 3_600_000).toISOString(), value: 0, providerId: "binance-futures", sourceChecksum: "e".repeat(64) }))), flow: Object.freeze([]), sequence: Object.freeze([]), sampleCounts: Object.freeze({ price: 288, openInterest: 288, funding: 3, flow: 48 }), limitations: Object.freeze([]) }
   return Object.freeze({ ...base, modelChecksum: canonicalChecksum(base) })
 }
 
@@ -60,6 +61,57 @@ async function main() {
   assert.match(plan.verifiedSourceCorpusId, /^mvp8i-verified-source:[0-9a-f]{64}$/)
   assert.equal(JSON.stringify({ candidateId: plan.candidateId, manifest: plan.manifest, members: plan.members }).includes("mvp8e-candidate:"), false)
   assert.ok(plan.members.every((member) => member.inheritedSourceCorpusId === plan.verifiedSourceCorpusId))
+
+  const currentCatchupBaseline = Object.freeze({
+    candidateId: `mvp8i-candidate:${"a".repeat(64)}`,
+    candidateChecksum: "a".repeat(64),
+    governedThrough: START,
+    sourceLineageIdentity: `mvp8i-manifest:${"b".repeat(64)}`,
+  })
+  const currentCatchupInput = createCurrentCatchupServingInput({
+    baseline: currentCatchupBaseline,
+    commonWatermarkId: input.commonWatermarkId,
+    commonWatermarkValue: END,
+    commonWatermarkChecksum: input.commonWatermarkChecksum,
+    payload: Object.freeze({
+      intervalStart: START,
+      intervalEnd: END,
+      projections: input.projections,
+      replayModels: Object.freeze(input.replaySnapshots.map((snapshot) => snapshot.payload)),
+    }),
+  })
+  const currentCatchupPlan = prepareInactiveServingCandidate(currentCatchupInput)
+  assert.deepEqual(currentCatchupPlan.counts, MVP_INACTIVE_SERVING_STAGE_COUNTS)
+  assert.equal(currentCatchupPlan.members.length, 74)
+  assert.equal(currentCatchupPlan.manifest.lifecycle, "WITHHELD")
+  assert.equal(currentCatchupPlan.manifest.exposure, "INTERNAL_ONLY")
+  assert.equal(currentCatchupPlan.manifest.exposureEligibility, "INELIGIBLE")
+  assert.match(currentCatchupInput.replaySourceCorpusId, /^mvp-current-catchup-serving-source:[0-9a-f]{64}$/)
+  const nextPredecessorInput = createCurrentCatchupServingInput({
+    baseline: Object.freeze({ ...currentCatchupBaseline, candidateId: `mvp8i-candidate:${"c".repeat(64)}`, candidateChecksum: "c".repeat(64) }),
+    commonWatermarkId: input.commonWatermarkId,
+    commonWatermarkValue: END,
+    commonWatermarkChecksum: input.commonWatermarkChecksum,
+    payload: Object.freeze({
+      intervalStart: START,
+      intervalEnd: END,
+      projections: input.projections,
+      replayModels: Object.freeze(input.replaySnapshots.map((snapshot) => snapshot.payload)),
+    }),
+  })
+  assert.notEqual(nextPredecessorInput.replaySourceCorpusChecksum, currentCatchupInput.replaySourceCorpusChecksum)
+  assert.throws(() => createCurrentCatchupServingInput({
+    baseline: currentCatchupBaseline,
+    commonWatermarkId: input.commonWatermarkId,
+    commonWatermarkValue: END,
+    commonWatermarkChecksum: input.commonWatermarkChecksum,
+    payload: Object.freeze({
+      intervalStart: "2026-07-14T00:00:00.000Z",
+      intervalEnd: END,
+      projections: input.projections,
+      replayModels: Object.freeze(input.replaySnapshots.map((snapshot) => snapshot.payload)),
+    }),
+  }), /LIVE_CURRENT_CATCHUP_SERVING_WINDOW_MISMATCH/)
 
   const identity = (overrides: Partial<Parameters<typeof computeInactiveServingCandidateId>[0]> = {}) => computeInactiveServingCandidateId({ schemaVersion: plan.schemaVersion, verifiedSourceCorpusId: plan.verifiedSourceCorpusId, verifiedSourceCorpusChecksum: plan.verifiedSourceCorpusChecksum, bindings: { commonWatermarkId: plan.commonWatermarkId, commonWatermarkValue: plan.commonWatermarkValue, commonWatermarkChecksum: plan.commonWatermarkChecksum }, counts: plan.counts, members: plan.members, ...overrides })
   assert.notEqual(identity({ bindings: { commonWatermarkId: `${plan.commonWatermarkId}:other`, commonWatermarkValue: plan.commonWatermarkValue, commonWatermarkChecksum: plan.commonWatermarkChecksum } }), plan.candidateId)

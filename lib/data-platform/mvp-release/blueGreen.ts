@@ -42,7 +42,11 @@ export interface MvpBlueGreenSourceDay {
   }[]
   readonly fundingChecks: readonly {
     readonly instrument: typeof MVP_BLUE_GREEN_REQUIRED_SYMBOLS[number]
-    readonly eventCount: number
+    readonly providerId: string
+    readonly events: readonly {
+      readonly eventTime: string
+      readonly sourceChecksum: string
+    }[]
     readonly checksumState: "VERIFIED" | "NOT_VERIFIED" | "MISMATCH"
   }[]
 }
@@ -136,7 +140,19 @@ export function verifyMvpBlueGreenSourceDay(day: MvpBlueGreenSourceDay): boolean
     if (checks.some((item) => !item.available || !item.finalized || item.checksumState !== "VERIFIED")) return false
   }
   if (!uniqueExact(day.fundingChecks.map((item) => item.instrument), MVP_BLUE_GREEN_REQUIRED_SYMBOLS)) return false
-  return day.fundingChecks.every((item) => item.eventCount === 3 && item.checksumState === "VERIFIED")
+  return day.fundingChecks.every((item) => {
+    const timestamps = item.events.map((event) => event.eventTime)
+    return item.providerId.trim().length > 0
+      && item.events.length > 0
+      && item.checksumState === "VERIFIED"
+      && new Set(timestamps).size === timestamps.length
+      && item.events.every((event) => {
+        try {
+          const eventTime = exactIso(event.eventTime, "MVP_BLUE_GREEN_FUNDING_EVENT_TIME_INVALID")
+          return eventTime >= start && eventTime < end && CHECKSUM.test(event.sourceChecksum)
+        } catch { return false }
+      })
+  })
 }
 
 export function discoverLatestMvpBlueGreenWatermark(currentWatermark: string, days: readonly MvpBlueGreenSourceDay[]) {
@@ -234,9 +250,11 @@ export function assertMvpBlueGreenReleaseImmutable(before: MvpBlueGreenReleaseUn
   transitionMvpBlueGreenRelease(before.state, after.state)
 }
 
-export function expectedMvpBlueGreenReplayShape(start: string, end: string) {
+export function expectedMvpBlueGreenReplayShape(start: string, end: string, fundingEventCounts?: readonly number[]) {
   const duration = exactIso(end, "MVP_BLUE_GREEN_REPLAY_END_INVALID") - exactIso(start, "MVP_BLUE_GREEN_REPLAY_START_INVALID")
   if (duration <= 0 || duration % DAY_MS !== 0) throw new Error("MVP_BLUE_GREEN_REPLAY_INTERVAL_INVALID")
   const days = duration / DAY_MS
-  return Object.freeze({ price: 288 * days, openInterest: 288 * days, funding: 3 * days, flow: 48 * days })
+  const counts = fundingEventCounts ?? Array.from({ length: days }, () => 3)
+  if (counts.length !== days || counts.some((count) => !Number.isSafeInteger(count) || count < 1)) throw new Error("MVP_BLUE_GREEN_REPLAY_FUNDING_COUNTS_INVALID")
+  return Object.freeze({ price: 288 * days, openInterest: 288 * days, funding: counts.reduce((total, count) => total + count, 0), flow: 48 * days })
 }

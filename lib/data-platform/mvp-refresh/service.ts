@@ -11,6 +11,15 @@ export const ACTIVE_MVP_SERVING_BASELINE = Object.freeze({
   counts: Object.freeze({ projections: 870, evidenceSummaries: 84, replaySnapshots: 84, demoProfiles: 2, releaseInventory: 3, activeExposures: 1 }),
 })
 
+export const CURRENT_MVP_CANDIDATE_BASELINE = Object.freeze({
+  candidateId: "mvp8i-candidate:fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  candidateChecksum: "fa295d3b749fd45d8c5172c5b5568463a4e645f9a0312d2d7945c4840753dc57",
+  governedThrough: "2026-07-16T00:00:00.000Z",
+  sourceLineageIdentity: "mvp8i-manifest:df394d92051d3838bf737ecd6edebdfe360b3096a03b2be07bc011abc27e63a4",
+  commonWatermarkId: "mre_a4eb426c1f92f2584962f8f3d6d61ae65abaec1aaa44bab152e12c7c43f1838a",
+  manifestChecksum: "d956e4ecefd495128a5ad3bf1ccd055434314d9496d874ae8276c583380f5b19",
+})
+
 export const DEFAULT_MVP_REFRESH_POLICY = createRefreshPolicy({ policyVersion: "mvp-refresh-policy/1.0.0", finalizationDelayMinutes: 120, overlapHours: 1, maximumCatchupDays: 7, maximumRetries: 3, leaseSeconds: 300 })
 
 export const MVP_REFRESH_SOURCE_AUDIT = Object.freeze([

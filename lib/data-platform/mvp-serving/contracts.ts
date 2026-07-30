@@ -145,7 +145,7 @@ export function verifyServingEvidenceSummary(summary: ServingEvidenceSummary): b
 
 export function createServingReplaySnapshot(projection: MvpProjectionVersion, model: ReplaySequenceModel): ServingReplaySnapshot {
   if (projection.projectionKind !== "ReplayTimelineProjection" || model.sourceProjectionVersionId !== projection.projectionVersionId || model.sourceProjectionChecksum !== projection.projectionChecksum) throw new Error("SERVING_REPLAY_SOURCE_MISMATCH")
-  if (model.sampleCounts.price !== 288 || model.sampleCounts.openInterest !== 288 || model.sampleCounts.funding !== 3 || model.sampleCounts.flow !== 48) throw new Error("SERVING_REPLAY_SAMPLE_COUNT_MISMATCH")
+  if (!verifyReplayModelFunding(model) || model.sampleCounts.price !== 288 || model.sampleCounts.openInterest !== 288 || model.sampleCounts.flow !== 48) throw new Error("SERVING_REPLAY_SAMPLE_COUNT_MISMATCH")
   const identity = canonicalChecksum({ schemaVersion: "mvp-replay-sequence-snapshot/1.0.0", modelVersion: model.modelVersion, sourceProjectionVersionId: projection.projectionVersionId, sourceProjectionChecksum: projection.projectionChecksum, sourceDependencyDigest: projection.dependencyDigest, instrument: projection.subjectId, eventTimeStart: projection.eventTimeStart, eventTimeEnd: projection.eventTimeEnd })
   const base = { replaySnapshotId: `mrss_${identity}`, snapshotIdentity: identity, sourceProjectionVersionId: projection.projectionVersionId, sourceProjectionChecksum: projection.projectionChecksum, sourceDependencyDigest: projection.dependencyDigest, instrument: projection.subjectId, eventTimeStart: projection.eventTimeStart, eventTimeEnd: projection.eventTimeEnd, knowledgeTimeCutoff: projection.knowledgeTimeCutoff, modelVersion: model.modelVersion, payload: model, modelChecksum: model.modelChecksum, priceSampleCount: model.sampleCounts.price, openInterestSampleCount: model.sampleCounts.openInterest, fundingSampleCount: model.sampleCounts.funding, flowBucketCount: model.sampleCounts.flow, limitations: Object.freeze([...model.limitations]) }
   return Object.freeze({ ...base, snapshotChecksum: canonicalChecksum(base) })
@@ -169,7 +169,26 @@ export function createServingCorpus(input: Omit<ServingCorpusRecord, "corpusId" 
 
 export function verifyReplaySnapshot(snapshot: ServingReplaySnapshot): boolean {
   const { snapshotChecksum, ...base } = snapshot
-  return canonicalChecksum(base) === snapshotChecksum && snapshot.payload.modelChecksum === snapshot.modelChecksum
+  return canonicalChecksum(base) === snapshotChecksum && snapshot.payload.modelChecksum === snapshot.modelChecksum && verifyReplayModelFunding(snapshot.payload)
+}
+
+function verifyReplayModelFunding(model: ReplaySequenceModel): boolean {
+  const start = Date.parse(model.eventTimeStart), end = Date.parse(model.eventTimeEnd)
+  const timestamps = model.funding.map((event) => event.eventTime)
+  return Number.isFinite(start)
+    && Number.isFinite(end)
+    && model.funding.length > 0
+    && model.sampleCounts.funding === model.funding.length
+    && new Set(timestamps).size === timestamps.length
+    && model.funding.every((event) => {
+      const timestamp = Date.parse(event.eventTime)
+      return Number.isFinite(timestamp)
+        && new Date(timestamp).toISOString() === event.eventTime
+        && timestamp >= start
+        && timestamp < end
+        && event.providerId.trim().length > 0
+        && /^[0-9a-f]{64}$/.test(event.sourceChecksum)
+    })
 }
 
 function asRecord(value: unknown): Readonly<Record<string, unknown>> { return value && typeof value === "object" && !Array.isArray(value) ? Object.freeze(value as Record<string, unknown>) : Object.freeze({}) }

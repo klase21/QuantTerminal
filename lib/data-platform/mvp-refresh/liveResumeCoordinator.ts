@@ -36,7 +36,26 @@ export interface CertifiedLiveResumePlan {
   readonly intervalStart: string
   readonly intervalEnd: string
   readonly slots: readonly RefreshSlotResumePlanEntry[]
+  readonly executionProfile?: "CURRENT_CANDIDATE_CATCHUP"
+  readonly currentCatchup?: CurrentCatchupPlanContext
   readonly executionGeneration?: CleanExecutionGenerationContext
+}
+
+export interface CurrentCatchupPlanContext {
+  readonly version: "mvp-current-catchup-plan-context/1.0.0"
+  readonly catchupId: string
+  readonly dayOrdinal: number
+  readonly baseline: {
+    readonly candidateId: string
+    readonly candidateChecksum: string
+    readonly governedThrough: string
+    readonly sourceLineageIdentity: string
+  }
+  readonly predecessor: {
+    readonly planId: string
+    readonly runId: string
+    readonly governedThrough: string
+  } | null
 }
 
 export interface CleanExecutionGenerationContext {
@@ -182,7 +201,19 @@ export interface LiveResumeCoordinatorResult {
   readonly slotResults: readonly LiveResumeSlotResult[]
   readonly checkpoints: readonly LiveResumeStageCheckpoint[]
   readonly commonWatermark: string | null
+  readonly candidateBaseline?: LiveResumeCandidateBaseline | null
   readonly candidateExposed: false
+}
+
+export interface LiveResumeCandidateBaseline {
+  readonly candidateId: string
+  readonly candidateChecksum: string
+  readonly governedThrough: string
+  readonly sourceLineageIdentity: string
+  readonly commonWatermarkId: string
+  readonly commonWatermarkValue: string
+  readonly commonWatermarkChecksum: string
+  readonly memberSetChecksum: string
 }
 
 export type LiveResumeWorkerCommand = "inspect" | "plan" | "preflight" | "dry-run" | "run" | "resume" | "status" | "verify" | "bootstrap-governance" | "quarantine-generation" | "reconcile-quarantine" | "create-clean-generation" | "clean-generation-status" | "clean-generation-preflight" | "execute-clean-generation"
@@ -307,21 +338,47 @@ export function createCertifiedLiveResumePlan(input: Omit<CertifiedLiveResumePla
   const intervalStart = exactIso(input.intervalStart), intervalEnd = exactIso(input.intervalEnd)
   if (Date.parse(intervalEnd) - Date.parse(intervalStart) !== LIVE_RESUME_MAX_INTERVAL_MS) throw new Error("LIVE_RESUME_INTERVAL_NOT_ONE_DAY")
   const slots = Object.freeze([...input.slots].sort((left, right) => left.logicalSlotId.localeCompare(right.logicalSlotId)))
-  const basis = input.executionGeneration
-    ? { version: LIVE_RESUME_COORDINATOR_VERSION, intervalStart, intervalEnd, slots: slots.map(slotBasis), executionGeneration: input.executionGeneration }
-    : { version: LIVE_RESUME_COORDINATOR_VERSION, intervalStart, intervalEnd, slots: slots.map(slotBasis) }
+  if ((input.executionProfile === "CURRENT_CANDIDATE_CATCHUP") !== Boolean(input.currentCatchup)) throw new Error("LIVE_RESUME_EXECUTION_PROFILE_CONTEXT_INVALID")
+  const basis = {
+    version: LIVE_RESUME_COORDINATOR_VERSION,
+    intervalStart,
+    intervalEnd,
+    slots: slots.map(slotBasis),
+    ...(input.executionProfile ? { executionProfile: input.executionProfile, currentCatchup: input.currentCatchup } : {}),
+    ...(input.executionGeneration ? { executionGeneration: input.executionGeneration } : {}),
+  }
   const planChecksum = canonicalChecksum(basis)
-  return Object.freeze({ planIdentity: `mrlp_${planChecksum}`, planChecksum, intervalStart, intervalEnd, slots, ...(input.executionGeneration ? { executionGeneration: Object.freeze({ ...input.executionGeneration }) } : {}) })
+  return Object.freeze({
+    planIdentity: `mrlp_${planChecksum}`,
+    planChecksum,
+    intervalStart,
+    intervalEnd,
+    slots,
+    ...(input.executionProfile ? { executionProfile: input.executionProfile, currentCatchup: Object.freeze({ ...input.currentCatchup!, baseline: Object.freeze({ ...input.currentCatchup!.baseline }) }) } : {}),
+    ...(input.executionGeneration ? { executionGeneration: Object.freeze({ ...input.executionGeneration }) } : {}),
+  })
+}
+
+export function liveResumePlanCounts(plan: CertifiedLiveResumePlan): Readonly<{ logicalSlots: number; reuseAuthoritative: number; createNew: number; conflicts: number; executableUnits: number }> {
+  const reuseAuthoritative = plan.slots.filter((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT").length
+  const createNew = plan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME").length
+  const conflicts = plan.slots.filter((slot) => slot.action === "BLOCKED_CONFLICT").length
+  return Object.freeze({ logicalSlots: plan.slots.length, reuseAuthoritative, createNew, conflicts, executableUnits: createNew })
 }
 
 export function verifyCertifiedLiveResumePlan(plan: CertifiedLiveResumePlan): void {
-  const rebuilt = createCertifiedLiveResumePlan({ intervalStart: plan.intervalStart, intervalEnd: plan.intervalEnd, slots: plan.slots, executionGeneration: plan.executionGeneration })
+  const rebuilt = createCertifiedLiveResumePlan({ intervalStart: plan.intervalStart, intervalEnd: plan.intervalEnd, slots: plan.slots, executionProfile: plan.executionProfile, currentCatchup: plan.currentCatchup, executionGeneration: plan.executionGeneration })
   if (rebuilt.planIdentity !== plan.planIdentity || rebuilt.planChecksum !== plan.planChecksum) throw new Error("LIVE_RESUME_PLAN_CHECKSUM_MISMATCH")
   if (plan.slots.length !== 24) throw new Error("LIVE_RESUME_PLAN_SLOT_COUNT_INVALID")
   const reuse = plan.slots.filter((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")
   const create = plan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME")
   const conflicts = plan.slots.filter((slot) => slot.action === "BLOCKED_CONFLICT")
-  if (reuse.length !== 1 || reuse[0]?.dataset !== "ohlcv" || reuse[0].instrument !== "BTCUSDT" || create.length !== 23 || conflicts.length !== 0) throw new Error("LIVE_RESUME_PLAN_ACTIONS_INVALID")
+  const currentCatchup = plan.executionProfile === "CURRENT_CANDIDATE_CATCHUP"
+  if (currentCatchup) {
+    const context = plan.currentCatchup!
+    if (context.version !== "mvp-current-catchup-plan-context/1.0.0" || !/^mrcc_[0-9a-f]{64}$/.test(context.catchupId) || !Number.isInteger(context.dayOrdinal) || context.dayOrdinal < 0 || context.baseline.candidateId !== `mvp8i-candidate:${context.baseline.candidateChecksum}` || !/^[0-9a-f]{64}$/.test(context.baseline.candidateChecksum) || !context.baseline.sourceLineageIdentity || new Date(context.baseline.governedThrough).toISOString() !== context.baseline.governedThrough || (context.dayOrdinal === 0) !== (context.predecessor === null) || (context.predecessor !== null && (!/^mrlp_[0-9a-f]{64}$/.test(context.predecessor.planId) || !/^mrlr_[0-9a-f]{64}$/.test(context.predecessor.runId) || context.predecessor.governedThrough !== plan.intervalStart))) throw new Error("LIVE_RESUME_CURRENT_CATCHUP_CONTEXT_INVALID")
+    if (reuse.length !== 0 || create.length !== 24 || conflicts.length !== 0) throw new Error("LIVE_RESUME_PLAN_ACTIONS_INVALID")
+  } else if (reuse.length !== 1 || reuse[0]?.dataset !== "ohlcv" || reuse[0].instrument !== "BTCUSDT" || create.length !== 23 || conflicts.length !== 0) throw new Error("LIVE_RESUME_PLAN_ACTIONS_INVALID")
   const expected = new Set(MVP_REFRESH_MANDATORY_DATASETS.flatMap((dataset) => MVP_REFRESH_INSTRUMENTS.map((instrument) => `${dataset}:${instrument}`)))
   const actual = new Set(plan.slots.map((slot) => `${slot.dataset}:${slot.instrument}`))
   if (actual.size !== 24 || [...expected].some((key) => !actual.has(key))) throw new Error("LIVE_RESUME_PLAN_GRAPH_INVALID")
@@ -345,10 +402,11 @@ export function verifyStageAwareLiveResumePlan(input: { readonly plan: Certified
   }
   const units = input.persistedUnits ?? []
   const createSlots = input.plan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME")
+  const expectedUnits = createSlots.length
   const unitKeys = new Set(units.map((unit) => unit.logicalSlotId))
-  if (units.length > 23 || unitKeys.size !== units.length || units.some((unit) => !createSlots.some((slot) => slot.logicalSlotId === unit.logicalSlotId && slot.dataset === unit.dataset && slot.instrument === unit.instrument))) throw new Error("LIVE_RESUME_PERSISTED_UNIT_GRAPH_INVALID")
-  if (input.stage === "AFTER_EXECUTION_SETUP" && units.length !== 23) throw new Error("LIVE_RESUME_EXECUTION_SETUP_INCOMPLETE")
-  if (input.stage === "COMPLETE" && (units.length !== 23 || units.some((unit) => unit.state !== "COMPLETE"))) throw new Error("LIVE_RESUME_EXECUTION_NOT_COMPLETE")
+  if (units.length > expectedUnits || unitKeys.size !== units.length || units.some((unit) => !createSlots.some((slot) => slot.logicalSlotId === unit.logicalSlotId && slot.dataset === unit.dataset && slot.instrument === unit.instrument))) throw new Error("LIVE_RESUME_PERSISTED_UNIT_GRAPH_INVALID")
+  if (input.stage === "AFTER_EXECUTION_SETUP" && units.length !== expectedUnits) throw new Error("LIVE_RESUME_EXECUTION_SETUP_INCOMPLETE")
+  if (input.stage === "COMPLETE" && (units.length !== expectedUnits || units.some((unit) => unit.state !== "COMPLETE"))) throw new Error("LIVE_RESUME_EXECUTION_NOT_COMPLETE")
 }
 
 function verifyAllowed(input: LiveResumeCoordinatorInput): void {
@@ -410,6 +468,14 @@ function validateSlotResult(result: LiveResumeSlotResult, slot: RefreshSlotResum
   if (!result.retrievalIdentity || !result.rawArtifactIdentity || !/^[0-9a-f]{64}$/.test(result.rawArtifactChecksum) || !result.candidateIdentity || !/^[0-9a-f]{64}$/.test(result.candidateChecksum) || !result.canonicalFactIdentities.length || result.canonicalFactIdentities.some((fact) => !fact.identity || !/^[0-9a-f]{64}$/.test(fact.checksum)) || result.validationStatus !== "PASSED" || result.durationMs < 0 || result.retainedBytes < 0) throw new Error("LIVE_RESUME_SLOT_RESULT_INCOMPLETE")
 }
 
+export function readLiveResumeCandidateBaseline(output: LiveResumeStageOutput): LiveResumeCandidateBaseline {
+  const value = output.details?.candidateBaseline
+  if (!value || typeof value !== "object") throw new Error("LIVE_RESUME_CANDIDATE_BASELINE_MISSING")
+  const candidate = value as Partial<LiveResumeCandidateBaseline>
+  if (!candidate.candidateId || !candidate.candidateChecksum || !candidate.governedThrough || !candidate.sourceLineageIdentity || !candidate.commonWatermarkId || !candidate.commonWatermarkValue || !candidate.commonWatermarkChecksum || !candidate.memberSetChecksum || !["mvp8i-candidate:", "mvp-serving-candidate:"].some((prefix) => candidate.candidateId === `${prefix}${candidate.candidateChecksum}`) || ![candidate.candidateChecksum, candidate.commonWatermarkChecksum, candidate.memberSetChecksum].every((checksum) => typeof checksum === "string" && /^[0-9a-f]{64}$/.test(checksum)) || new Date(candidate.governedThrough).toISOString() !== candidate.governedThrough || candidate.commonWatermarkValue !== candidate.governedThrough) throw new Error("LIVE_RESUME_CANDIDATE_BASELINE_INVALID")
+  return Object.freeze(candidate as LiveResumeCandidateBaseline)
+}
+
 export class MvpLiveResumeCoordinator {
   constructor(private readonly ports: LiveResumeCoordinatorPorts) {}
 
@@ -456,7 +522,8 @@ export class MvpLiveResumeCoordinator {
     }
 
     try {
-      await stage("PLAN_VERIFIED", { planChecksum: input.plan.planChecksum, persistedPlanId: execution.persistedPlanId, persistedRunId: execution.persistedRunId, transactionChecksum: execution.transactionChecksum }, async () => makeOutput({ logicalSlots: 24, reuse: 1, create: 23, conflicts: 0, planStatus: execution.planStatus, runStatus: execution.runStatus, resumeClassification: execution.resumeClassification }, [execution.persistedPlanId, execution.persistedRunId]))
+      const planCounts = liveResumePlanCounts(input.plan)
+      await stage("PLAN_VERIFIED", { planChecksum: input.plan.planChecksum, persistedPlanId: execution.persistedPlanId, persistedRunId: execution.persistedRunId, transactionChecksum: execution.transactionChecksum }, async () => makeOutput({ logicalSlots: planCounts.logicalSlots, reuse: planCounts.reuseAuthoritative, create: planCounts.createNew, conflicts: planCounts.conflicts, planStatus: execution.planStatus, runStatus: execution.runStatus, resumeClassification: execution.resumeClassification }, [execution.persistedPlanId, execution.persistedRunId]))
       const resolutionsBySlot = new Map<string, LiveResumeUnitResolution>()
       await stage("UNITS_RESOLVED", { slots: input.plan.slots.map(slotBasis), mode: input.mode }, async () => {
         const byLogicalSlot = new Map(execution.unitOutcomes.map((value) => [value.logicalSlotId, value]))
@@ -464,7 +531,7 @@ export class MvpLiveResumeCoordinator {
           ? Object.freeze({ logicalSlotId: slot.logicalSlotId, dataset: slot.dataset, instrument: slot.instrument, action: "REUSED_AUTHORITATIVE_OUTPUT", unitId: null, sourceContractId: SOURCE_CONTRACT_BY_DATASET.ohlcv, checkpointStartStage: "VALIDATED", fencingToken: null, reason: "CERTIFIED_AUTHORITATIVE_RECOVERY" }) satisfies LiveResumeUnitResolution
           : byLogicalSlot.get(slot.logicalSlotId)!)
         if (resolved.some((value) => !value)) throw new Error("LIVE_RESUME_EXECUTION_UNIT_OUTCOME_MISSING")
-        if (resolved.length !== 24 || resolved.filter((value) => value.action === "REUSED_AUTHORITATIVE_OUTPUT").length !== 1 || resolved.filter((value) => value.unitId !== null).length > 23 || resolved.some((value) => value.action === "BLOCKED")) throw new Error("LIVE_RESUME_UNIT_RESOLUTION_INVALID")
+        if (resolved.length !== planCounts.logicalSlots || resolved.filter((value) => value.action === "REUSED_AUTHORITATIVE_OUTPUT").length !== planCounts.reuseAuthoritative || resolved.filter((value) => value.unitId !== null).length !== planCounts.executableUnits || resolved.some((value) => value.action === "BLOCKED")) throw new Error("LIVE_RESUME_UNIT_RESOLUTION_INVALID")
         for (const value of resolved) resolutionsBySlot.set(value.logicalSlotId, value)
         return makeOutput({ resolutions: resolved }, resolved.map((value) => value.unitId ?? value.logicalSlotId))
       })
@@ -474,16 +541,18 @@ export class MvpLiveResumeCoordinator {
         if (Array.isArray(stored)) for (const value of stored as unknown as LiveResumeUnitResolution[]) resolutions.push(value)
       }
       if (resolutions.length !== 24) throw new Error("LIVE_RESUME_RESOLUTION_RESTORE_FAILED")
-      if (input.mode === "DRY_RUN") return Object.freeze({ status: "DRY_RUN", coordinatorRunId, planIdentity: input.plan.planIdentity, planChecksum: input.plan.planChecksum, logicalOutcomes: 24, unitIntents: resolutions.filter((value) => value.action === "CREATED_UNIT").length, resolutions: Object.freeze(resolutions), slotResults: Object.freeze([]), checkpoints: Object.freeze(checkpoints), commonWatermark: null, candidateExposed: false })
+      if (input.mode === "DRY_RUN") return Object.freeze({ status: "DRY_RUN", coordinatorRunId, planIdentity: input.plan.planIdentity, planChecksum: input.plan.planChecksum, logicalOutcomes: 24, unitIntents: resolutions.filter((value) => value.action === "CREATED_UNIT").length, resolutions: Object.freeze(resolutions), slotResults: Object.freeze([]), checkpoints: Object.freeze(checkpoints), commonWatermark: null, candidateBaseline: null, candidateExposed: false })
 
       const slotResults: LiveResumeSlotResult[] = []
-      const authoritySlot = input.plan.slots.find((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")!
-      const authorityResult = await this.ports.authoritativeOhlcv.reuse(authoritySlot)
-      validateSlotResult(authorityResult, authoritySlot)
+      const authoritySlot = input.plan.slots.find((slot) => slot.action === "REUSE_AUTHORITATIVE_RECOVERY_OUTPUT")
+      const authorityResult = authoritySlot ? await this.ports.authoritativeOhlcv.reuse(authoritySlot) : null
+      if (authoritySlot && authorityResult) validateSlotResult(authorityResult, authoritySlot)
       await stage("SOURCES_ACQUIRED", { resolutions: resolutions.map((value) => [value.logicalSlotId, value.action, value.unitId]) }, async () => {
         const results = await mapBounded(input.plan.slots, concurrency, async (slot) => {
           const resolution = resolutions.find((value) => value.logicalSlotId === slot.logicalSlotId)!
-          const result = resolution.action === "REUSED_AUTHORITATIVE_OUTPUT" ? authorityResult : await this.ports.executors[slot.dataset].execute(slot, resolution, { runId: coordinatorRunId, mode: input.mode, fencingToken: lease.fencingToken })
+          const result = resolution.action === "REUSED_AUTHORITATIVE_OUTPUT"
+            ? authorityResult ?? (() => { throw new Error("LIVE_RESUME_AUTHORITY_SLOT_MISSING") })()
+            : await this.ports.executors[slot.dataset].execute(slot, resolution, { runId: coordinatorRunId, mode: input.mode, fencingToken: lease.fencingToken })
           validateSlotResult(result, slot)
           return result
         })
@@ -520,11 +589,12 @@ export class MvpLiveResumeCoordinator {
       await downstreamStage("EVIDENCE_PERSISTED", "evidence")
       await downstreamStage("PROJECTIONS_PERSISTED", "projections")
       await downstreamStage("REPLAY_MATERIALIZED", "replay")
-      await stage("CANDIDATE_MEMBERSHIP_ASSEMBLED", { prior: checkpoints.map((value) => value.checksum) }, async () => this.ports.candidate.assemble({ intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, slots: slotResults, prior: Object.freeze([...checkpoints]) }))
+      const candidateOutput = await stage("CANDIDATE_MEMBERSHIP_ASSEMBLED", { prior: checkpoints.map((value) => value.checksum) }, async () => this.ports.candidate.assemble({ intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, slots: slotResults, prior: Object.freeze([...checkpoints]) }))
+      const candidateBaseline = input.plan.executionProfile === "CURRENT_CANDIDATE_CATCHUP" ? readLiveResumeCandidateBaseline(candidateOutput) : null
       await stage("CANDIDATE_MANIFEST_PERSISTED", { prior: checkpoints.map((value) => value.checksum) }, async () => this.ports.candidate.persistManifest({ intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, prior: Object.freeze([...checkpoints]) }))
       await stage("CANDIDATE_COMPARISON_VERIFIED", { prior: checkpoints.map((value) => value.checksum) }, async () => this.ports.candidate.compare({ intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, prior: Object.freeze([...checkpoints]) }))
       await stage("COMPLETE", { prior: checkpoints.map((value) => value.checksum) }, async () => makeOutput({ candidateExposed: false }, [coordinatorRunId]))
-      return Object.freeze({ status: "COMPLETE", coordinatorRunId, planIdentity: input.plan.planIdentity, planChecksum: input.plan.planChecksum, logicalOutcomes: 24, unitIntents: resolutions.filter((value) => value.action === "CREATED_UNIT").length, resolutions: Object.freeze(resolutions), slotResults: Object.freeze(slotResults), checkpoints: Object.freeze(checkpoints), commonWatermark: input.plan.intervalEnd, candidateExposed: false })
+      return Object.freeze({ status: "COMPLETE", coordinatorRunId, planIdentity: input.plan.planIdentity, planChecksum: input.plan.planChecksum, logicalOutcomes: 24, unitIntents: resolutions.filter((value) => value.action === "CREATED_UNIT").length, resolutions: Object.freeze(resolutions), slotResults: Object.freeze(slotResults), checkpoints: Object.freeze(checkpoints), commonWatermark: input.plan.intervalEnd, candidateBaseline, candidateExposed: false })
     } finally {
       await this.ports.lease.release(coordinatorRunId, lease.fencingToken)
     }

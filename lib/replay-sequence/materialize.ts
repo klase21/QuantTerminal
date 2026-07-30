@@ -14,6 +14,21 @@ const finite = (value: string) => { const parsed = Number(value); if (!Number.is
 const iso = (value: Date | string) => new Date(value).toISOString()
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
 const list = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+const CHECKSUM = /^[0-9a-f]{64}$/
+
+function verifiedFundingRows(funding: readonly FundingRow[], start: number, end: number): boolean {
+  const timestamps = funding.map((row) => iso(row.funding_time))
+  return funding.length > 0
+    && new Set(timestamps).size === timestamps.length
+    && funding.every((row, index) => {
+      const timestamp = Date.parse(timestamps[index]!)
+      return Number.isFinite(timestamp)
+        && timestamp >= start
+        && timestamp < end
+        && row.provider_id.trim().length > 0
+        && CHECKSUM.test(row.checksum)
+    })
+}
 
 function buildSequence(projection: ConsumerProjection, priceRows: readonly PriceRow[], oiRows: readonly OiRow[], funding: readonly FundingRow[], flowBuckets: readonly ReplayFlowBucket[]): readonly ReplaySequenceStep[] {
   const lanes = record(projection.payload.lanes), price = record(lanes.ohlcv), oi = record(lanes.openInterest), flow = record(lanes.aggTradesSummary)
@@ -54,7 +69,7 @@ export async function materializeMvpReplaySequenceFromCore(input: { readonly pro
       client.sql.unsafe<FundingRow[]>("SELECT funding_time,funding_rate::text,provider_id,checksum FROM canonical.funding WHERE symbol=$1 AND funding_time >= $2 AND funding_time < $3 ORDER BY funding_time", [projection.subjectId, projection.eventTimeStart, projection.eventTimeEnd]),
       client.sql.unsafe<SegmentRow[]>("SELECT segment_object_key,segment_content_checksum,record_count::int FROM canonical.stream_manifests WHERE source_dataset_id='agg-trade' AND segment_contract_version='2' AND symbol=$1 AND window_start=$2 AND window_end=$3", [projection.subjectId, projection.eventTimeStart, projection.eventTimeEnd]),
     ])
-    if (price.length !== 288 || openInterest.length !== 288 || funding.length !== 3 || segment.length !== 1) throw new Error("REPLAY_SEQUENCE_REQUIRED_INPUT_MISSING")
+    if (price.length !== 288 || openInterest.length !== 288 || !verifiedFundingRows(funding, start, end) || segment.length !== 1) throw new Error("REPLAY_SEQUENCE_REQUIRED_INPUT_MISSING")
     const flowSummary = await createAggTradesSegmentReadPort({ objectRoot: input.objectRoot }).summarizeFlowBuckets({ objectKey: segment[0]!.segment_object_key, expectedChecksum: segment[0]!.segment_content_checksum, expectedEventCount: segment[0]!.record_count, windowStart: projection.eventTimeStart, windowEnd: projection.eventTimeEnd, bucketMinutes: 30 })
     const lanes = record(projection.payload.lanes), marker = record((Array.isArray(record(lanes).evidenceMarkers) ? record(lanes).evidenceMarkers as unknown[] : [])[0])
     const flow = Object.freeze(flowSummary.buckets.map((bucket) => Object.freeze({ bucketId: `flow_${canonicalChecksum({ projection: projection.projectionVersionId, start: bucket.bucketStart })}`, eventTime: bucket.bucketStart, bucketEnd: bucket.bucketEnd, aggressiveBuyQuantity: bucket.aggressiveBuyQuantity, aggressiveSellQuantity: bucket.aggressiveSellQuantity, imbalanceRatio: bucket.imbalanceRatio, tradeCount: bucket.eventCount })))

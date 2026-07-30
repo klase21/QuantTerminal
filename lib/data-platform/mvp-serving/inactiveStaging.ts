@@ -166,7 +166,7 @@ export function prepareInactiveServingCandidate(input: InactiveServingCandidateI
   for (const snapshot of replaySnapshots) {
     const source = replaySources.get(snapshot.sourceProjectionVersionId)
     if (!verifyReplaySnapshot(snapshot)) throw new Error(`MVP8I_REPLAY_CHECKSUM_MISMATCH:${snapshot.replaySnapshotId}`)
-    if (!source || source.projectionChecksum !== snapshot.sourceProjectionChecksum || snapshot.payload.modelChecksum !== snapshot.modelChecksum || snapshot.eventTimeEnd !== commonWatermarkValue || snapshot.priceSampleCount !== 288 || snapshot.openInterestSampleCount !== 288 || snapshot.fundingSampleCount !== 3 || snapshot.flowBucketCount !== 48 || snapshot.payload.sampleCounts.price !== 288 || snapshot.payload.sampleCounts.openInterest !== 288 || snapshot.payload.sampleCounts.funding !== 3 || snapshot.payload.sampleCounts.flow !== 48) throw new Error(`MVP8I_REPLAY_BINDING_INVALID:${snapshot.replaySnapshotId}`)
+    if (!source || source.projectionChecksum !== snapshot.sourceProjectionChecksum || snapshot.payload.modelChecksum !== snapshot.modelChecksum || snapshot.eventTimeEnd !== commonWatermarkValue || snapshot.priceSampleCount !== 288 || snapshot.openInterestSampleCount !== 288 || snapshot.fundingSampleCount < 1 || snapshot.flowBucketCount !== 48 || snapshot.payload.sampleCounts.price !== 288 || snapshot.payload.sampleCounts.openInterest !== 288 || snapshot.payload.sampleCounts.funding !== snapshot.fundingSampleCount || snapshot.payload.sampleCounts.flow !== 48) throw new Error(`MVP8I_REPLAY_BINDING_INVALID:${snapshot.replaySnapshotId}`)
   }
 
   const bindings = Object.freeze({ commonWatermarkId: input.commonWatermarkId, commonWatermarkValue, commonWatermarkChecksum: input.commonWatermarkChecksum })

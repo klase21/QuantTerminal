@@ -24,7 +24,7 @@ const sourceDay = (start: string, complete = true): MvpBlueGreenSourceDay => {
     start,
     end,
     archiveChecks: Object.freeze((["ohlcv", "open-interest", "agg-trade"] as const).flatMap((dataset) => MVP_BLUE_GREEN_REQUIRED_SYMBOLS.map((instrument) => Object.freeze({ dataset, instrument, available: complete, finalized: complete, checksumState: complete ? "VERIFIED" as const : "NOT_VERIFIED" as const })))),
-    fundingChecks: Object.freeze(MVP_BLUE_GREEN_REQUIRED_SYMBOLS.map((instrument) => Object.freeze({ instrument, eventCount: complete ? 3 : 2, checksumState: complete ? "VERIFIED" as const : "NOT_VERIFIED" as const }))),
+    fundingChecks: Object.freeze(MVP_BLUE_GREEN_REQUIRED_SYMBOLS.map((instrument) => Object.freeze({ instrument, providerId: "binance-futures", events: Object.freeze([0, 8, 16].slice(0, complete ? 3 : 2).map((hour) => Object.freeze({ eventTime: new Date(Date.parse(start) + hour * 3_600_000).toISOString(), sourceChecksum: checksum("a") }))), checksumState: complete ? "VERIFIED" as const : "NOT_VERIFIED" as const }))),
   })
 }
 
@@ -86,6 +86,9 @@ assert.throws(() => createMvpBlueGreenReleaseUnit({ ...base, databaseName: "neon
 assert.throws(() => createMvpBlueGreenReleaseUnit({ ...base, branchId: base.parentBranchId, targetFingerprint: `neon:soft-cell-16396854/${base.parentBranchId}/mvp_release_20260719` }), /SEPARATE_DATABASE/)
 assert.deepEqual(expectedMvpBlueGreenReplayShape("2026-07-18T00:00:00.000Z", "2026-07-19T00:00:00.000Z"), { price: 288, openInterest: 288, funding: 3, flow: 48 })
 assert.deepEqual(expectedMvpBlueGreenReplayShape("2026-07-16T00:00:00.000Z", "2026-07-19T00:00:00.000Z"), { price: 864, openInterest: 864, funding: 9, flow: 144 })
+assert.deepEqual(expectedMvpBlueGreenReplayShape("2026-07-16T00:00:00.000Z", "2026-07-19T00:00:00.000Z", [2, 3, 4]), { price: 864, openInterest: 864, funding: 9, flow: 144 })
+assert.equal(verifyMvpBlueGreenSourceDay({ ...days[0]!, fundingChecks: [{ ...days[0]!.fundingChecks[0]!, events: [{ eventTime: "2026-07-15T23:59:59.999Z", sourceChecksum: checksum("a") }] }, ...days[0]!.fundingChecks.slice(1)] }), false)
+assert.equal(verifyMvpBlueGreenSourceDay({ ...days[0]!, fundingChecks: [{ ...days[0]!.fundingChecks[0]!, events: [{ eventTime: "2026-07-16T00:00:00.000Z", sourceChecksum: checksum("a") }, { eventTime: "2026-07-16T00:00:00.000Z", sourceChecksum: checksum("b") }] }, ...days[0]!.fundingChecks.slice(1)] }), false)
 
 const syntheticManagedUrl = (role: string, database: string) => [
   "postgresql:",

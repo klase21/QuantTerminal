@@ -15,10 +15,19 @@ import { loadMvpProjectionEvidenceInputs, MvpProjectionStore } from "@/lib/data-
 import { persistMvpConsistencyWindow, persistMvpEvidenceWindow, readMvpEvidenceWindows, type MvpEvidenceWindowData } from "@/lib/data-platform/consistency"
 import { MVP_PROJECTION_DEFINITIONS, type MvpProjectionVersion } from "@/lib/data-platform/evidence-platform"
 import { persistBoundedMvpProjections } from "@/lib/data-platform/consistency-evidence/postgres"
-import { MvpServingPostgresClient } from "@/lib/data-platform/mvp-serving"
-import { canonicalizeServingCorpusMembers, compareServingCorpusMembership, computeCandidateServingChecksum, LocalInactiveCandidateAssemblyService } from "@/lib/data-platform/mvp-serving/candidateMembership"
+import {
+  createServingEvidenceSummary,
+  createServingReplaySnapshot,
+  MVP_INACTIVE_SERVING_STAGE_SCHEMA_VERSION,
+  MvpServingPostgresClient,
+  prepareInactiveServingCandidate,
+  stageInactiveServingCandidate,
+  type InactiveServingCandidateInput,
+} from "@/lib/data-platform/mvp-serving"
+import { canonicalizeServingCorpusMembers, computeCandidateServingChecksum, LocalInactiveCandidateAssemblyService } from "@/lib/data-platform/mvp-serving/candidateMembership"
 import type { ServingCorpusMember } from "@/lib/data-platform/mvp-serving/candidateMembership"
 import { materializeMvpReplaySequence } from "@/lib/replay-sequence"
+import type { ReplaySequenceModel } from "@/lib/replay-sequence"
 import type { ConsumerProjection } from "@/lib/data-platform/consumer-projections"
 import { MvpRefreshPostgresClient } from "./client"
 import { boundedArchiveSourceUrl, buildBoundedAggTradesSegment, createBoundedArchiveRequest, parseBoundedAggTradesArchive, parseBoundedOhlcvArchive, parseBoundedOpenInterestArchive, type BoundedArchiveBatch, type BoundedOhlcvRow } from "./boundedAdapters"
@@ -29,7 +38,7 @@ import { PostgresLiveResumeCoordinatorControlPlane, PostgresLiveResumeExecutionS
 import { inspectIntegratedMvpGovernancePrerequisites, LIVE_MVP_DATASET_GOVERNANCE } from "./integratedGovernance"
 import { MvpRefreshStore } from "./store"
 import type { LiveResumeLocalBindingSet, LiveResumeBindingCapability, LiveResumeEnvironmentMode } from "./liveResumeEnvironment"
-import type { LiveResumeSlotResult, LiveResumeStageOutput } from "./liveResumeCoordinator"
+import type { LiveResumeCandidateBaseline, LiveResumeSlotResult, LiveResumeStageOutput } from "./liveResumeCoordinator"
 import type { RefreshLogicalDataset, RefreshLogicalInstrument, RefreshSlotResumePlanEntry } from "./unitReconciliation"
 
 const INSTRUMENTS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"] as const)
@@ -49,6 +58,13 @@ export interface ProcessLiveResumeBootstrapInput {
   readonly intervalEnd?: string
   readonly plannerIdentity?: string
   readonly plannerChecksum?: string
+  readonly authorityPolicy?: "REQUIRED" | "FORBIDDEN"
+  readonly candidateBaseline?: {
+    readonly candidateId: string
+    readonly candidateChecksum: string
+    readonly governedThrough: string
+    readonly sourceLineageIdentity: string
+  }
 }
 
 interface OpenResource { close(): Promise<void> }
@@ -523,8 +539,20 @@ export function createWatermarkAudit(store: MvpRefreshStore): LiveWatermarkAudit
 
 function toConsumerProjection(value: MvpProjectionVersion): ConsumerProjection { return Object.freeze({ projectionId: value.projectionId, projectionVersionId: value.projectionVersionId, projectionKind: value.projectionKind, subjectId: value.subjectId, eventTimeStart: value.eventTimeStart, eventTimeEnd: value.eventTimeEnd, knowledgeTimeCutoff: value.knowledgeTimeCutoff, payload: value.structuredPayload, completeness: value.completeness, limitations: value.limitations, lifecycleState: value.lifecycleState, effectiveExposure: "CONSUMER_VISIBLE", projectionChecksum: value.projectionChecksum }) }
 
-export function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresClient; readonly d3: D3PostgresClient; readonly objectRoot: string; readonly refresh: MvpRefreshStore; readonly consistency: ConsistencyPostgresRuntime; readonly evidence: ConsistencyPostgresRuntime; readonly projection: ConsistencyPostgresRuntime }): LiveDownstreamExecutor {
-  let windows: readonly MvpEvidenceWindowData[] = Object.freeze([]), projections: readonly MvpProjectionVersion[] = Object.freeze([])
+export interface CurrentCatchupServingPayload {
+  readonly intervalStart: string
+  readonly intervalEnd: string
+  readonly projections: readonly MvpProjectionVersion[]
+  readonly replayModels: readonly ReplaySequenceModel[]
+}
+
+export interface CurrentCatchupDownstreamExecutor extends LiveDownstreamExecutor {
+  servingPayload(intervalStart: string, intervalEnd: string): CurrentCatchupServingPayload
+}
+
+export function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresClient; readonly d3: D3PostgresClient; readonly objectRoot: string; readonly refresh: MvpRefreshStore; readonly consistency: ConsistencyPostgresRuntime; readonly evidence: ConsistencyPostgresRuntime; readonly projection: ConsistencyPostgresRuntime }): CurrentCatchupDownstreamExecutor {
+  let windows: readonly MvpEvidenceWindowData[] = Object.freeze([]), projections: readonly MvpProjectionVersion[] = Object.freeze([]), replayModels: readonly ReplaySequenceModel[] = Object.freeze([])
+  let payloadWindow: { readonly intervalStart: string; readonly intervalEnd: string } | null = null
   const corpus = (slots: readonly LiveResumeSlotResult[]) => Object.freeze({ corpusId: `mvp-refresh-window:${canonicalChecksum(slots.map((slot) => slot.logicalSlotId))}`, corpusChecksum: canonicalChecksum(slots.map((slot) => [slot.logicalSlotId, slot.candidateChecksum])) })
   const committed = (window: MvpEvidenceWindowData) => Object.freeze(window.committedInputs.map((value) => Object.freeze({ identity: value.commitId, checksum: value.checksum })))
   return Object.freeze({
@@ -561,23 +589,110 @@ export function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresC
       }
       if (!projections.length) throw new Error("LIVE_REPLAY_PROJECTION_INPUT_MISSING")
       const replaySources = projections.filter((projection) => projection.projectionKind === "ReplayTimelineProjection")
-      const models = await Promise.all(replaySources.map((projection) => materializeMvpReplaySequence(toConsumerProjection(projection))))
-      if (models.length !== 6 || models.some((model) => model.sampleCounts.price !== 288 || model.sampleCounts.openInterest !== 288 || model.sampleCounts.flow !== 48)) throw new Error("LIVE_BOUNDED_REPLAY_INELIGIBLE")
-      return Object.freeze({ identities: Object.freeze(models.map((model) => model.sourceProjectionVersionId)), checksum: canonicalChecksum(models.map((model) => [model.sourceProjectionVersionId, model.modelChecksum])) })
+      replayModels = Object.freeze(await Promise.all(replaySources.map((projection) => materializeMvpReplaySequence(toConsumerProjection(projection)))))
+      if (projections.length !== 62 || replayModels.length !== 6 || replayModels.some((model) => model.sampleCounts.price !== 288 || model.sampleCounts.openInterest !== 288 || model.sampleCounts.funding < 1 || model.sampleCounts.flow !== 48)) throw new Error("LIVE_BOUNDED_REPLAY_INELIGIBLE")
+      payloadWindow = Object.freeze({ intervalStart: value.intervalStart, intervalEnd: value.intervalEnd })
+      return Object.freeze({ identities: Object.freeze(replayModels.map((model) => model.sourceProjectionVersionId)), checksum: canonicalChecksum(replayModels.map((model) => [model.sourceProjectionVersionId, model.modelChecksum])) })
+    },
+    servingPayload(intervalStart, intervalEnd) {
+      if (!payloadWindow || payloadWindow.intervalStart !== intervalStart || payloadWindow.intervalEnd !== intervalEnd || projections.length !== 62 || replayModels.length !== 6) throw new Error("LIVE_CURRENT_CATCHUP_SERVING_PAYLOAD_NOT_READY")
+      return Object.freeze({ intervalStart, intervalEnd, projections, replayModels })
     },
   })
 }
 
-export function createCandidateExecutor(service: LocalInactiveCandidateAssemblyService): LiveCandidateExecutor {
-  let candidate: { corpusId: string; checksum: string; comparisonChecksum: string } | null = null
+export function createCurrentCatchupServingInput(input: {
+  readonly baseline: NonNullable<ProcessLiveResumeBootstrapInput["candidateBaseline"]>
+  readonly commonWatermarkId: string
+  readonly commonWatermarkValue: string
+  readonly commonWatermarkChecksum: string
+  readonly payload: CurrentCatchupServingPayload
+}): InactiveServingCandidateInput {
+  if (input.payload.intervalEnd !== input.commonWatermarkValue || input.payload.intervalStart !== input.baseline.governedThrough) throw new Error("LIVE_CURRENT_CATCHUP_SERVING_WINDOW_MISMATCH")
+  const research = input.payload.projections.filter((projection) => projection.projectionKind === "ResearchEvidenceProjection")
+  const replayByProjection = new Map(input.payload.projections.filter((projection) => projection.projectionKind === "ReplayTimelineProjection").map((projection) => [projection.projectionVersionId, projection]))
+  if (research.length !== 6 || replayByProjection.size !== 6 || input.payload.replayModels.length !== 6) throw new Error("LIVE_CURRENT_CATCHUP_SERVING_SHAPE_INVALID")
+  const evidenceSummaries = Object.freeze(research.map(createServingEvidenceSummary))
+  const replaySnapshots = Object.freeze(input.payload.replayModels.map((model) => {
+    const projection = replayByProjection.get(model.sourceProjectionVersionId)
+    if (!projection) throw new Error("LIVE_CURRENT_CATCHUP_REPLAY_PROJECTION_MISSING")
+    return createServingReplaySnapshot(projection, model)
+  }))
+  const replaySourceCorpusChecksum = canonicalChecksum({
+    version: "mvp-current-catchup-serving-source/1.0.0",
+    predecessor: input.baseline,
+    projections: input.payload.projections.map((projection) => [projection.projectionVersionId, projection.projectionChecksum]).sort(),
+    evidenceSummaries: evidenceSummaries.map((summary) => [summary.evidenceSummaryId, summary.summaryChecksum]).sort(),
+    replayModels: input.payload.replayModels.map((model) => [model.sourceProjectionVersionId, model.modelChecksum]).sort(),
+  })
+  return Object.freeze({
+    schemaVersion: MVP_INACTIVE_SERVING_STAGE_SCHEMA_VERSION,
+    replaySourceCorpusId: `mvp-current-catchup-serving-source:${replaySourceCorpusChecksum}`,
+    replaySourceCorpusChecksum,
+    commonWatermarkId: input.commonWatermarkId,
+    commonWatermarkValue: input.commonWatermarkValue,
+    commonWatermarkChecksum: input.commonWatermarkChecksum,
+    projections: input.payload.projections,
+    evidenceSummaries,
+    replaySnapshots,
+  })
+}
+
+export function createCandidateExecutor(
+  service: LocalInactiveCandidateAssemblyService,
+  expectedBaseline?: ProcessLiveResumeBootstrapInput["candidateBaseline"],
+  currentCatchup?: { readonly client: MvpServingPostgresClient; readonly downstream: CurrentCatchupDownstreamExecutor },
+): LiveCandidateExecutor {
+  let candidate: { corpusId: string; checksum: string; comparisonChecksum: string; baseline?: LiveResumeCandidateBaseline; manifestChecksum?: string; memberSetChecksum?: string } | null = null
   return Object.freeze({
     async assemble(input) {
-      const baseline = await service.activeBaseline()
-      const additions: ServingCorpusMember[] = input.upstream.map((item, index) => Object.freeze({ memberKind: "RELEASE_MANIFEST" as const, memberId: item.identity, memberChecksum: item.checksum, canonicalSortKey: `TARGET_WINDOW:${String(index).padStart(4, "0")}:${item.identity}`, inheritedSourceCorpusId: null, schemaVersion: "mvp-live-resume/1.0.0", metadata: Object.freeze({ targetWindow: true }) }))
+      const baseline = expectedBaseline ? await service.certifiedInactiveBaseline(expectedBaseline) : await service.activeBaseline()
+      if (expectedBaseline) {
+        if (!currentCatchup) throw new Error("LIVE_CURRENT_CATCHUP_SERVING_HANDOFF_REQUIRED")
+        const common = input.upstream.filter((item) => item.identity.startsWith("mrcw_"))
+        if (common.length !== 1) throw new Error("LIVE_CURRENT_CANDIDATE_COMMON_WATERMARK_MISSING")
+        const stagedInput = createCurrentCatchupServingInput({
+          baseline: expectedBaseline,
+          commonWatermarkId: common[0]!.identity,
+          commonWatermarkValue: input.intervalEnd,
+          commonWatermarkChecksum: common[0]!.checksum,
+          payload: currentCatchup.downstream.servingPayload(input.intervalStart, input.intervalEnd),
+        })
+        const plan = prepareInactiveServingCandidate(stagedInput)
+        const staged = await stageInactiveServingCandidate(currentCatchup.client, stagedInput)
+        if (
+          staged.review.candidateId !== plan.candidateId
+          || staged.review.servingChecksum !== plan.servingChecksum
+          || staged.review.manifestChecksum !== plan.manifestChecksum
+          || staged.review.memberSetChecksum !== plan.memberSetChecksum
+          || staged.review.commonWatermarkId !== common[0]!.identity
+          || staged.review.commonWatermarkValue !== input.intervalEnd
+          || staged.review.commonWatermarkChecksum !== common[0]!.checksum
+          || staged.review.lifecycle !== "WITHHELD"
+          || staged.review.exposure !== "INTERNAL_ONLY"
+          || staged.review.exposureCount !== 0
+        ) throw new Error("LIVE_CURRENT_CATCHUP_SERVING_READBACK_FAILED")
+        const candidateBaseline: LiveResumeCandidateBaseline = Object.freeze({
+          candidateId: plan.candidateId,
+          candidateChecksum: plan.servingChecksum,
+          governedThrough: input.intervalEnd,
+          sourceLineageIdentity: plan.manifestId,
+          commonWatermarkId: plan.commonWatermarkId,
+          commonWatermarkValue: plan.commonWatermarkValue,
+          commonWatermarkChecksum: plan.commonWatermarkChecksum,
+          memberSetChecksum: plan.memberSetChecksum,
+        })
+        candidate = { corpusId: plan.candidateId, checksum: plan.servingChecksum, comparisonChecksum: canonicalChecksum({ predecessorCandidateId: baseline.corpusId, predecessorChecksum: baseline.servingChecksum, candidateId: plan.candidateId, candidateChecksum: plan.servingChecksum }), baseline: candidateBaseline, manifestChecksum: plan.manifestChecksum, memberSetChecksum: plan.memberSetChecksum }
+        const details = Object.freeze({ candidateBaseline, status: staged.status, exposureUnchanged: true, payloadCounts: plan.counts, predecessorCandidateId: baseline.corpusId, predecessorChecksum: baseline.servingChecksum })
+        const output = sanitizedIdentity("mrl_candidate", details)
+        return Object.freeze({ identities: Object.freeze([output.identity]), checksum: output.checksum, details })
+      }
+      const additions: ServingCorpusMember[] = input.upstream.map((item, index) => Object.freeze({ memberKind: "RELEASE_MANIFEST" as const, memberId: item.identity, memberChecksum: item.checksum, canonicalSortKey: expectedBaseline ? `TARGET_WINDOW:${input.intervalStart}:${String(index).padStart(4, "0")}:${item.identity}` : `TARGET_WINDOW:${String(index).padStart(4, "0")}:${item.identity}`, inheritedSourceCorpusId: null, schemaVersion: "mvp-live-resume/1.0.0", metadata: Object.freeze({ targetWindow: true }) }))
       const members = canonicalizeServingCorpusMembers([...baseline.members, ...additions])
       const corpusChecksum = computeCandidateServingChecksum({ governedThrough: input.intervalEnd, schemaVersion: "mvp-serving/1.0.0", members })
       const corpusId = `mvp-serving-candidate:${corpusChecksum}`
-      const result = await service.assemble({ candidate: { corpusId, sourceCorpusId: baseline.corpusId, sourceCorpusChecksum: baseline.servingChecksum, governedThrough: input.intervalEnd, schemaVersion: "mvp-serving/1.0.0", generatedAt: new Date().toISOString(), members, limitations: Object.freeze(["INACTIVE_LOCAL_CANDIDATE"]) }, expectedActiveCorpusId: baseline.corpusId, expectedActiveChecksum: baseline.servingChecksum })
+      const descriptor = { corpusId, sourceCorpusId: baseline.corpusId, sourceCorpusChecksum: baseline.servingChecksum, governedThrough: input.intervalEnd, schemaVersion: "mvp-serving/1.0.0", generatedAt: new Date().toISOString(), members, limitations: Object.freeze(["INACTIVE_LOCAL_CANDIDATE"]) }
+      const result = await service.assemble({ candidate: descriptor, expectedActiveCorpusId: baseline.corpusId, expectedActiveChecksum: baseline.servingChecksum })
       candidate = { corpusId, checksum: result.servingChecksum, comparisonChecksum: result.comparison.checksum }
       return stageOutput("mrl_candidate", { corpusId, checksum: result.servingChecksum, status: result.status, exposureUnchanged: result.exposureUnchanged })
     },
@@ -641,21 +756,27 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
 
     const refreshStore = new MvpRefreshStore(refresh), recovery = new ControlledOhlcvRecoveryStore(refresh), control = new PostgresLiveResumeCoordinatorControlPlane(refresh), execution = new PostgresLiveResumeExecutionStore(refresh)
     const authorities = await recovery.readAuthoritiesForWindow(start, end)
-    if (authorities.length !== 1) throw new Error("LIVE_AUTHORITATIVE_RECOVERY_REQUIRED")
-    const authority = authorities[0]!
+    const authorityPolicy = input.authorityPolicy ?? "REQUIRED"
+    if (authorityPolicy === "REQUIRED" && authorities.length !== 1) throw new Error("LIVE_AUTHORITATIVE_RECOVERY_REQUIRED")
+    if (authorityPolicy === "FORBIDDEN" && authorities.length !== 0) throw new Error("LIVE_FRESH_WINDOW_AUTHORITY_CONFLICT")
+    const authority = authorities[0] ?? null
     const candidateService = new LocalInactiveCandidateAssemblyService(serving)
-    const adapterInput = (dataset: RefreshLogicalDataset) => ({ dataset, storage, objectRoot, d2Client: d2, d2: d2Adapter, d3: d3Adapter, canonical, refresh: refreshStore })
+    const downstreamExecutor = createDownstreamExecutor({ d2, d3, objectRoot, refresh: refreshStore, consistency, evidence, projection })
+    const adapterInput = (dataset: RefreshLogicalDataset) => ({ dataset, storage, objectRoot, d2Client: d2, d2: d2Adapter, d3: d3Adapter, canonical, refresh: refreshStore, allowBtcOhlcvAcquisition: authorityPolicy === "FORBIDDEN" })
     const executorPorts = createLiveExecutorPortSet({ ohlcv: createDatasetAdapter(adapterInput("ohlcv")), "open-interest": createDatasetAdapter(adapterInput("open-interest")), funding: createDatasetAdapter(adapterInput("funding")), "agg-trade": createDatasetAdapter(adapterInput("agg-trade")) })
     const ports = composeConcreteLiveResumePorts({
       targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
       execution,
       lease: control,
       checkpoints: control,
-      authoritativeOhlcv: { reuse: async (slot) => authoritativeResult(slot, authority) },
+      authoritativeOhlcv: { reuse: async (slot) => {
+        if (!authority) throw new Error("LIVE_AUTHORITATIVE_RECOVERY_REQUIRED")
+        return authoritativeResult(slot, authority)
+      } },
       executorPorts,
       watermarkAudit: createWatermarkAudit(refreshStore),
-      downstreamExecutor: createDownstreamExecutor({ d2, d3, objectRoot, refresh: refreshStore, consistency, evidence, projection }),
-      candidateExecutor: createCandidateExecutor(candidateService),
+      downstreamExecutor,
+      candidateExecutor: createCandidateExecutor(candidateService, input.candidateBaseline, input.candidateBaseline ? { client: serving, downstream: downstreamExecutor } : undefined),
       plannerIdentity, plannerChecksum, intervalStart: start, intervalEnd: end, allowedDatasets: DATASETS, allowedInstruments: INSTRUMENTS,
     })
     return Object.freeze({ ports, capabilities: input.capabilities, close: () => scope.close() })

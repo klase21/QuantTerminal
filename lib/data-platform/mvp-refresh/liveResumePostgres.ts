@@ -2,7 +2,7 @@ import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import type postgres from "postgres"
 import type { MvpRefreshPostgresClient } from "./client"
 import { ACTIVE_MVP_SERVING_BASELINE, DEFAULT_MVP_REFRESH_POLICY } from "./service"
-import { verifyCertifiedLiveResumePlan, verifyStageAwareLiveResumePlan, type CertifiedLiveResumePlan, type LiveResumeExecutionIntent, type LiveResumeExecutionSetup, type LiveResumeStage, type LiveResumeStageCheckpoint, type LiveResumeUnitResolution } from "./liveResumeCoordinator"
+import { liveResumePlanCounts, verifyCertifiedLiveResumePlan, verifyStageAwareLiveResumePlan, type CertifiedLiveResumePlan, type LiveResumeExecutionIntent, type LiveResumeExecutionSetup, type LiveResumeStage, type LiveResumeStageCheckpoint, type LiveResumeUnitResolution } from "./liveResumeCoordinator"
 import { MvpRefreshStore } from "./store"
 import type { RefreshLogicalDataset, RefreshLogicalInstrument, RefreshSlotResumePlanEntry } from "./unitReconciliation"
 
@@ -38,7 +38,7 @@ export interface LiveResumeStatusSnapshot {
   readonly runState: string | null
   readonly unitCountsByState: Readonly<Record<string, number>>
   readonly unitCountsByDataset: Readonly<Record<string, number>>
-  readonly authoritativeReuse: 1
+  readonly authoritativeReuse: number
   readonly createdSlots: number
   readonly reusedSlots: number
   readonly resumableSlots: number
@@ -109,6 +109,7 @@ export class PostgresLiveResumeExecutionStore {
 
   async status(plan: CertifiedLiveResumePlan): Promise<LiveResumeStatusSnapshot> {
     verifyCertifiedLiveResumePlan(plan)
+    const planCounts = liveResumePlanCounts(plan)
     const { runId } = liveResumeRunIdentity(plan)
     const runs = await this.client.sql.unsafe<Array<{ state: string; blocker_codes: string[] }>>("SELECT state,blocker_codes FROM refresh_control.refresh_run WHERE run_id=$1 AND plan_id=$2", [runId, plan.planIdentity])
     const run = runs[0]
@@ -136,7 +137,7 @@ export class PostgresLiveResumeExecutionStore {
     const effectiveExecutionState = !run ? "NOT_STARTED" : disposition !== "ACTIVE" ? "BLOCKED" : run.state === "READY_FOR_RELEASE_REVIEW" ? "COMPLETE" : failures.length || blockedSlots ? "BLOCKED" : "ACTIVE"
     const dispositionBlocker = disposition === "QUARANTINED" ? ["EXECUTION_GENERATION_QUARANTINED"] : disposition === "SUPERSEDED" ? ["EXECUTION_GENERATION_SUPERSEDED"] : []
     const quarantineReceiptId = quarantineReceipts[0]?.event_id ?? null
-    return Object.freeze({ planId: plan.planIdentity, planChecksum: plan.planChecksum, persistedRunId: run ? runId : null, runState: run?.state ?? null, unitCountsByState: Object.freeze(byState), unitCountsByDataset: Object.freeze(byDataset), authoritativeReuse: 1, createdSlots, reusedSlots, resumableSlots, missingSlots: Math.max(0, 23 - units.length), currentCoordinatorStage: stageRows[0]?.event_kind.replace(/^STAGE_/, "") ?? null, leaseState: !lease ? "ABSENT" : lease.active ? "ACTIVE" : lease.released ? "RELEASED" : "EXPIRED", candidateState: candidates[0]?.lifecycle ?? null, commonWatermark: watermarks[0]?.common_watermark ? new Date(watermarks[0].common_watermark).toISOString() : null, blockers: Object.freeze([...(run?.blocker_codes ?? []), ...terminalBlockers, ...failures.map((value) => value.event_kind.replace(/^STAGE_FAILURE_/, "STAGE_FAILURE:")), ...dispositionBlocker].sort()), persistedUnitCount: units.length, recoverableSlots: disposition === "ACTIVE" ? units.filter((unit) => RECOVERABLE_UNIT_STATES.has(unit.state)).length : 0, blockedSlots, retainedArtifacts: retained[0]?.artifacts ?? 0, retainedCandidates: retained[0]?.candidates ?? 0, effectiveExecutionState, disposition, resumeEligible: disposition === "ACTIVE" && Boolean(run) && run.state !== "READY_FOR_RELEASE_REVIEW", quarantineReason: disposition === "QUARANTINED" ? dispositionPayload?.reasonCode ?? null : null, incidentChecksum: disposition === "QUARANTINED" ? dispositionPayload?.incidentChecksum ?? null : null, quarantineSagaState: disposition === "QUARANTINED" ? quarantineReceiptId ? "COMPLETE" : "INTENT_RECORDED" : null, missingQuarantineSteps: disposition === "QUARANTINED" && !quarantineReceiptId ? Object.freeze(["POPULATION_FENCING", "QUARANTINE_COMPLETED_RECEIPT"]) : Object.freeze([]), quarantineReceiptId })
+    return Object.freeze({ planId: plan.planIdentity, planChecksum: plan.planChecksum, persistedRunId: run ? runId : null, runState: run?.state ?? null, unitCountsByState: Object.freeze(byState), unitCountsByDataset: Object.freeze(byDataset), authoritativeReuse: planCounts.reuseAuthoritative, createdSlots, reusedSlots, resumableSlots, missingSlots: Math.max(0, planCounts.executableUnits - units.length), currentCoordinatorStage: stageRows[0]?.event_kind.replace(/^STAGE_/, "") ?? null, leaseState: !lease ? "ABSENT" : lease.active ? "ACTIVE" : lease.released ? "RELEASED" : "EXPIRED", candidateState: candidates[0]?.lifecycle ?? null, commonWatermark: watermarks[0]?.common_watermark ? new Date(watermarks[0].common_watermark).toISOString() : null, blockers: Object.freeze([...(run?.blocker_codes ?? []), ...terminalBlockers, ...failures.map((value) => value.event_kind.replace(/^STAGE_FAILURE_/, "STAGE_FAILURE:")), ...dispositionBlocker].sort()), persistedUnitCount: units.length, recoverableSlots: disposition === "ACTIVE" ? units.filter((unit) => RECOVERABLE_UNIT_STATES.has(unit.state)).length : 0, blockedSlots, retainedArtifacts: retained[0]?.artifacts ?? 0, retainedCandidates: retained[0]?.candidates ?? 0, effectiveExecutionState, disposition, resumeEligible: disposition === "ACTIVE" && Boolean(run) && run.state !== "READY_FOR_RELEASE_REVIEW", quarantineReason: disposition === "QUARANTINED" ? dispositionPayload?.reasonCode ?? null : null, incidentChecksum: disposition === "QUARANTINED" ? dispositionPayload?.incidentChecksum ?? null : null, quarantineSagaState: disposition === "QUARANTINED" ? quarantineReceiptId ? "COMPLETE" : "INTENT_RECORDED" : null, missingQuarantineSteps: disposition === "QUARANTINED" && !quarantineReceiptId ? Object.freeze(["POPULATION_FENCING", "QUARANTINE_COMPLETED_RECEIPT"]) : Object.freeze([]), quarantineReceiptId })
   }
 
   async readPersistedExecution(intervalStart: string, intervalEnd: string): Promise<PersistedLiveResumeExecution | null> {
@@ -153,7 +154,8 @@ export class PostgresLiveResumeExecutionStore {
         if (!slot || slot.action !== "CREATE_NEW_ON_LIVE_RESUME") throw new Error("LIVE_RESUME_PERSISTED_UNIT_GRAPH_INVALID")
         return Object.freeze({ unitId: unit.unit_id, logicalSlotId: slot.logicalSlotId, dataset: unit.dataset_id, instrument: unit.instrument, state: unit.state, checkpoint: checkpointRecord(unit.checkpoint) })
       }))
-      verifyStageAwareLiveResumePlan({ plan: payload.certifiedPlan, stage: units.length === 23 ? "AFTER_EXECUTION_SETUP" : "DURING_EXECUTION", persistedUnits: units })
+      const expectedUnits = liveResumePlanCounts(payload.certifiedPlan).executableUnits
+      verifyStageAwareLiveResumePlan({ plan: payload.certifiedPlan, stage: units.length === expectedUnits ? "AFTER_EXECUTION_SETUP" : "DURING_EXECUTION", persistedUnits: units })
       candidates.push(Object.freeze({ plan: payload.certifiedPlan, runId: row.run_id, runState: row.run_state, runChecksum: row.run_checksum, blockerCodes: Object.freeze(row.blocker_codes ?? []), units }))
     }
     if (candidates.length > 1) throw new Error("LIVE_RESUME_MULTIPLE_PERSISTED_EXECUTIONS")
@@ -167,7 +169,8 @@ export class PostgresLiveResumeExecutionStore {
 
   private async resolveSql(sql: postgres.TransactionSql, plan: CertifiedLiveResumePlan, identity: { readonly runId: string; readonly checksum: string }, intent: Exclude<LiveResumeExecutionIntent, "DRY_RUN">, failurePoint?: "AFTER_PLAN" | "AFTER_RUN" | "AFTER_FIRST_UNIT"): Promise<LiveResumeExecutionSetup> {
     const createSlots = plan.slots.filter((slot) => slot.action === "CREATE_NEW_ON_LIVE_RESUME")
-    if (createSlots.length !== 23 || createSlots.some((slot) => slot.dataset === "ohlcv" && slot.instrument === "BTCUSDT")) throw new Error("LIVE_RESUME_EXECUTION_SLOT_SET_INVALID")
+    const planCounts = liveResumePlanCounts(plan)
+    if (createSlots.length !== planCounts.executableUnits || (plan.executionProfile !== "CURRENT_CANDIDATE_CATCHUP" && createSlots.some((slot) => slot.dataset === "ohlcv" && slot.instrument === "BTCUSDT"))) throw new Error("LIVE_RESUME_EXECUTION_SLOT_SET_INVALID")
     const dispositions = await sql.unsafe<Array<{ to_state: string }>>("SELECT to_state FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='execution_generation' AND entity_id=$1 AND event_kind='EXECUTION_GENERATION_DISPOSITION' FOR SHARE", [identity.runId])
     if (dispositions.length > 1) throw new Error("EXECUTION_GENERATION_DISPOSITION_MULTIPLE")
     if (dispositions[0]?.to_state === "QUARANTINED") throw new Error("EXECUTION_GENERATION_QUARANTINED")
@@ -177,13 +180,15 @@ export class PostgresLiveResumeExecutionStore {
     if (policies[0]?.checksum !== DEFAULT_MVP_REFRESH_POLICY.checksum) throw new Error("LIVE_RESUME_POLICY_IMMUTABLE_CONFLICT")
 
     const planPayload = Object.freeze({ schemaVersion: "mvp-live-resume-plan/1.0.0", executionProfile: LIVE_EXECUTION_PROFILE, certifiedPlan: plan })
-    const existingPlans = await sql.unsafe<Array<{ checksum: string; requested_start: string; requested_end: string; plan: typeof planPayload | string }>>("SELECT checksum,requested_start::text,requested_end::text,plan FROM refresh_control.refresh_plan WHERE plan_id=$1 FOR UPDATE", [plan.planIdentity])
+    const baselineCorpusId = plan.currentCatchup?.baseline.candidateId ?? ACTIVE_MVP_SERVING_BASELINE.corpusId
+    const baselineServingChecksum = plan.currentCatchup?.baseline.candidateChecksum ?? ACTIVE_MVP_SERVING_BASELINE.servingChecksum
+    const existingPlans = await sql.unsafe<Array<{ checksum: string; requested_start: string; requested_end: string; active_corpus_id: string; active_serving_checksum: string; plan: typeof planPayload | string }>>("SELECT checksum,requested_start::text,requested_end::text,active_corpus_id,active_serving_checksum,plan FROM refresh_control.refresh_plan WHERE plan_id=$1 FOR UPDATE", [plan.planIdentity])
     const existingPlan = existingPlans[0]
     let planStatus: LiveResumeExecutionSetup["planStatus"] = "DUPLICATE"
     if (!existingPlan) {
-      await sql.unsafe("INSERT INTO refresh_control.refresh_plan(plan_id,policy_id,active_corpus_id,active_serving_checksum,requested_start,requested_end,state,plan,checksum,created_at) VALUES($1,$2,$3,$4,$5,$6,'READY',$7::jsonb,$8,now())", [plan.planIdentity, DEFAULT_MVP_REFRESH_POLICY.policyId, ACTIVE_MVP_SERVING_BASELINE.corpusId, ACTIVE_MVP_SERVING_BASELINE.servingChecksum, plan.intervalStart, plan.intervalEnd, JSON.stringify(planPayload), plan.planChecksum])
+      await sql.unsafe("INSERT INTO refresh_control.refresh_plan(plan_id,policy_id,active_corpus_id,active_serving_checksum,requested_start,requested_end,state,plan,checksum,created_at) VALUES($1,$2,$3,$4,$5,$6,'READY',$7::jsonb,$8,now())", [plan.planIdentity, DEFAULT_MVP_REFRESH_POLICY.policyId, baselineCorpusId, baselineServingChecksum, plan.intervalStart, plan.intervalEnd, JSON.stringify(planPayload), plan.planChecksum])
       planStatus = "CREATED"
-    } else if (existingPlan.checksum !== plan.planChecksum || new Date(existingPlan.requested_start).toISOString() !== plan.intervalStart || new Date(existingPlan.requested_end).toISOString() !== plan.intervalEnd) throw new Error("LIVE_RESUME_PLAN_IMMUTABLE_CONFLICT")
+    } else if (existingPlan.checksum !== plan.planChecksum || new Date(existingPlan.requested_start).toISOString() !== plan.intervalStart || new Date(existingPlan.requested_end).toISOString() !== plan.intervalEnd || existingPlan.active_corpus_id !== baselineCorpusId || existingPlan.active_serving_checksum !== baselineServingChecksum) throw new Error("LIVE_RESUME_PLAN_IMMUTABLE_CONFLICT")
     if (failurePoint === "AFTER_PLAN") throw new Error("CERTIFICATION_FAILURE_AFTER_PLAN")
 
     const existingRuns = await sql.unsafe<Array<{ run_id: string; plan_id: string; state: string; checksum: string }>>("SELECT run_id,plan_id,state,checksum FROM refresh_control.refresh_run WHERE run_id=$1 FOR UPDATE", [identity.runId])
@@ -209,11 +214,12 @@ export class PostgresLiveResumeExecutionStore {
       if (failurePoint === "AFTER_FIRST_UNIT") throw new Error("CERTIFICATION_FAILURE_AFTER_FIRST_UNIT")
     }
     const persisted = await sql.unsafe<Array<{ count: number; run_ids: number; btc_ohlcv: number }>>("SELECT count(*)::int count,count(DISTINCT run_id)::int run_ids,count(*) FILTER (WHERE dataset_id='ohlcv' AND instrument='BTCUSDT')::int btc_ohlcv FROM refresh_control.refresh_unit WHERE run_id=$1", [identity.runId])
-    if (persisted[0]?.count !== 23 || persisted[0]?.run_ids !== 1 || persisted[0]?.btc_ohlcv !== 0 || outcomes.some((unit) => unit.unitId === null)) throw new Error("LIVE_RESUME_EXECUTION_UNIT_VERIFICATION_FAILED")
+    const expectedBtcOhlcvUnits = plan.executionProfile === "CURRENT_CANDIDATE_CATCHUP" ? 1 : 0
+    if (persisted[0]?.count !== planCounts.executableUnits || persisted[0]?.run_ids !== 1 || persisted[0]?.btc_ohlcv !== expectedBtcOhlcvUnits || outcomes.some((unit) => unit.unitId === null)) throw new Error("LIVE_RESUME_EXECUTION_UNIT_VERIFICATION_FAILED")
     const transactionChecksum = canonicalChecksum({ planId: plan.planIdentity, runId: identity.runId, units: outcomes.map((unit) => unit.unitId) })
     if (runStatus === "CREATED") {
       const eventChecksum = canonicalChecksum({ kind: "LIVE_RESUME_EXECUTION_SETUP", runId: identity.runId, planId: plan.planIdentity, transactionChecksum })
-      await sql.unsafe("INSERT INTO refresh_control.refresh_event(event_id,run_id,entity_kind,entity_id,event_kind,from_state,to_state,payload,checksum,occurred_at) VALUES($1,$2,'refresh_run',$2,'LIVE_EXECUTION_SETUP',NULL,'PLANNED',$3::jsonb,$4,now())", [`mre_${eventChecksum}`, identity.runId, JSON.stringify({ executionProfile: LIVE_EXECUTION_PROFILE, unitCount: 23, transactionChecksum }), eventChecksum])
+      await sql.unsafe("INSERT INTO refresh_control.refresh_event(event_id,run_id,entity_kind,entity_id,event_kind,from_state,to_state,payload,checksum,occurred_at) VALUES($1,$2,'refresh_run',$2,'LIVE_EXECUTION_SETUP',NULL,'PLANNED',$3::jsonb,$4,now())", [`mre_${eventChecksum}`, identity.runId, JSON.stringify({ executionProfile: plan.executionProfile ?? LIVE_EXECUTION_PROFILE, unitCount: planCounts.executableUnits, transactionChecksum }), eventChecksum])
     }
     if (plan.executionGeneration) {
       const generation = plan.executionGeneration
