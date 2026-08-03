@@ -49,7 +49,7 @@ function memberIdentity(member: ServingCorpusMember) {
 function fixture() {
   const baselineMemberSetChecksum = canonicalChecksum([memberIdentity(baselineMember)])
   const baselineManifest = Object.freeze({
-    corpusId: BASELINE_ID,
+    candidateId: BASELINE_ID,
     servingChecksum: BASELINE_CHECKSUM,
     commonWatermarkId: BASELINE_WATERMARK_ID,
     commonWatermarkValue: BASELINE_WATERMARK,

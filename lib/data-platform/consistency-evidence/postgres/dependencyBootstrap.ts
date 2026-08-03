@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { readFile, readdir } from "node:fs/promises"
 import path from "node:path"
 import type { ConsistencyPostgresRuntime } from "./client"
+import { requireGreenCleanRebuildDatabaseSet } from "@/lib/data-platform/mvp-refresh/greenCleanRebuildSafety"
 
 export const D2_CERTIFIED_BASELINE = "1cb1c8d:d2-canonical-persistence-v2.1"
 export const D4_BOOTSTRAP_RUNNER_VERSION = "1.0.0"
@@ -61,7 +62,13 @@ export async function discoverCertifiedD2Dependencies(root = D2_DEPENDENCY_MIGRA
 
 async function ensureBootstrapLedger(runtime: ConsistencyPostgresRuntime): Promise<void> {
   const expectedDatabase = runtime.expectedDatabase
-  if (expectedDatabase !== "quantterminal_d4_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase) && !/^quantterminal_mvp8z5_d4_[a-z0-9]+$/.test(expectedDatabase)) throw new Error("D4_DEPENDENCY_TARGET_UNSAFE")
+  const cleanRebuild = requireGreenCleanRebuildDatabaseSet(runtime.environment)
+  if (
+    expectedDatabase !== "quantterminal_d4_isolated"
+    && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase)
+    && !/^quantterminal_mvp8z5_d4_[a-z0-9]+$/.test(expectedDatabase)
+    && expectedDatabase !== cleanRebuild?.d4Database
+  ) throw new Error("D4_DEPENDENCY_TARGET_UNSAFE")
   await runtime.transaction(async (sql) => {
     await sql.unsafe("CREATE SCHEMA IF NOT EXISTS d4_control")
     await sql.unsafe(`CREATE TABLE IF NOT EXISTS d4_control.dependency_bootstrap_ledger (dependency_owner text NOT NULL CHECK (dependency_owner='D2'), certified_baseline text NOT NULL, source_filename text NOT NULL, sequence text NOT NULL, source_checksum text NOT NULL CHECK (source_checksum ~ '^[0-9a-f]{64}$'), applied_at timestamptz NOT NULL, target_database text NOT NULL CHECK (target_database='${expectedDatabase}'), bootstrap_runner_version text NOT NULL, status text NOT NULL CHECK (status='APPLIED'), PRIMARY KEY (dependency_owner,sequence), UNIQUE (dependency_owner,source_filename))`)

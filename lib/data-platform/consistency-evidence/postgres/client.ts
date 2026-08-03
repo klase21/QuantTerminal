@@ -56,6 +56,7 @@ export class ConsistencyPostgresRuntime {
   get state(): D4RuntimeLifecycle { return this.lifecycleState }
   get roleIntent(): D4RoleIntent { return this.config.roleIntent }
   get expectedDatabase(): string { return this.config.environment.D4_EXPECTED_DATABASE_NAME ?? "quantterminal_d4_isolated" }
+  get environment(): D4Environment { return this.config.environment }
   get sql(): postgres.Sql {
     if (this.lifecycleState !== "CONNECTED" || !this.client) throw new Error("D4_RUNTIME_NOT_CONNECTED")
     return this.client

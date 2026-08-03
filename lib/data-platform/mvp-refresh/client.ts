@@ -1,5 +1,6 @@
 import postgres from "postgres"
 import { inspectMvpRefreshConnectionContract, requireMvpRefreshTarget, type MvpRefreshConnectionContractInspection } from "./safety"
+import { requireGreenCleanRebuildDatabaseSet } from "./greenCleanRebuildSafety"
 
 export interface MvpRefreshConnectionPreflight {
   readonly connectionSucceeded: boolean
@@ -20,7 +21,12 @@ function sanitizedPostgresError(error: unknown): Pick<MvpRefreshConnectionPrefli
 export class MvpRefreshPostgresClient {
   readonly sql: postgres.Sql
   constructor(readonly connectionString: string, environment: Readonly<Record<string, string | undefined>> = process.env, private readonly expectedIdentity = { database: "quantterminal_mvp_refresh_isolated", role: "qt_d2_owner" }) {
-    requireMvpRefreshTarget(connectionString, environment, expectedIdentity.database)
+    const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
+    const expected = cleanRebuild
+      ? { database: cleanRebuild.refreshDatabase, role: cleanRebuild.refreshRole }
+      : expectedIdentity
+    this.expectedIdentity = expected
+    requireMvpRefreshTarget(connectionString, environment, expected.database)
     this.sql = postgres(connectionString, { max: 1, prepare: false, connect_timeout: 10, idle_timeout: 30, connection: { application_name: "mvp-refresh-control-plane", statement_timeout: 30_000, lock_timeout: 5_000, idle_in_transaction_session_timeout: 30_000 } })
   }
   async verify(): Promise<void> {

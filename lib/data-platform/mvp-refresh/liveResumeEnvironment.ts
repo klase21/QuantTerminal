@@ -3,6 +3,7 @@ import postgres from "postgres"
 import { inspectFilesystemObjectRoot } from "@/lib/data-platform/population/backfill/filesystemObjectStorage"
 import { inspectIntegratedBackfillTarget } from "@/lib/data-platform/population/backfill/integratedTargetSafety"
 import { inspectMvpServingIsolatedTarget } from "@/lib/data-platform/mvp-serving/safety"
+import { requireGreenCleanRebuildDatabaseSet } from "./greenCleanRebuildSafety"
 import type { LiveResumeCoordinatorPorts } from "./liveResumeCoordinator"
 
 export const LIVE_RESUME_ENVIRONMENT_VERSION = "mvp-live-resume-environment/1.0.0" as const
@@ -83,13 +84,27 @@ const datasetBindings = Object.freeze([
   ["agg-trades-executor", ["agg-trade"], instruments],
 ] as const)
 
+type DatabaseRequirement = readonly [variable: string, database: string, role: string | null, binding: string, mode: LiveResumeBindingMode]
+
 const databaseRequirements = Object.freeze([
   ["D2_CANONICAL_POSTGRES_URL", "quantterminal_backfill", "qt_d2_backfill_owner", "d2-canonical-persistence", "READ_WRITE"],
   ["D3_POPULATION_POSTGRES_URL", "quantterminal_backfill", "qt_d3_backfill_owner", "d3-candidate-persistence", "READ_WRITE"],
   ["D4_ISOLATED_POSTGRES_URL", "quantterminal_d4_isolated", null, "d4-downstream-persistence", "READ_WRITE"],
   ["MVP_REFRESH_ISOLATED_POSTGRES_URL", "quantterminal_mvp_refresh_isolated", "qt_d2_owner", "refresh-control-plane", "APPEND_ONLY"],
   ["MVP_SERVING_ISOLATED_POSTGRES_URL", "quantterminal_mvp_serving_isolated", "mvp_serving_publisher", "inactive-candidate-serving", "APPEND_ONLY"],
-] as const)
+] as const satisfies readonly DatabaseRequirement[])
+
+function runtimeDatabaseRequirements(environment: NodeJS.ProcessEnv): readonly DatabaseRequirement[] {
+  const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
+  if (!cleanRebuild) return databaseRequirements
+  return Object.freeze([
+    ["D2_CANONICAL_POSTGRES_URL", cleanRebuild.backfillDatabase, cleanRebuild.d2Role, "d2-canonical-persistence", "READ_WRITE"],
+    ["D3_POPULATION_POSTGRES_URL", cleanRebuild.backfillDatabase, cleanRebuild.d3Role, "d3-candidate-persistence", "READ_WRITE"],
+    ["D4_ISOLATED_POSTGRES_URL", cleanRebuild.d4Database, cleanRebuild.d4OwnerRole, "d4-downstream-persistence", "READ_WRITE"],
+    ["MVP_REFRESH_ISOLATED_POSTGRES_URL", cleanRebuild.refreshDatabase, cleanRebuild.refreshRole, "refresh-control-plane", "APPEND_ONLY"],
+    ["MVP_SERVING_ISOLATED_POSTGRES_URL", cleanRebuild.servingDatabase, cleanRebuild.servingPublisherRole, "inactive-candidate-serving", "APPEND_ONLY"],
+  ] as const)
+}
 
 const downstreamBindings = Object.freeze([
   "reconciliation-planner-reader", "authoritative-recovery-reader", "refresh-run-unit-store",
@@ -141,7 +156,7 @@ function diagnostic(input: { configured: boolean; localOnly: boolean; connected:
   return "READY"
 }
 
-async function databaseCapability(environment: NodeJS.ProcessEnv, requirement: typeof databaseRequirements[number]): Promise<LiveResumeBindingCapability> {
+async function databaseCapability(environment: NodeJS.ProcessEnv, requirement: DatabaseRequirement): Promise<LiveResumeBindingCapability> {
   const [variable, expectedDatabase, expectedRole, bindingName, mode] = requirement
   const value = environment[variable], configured = Boolean(value), localOnly = isLocal(value)
   let connected = false, database = false, role = false, code: string | null = null
@@ -170,9 +185,10 @@ function combineCapabilities(bindingName: string, sources: readonly LiveResumeBi
 }
 
 export async function preflightLocalLiveResumeEnvironment(environment: NodeJS.ProcessEnv = process.env): Promise<LiveResumeEnvironmentPreflight> {
+  const requirements = runtimeDatabaseRequirements(environment)
   const [databaseResults, integratedInspection] = await Promise.all([
-    Promise.all(databaseRequirements.map((value) => databaseCapability(environment, value))),
-    inspectIntegratedBackfillTarget({ d2Url: environment.D2_CANONICAL_POSTGRES_URL, d3Url: environment.D3_POPULATION_POSTGRES_URL, objectRoot: environment.D3_BACKFILL_OBJECT_ROOT, repositoryRoot: process.cwd() }),
+    Promise.all(requirements.map((value) => databaseCapability(environment, value))),
+    inspectIntegratedBackfillTarget({ d2Url: environment.D2_CANONICAL_POSTGRES_URL, d3Url: environment.D3_POPULATION_POSTGRES_URL, objectRoot: environment.D3_BACKFILL_OBJECT_ROOT, repositoryRoot: process.cwd(), environment }),
   ])
   const integratedTopologyReasons = integratedInspection.reasons.filter((reason) => !reason.startsWith("D3_BACKFILL_OBJECT_ROOT") && !reason.startsWith("OBJECT_ROOT"))
   const databases = databaseResults.map((value) => {
@@ -186,7 +202,12 @@ export async function preflightLocalLiveResumeEnvironment(environment: NodeJS.Pr
   const objectInspection = objectConfigured ? await inspectFilesystemObjectRoot({ root: environment.D3_BACKFILL_OBJECT_ROOT!, repositoryRoot: process.cwd(), createRoot: false }) : { safe: false }
   const objectState: LiveResumeDiagnostic = !objectConfigured ? "VARIABLE_MISSING" : objectInspection.safe ? "READY" : "NON_LOCAL_TARGET"
   const objectStorage: LiveResumeBindingCapability = Object.freeze({ bindingName: "bounded-object-storage", configured: objectConfigured, localOnly: objectInspection.safe, expectedDatabase: true, expectedRole: true, callable: objectState === "READY", mode: "READ_WRITE", supportedDatasets: Object.freeze(["ohlcv", "open-interest", "funding", "agg-trade"]), supportedInstruments: instruments, exactIntervalLimitHours: 24, legacyWorkerDependency: false, activationCapable: false, diagnostic: objectState, limitationReason: objectState === "READY" ? null : `D3_BACKFILL_OBJECT_ROOT_${objectState}`, sanitizedErrorCode: null })
-  const servingInspection = inspectMvpServingIsolatedTarget(environment.MVP_SERVING_ISOLATED_POSTGRES_URL, environment)
+  const servingRequirement = requirements.find((value) => value[3] === "inactive-candidate-serving")
+  if (!servingRequirement || !servingRequirement[2]) throw new Error("LIVE_RESUME_SERVING_REQUIREMENT_MISSING")
+  const servingInspection = inspectMvpServingIsolatedTarget(environment.MVP_SERVING_ISOLATED_POSTGRES_URL, environment, {
+    database: servingRequirement[1],
+    role: servingRequirement[2],
+  })
   const safeServing = servingInspection.safe && serving.localOnly
   const capabilities: LiveResumeBindingCapability[] = [...databases, objectStorage]
   capabilities.push(...datasetBindings.map(([name, datasets, supported]) => combineCapabilities(name, [d2, d3, objectStorage], "READ_WRITE", datasets, supported)))

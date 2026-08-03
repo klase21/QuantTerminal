@@ -9,6 +9,6 @@ export function createDurableD3PostgresClientFromEnvironment(
 ): D3PostgresClient {
   const connectionString = environment.D3_POPULATION_POSTGRES_URL
   const { targetPurpose = "D3_DEDICATED", ...clientOptions } = options
-  requireDurableD3Target(connectionString, targetPurpose)
-  return createDurableD3PostgresClient({ ...clientOptions, connectionString: connectionString! }, targetPurpose)
+  requireDurableD3Target(connectionString, targetPurpose, environment)
+  return createDurableD3PostgresClient({ ...clientOptions, connectionString: connectionString!, safetyEnvironment: environment }, targetPurpose)
 }

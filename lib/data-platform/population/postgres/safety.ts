@@ -29,7 +29,7 @@ export function requireD3Target(connectionString: string, applicationUrl?: strin
 const DURABLE_D3_DATABASES = new Set(["quantterminal_d3_backfill", "quantterminal_d3_nonprod", "quantterminal_d3_development"])
 const DENIED_DURABLE_DATABASES = new Set(["postgres", "template0", "template1", "quantterminal_d2_isolated", "quantterminal_d3_isolated", "quantterminal_d4_isolated"])
 
-export function inspectDurableD3Target(connectionString: string | undefined, purpose: DurableD3TargetPurpose = "D3_DEDICATED"): D3TargetInspection {
+export function inspectDurableD3Target(connectionString: string | undefined, purpose: DurableD3TargetPurpose = "D3_DEDICATED", environment: Readonly<Record<string, string | undefined>> = process.env): D3TargetInspection {
   if (!connectionString?.trim()) return { safe: false, redactedTarget: "UNAVAILABLE", reasons: ["D3_POPULATION_POSTGRES_URL_MISSING"] }
   try {
     const url = new URL(connectionString)
@@ -37,21 +37,26 @@ export function inspectDurableD3Target(connectionString: string | undefined, pur
     const host = url.hostname.toLowerCase()
     const role = decodeURIComponent(url.username || "")
     const reasons: string[] = []
+    const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
     if (purpose !== "D3_DEDICATED" && purpose !== "INTEGRATED_BACKFILL") reasons.push("TARGET_PURPOSE_UNSUPPORTED")
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
     if (!database) reasons.push("DATABASE_NAME_MISSING")
     if (DENIED_DURABLE_DATABASES.has(database)) reasons.push("CERTIFICATION_OR_SYSTEM_DATABASE_REJECTED")
     if (purpose === "INTEGRATED_BACKFILL") {
-      if (database !== "quantterminal_backfill") reasons.push("INTEGRATED_DATABASE_REQUIRED")
-      if (role !== "qt_d3_backfill_owner") reasons.push("INTEGRATED_D3_ROLE_REQUIRED")
+      const expectedDatabase = cleanRebuild?.backfillDatabase ?? "quantterminal_backfill"
+      const expectedRole = cleanRebuild?.d3Role ?? "qt_d3_backfill_owner"
+      if (database !== expectedDatabase) reasons.push("INTEGRATED_DATABASE_REQUIRED")
+      if (role !== expectedRole) reasons.push("INTEGRATED_D3_ROLE_REQUIRED")
+      if (cleanRebuild && !["localhost", "127.0.0.1", "::1"].includes(host)) reasons.push("MVP_GREEN_CLEAN_REBUILD_LOOPBACK_REQUIRED")
     } else if (purpose === "D3_DEDICATED" && !DURABLE_D3_DATABASES.has(database)) reasons.push("DATABASE_NOT_ALLOWLISTED")
     if (/prod(?:uction)?|primary|main/i.test(`${host}/${database}`)) reasons.push("PRODUCTION_LIKE_TARGET_REJECTED")
     return { safe: reasons.length === 0, redactedTarget: `${host}:${url.port || "5432"}/${database || "<missing>"}`, reasons }
   } catch { return { safe: false, redactedTarget: "INVALID", reasons: ["INVALID_CONNECTION_STRING"] } }
 }
 
-export function requireDurableD3Target(connectionString: string | undefined, purpose: DurableD3TargetPurpose = "D3_DEDICATED"): D3TargetInspection {
-  const result = inspectDurableD3Target(connectionString, purpose)
+export function requireDurableD3Target(connectionString: string | undefined, purpose: DurableD3TargetPurpose = "D3_DEDICATED", environment: Readonly<Record<string, string | undefined>> = process.env): D3TargetInspection {
+  const result = inspectDurableD3Target(connectionString, purpose, environment)
   if (!result.safe) throw new Error(`Unsafe durable D3 PostgreSQL target ${result.redactedTarget}: ${result.reasons.join(",")}`)
   return result
 }
+import { requireGreenCleanRebuildDatabaseSet } from "@/lib/data-platform/mvp-refresh/greenCleanRebuildSafety"

@@ -9,6 +9,6 @@ export function createDurableCanonicalPostgresClientFromEnvironment(
 ): IsolatedPostgresClient {
   const connectionString = environment.D2_CANONICAL_POSTGRES_URL
   const { targetPurpose = "D2_DEDICATED", ...clientOptions } = options
-  requireDurableCanonicalTarget(connectionString, targetPurpose)
-  return createDurableCanonicalPostgresClient({ ...clientOptions, connectionString: connectionString! }, targetPurpose)
+  requireDurableCanonicalTarget(connectionString, targetPurpose, environment)
+  return createDurableCanonicalPostgresClient({ ...clientOptions, connectionString: connectionString!, safetyEnvironment: environment }, targetPurpose)
 }

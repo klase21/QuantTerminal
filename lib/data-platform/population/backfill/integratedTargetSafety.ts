@@ -11,6 +11,7 @@ export interface IntegratedBackfillTargetInput {
   readonly d3Url: string | undefined
   readonly objectRoot: string | undefined
   readonly repositoryRoot: string
+  readonly environment?: Readonly<Record<string, string | undefined>>
 }
 
 export interface IntegratedBackfillTargetInspection {
@@ -47,8 +48,8 @@ function parseTarget(value: string | undefined): ParsedTarget | null {
 
 export async function inspectIntegratedBackfillTarget(input: IntegratedBackfillTargetInput): Promise<IntegratedBackfillTargetInspection> {
   const reasons: string[] = []
-  const d2Inspection = inspectDurableCanonicalTarget(input.d2Url, INTEGRATED_BACKFILL_PROFILE)
-  const d3Inspection = inspectDurableD3Target(input.d3Url, INTEGRATED_BACKFILL_PROFILE)
+  const d2Inspection = inspectDurableCanonicalTarget(input.d2Url, INTEGRATED_BACKFILL_PROFILE, input.environment)
+  const d3Inspection = inspectDurableD3Target(input.d3Url, INTEGRATED_BACKFILL_PROFILE, input.environment)
   const d2 = parseTarget(input.d2Url)
   const d3 = parseTarget(input.d3Url)
 

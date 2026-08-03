@@ -1,6 +1,9 @@
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 
+import { inspectD4RuntimeTarget } from "@/lib/data-platform/consistency-evidence/postgres/safety"
+import { inspectMvpServingIsolatedTarget } from "@/lib/data-platform/mvp-serving/safety"
+import { createLiveResumeD4Environment } from "@/lib/data-platform/mvp-refresh/liveResumeLocalBootstrap"
 import {
   LIVE_RESUME_REQUIRED_BINDING_NAMES,
   composeLocalLiveResumeEnvironment,
@@ -58,8 +61,39 @@ async function main() {
   assert.equal(bootstrapSource.includes('required(input.environment, "D3_ISOLATED_POSTGRES_URL")'), false)
   assert.equal(environmentSource.includes('["D2_CANONICAL_POSTGRES_URL", "quantterminal_backfill", "qt_d2_backfill_owner"'), true)
   assert.equal(environmentSource.includes('["D3_POPULATION_POSTGRES_URL", "quantterminal_backfill", "qt_d3_backfill_owner"'), true)
+  assert.equal(environmentSource.includes('requirements.find((value) => value[3] === "inactive-candidate-serving")'), true)
+  assert.equal(environmentSource.includes('throw new Error("LIVE_RESUME_SERVING_REQUIREMENT_MISSING")'), true)
+  assert.equal(environmentSource.includes("database: servingRequirement[1]"), true)
+  assert.equal(environmentSource.includes("role: servingRequirement[2]"), true)
   assert.equal(workerSource.includes("D2_ISOLATED_POSTGRES_URL"), false)
   assert.equal(workerSource.includes("D3_ISOLATED_POSTGRES_URL"), false)
+
+  const cleanServingEnvironment = {
+    MVP_GREEN_CLEAN_REBUILD_MODE: "INACTIVE_LOCAL_DATABASE_SET",
+    MVP_GREEN_CLEAN_REBUILD_ID: "dispose20260731a",
+    MVP_GREEN_CLEAN_REBUILD_BACKFILL_DATABASE: "quantterminal_green_clean_dispose20260731a_backfill",
+    MVP_GREEN_CLEAN_REBUILD_D4_DATABASE: "quantterminal_green_clean_dispose20260731a_d4",
+    MVP_GREEN_CLEAN_REBUILD_REFRESH_DATABASE: "quantterminal_green_clean_dispose20260731a_refresh",
+    MVP_GREEN_CLEAN_REBUILD_SERVING_DATABASE: "quantterminal_green_clean_dispose20260731a_serving",
+  } as unknown as NodeJS.ProcessEnv
+  const cleanServingUrl = "postgresql://mvp_serving_publisher:redacted@127.0.0.1:55432/quantterminal_green_clean_dispose20260731a_serving"
+  const cleanServingInspection = inspectMvpServingIsolatedTarget(cleanServingUrl, cleanServingEnvironment, {
+    database: cleanServingEnvironment.MVP_GREEN_CLEAN_REBUILD_SERVING_DATABASE!,
+    role: "mvp_serving_publisher",
+  })
+  assert.equal(cleanServingInspection.safe, true)
+  assert.equal(cleanServingInspection.database, "quantterminal_green_clean_dispose20260731a_serving")
+  assert.equal(cleanServingInspection.role, "mvp_serving_publisher")
+  assert.equal(inspectMvpServingIsolatedTarget(cleanServingUrl.replace("dispose20260731a_serving", "wrong_serving"), cleanServingEnvironment, { database: cleanServingEnvironment.MVP_GREEN_CLEAN_REBUILD_SERVING_DATABASE!, role: "mvp_serving_publisher" }).safe, false)
+  assert.equal(inspectMvpServingIsolatedTarget(cleanServingUrl.replace("127.0.0.1", "db.example.invalid"), cleanServingEnvironment, { database: cleanServingEnvironment.MVP_GREEN_CLEAN_REBUILD_SERVING_DATABASE!, role: "mvp_serving_publisher" }).safe, false)
+  assert.equal(environmentSource.includes('derivedCapability("candidate-activation", { ...serving, callable: false, diagnostic: "READY", limitationReason: "ACTIVATION_INTENTIONALLY_UNAVAILABLE" }'), true)
+
+  const cleanD4Url = "postgresql://qt_d2_owner:redacted@127.0.0.1:55432/quantterminal_green_clean_dispose20260731a_d4"
+  const childPathD4Environment = createLiveResumeD4Environment({ ...cleanServingEnvironment, D4_ISOLATED_POSTGRES_URL: cleanD4Url })
+  assert.equal(childPathD4Environment.D4_EXPECTED_DATABASE_NAME, "quantterminal_green_clean_dispose20260731a_d4")
+  assert.equal(inspectD4RuntimeTarget(cleanD4Url, childPathD4Environment).safe, true)
+  assert.equal((bootstrapSource.match(/environment: d4Environment/g) ?? []).length, 4)
+  assert.equal(bootstrapSource.includes("const d4Environment = createLiveResumeD4Environment(input.environment)"), true)
 
   const ports = Object.freeze({}) as LiveResumeCoordinatorPorts
   const complete = LIVE_RESUME_REQUIRED_BINDING_NAMES.map((name) => capability(name))

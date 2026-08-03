@@ -294,6 +294,8 @@ async function readCertifiedInactiveBaseline(sql: postgres.Sql | postgres.Transa
   if (manifestRows.length !== 1 || exposureRows[0]?.count !== 0) throw new Error("INACTIVE_SERVING_BASELINE_NOT_ISOLATED")
   const row = manifestRows[0]!
   const manifest = requireRecord(row.manifest, "INACTIVE_SERVING_BASELINE_MANIFEST_MALFORMED")
+  const manifestCorpusId = typeof manifest.corpusId === "string" ? manifest.corpusId : typeof manifest.candidateId === "string" ? manifest.candidateId : null
+  const manifestIdentityConflict = typeof manifest.corpusId === "string" && typeof manifest.candidateId === "string" && manifest.corpusId !== manifest.candidateId
   const commonWatermarkValue = normalizeDatabaseTimestamp(row.common_watermark_value, "INACTIVE_SERVING_BASELINE_WATERMARK_INVALID")
   if (
     row.lifecycle !== "CANDIDATE"
@@ -305,7 +307,8 @@ async function readCertifiedInactiveBaseline(sql: postgres.Sql | postgres.Transa
     || !isChecksum(row.common_watermark_checksum)
     || !isChecksum(row.member_set_checksum)
     || commonWatermarkValue !== governedThrough
-    || manifest.corpusId !== expected.candidateId
+    || manifestIdentityConflict
+    || manifestCorpusId !== expected.candidateId
     || manifest.servingChecksum !== expected.candidateChecksum
     || manifest.commonWatermarkId !== row.common_watermark_id
     || manifest.commonWatermarkValue !== commonWatermarkValue

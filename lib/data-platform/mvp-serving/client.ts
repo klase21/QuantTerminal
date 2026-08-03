@@ -1,5 +1,6 @@
 import postgres from "postgres"
 import { requireMvpServingDisposableTarget, requireMvpServingIsolatedTarget, requireMvpServingManagedTarget, type MvpServingRoleIntent, type MvpServingTargetKind } from "./safety"
+import { requireGreenCleanRebuildDatabaseSet } from "@/lib/data-platform/mvp-refresh/greenCleanRebuildSafety"
 
 export function verifyMvpServingReadOnlyTransactionState(state: { readonly database?: string; readonly role?: string; readonly read_only?: string }, expected: { readonly database: string; readonly role: string }): void {
   if (state.role !== expected.role || state.database !== expected.database || state.read_only !== "on") throw new Error("MVP_SERVING_READ_ONLY_TRANSACTION_VERIFICATION_FAILED")
@@ -7,10 +8,15 @@ export function verifyMvpServingReadOnlyTransactionState(state: { readonly datab
 
 export class MvpServingPostgresClient {
   readonly sql: postgres.Sql
-  constructor(readonly connectionString: string, readonly roleIntent: MvpServingRoleIntent, environment: Readonly<Record<string, string | undefined>> = process.env, readonly targetKind: MvpServingTargetKind = "LOCAL_ISOLATED", private readonly expectedIdentity?: { readonly database: string; readonly role: string }) {
-    if (targetKind === "LOCAL_ISOLATED") requireMvpServingIsolatedTarget(connectionString, roleIntent, environment, expectedIdentity)
-    else if (targetKind === "LOCAL_DISPOSABLE_CERTIFICATION") requireMvpServingDisposableTarget(connectionString, roleIntent, environment, expectedIdentity)
-    else requireMvpServingManagedTarget(connectionString, roleIntent, environment, expectedIdentity)
+  private readonly expectedIdentity?: { readonly database: string; readonly role: string }
+  constructor(readonly connectionString: string, readonly roleIntent: MvpServingRoleIntent, environment: Readonly<Record<string, string | undefined>> = process.env, readonly targetKind: MvpServingTargetKind = "LOCAL_ISOLATED", expectedIdentity?: { readonly database: string; readonly role: string }) {
+    const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
+    this.expectedIdentity = cleanRebuild && targetKind === "LOCAL_ISOLATED"
+      ? { database: cleanRebuild.servingDatabase, role: roleIntent === "READER" ? cleanRebuild.servingReaderRole : cleanRebuild.servingPublisherRole }
+      : expectedIdentity
+    if (targetKind === "LOCAL_ISOLATED") requireMvpServingIsolatedTarget(connectionString, roleIntent, environment, this.expectedIdentity)
+    else if (targetKind === "LOCAL_DISPOSABLE_CERTIFICATION") requireMvpServingDisposableTarget(connectionString, roleIntent, environment, this.expectedIdentity)
+    else requireMvpServingManagedTarget(connectionString, roleIntent, environment, this.expectedIdentity)
     this.sql = postgres(connectionString, { max: roleIntent === "READER" ? 2 : 1, prepare: false, connect_timeout: 10, idle_timeout: 30, connection: { application_name: `mvp-serving-${roleIntent.toLowerCase()}`, statement_timeout: 30_000, lock_timeout: 5_000, idle_in_transaction_session_timeout: 30_000, ...(roleIntent === "READER" ? { default_transaction_read_only: true } : {}) } })
   }
   async verify(): Promise<void> {

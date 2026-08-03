@@ -14,12 +14,14 @@ export function inspectMvpServingIsolatedTarget(connectionString: string | undef
   try {
     const url = new URL(connectionString), database = decodeURIComponent(url.pathname.replace(/^\//, "")).toLowerCase(), role = decodeURIComponent(url.username || "") || null
     const reasons: string[] = []
+    const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
     const expectedDatabase = expected?.database ?? "quantterminal_mvp_serving_isolated", expectedRole = expected?.role
     const certifiedLocalDatabase = /^quantterminal_mvp8[c-e]_(?:canary_)?serving_/.test(expectedDatabase) || /^quantterminal_mvp8h_(?:canary_)?replay_/.test(expectedDatabase) || /^quantterminal_mvp8i_(?:canary_)?serving_/.test(expectedDatabase)
-    if (expectedDatabase !== "quantterminal_mvp_serving_isolated" && !certifiedLocalDatabase) reasons.push("SERVING_EXPECTED_DATABASE_NAME_UNSAFE")
+    if (expectedDatabase !== "quantterminal_mvp_serving_isolated" && !certifiedLocalDatabase && expectedDatabase !== cleanRebuild?.servingDatabase) reasons.push("SERVING_EXPECTED_DATABASE_NAME_UNSAFE")
     if (database !== expectedDatabase) reasons.push("SERVING_ISOLATED_DATABASE_NAME_MISMATCH")
     if (!['localhost', '127.0.0.1', '::1'].includes(url.hostname.toLowerCase())) reasons.push("MVP7A_LOCAL_HOST_REQUIRED")
+    if (cleanRebuild && (database !== cleanRebuild.servingDatabase || ![cleanRebuild.servingPublisherRole, cleanRebuild.servingReaderRole].includes(role ?? ""))) reasons.push("MVP_GREEN_CLEAN_REBUILD_SERVING_TARGET_MISMATCH")
     if (expectedRole ? role !== expectedRole : role !== "mvp_serving_publisher" && role !== "mvp_serving_reader") reasons.push("SERVING_ROLE_INVALID")
     for (const key of ["D2_CANONICAL_POSTGRES_URL", "D2_ISOLATED_POSTGRES_URL", "D3_POPULATION_POSTGRES_URL", "D3_ISOLATED_POSTGRES_URL", "D4_ISOLATED_POSTGRES_URL", "DATABASE_URL"]) if (environment[key] && environment[key] === connectionString) reasons.push(`MATCHES_${key}`)
     return Object.freeze({ safe: reasons.length === 0, redactedTarget: `${url.hostname}:${url.port || "5432"}/${database}`, database, role, reasons: Object.freeze(reasons) })
@@ -94,3 +96,4 @@ export function requireMvpServingManagedAdminTarget(connectionString: string | u
     return result
   } catch (error) { if (error instanceof Error && error.message.startsWith("UNSAFE_")) throw error; throw new Error("INVALID_MVP_SERVING_MANAGED_ADMIN_TARGET") }
 }
+import { requireGreenCleanRebuildDatabaseSet } from "@/lib/data-platform/mvp-refresh/greenCleanRebuildSafety"

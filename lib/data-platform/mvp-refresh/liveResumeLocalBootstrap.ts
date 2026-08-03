@@ -7,14 +7,13 @@ import { canonicalChecksum } from "@/lib/data-platform/contracts"
 import { validateRawObjectScope, type CanonicalCommitCommand, type CanonicalCommitResult, type RawObjectManifest } from "@/lib/data-platform/persistence"
 import { buildCanonicalStreamSegmentCommand, createCanonicalPersistenceAdapter, type CanonicalPersistenceAdapter, type IsolatedPostgresClient } from "@/lib/data-platform/persistence/postgres"
 import { createCandidateId, createJobRequestIdentity, createPopulationJobId, createRetrievalAttemptId, expandPopulationUnits, type PopulationCandidate, type PopulationCheckpoint, type PopulationJob, type PopulationJobProfile, type PopulationJobRequest } from "@/lib/data-platform/population"
-import { createPopulationPostgresAdapter, type D3PostgresClient, type PopulationPostgresAdapter } from "@/lib/data-platform/population/postgres"
+import { createDurableD3PostgresClientFromEnvironment, createPopulationPostgresAdapter, type D3PostgresClient, type PopulationPostgresAdapter } from "@/lib/data-platform/population/postgres"
 import { AGG_TRADES_SEGMENT_NORMALIZER_VERSION, AGG_TRADES_SEGMENT_ORDER_POLICY, AGG_TRADES_SEGMENT_SCHEMA_VERSION, createD3ToD2CanonicalCommitPort, createFilesystemObjectStorage, createIntegratedBackfillClientsFromEnvironment, ProductionNormalizerRegistry, PRODUCTION_NORMALIZER_VERSION, type D3CanonicalCommitPort, type OpenInterestSourceRow } from "@/lib/data-platform/population/backfill"
 import type { ObjectStoragePort } from "@/lib/data-platform/population/contracts"
-import { ConsistencyPostgresRuntime, MvpCoverageStore } from "@/lib/data-platform/consistency-evidence/postgres"
-import { loadMvpProjectionEvidenceInputs, MvpProjectionStore } from "@/lib/data-platform/consistency-evidence/postgres"
+import { ConsistencyPostgresRuntime, MvpCoverageStore, type D4Environment } from "@/lib/data-platform/consistency-evidence/postgres"
+import { loadMvpProjectionEvidenceInputs, MvpProjectionStore, persistMvpProjectionBatch } from "@/lib/data-platform/consistency-evidence/postgres"
 import { persistMvpConsistencyWindow, persistMvpEvidenceWindow, readMvpEvidenceWindows, type MvpEvidenceWindowData } from "@/lib/data-platform/consistency"
-import { MVP_PROJECTION_DEFINITIONS, type MvpProjectionVersion } from "@/lib/data-platform/evidence-platform"
-import { persistBoundedMvpProjections } from "@/lib/data-platform/consistency-evidence/postgres"
+import { generateMvpProjectionCorpus, MVP_PROJECTION_DEFINITIONS, verifyMvpProjection, type MvpProjectionEvidenceInput, type MvpProjectionVersion } from "@/lib/data-platform/evidence-platform"
 import {
   createServingEvidenceSummary,
   createServingReplaySnapshot,
@@ -37,6 +36,7 @@ import { createLiveExecutorPortSet, composeConcreteLiveResumePorts, type Bounded
 import { PostgresLiveResumeCoordinatorControlPlane, PostgresLiveResumeExecutionStore } from "./liveResumePostgres"
 import { inspectIntegratedMvpGovernancePrerequisites, LIVE_MVP_DATASET_GOVERNANCE } from "./integratedGovernance"
 import { MvpRefreshStore } from "./store"
+import { requireGreenCleanRebuildDatabaseSet } from "./greenCleanRebuildSafety"
 import type { LiveResumeLocalBindingSet, LiveResumeBindingCapability, LiveResumeEnvironmentMode } from "./liveResumeEnvironment"
 import type { LiveResumeCandidateBaseline, LiveResumeSlotResult, LiveResumeStageOutput } from "./liveResumeCoordinator"
 import type { RefreshLogicalDataset, RefreshLogicalInstrument, RefreshSlotResumePlanEntry } from "./unitReconciliation"
@@ -50,6 +50,15 @@ const SOURCE_CONTRACTS: Readonly<Record<RefreshLogicalDataset, string>> = Object
   funding: "binance-official-rest-funding-rate/1.0.0",
   "agg-trade": "mvp-bounded-agg-trade/1.0.0",
 })
+
+export function createLiveResumeProjectionCorpus(inputs: readonly MvpProjectionEvidenceInput[], intervalStart: string, intervalEnd: string): readonly MvpProjectionVersion[] {
+  if (inputs.length !== INSTRUMENTS.length || [...new Set(inputs.map((input) => input.assessment.instrument))].sort().join(",") !== [...INSTRUMENTS].sort().join(",")) throw new Error("LIVE_BOUNDED_PROJECTION_INPUTS_INCOMPLETE")
+  if (inputs.some((input) => input.assessment.eventTimeStart !== intervalStart || input.assessment.eventTimeEnd !== intervalEnd || !/^[0-9a-f]{64}$/.test(input.packetChecksum))) throw new Error("LIVE_BOUNDED_PROJECTION_INPUT_INVALID")
+  const generated = generateMvpProjectionCorpus(inputs)
+  const generatedKinds = new Set(generated.map((projection) => projection.projectionKind))
+  if (generated.length !== 62 || MVP_PROJECTION_DEFINITIONS.some((definition) => !generatedKinds.has(definition.projectionKind)) || generated.some((projection) => !verifyMvpProjection(projection))) throw new Error("LIVE_BOUNDED_PROJECTION_INELIGIBLE")
+  return Object.freeze(generated)
+}
 
 export interface ProcessLiveResumeBootstrapInput {
   readonly mode: Exclude<LiveResumeEnvironmentMode, "INSPECT">
@@ -251,6 +260,70 @@ async function readObjectBytes(storage: ObjectStoragePort, key: string): Promise
 function canonicalInstrument(symbol: string): string { return `binance-usdm-perpetual:${symbol.slice(0, -4)}-USDT` }
 function rawTransportProvider(dataset: RefreshLogicalDataset): string { return dataset === "funding" ? GOVERNANCE.funding.providerId : "binance-public-archive" }
 
+function rowTimestamp(value: unknown): string {
+  const parsed = value instanceof Date ? value.getTime() : Date.parse(String(value))
+  if (!Number.isFinite(parsed)) throw new Error("LIVE_CLEAN_REBUILD_RETAINED_RAW_TIMESTAMP_INVALID")
+  return new Date(parsed).toISOString()
+}
+
+export function createLiveResumeD4Environment(environment: NodeJS.ProcessEnv): D4Environment {
+  const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
+  return Object.freeze({
+    MVP_GREEN_CLEAN_REBUILD_MODE: environment.MVP_GREEN_CLEAN_REBUILD_MODE,
+    MVP_GREEN_CLEAN_REBUILD_ID: environment.MVP_GREEN_CLEAN_REBUILD_ID,
+    MVP_GREEN_CLEAN_REBUILD_BACKFILL_DATABASE: environment.MVP_GREEN_CLEAN_REBUILD_BACKFILL_DATABASE,
+    MVP_GREEN_CLEAN_REBUILD_D4_DATABASE: environment.MVP_GREEN_CLEAN_REBUILD_D4_DATABASE,
+    MVP_GREEN_CLEAN_REBUILD_REFRESH_DATABASE: environment.MVP_GREEN_CLEAN_REBUILD_REFRESH_DATABASE,
+    MVP_GREEN_CLEAN_REBUILD_SERVING_DATABASE: environment.MVP_GREEN_CLEAN_REBUILD_SERVING_DATABASE,
+    D4_ISOLATED_POSTGRES_URL: environment.D4_ISOLATED_POSTGRES_URL,
+    D4_EXPECTED_DATABASE_NAME: cleanRebuild?.d4Database ?? environment.D4_EXPECTED_DATABASE_NAME,
+    D2_CANONICAL_POSTGRES_URL: environment.D2_CANONICAL_POSTGRES_URL,
+    D3_POPULATION_POSTGRES_URL: environment.D3_POPULATION_POSTGRES_URL,
+    D2_ISOLATED_POSTGRES_URL: environment.D2_ISOLATED_POSTGRES_URL,
+    D3_ISOLATED_POSTGRES_URL: environment.D3_ISOLATED_POSTGRES_URL,
+    MVP_REFRESH_ISOLATED_POSTGRES_URL: environment.MVP_REFRESH_ISOLATED_POSTGRES_URL,
+    MVP_SERVING_ISOLATED_POSTGRES_URL: environment.MVP_SERVING_ISOLATED_POSTGRES_URL,
+    DATABASE_URL: environment.DATABASE_URL,
+  })
+}
+
+function manifestFromRawRow(row: Record<string, unknown>): RawObjectManifest {
+  return Object.freeze({
+    objectId: String(row.object_id), datasetId: String(row.dataset_id), providerId: String(row.provider_id), venue: String(row.venue), symbolOrSubject: String(row.symbol_or_subject),
+    windowStart: rowTimestamp(row.window_start), windowEnd: rowTimestamp(row.window_end), contentHash: String(row.content_hash), sizeBytes: Number(row.size_bytes),
+    mediaType: String(row.media_type), compression: String(row.compression), retrievedAt: rowTimestamp(row.retrieved_at), providerSnapshotId: String(row.provider_snapshot_id),
+    retentionClass: String(row.retention_class), verificationState: String(row.verification_state), objectStorageKey: String(row.object_storage_key), createdAt: rowTimestamp(row.created_at),
+  }) as RawObjectManifest
+}
+
+async function parseRawForInvocation(input: { readonly dataset: RefreshLogicalDataset; readonly invocation: Parameters<BoundedLiveSlotAdapter["inspectFinalization"]>[0]; readonly raw: RawObjectManifest; readonly storage: ObjectStoragePort; readonly now: string }): Promise<{ readonly bytes: Uint8Array; readonly contentType: string; readonly sourceChecksum: string; readonly observedThrough: string; readonly rows: readonly ArchiveRow[] | readonly ProviderNativeFundingEvent[]; readonly retrievalIdentity: string }> {
+  const bytes = await readObjectBytes(input.storage, input.raw.objectStorageKey)
+  const sourceChecksum = createHash("sha256").update(bytes).digest("hex")
+  if (sourceChecksum !== input.raw.contentHash || bytes.byteLength !== input.raw.sizeBytes) throw new Error("LIVE_CLEAN_REBUILD_RETAINED_RAW_CONFLICT")
+  const scopeErrors = validateRawObjectScope({ datasetId: input.dataset, providerId: rawTransportProvider(input.dataset), providerSnapshotId: GOVERNANCE[input.dataset].providerRegistry, instrument: input.invocation.instrument, sourceContractVersion: input.invocation.sourceContractId, expectedSourceContractVersion: SOURCE_CONTRACTS[input.dataset], intervalStart: input.invocation.intervalStart, intervalEnd: input.invocation.intervalEnd, intervalPolicy: "EXACT", rawObject: input.raw })
+  if (scopeErrors.length) throw new Error(`LIVE_CLEAN_REBUILD_RETAINED_RAW_SCOPE_CONFLICT:${scopeErrors.join(",")}`)
+  if (input.raw.providerId !== rawTransportProvider(input.dataset) || input.raw.venue !== "binance-usdm-futures" || input.raw.verificationState !== "VERIFIED") throw new Error("LIVE_CLEAN_REBUILD_RETAINED_RAW_MANIFEST_CONFLICT")
+  const archiveRequest = input.dataset === "funding" ? null : createBoundedArchiveRequest({ dataset: input.dataset as Exclude<RefreshLogicalDataset, "funding">, provider: "binance-vision", instrument: input.invocation.instrument, eventTimeStart: input.invocation.intervalStart, eventTimeEnd: input.invocation.intervalEnd, sourceContractVersion: input.invocation.sourceContractId, maximumRecordCount: input.dataset === "ohlcv" ? 288 : input.dataset === "open-interest" ? 10_000 : 10_000_000 })
+  const retrievalIdentity = `mrret_${canonicalChecksum({ logicalSlotId: input.invocation.logicalSlotId, executionGenerationId: input.invocation.executionGenerationId, sourceChecksum })}`
+  const fundingRequest = input.dataset === "funding" ? createBoundedFundingRequest({ provider: "binance-official-rest-funding-rate", instrument: input.invocation.instrument, eventTimeStart: input.invocation.intervalStart, eventTimeEnd: input.invocation.intervalEnd, maximumEventCount: 1_000, requestedAt: input.now }) : null
+  const rows = fundingRequest ? parseBoundedFundingEvents({ bytes, request: fundingRequest, retrievalIdentity, rawArtifactIdentity: input.raw.objectId, observedAt: input.raw.retrievedAt }) : archiveRequest!.dataset === "ohlcv" ? parseBoundedOhlcvArchive(archiveRequest!, bytes).rows : archiveRequest!.dataset === "open-interest" ? parseBoundedOpenInterestArchive(archiveRequest!, bytes).rows : (await parseBoundedAggTradesArchive(archiveRequest!, bytes)).rows
+  const observedThrough = fundingRequest ? (rows.at(-1) as ProviderNativeFundingEvent | undefined)?.providerEventTimestamp ?? input.invocation.intervalStart : archiveRequest!.dataset === "ohlcv" ? (rows.at(-1) as BoundedOhlcvRow).closeTime : archiveRequest!.dataset === "open-interest" ? (rows.at(-1) as OpenInterestSourceRow).observedAt : (rows.at(-1) as Awaited<ReturnType<typeof parseBoundedAggTradesArchive>>["rows"][number]).tradeTime
+  return Object.freeze({ bytes, contentType: input.raw.mediaType, sourceChecksum, observedThrough, rows, retrievalIdentity })
+}
+
+/** Clean rebuilds may reuse only one fully-certified raw manifest for an exact logical slot. */
+export function selectSingleCleanRebuildRetainedRawRow(rows: readonly Record<string, unknown>[]): Record<string, unknown> | null {
+  if (!rows.length) return null
+  if (rows.length !== 1) throw new Error("LIVE_CLEAN_REBUILD_RETAINED_RAW_AMBIGUOUS")
+  return rows[0]!
+}
+
+async function readCleanRebuildRetainedRaw(input: { readonly dataset: RefreshLogicalDataset; readonly invocation: Parameters<BoundedLiveSlotAdapter["inspectFinalization"]>[0]; readonly d2Client: IsolatedPostgresClient; readonly storage: ObjectStoragePort; readonly now: string }): Promise<Awaited<ReturnType<typeof parseRawForInvocation>> | null> {
+  const rows = await input.d2Client.sql<Array<Record<string, unknown>>>`SELECT object_id,dataset_id,provider_id,venue,symbol_or_subject,window_start,window_end,content_hash,size_bytes,media_type,compression,retrieved_at,provider_snapshot_id,retention_class,verification_state,object_storage_key,created_at FROM raw.objects WHERE dataset_id=${input.dataset} AND provider_id=${rawTransportProvider(input.dataset)} AND venue='binance-usdm-futures' AND symbol_or_subject=${input.invocation.instrument} AND window_start=${input.invocation.intervalStart} AND window_end=${input.invocation.intervalEnd} AND provider_snapshot_id=${GOVERNANCE[input.dataset].providerRegistry} AND verification_state='VERIFIED' ORDER BY object_id`
+  const row = selectSingleCleanRebuildRetainedRawRow(rows)
+  return row ? parseRawForInvocation({ dataset: input.dataset, invocation: input.invocation, raw: manifestFromRawRow(row), storage: input.storage, now: input.now }) : null
+}
+
 function populationDefinition(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], at: string) {
   const profile: PopulationJobProfile = Object.freeze({ profileId: `mvp-live-${input.dataset}`, profileVersion: "1.0.0", kind: "INCREMENTAL", requiredDimensions: Object.freeze(["venue", "subjectOrSymbol", "windowStart", "windowEnd", "resolution", "partitionKey"] as const), rawRetrievalRequired: true, mayReuseVerifiedManifest: true, retryPolicyId: "mvp-live-bounded-retry", retryPolicyVersion: "1.0.0", watermarkPolicyId: `mvp-live-${input.dataset}`, watermarkPolicyVersion: "1.0.0" })
   const dimensions = Object.freeze({ venue: "binance-usdm-futures", subjectOrSymbol: input.instrument, windowStart: input.intervalStart, windowEnd: input.intervalEnd, resolution: input.dataset === "agg-trade" ? "tick" : input.dataset === "funding" ? "event" : "5m", partitionKey: input.logicalSlotId })
@@ -263,17 +336,22 @@ function populationDefinition(input: Parameters<BoundedLiveSlotAdapter["persistA
   return Object.freeze({ request, jobId, units })
 }
 
-async function preparePopulation(input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0], adapter: PopulationPostgresAdapter, at: string): Promise<PopulationContext> {
+async function preparePopulation(
+  input: Parameters<BoundedLiveSlotAdapter["persistArtifact"]>[0],
+  coordinator: PopulationPostgresAdapter,
+  worker: PopulationPostgresAdapter,
+  at: string,
+): Promise<PopulationContext> {
   const definition = populationDefinition(input, at)
-  await adapter.createJob(definition.request)
-  const run = await adapter.createRun(definition.jobId, 1, at)
+  await coordinator.createJob(definition.request)
+  const run = await coordinator.createRun(definition.jobId, 1, at)
   const units = definition.units
-  await adapter.expandUnits(units)
+  await coordinator.expandUnits(units)
   const expiresAt = new Date(Date.parse(at) + 300_000).toISOString()
-  const claimed = await adapter.claimUnit("mvp-live-resume", run.runId, at, expiresAt) ?? await adapter.recoverPopulationUnitLease({ unitId: units[0]!.unitId, runId: run.runId, ownerId: "mvp-live-resume", now: at, expiresAt })
+  const claimed = await worker.claimUnit("mvp-live-resume", run.runId, at, expiresAt) ?? await worker.recoverPopulationUnitLease({ unitId: units[0]!.unitId, runId: run.runId, ownerId: "mvp-live-resume", now: at, expiresAt })
   if (!claimed) throw new Error("LIVE_POPULATION_UNIT_LEASE_UNAVAILABLE")
   const identity = createLivePopulationEventIdentity({ executionGenerationId: input.executionGenerationId, logicalSlotId: input.logicalSlotId, populationRunId: run.runId, populationUnitId: claimed.unitId, fencingToken: claimed.fencingToken, stage: "RETRIEVING", sourceContractId: input.sourceContractId, sourceContractVersion: input.sourceContractVersion, providerBinding: input.providerBinding })
-  const transition = await adapter.transitionUnitIdempotently({ eventId: identity.eventId, unitId: claimed.unitId, runId: run.runId, eventType: "STATE_ADVANCED", previousState: "LEASED", nextState: "RETRIEVING", fencingToken: claimed.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: identity.details, leaseId: claimed.leaseId, ownerId: "mvp-live-resume" })
+  const transition = await worker.transitionUnitIdempotently({ eventId: identity.eventId, unitId: claimed.unitId, runId: run.runId, eventType: "STATE_ADVANCED", previousState: "LEASED", nextState: "RETRIEVING", fencingToken: claimed.fencingToken, actorId: "mvp-live-resume", occurredAt: at, details: identity.details, leaseId: claimed.leaseId, ownerId: "mvp-live-resume" })
   if (transition.status === "CONFLICT") throw new Error("LIVE_POPULATION_RETRIEVING_EVENT_CONFLICT")
   return Object.freeze({ jobId: definition.jobId, runId: run.runId, unitId: claimed.unitId, leaseId: claimed.leaseId, fencingToken: claimed.fencingToken, retrievalAttemptId: createRetrievalAttemptId(claimed.unitId, input.executionGenerationId, 1) })
 }
@@ -327,7 +405,7 @@ function canonicalFailureClassification(error: unknown): string {
   return "CANONICAL_COMMIT_FAILED"
 }
 
-export function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; readonly storage: ObjectStoragePort; readonly objectRoot: string; readonly d2Client: IsolatedPostgresClient; readonly d2: CanonicalPersistenceAdapter; readonly d3: PopulationPostgresAdapter; readonly canonical: D3CanonicalCommitPort; readonly refresh: MvpRefreshStore; readonly allowBtcOhlcvAcquisition?: boolean; readonly enableResumeReconciliation?: boolean }): BoundedLiveSlotAdapter {
+export function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDataset; readonly storage: ObjectStoragePort; readonly objectRoot: string; readonly d2Client: IsolatedPostgresClient; readonly d2: CanonicalPersistenceAdapter; readonly d3: PopulationPostgresAdapter; readonly d3Coordinator?: PopulationPostgresAdapter; readonly canonical: D3CanonicalCommitPort; readonly refresh: MvpRefreshStore; readonly allowBtcOhlcvAcquisition?: boolean; readonly enableResumeReconciliation?: boolean; readonly enableCleanRebuildRetainedRawReuse?: boolean }): BoundedLiveSlotAdapter {
   const states = new Map<string, SlotState>()
   const state = (id: string) => { const value = states.get(id); if (!value) throw new Error("LIVE_SLOT_STATE_MISSING"); return value }
   return Object.freeze({
@@ -365,6 +443,13 @@ export function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDa
       return Object.freeze({ stage: "CANONICAL_COMMIT" as const, source, artifact, candidate: Object.freeze({ candidateIdentity: `mrcs_${candidateChecksum}`, candidateChecksum, status: "DUPLICATE" as const, payload: resolution.candidates }) })
     },
     async inspectFinalization(invocation) {
+      const retained = input.enableCleanRebuildRetainedRawReuse
+        ? await readCleanRebuildRetainedRaw({ dataset: input.dataset, invocation, d2Client: input.d2Client, storage: input.storage, now: new Date().toISOString() })
+        : null
+      if (retained) {
+        states.set(invocation.logicalSlotId, { bytes: retained.bytes, contentType: retained.contentType, sourceChecksum: retained.sourceChecksum, observedThrough: retained.observedThrough, rows: retained.rows })
+        return Object.freeze({ status: "AVAILABLE" as const, retrievalIdentity: retained.retrievalIdentity, bytes: retained.bytes, sourceChecksum: retained.sourceChecksum, contentType: retained.contentType, observedThrough: retained.observedThrough, limitations: Object.freeze(["REUSE_CERTIFIED_RETAINED_RAW"]) })
+      }
       const request = input.dataset === "funding" ? null : createBoundedArchiveRequest({ dataset: input.dataset as Exclude<RefreshLogicalDataset, "funding">, provider: "binance-vision", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, sourceContractVersion: invocation.sourceContractId, maximumRecordCount: input.dataset === "ohlcv" ? 288 : input.dataset === "open-interest" ? 10_000 : 10_000_000 })
       const fundingRequest = input.dataset === "funding" ? createBoundedFundingRequest({ provider: "binance-official-rest-funding-rate", instrument: invocation.instrument, eventTimeStart: invocation.intervalStart, eventTimeEnd: invocation.intervalEnd, maximumEventCount: 1_000, requestedAt: new Date().toISOString() }) : null
       const response = await fetch(request ? boundedArchiveSourceUrl(request) : createBoundedFundingSourceUrl(fundingRequest!), { cache: "no-store", signal: AbortSignal.timeout(180_000) })
@@ -385,7 +470,7 @@ export function createDatasetAdapter(input: { readonly dataset: RefreshLogicalDa
       value.raw = rawManifest(invocation, value, stored.rawObjectId, objectStorageKey, at)
       const registered = await input.d2.registerRawObjectManifest(value.raw)
       if (registered.status === "CONFLICT" || registered.status === "REJECTED") throw new Error("LIVE_RAW_ARTIFACT_CONFLICT")
-      value.population = await preparePopulation(invocation, input.d3, at)
+      value.population = await preparePopulation(invocation, input.d3Coordinator ?? input.d3, input.d3, at)
       const artifactIdentity = `mra_${canonicalChecksum({ logicalSlotId: invocation.logicalSlotId, rawObjectId: stored.rawObjectId })}`
       const status = await input.refresh.recordArtifact({ unitId: invocation.unitId, artifactId: artifactIdentity, artifactKind: `BOUNDED_${input.dataset.toUpperCase()}_RAW`, contentChecksum: value.sourceChecksum, byteCount: value.bytes.byteLength, lineage: { retrievalIdentity: source.retrievalIdentity, sourceContractVersion: invocation.sourceContractId, rawObjectId: stored.rawObjectId } })
       return Object.freeze({ artifactIdentity, artifactChecksum: value.sourceChecksum, retainedBytes: value.bytes.byteLength, status: status === "INSERTED" ? "CREATED" as const : "DUPLICATE" as const })
@@ -582,11 +667,9 @@ export function createDownstreamExecutor(input: { readonly d2: IsolatedPostgresC
       }
       if (value.stage === "projections") {
         const evidenceInputs = await loadMvpProjectionEvidenceInputs({ corpus: sourceCorpus, d4: input.evidence, d2: input.d2, d3: input.d3, objectRoot: input.objectRoot, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, instruments: INSTRUMENTS })
-        if (evidenceInputs.length !== 6) throw new Error("LIVE_BOUNDED_PROJECTION_INPUTS_INCOMPLETE")
-        const store = new MvpProjectionStore(input.projection), kinds = MVP_PROJECTION_DEFINITIONS.map((definition) => definition.projectionKind)
-        const persisted = await Promise.all(evidenceInputs.map((evidence) => persistBoundedMvpProjections({ evidence, store, request: { instrument: evidence.assessment.instrument, eventTimeStart: value.intervalStart, eventTimeEnd: value.intervalEnd, evidenceIdentity: evidence.packetVersionId, evidenceChecksum: evidence.packetChecksum, requestedProjectionKinds: kinds, modelVersion: "mvp-bounded-projection/1.0.0", modelChecksum: canonicalChecksum(MVP_PROJECTION_DEFINITIONS), schemaVersion: "1.0.0" } })))
-        if (persisted.some((result) => result.status === "CONFLICT" || result.status === "INELIGIBLE")) throw new Error("LIVE_BOUNDED_PROJECTION_INELIGIBLE")
-        projections = Object.freeze(persisted.flatMap((result) => result.projections))
+        projections = createLiveResumeProjectionCorpus(evidenceInputs, value.intervalStart, value.intervalEnd)
+        const persisted = await persistMvpProjectionBatch(new MvpProjectionStore(input.projection), projections)
+        if (persisted.status === "CONFLICT") throw new Error("LIVE_BOUNDED_PROJECTION_INELIGIBLE")
         return Object.freeze({ identities: Object.freeze(projections.map((projection) => projection.projectionVersionId)), checksum: canonicalChecksum(projections.map((projection) => [projection.projectionVersionId, projection.projectionChecksum])) })
       }
       if (!projections.length) throw new Error("LIVE_REPLAY_PROJECTION_INPUT_MISSING")
@@ -723,10 +806,37 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
     const plannerIdentity = input.plannerIdentity ?? "preflight-plan"
     const plannerChecksum = input.plannerChecksum ?? canonicalChecksum({ plannerIdentity, start, end })
 
-    const integrated = await createIntegratedBackfillClientsFromEnvironment({ repositoryRoot: process.cwd(), d2: { roleIntent: "CANONICAL_WRITER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-d2" }, d3: { roleIntent: "WORKER", maxConnections: 1, applicationName: "mvp-live-resume-d3" } }, input.environment)
+    const cleanRebuild = requireGreenCleanRebuildDatabaseSet(input.environment)
+    const integrated = await createIntegratedBackfillClientsFromEnvironment({
+      repositoryRoot: process.cwd(),
+      d2: {
+        roleIntent: "CANONICAL_WRITER",
+        ...(cleanRebuild ? { sessionRole: "qt_d2_canonical_writer" } : {}),
+        maxConnections: 1,
+        connectTimeoutSeconds: 10,
+        idleTimeoutSeconds: 30,
+        applicationName: "mvp-live-resume-d2",
+      },
+      d3: {
+        roleIntent: "WORKER",
+        ...(cleanRebuild ? { sessionRole: "qt_d3_worker" } : {}),
+        maxConnections: 1,
+        applicationName: "mvp-live-resume-d3",
+      },
+    }, input.environment)
     scope.add({ close: () => integrated.shutdown() })
     const { d2, d3 } = integrated
-    const d4Environment = { D4_ISOLATED_POSTGRES_URL: input.environment.D4_ISOLATED_POSTGRES_URL, D2_CANONICAL_POSTGRES_URL: input.environment.D2_CANONICAL_POSTGRES_URL, D3_POPULATION_POSTGRES_URL: input.environment.D3_POPULATION_POSTGRES_URL, D2_ISOLATED_POSTGRES_URL: input.environment.D2_ISOLATED_POSTGRES_URL, D3_ISOLATED_POSTGRES_URL: input.environment.D3_ISOLATED_POSTGRES_URL, MVP_REFRESH_ISOLATED_POSTGRES_URL: input.environment.MVP_REFRESH_ISOLATED_POSTGRES_URL, MVP_SERVING_ISOLATED_POSTGRES_URL: input.environment.MVP_SERVING_ISOLATED_POSTGRES_URL, DATABASE_URL: input.environment.DATABASE_URL }
+    const d3Coordinator = cleanRebuild
+      ? createDurableD3PostgresClientFromEnvironment({
+        roleIntent: "COORDINATOR",
+        sessionRole: "qt_d3_coordinator",
+        maxConnections: 1,
+        applicationName: "mvp-live-resume-d3-coordinator",
+        targetPurpose: "INTEGRATED_BACKFILL",
+      }, input.environment)
+      : null
+    if (d3Coordinator) scope.add({ close: () => d3Coordinator.shutdown() })
+    const d4Environment = createLiveResumeD4Environment(input.environment)
     const d4 = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "MIGRATION_OWNER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-d4", environment: d4Environment })
     await d4.connect(); scope.add({ close: () => d4.shutdown() })
     const consistency = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "CONSISTENCY_WORKER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-consistency", environment: d4Environment })
@@ -743,6 +853,7 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
 
     const d2Adapter = createCanonicalPersistenceAdapter(d2)
     const d3Adapter = createPopulationPostgresAdapter(d3)
+    const d3CoordinatorAdapter = d3Coordinator ? createPopulationPostgresAdapter(d3Coordinator) : d3Adapter
     const canonical = createD3ToD2CanonicalCommitPort(d2Adapter)
 
     if (input.mode === "PREFLIGHT" || input.mode === "CERTIFICATION") {
@@ -764,7 +875,8 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
     const authority = authorities[0] ?? null
     const candidateService = new LocalInactiveCandidateAssemblyService(serving)
     const downstreamExecutor = createDownstreamExecutor({ d2, d3, objectRoot, refresh: refreshStore, consistency, evidence, projection })
-    const adapterInput = (dataset: RefreshLogicalDataset) => ({ dataset, storage, objectRoot, d2Client: d2, d2: d2Adapter, d3: d3Adapter, canonical, refresh: refreshStore, allowBtcOhlcvAcquisition: authorityPolicy === "FORBIDDEN" })
+    const cleanRebuildRetainedRawReuse = cleanRebuild !== null
+    const adapterInput = (dataset: RefreshLogicalDataset) => ({ dataset, storage, objectRoot, d2Client: d2, d2: d2Adapter, d3: d3Adapter, d3Coordinator: d3CoordinatorAdapter, canonical, refresh: refreshStore, allowBtcOhlcvAcquisition: authorityPolicy === "FORBIDDEN", enableCleanRebuildRetainedRawReuse: cleanRebuildRetainedRawReuse })
     const executorPorts = createLiveExecutorPortSet({ ohlcv: createDatasetAdapter(adapterInput("ohlcv")), "open-interest": createDatasetAdapter(adapterInput("open-interest")), funding: createDatasetAdapter(adapterInput("funding")), "agg-trade": createDatasetAdapter(adapterInput("agg-trade")) })
     const ports = composeConcreteLiveResumePorts({
       targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },

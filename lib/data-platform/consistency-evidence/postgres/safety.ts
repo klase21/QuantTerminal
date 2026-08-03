@@ -1,6 +1,8 @@
 import { D4_ISOLATED_DATABASE_NAME } from "@/lib/data-platform/evidence-platform"
+import { requireGreenCleanRebuildDatabaseSet } from "@/lib/data-platform/mvp-refresh/greenCleanRebuildSafety"
 
 export interface D4Environment {
+  readonly [key: string]: string | undefined
   readonly MVP_BLUE_GREEN_RELEASE_MODE?: string
   readonly D4_ISOLATED_POSTGRES_URL?: string
   readonly D4_EXPECTED_DATABASE_NAME?: string
@@ -31,11 +33,13 @@ export function inspectD4RuntimeTarget(connectionString: string, environment: D4
     const port = url.port || "5432"
     const identity = host + "/" + database
     const reasons: string[] = []
+    const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
     if (!["postgres:", "postgresql:"].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
     const expectedDatabase = environment.D4_EXPECTED_DATABASE_NAME?.toLowerCase() ?? D4_ISOLATED_DATABASE_NAME
     const blueGreen = environment.MVP_BLUE_GREEN_RELEASE_MODE === "IMMUTABLE_CANDIDATE_DATABASE" && /^quantterminal_mvp8z5_d4_[a-z0-9]+$/.test(expectedDatabase)
-    if (expectedDatabase !== D4_ISOLATED_DATABASE_NAME && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase) && !blueGreen) reasons.push("D4_EXPECTED_DATABASE_NAME_UNSAFE")
+    if (expectedDatabase !== D4_ISOLATED_DATABASE_NAME && !/^quantterminal_mvp8[c-e]_(?:canary_)?d4_/.test(expectedDatabase) && !blueGreen && expectedDatabase !== cleanRebuild?.d4Database) reasons.push("D4_EXPECTED_DATABASE_NAME_UNSAFE")
     if (database !== expectedDatabase) reasons.push("D4_DATABASE_NAME_MISMATCH")
+    if (cleanRebuild && (database !== cleanRebuild.d4Database || decodeURIComponent(url.username) !== cleanRebuild.d4OwnerRole || !["localhost", "127.0.0.1", "::1"].includes(host))) reasons.push("MVP_GREEN_CLEAN_REBUILD_D4_TARGET_MISMATCH")
     if (PRODUCTION_MARKERS.some((marker) => identity.includes(marker))) reasons.push("PRODUCTION_MARKER_DETECTED")
     if (environment.DATABASE_URL && connectionString === environment.DATABASE_URL) reasons.push("MATCHES_APPLICATION_DATABASE")
     if (environment.D2_CANONICAL_POSTGRES_URL && connectionString === environment.D2_CANONICAL_POSTGRES_URL) reasons.push("MATCHES_D2_CANONICAL_DATABASE")

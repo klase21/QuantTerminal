@@ -25,6 +25,7 @@ export async function createIntegratedBackfillClientsFromEnvironment(
     d3Url: environment.D3_POPULATION_POSTGRES_URL,
     objectRoot: environment.D3_BACKFILL_OBJECT_ROOT,
     repositoryRoot: options.repositoryRoot,
+    environment,
   })
   const d2 = createDurableCanonicalPostgresClientFromEnvironment({ ...options.d2, targetPurpose: "INTEGRATED_BACKFILL" }, environment)
   try {

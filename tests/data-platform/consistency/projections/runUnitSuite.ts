@@ -3,6 +3,7 @@ import path from "node:path"
 
 import type { MvpMarketAssessment } from "@/lib/data-platform/consistency"
 import { createMvpProjection, generateMvpProjectionCorpus, MVP_PROJECTION_DEFINITIONS, verifyMvpProjection, type MvpProjectionEvidenceInput } from "@/lib/data-platform/evidence-platform"
+import { createLiveResumeProjectionCorpus } from "@/lib/data-platform/mvp-refresh/liveResumeLocalBootstrap"
 
 const source = JSON.parse(readFileSync(path.join(process.cwd(), "docs", "project", "mvp-evidence-corpus.json"), "utf8")) as { basis: { certificationSlice: Array<{ assessment: MvpMarketAssessment; packetId: string; packetVersionId: string; packetChecksum: string }> } }
 const inputs: MvpProjectionEvidenceInput[] = source.basis.certificationSlice.map((item) => ({ assessment: item.assessment, packetId: item.packetId, packetVersionId: item.packetVersionId, packetChecksum: item.packetChecksum, resultReferences: [{ resultId: `result:${item.assessment.instrument}`, checksum: "a".repeat(64) }], factReferences: [{ id: `fact:${item.assessment.instrument}`, version: "1", checksum: "b".repeat(64), datasetId: "ohlcv", providerId: "binance-vision-usdm", publicationState: "PENDING" }], coverageDecisionIds: [`coverage:${item.assessment.instrument}`], latestPrice: "100.00" }))
@@ -11,6 +12,8 @@ const checks: Array<[string, boolean]> = [], check = (name: string, pass: boolea
 check("nine governed definitions", MVP_PROJECTION_DEFINITIONS.length === 9)
 check("all nine kinds generated", new Set(projections.map((value) => value.projectionKind)).size === 9)
 check("six-instrument slice cardinality bounded", projections.length === 62)
+const liveResumeCorpus = createLiveResumeProjectionCorpus(inputs, inputs[0]!.assessment.eventTimeStart, inputs[0]!.assessment.eventTimeEnd)
+check("live-resume persists one six-instrument corpus", liveResumeCorpus.length === 62 && liveResumeCorpus.filter((value) => value.projectionKind === "DashboardMarketStateProjection").length === 1 && liveResumeCorpus.filter((value) => value.projectionKind === "ScannerCandidateProjection").length === 1)
 check("identity and checksum deterministic", projections.map((value) => value.projectionVersionId).join() === repeated.map((value) => value.projectionVersionId).join() && projections.map((value) => value.projectionChecksum).join() === repeated.map((value) => value.projectionChecksum).join())
 check("every checksum verifies", projections.every(verifyMvpProjection))
 check("lifecycle generated and cutover-only", projections.every((value) => value.lifecycleState === "GENERATED" && value.consumerExposureState === "READY_FOR_CUTOVER"))
