@@ -11,9 +11,11 @@ export class MvpServingPostgresClient {
   private readonly expectedIdentity?: { readonly database: string; readonly role: string }
   constructor(readonly connectionString: string, readonly roleIntent: MvpServingRoleIntent, environment: Readonly<Record<string, string | undefined>> = process.env, readonly targetKind: MvpServingTargetKind = "LOCAL_ISOLATED", expectedIdentity?: { readonly database: string; readonly role: string }) {
     const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
-    this.expectedIdentity = cleanRebuild && targetKind === "LOCAL_ISOLATED"
+    const managedCleanRebuild = environment.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
+    this.expectedIdentity = cleanRebuild && (targetKind === "LOCAL_ISOLATED" || targetKind === "MANAGED_POSTGRES")
       ? { database: cleanRebuild.servingDatabase, role: roleIntent === "READER" ? cleanRebuild.servingReaderRole : cleanRebuild.servingPublisherRole }
       : expectedIdentity
+    if (managedCleanRebuild && targetKind !== "MANAGED_POSTGRES") throw new Error("MVP_GREEN_MANAGED_SERVING_TARGET_KIND_REQUIRED")
     if (targetKind === "LOCAL_ISOLATED") requireMvpServingIsolatedTarget(connectionString, roleIntent, environment, this.expectedIdentity)
     else if (targetKind === "LOCAL_DISPOSABLE_CERTIFICATION") requireMvpServingDisposableTarget(connectionString, roleIntent, environment, this.expectedIdentity)
     else requireMvpServingManagedTarget(connectionString, roleIntent, environment, this.expectedIdentity)

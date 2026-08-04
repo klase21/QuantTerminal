@@ -44,7 +44,7 @@ function adapter(dataset: typeof datasets[number], calls: string[], fail: { data
       calls.push(`${dataset}:${input.instrument}`)
       if (fail.dataset === dataset || fail.stage === "retrieval") throw new Error("INJECTED_DATASET_FAILURE")
       const bytes = new TextEncoder().encode(`${dataset}:${input.instrument}:${input.intervalStart}`), sourceChecksum = canonicalChecksum(Array.from(bytes))
-      return Object.freeze({ status: "AVAILABLE" as const, retrievalIdentity: `retrieval:${input.logicalSlotId}`, bytes, sourceChecksum, contentType: "application/octet-stream", observedThrough: input.intervalEnd, limitations: Object.freeze([]) })
+      return Object.freeze({ status: "AVAILABLE" as const, retrievalIdentity: `retrieval:${input.logicalSlotId}`, bytes, sourceChecksum, contentType: "application/octet-stream", observedThrough: input.intervalEnd, limitations: Object.freeze(["SOURCE_PROVENANCE_CERTIFIED"]) })
     },
     persistArtifact: async (input, source) => { if (fail.stage === "artifact") throw new Error("INJECTED_ARTIFACT_FAILURE"); return Object.freeze({ artifactIdentity: `artifact:${input.logicalSlotId}`, artifactChecksum: source.sourceChecksum!, retainedBytes: source.bytes!.byteLength, status: "CREATED" as const }) },
     normalizeAndPersistCandidates: async (input, _source, artifact) => { if (fail.stage === "candidate") throw new Error("INJECTED_CANDIDATE_FAILURE"); return Object.freeze({ candidateIdentity: `candidate:${input.logicalSlotId}`, candidateChecksum: canonicalChecksum({ slot: input.logicalSlotId, artifact: artifact.artifactChecksum }), status: "CREATED" as const, payload: Object.freeze({ slot: input.logicalSlotId }) }) },
@@ -77,7 +77,7 @@ function fixture(failDataset: string | null = null) {
   const base: Omit<LiveResumeCoordinatorPorts, "executors" | "watermarks" | "downstream" | "candidate"> = {
     targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
     execution: { resolveOrCreate: async ({ plan: value }) => createDryRunLiveResumeExecutionSetup(value) },
-    lease: { acquire: async () => ({ fencingToken: fence }), assert: async (_runId, token) => { if (token !== fence) throw new Error("STALE_WORKER") }, release: async () => undefined },
+    lease: { acquire: async () => ({ fencingToken: fence }), assert: async (_runId, token) => { if (token !== fence) throw new Error("STALE_WORKER") }, renew: async (_runId, token) => { if (token !== fence) throw new Error("STALE_WORKER") }, release: async () => undefined },
     checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? null, append: async (value) => { const key = `${value.coordinatorRunId}:${value.stage}`, prior = checkpoints.get(key); if (prior && prior.checksum !== value.checksum) throw new Error("CHECKPOINT_CONFLICT"); if (prior) return "DUPLICATE"; checkpoints.set(key, value); return "CREATED" }, appendFailure: async (value) => { checkpoints.set(`${value.coordinatorRunId}:failure:${value.stage}:${value.checksum}`, value); return "CREATED" } },
     authoritativeOhlcv: { reuse: async (slot) => authority(slot) },
   }
@@ -96,6 +96,7 @@ async function main() {
   assert.deepEqual(value.downstream, ["coverage", "consistency", "evidence", "projections", "replay"])
   assert.equal(complete.commonWatermark, end)
   assert.equal(complete.candidateExposed, false)
+  assert.ok(complete.slotResults.filter((result) => result.executionGenerationId !== "AUTHORITATIVE_RECOVERY").every((result) => result.limitations.includes("SOURCE_PROVENANCE_CERTIFIED")))
   assert.equal(value.exposed(), false)
   const rerun = await coordinator.execute({ plan: value.certified, allowedDatasets: datasets, allowedInstruments: instruments, mode: "CERTIFICATION" })
   assert.equal(rerun.status, "COMPLETE")

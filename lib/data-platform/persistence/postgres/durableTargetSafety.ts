@@ -38,6 +38,7 @@ export function inspectDurableCanonicalTarget(connectionString: string | undefin
     const role = decodeURIComponent(url.username || "") || null
     const reasons: string[] = []
     const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
+    const managedCleanRebuild = environment.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
     if (purpose !== "D2_DEDICATED" && purpose !== "INTEGRATED_BACKFILL") reasons.push("TARGET_PURPOSE_UNSUPPORTED")
     if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") reasons.push("UNSUPPORTED_PROTOCOL")
     if (!database) reasons.push("DATABASE_NAME_MISSING")
@@ -47,7 +48,13 @@ export function inspectDurableCanonicalTarget(connectionString: string | undefin
       const expectedRole = cleanRebuild?.d2Role ?? "qt_d2_backfill_owner"
       if (database !== expectedDatabase) reasons.push("INTEGRATED_DATABASE_REQUIRED")
       if (role !== expectedRole) reasons.push("INTEGRATED_D2_ROLE_REQUIRED")
-      if (cleanRebuild && !["localhost", "127.0.0.1", "::1"].includes(host)) reasons.push("MVP_GREEN_CLEAN_REBUILD_LOOPBACK_REQUIRED")
+      if (cleanRebuild && !managedCleanRebuild && !["localhost", "127.0.0.1", "::1"].includes(host)) reasons.push("MVP_GREEN_CLEAN_REBUILD_LOOPBACK_REQUIRED")
+      if (cleanRebuild && managedCleanRebuild) {
+        if (["localhost", "127.0.0.1", "::1"].includes(host) || host !== environment.MVP_GREEN_MANAGED_HOST?.toLowerCase()) reasons.push("MVP_GREEN_MANAGED_HOST_REQUIRED")
+        for (const key of ["DATABASE_URL", "MVP_SERVING_POSTGRES_URL", "MVP_SERVING_PRODUCTION_CANDIDATE_DB_URL", "MVP_GREEN_PARENT_POSTGRES_URL", "MVP_GREEN_MANAGED_PRODUCTION_POSTGRES_URL", "MVP_GREEN_MANAGED_ACTIVE_APPLICATION_POSTGRES_URL"]) {
+          if (environment[key] && environment[key] === connectionString) reasons.push(`MATCHES_${key}`)
+        }
+      }
     } else if (purpose === "D2_DEDICATED" && !ALLOWED_DATABASES.has(database)) reasons.push("DATABASE_NOT_ALLOWLISTED")
     if (/prod(?:uction)?|primary|main/i.test(`${host}/${database}`)) reasons.push("PRODUCTION_LIKE_TARGET_REJECTED")
     return Object.freeze({ safe: reasons.length === 0, redactedTarget: `${host}:${port}/${database || "<missing>"}`, host, port, database: database || null, role, reasons: Object.freeze(reasons) })

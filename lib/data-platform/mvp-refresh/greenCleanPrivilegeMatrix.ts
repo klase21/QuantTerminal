@@ -233,7 +233,7 @@ function denyOperations(
  * Entries represent distinct SQL capabilities, not SQL text. Dynamic queries
  * that use the same role/object/operation are deliberately represented once.
  */
-export function createGreenCleanPrivilegeMatrix(databaseSet: GreenCleanRebuildDatabaseSet): GreenCleanPrivilegeMatrix {
+export function createGreenCleanPrivilegeMatrix(databaseSet: GreenCleanRebuildDatabaseSet, options: { readonly managed?: boolean } = {}): GreenCleanPrivilegeMatrix {
   const allDatabases = [
     databaseSet.backfillDatabase,
     databaseSet.d4Database,
@@ -259,14 +259,16 @@ export function createGreenCleanPrivilegeMatrix(databaseSet: GreenCleanRebuildDa
     }),
     role(databaseSet.d4OwnerRole, {
       login: true,
-      createDatabase: true,
-      createRole: true,
-      superuser: true,
-      bypassRls: true,
-      administrative: true,
+      createDatabase: options.managed ? false : true,
+      createRole: options.managed ? false : true,
+      superuser: options.managed ? false : true,
+      bypassRls: options.managed ? false : true,
+      administrative: options.managed ? false : true,
       ownedDatabases: [databaseSet.d4Database, databaseSet.refreshDatabase],
-      connectDatabases: [...allDatabases],
-      deniedDatabases: [],
+      connectDatabases: options.managed
+        ? [databaseSet.d4Database, databaseSet.refreshDatabase, databaseSet.servingDatabase]
+        : [...allDatabases],
+      deniedDatabases: options.managed ? [databaseSet.backfillDatabase] : [],
       setRoleTargets: [
         databaseSet.d4ConsistencyRole,
         databaseSet.d4EvidenceRole,
@@ -325,7 +327,7 @@ export function createGreenCleanPrivilegeMatrix(databaseSet: GreenCleanRebuildDa
   ].map(([grantedRole, memberRole]) => Object.freeze({
     memberRole,
     grantedRole,
-    grantorRole: databaseSet.d4OwnerRole,
+    grantorRole: options.managed ? "neondb_owner" : databaseSet.d4OwnerRole,
     adminOption: false,
     inheritOption: false,
     setOption: true,
@@ -335,7 +337,7 @@ export function createGreenCleanPrivilegeMatrix(databaseSet: GreenCleanRebuildDa
     Object.freeze({
     memberRole: databaseSet.d4OwnerRole,
     grantedRole: databaseSet.servingMigrationOwnerRole,
-    grantorRole: databaseSet.d4OwnerRole,
+    grantorRole: options.managed ? "neondb_owner" : databaseSet.d4OwnerRole,
     adminOption: true,
     inheritOption: false,
     setOption: true,

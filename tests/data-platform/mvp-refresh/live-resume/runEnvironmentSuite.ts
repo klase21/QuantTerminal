@@ -92,6 +92,24 @@ async function main() {
   const childPathD4Environment = createLiveResumeD4Environment({ ...cleanServingEnvironment, D4_ISOLATED_POSTGRES_URL: cleanD4Url })
   assert.equal(childPathD4Environment.D4_EXPECTED_DATABASE_NAME, "quantterminal_green_clean_dispose20260731a_d4")
   assert.equal(inspectD4RuntimeTarget(cleanD4Url, childPathD4Environment).safe, true)
+  const managedHost = "ep-green-test.ap-southeast-1.aws.neon.tech"
+  const managedD4Url = `postgresql://qt_d2_owner:redacted@${managedHost}/quantterminal_green_clean_dispose20260731a_d4?sslmode=require`
+  const managedD4Environment = createLiveResumeD4Environment({
+    ...cleanServingEnvironment,
+    MVP_GREEN_CLEAN_REBUILD_MODE: "INACTIVE_MANAGED_POSTGRES_SET",
+    MVP_GREEN_MANAGED_PROJECT_ID: "soft-cell-16396854",
+    MVP_GREEN_MANAGED_PRODUCTION_BRANCH_ID: "br-production-a1",
+    MVP_GREEN_MANAGED_ACTIVE_APPLICATION_BRANCH_ID: "br-application-a2",
+    MVP_GREEN_MANAGED_BRANCH_ID: "br-green-a3",
+    MVP_GREEN_MANAGED_ENDPOINT_ID: "ep-green-a3",
+    MVP_GREEN_MANAGED_HOST: managedHost,
+    MVP_GREEN_MANAGED_TARGET_FINGERPRINT: "neon:soft-cell-16396854/br-green-a3/ep-green-a3",
+    MVP_GREEN_CLEAN_RETAINED_SOURCE_POSTGRES_URL: "postgresql://qt_d2_backfill_owner:redacted@127.0.0.1:55432/quantterminal_backfill",
+    D4_ISOLATED_POSTGRES_URL: managedD4Url,
+  } as unknown as NodeJS.ProcessEnv)
+  assert.equal(managedD4Environment.MVP_GREEN_MANAGED_HOST, managedHost)
+  assert.equal(managedD4Environment.D4_EXPECTED_DATABASE_NAME, "quantterminal_green_clean_dispose20260731a_d4")
+  assert.equal(inspectD4RuntimeTarget(managedD4Url, managedD4Environment).safe, true)
   assert.equal((bootstrapSource.match(/environment: d4Environment/g) ?? []).length, 4)
   assert.equal(bootstrapSource.includes("const d4Environment = createLiveResumeD4Environment(input.environment)"), true)
 

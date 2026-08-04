@@ -4,7 +4,7 @@ import { inspectDurableCanonicalTarget } from "@/lib/data-platform/persistence/p
 import { inspectDurableD3Target } from "@/lib/data-platform/population/postgres/safety"
 import { inspectGreenCleanRebuildSafety } from "@/lib/data-platform/mvp-refresh/greenCleanRebuildSafety"
 import { inspectMvpRefreshTarget } from "@/lib/data-platform/mvp-refresh/safety"
-import { inspectMvpServingIsolatedTarget } from "@/lib/data-platform/mvp-serving/safety"
+import { inspectMvpServingIsolatedTarget, inspectMvpServingManagedTarget } from "@/lib/data-platform/mvp-serving/safety"
 
 const id = "localtest01"
 const prefix = `quantterminal_green_clean_${id}`
@@ -33,6 +33,34 @@ assert.equal(inspectMvpServingIsolatedTarget(url("mvp_serving_publisher", `${pre
 const malformed = inspectGreenCleanRebuildSafety({ ...environment, MVP_GREEN_CLEAN_REBUILD_D4_DATABASE: "arbitrary" })
 assert.equal(malformed.databaseSet, null)
 assert.ok(malformed.reasons.includes("MVP_GREEN_CLEAN_REBUILD_D4_DATABASE_MISMATCH"))
+const managed = {
+  ...environment,
+  MVP_GREEN_CLEAN_REBUILD_MODE: "INACTIVE_MANAGED_POSTGRES_SET",
+  MVP_GREEN_MANAGED_PROJECT_ID: "soft-cell-16396854",
+  MVP_GREEN_MANAGED_PRODUCTION_BRANCH_ID: "br-production-a1",
+  MVP_GREEN_MANAGED_ACTIVE_APPLICATION_BRANCH_ID: "br-application-a2",
+  MVP_GREEN_MANAGED_BRANCH_ID: "br-green-a3",
+  MVP_GREEN_MANAGED_ENDPOINT_ID: "ep-green-a3",
+  MVP_GREEN_MANAGED_HOST: "ep-green-a3.us-east-2.aws.neon.tech",
+  MVP_GREEN_MANAGED_TARGET_FINGERPRINT: "neon:soft-cell-16396854/br-green-a3/ep-green-a3",
+  MVP_GREEN_CLEAN_RETAINED_SOURCE_POSTGRES_URL: url("qt_d2_backfill_owner", "quantterminal_backfill"),
+} as const
+assert.equal(inspectGreenCleanRebuildSafety(managed).databaseSet?.servingDatabase, `${prefix}_serving`)
+const managedUrl = (role: string, database: string, host: string = managed.MVP_GREEN_MANAGED_HOST) => `postgresql://${role}:test-only@${host}/${database}?sslmode=require`
+assert.equal(inspectDurableCanonicalTarget(managedUrl("qt_d2_backfill_owner", `${prefix}_backfill`), "INTEGRATED_BACKFILL", managed).safe, true)
+assert.equal(inspectDurableD3Target(managedUrl("qt_d3_backfill_owner", `${prefix}_backfill`), "INTEGRATED_BACKFILL", managed).safe, true)
+assert.equal(inspectD4RuntimeTarget(managedUrl("qt_d2_owner", `${prefix}_d4`), { ...managed, D4_EXPECTED_DATABASE_NAME: `${prefix}_d4` }).safe, true)
+assert.equal(inspectMvpRefreshTarget(managedUrl("qt_d2_owner", `${prefix}_refresh`), managed, `${prefix}_refresh`).safe, true)
+assert.equal(inspectMvpServingManagedTarget(managedUrl("mvp_serving_publisher", `${prefix}_serving`), "mvp_serving_publisher", managed, `${prefix}_serving`).safe, true)
+assert.equal(inspectDurableCanonicalTarget(managedUrl("qt_d2_backfill_owner", `${prefix}_backfill`, "wrong.neon.tech"), "INTEGRATED_BACKFILL", managed).safe, false)
+const managedCollision = inspectGreenCleanRebuildSafety({ ...managed, MVP_GREEN_MANAGED_BRANCH_ID: "br-production-a1" })
+assert.equal(managedCollision.databaseSet, null)
+assert.ok(managedCollision.reasons.includes("MVP_GREEN_MANAGED_BRANCH_ID_COLLISION"))
+const managedActiveCollision = inspectGreenCleanRebuildSafety({ ...managed, MVP_GREEN_MANAGED_BRANCH_ID: "br-application-a2" })
+assert.equal(managedActiveCollision.databaseSet, null)
+assert.ok(managedActiveCollision.reasons.includes("MVP_GREEN_MANAGED_BRANCH_ID_COLLISION"))
+assert.ok(inspectGreenCleanRebuildSafety({ ...managed, MVP_GREEN_MANAGED_TARGET_FINGERPRINT: "neon:other" }).reasons.includes("MVP_GREEN_MANAGED_TARGET_FINGERPRINT_MISMATCH"))
+assert.ok(inspectGreenCleanRebuildSafety({ ...managed, MVP_GREEN_MANAGED_HOST: "ep-green-a3-pooler.us-east-2.aws.neon.tech" }).reasons.includes("MVP_GREEN_MANAGED_HOST_POOLER_UNSUPPORTED"))
 assert.equal(inspectDurableCanonicalTarget(url("qt_d2_backfill_owner", "quantterminal_backfill"), "INTEGRATED_BACKFILL", { MVP_GREEN_CLEAN_REBUILD_MODE: "wrong" }).safe, false)
 assert.equal(inspectDurableCanonicalTarget(url("qt_d2_backfill_owner", "quantterminal_backfill"), "INTEGRATED_BACKFILL", {}).safe, true)
 assert.equal(inspectMvpRefreshTarget(url("qt_d2_owner", "quantterminal_mvp_refresh_isolated"), {}, "quantterminal_mvp_refresh_isolated").safe, true)

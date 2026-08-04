@@ -275,6 +275,14 @@ export function createLiveResumeD4Environment(environment: NodeJS.ProcessEnv): D
     MVP_GREEN_CLEAN_REBUILD_D4_DATABASE: environment.MVP_GREEN_CLEAN_REBUILD_D4_DATABASE,
     MVP_GREEN_CLEAN_REBUILD_REFRESH_DATABASE: environment.MVP_GREEN_CLEAN_REBUILD_REFRESH_DATABASE,
     MVP_GREEN_CLEAN_REBUILD_SERVING_DATABASE: environment.MVP_GREEN_CLEAN_REBUILD_SERVING_DATABASE,
+    MVP_GREEN_MANAGED_PROJECT_ID: environment.MVP_GREEN_MANAGED_PROJECT_ID,
+    MVP_GREEN_MANAGED_PRODUCTION_BRANCH_ID: environment.MVP_GREEN_MANAGED_PRODUCTION_BRANCH_ID,
+    MVP_GREEN_MANAGED_ACTIVE_APPLICATION_BRANCH_ID: environment.MVP_GREEN_MANAGED_ACTIVE_APPLICATION_BRANCH_ID,
+    MVP_GREEN_MANAGED_BRANCH_ID: environment.MVP_GREEN_MANAGED_BRANCH_ID,
+    MVP_GREEN_MANAGED_ENDPOINT_ID: environment.MVP_GREEN_MANAGED_ENDPOINT_ID,
+    MVP_GREEN_MANAGED_HOST: environment.MVP_GREEN_MANAGED_HOST,
+    MVP_GREEN_MANAGED_TARGET_FINGERPRINT: environment.MVP_GREEN_MANAGED_TARGET_FINGERPRINT,
+    MVP_GREEN_CLEAN_RETAINED_SOURCE_POSTGRES_URL: environment.MVP_GREEN_CLEAN_RETAINED_SOURCE_POSTGRES_URL,
     D4_ISOLATED_POSTGRES_URL: environment.D4_ISOLATED_POSTGRES_URL,
     D4_EXPECTED_DATABASE_NAME: cleanRebuild?.d4Database ?? environment.D4_EXPECTED_DATABASE_NAME,
     D2_CANONICAL_POSTGRES_URL: environment.D2_CANONICAL_POSTGRES_URL,
@@ -726,7 +734,7 @@ export function createCurrentCatchupServingInput(input: {
 export function createCandidateExecutor(
   service: LocalInactiveCandidateAssemblyService,
   expectedBaseline?: ProcessLiveResumeBootstrapInput["candidateBaseline"],
-  currentCatchup?: { readonly client: MvpServingPostgresClient; readonly downstream: CurrentCatchupDownstreamExecutor },
+  currentCatchup?: { readonly client: MvpServingPostgresClient; readonly downstream: CurrentCatchupDownstreamExecutor; readonly inactiveManagedGreen?: boolean },
 ): LiveCandidateExecutor {
   let candidate: { corpusId: string; checksum: string; comparisonChecksum: string; baseline?: LiveResumeCandidateBaseline; manifestChecksum?: string; memberSetChecksum?: string } | null = null
   return Object.freeze({
@@ -744,7 +752,7 @@ export function createCandidateExecutor(
           payload: currentCatchup.downstream.servingPayload(input.intervalStart, input.intervalEnd),
         })
         const plan = prepareInactiveServingCandidate(stagedInput)
-        const staged = await stageInactiveServingCandidate(currentCatchup.client, stagedInput)
+        const staged = await stageInactiveServingCandidate(currentCatchup.client, stagedInput, { inactiveManagedGreen: currentCatchup.inactiveManagedGreen === true })
         if (
           staged.review.candidateId !== plan.candidateId
           || staged.review.servingChecksum !== plan.servingChecksum
@@ -846,7 +854,8 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
     const projection = new ConsistencyPostgresRuntime({ connectionString: required(input.environment, "D4_ISOLATED_POSTGRES_URL"), roleIntent: "PROJECTION_BUILDER", maxConnections: 1, connectTimeoutSeconds: 10, idleTimeoutSeconds: 30, applicationName: "mvp-live-resume-projection", environment: d4Environment })
     await projection.connect(); scope.add({ close: () => projection.shutdown() })
     const refresh = new MvpRefreshPostgresClient(required(input.environment, "MVP_REFRESH_ISOLATED_POSTGRES_URL"), input.environment); await refresh.verify(); scope.add({ close: () => refresh.shutdown() })
-    const serving = new MvpServingPostgresClient(required(input.environment, "MVP_SERVING_ISOLATED_POSTGRES_URL"), "PUBLISHER", input.environment, "LOCAL_ISOLATED")
+    const managedGreen = input.environment.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
+    const serving = new MvpServingPostgresClient(required(input.environment, "MVP_SERVING_ISOLATED_POSTGRES_URL"), "PUBLISHER", input.environment, managedGreen ? "MANAGED_POSTGRES" : "LOCAL_ISOLATED")
     await serving.verify(); scope.add({ close: () => serving.shutdown() })
     const objectRoot = required(input.environment, "D3_BACKFILL_OBJECT_ROOT")
     const storage = await createFilesystemObjectStorage({ root: objectRoot, repositoryRoot: process.cwd(), createRoot: false })
@@ -873,13 +882,15 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
     if (authorityPolicy === "REQUIRED" && authorities.length !== 1) throw new Error("LIVE_AUTHORITATIVE_RECOVERY_REQUIRED")
     if (authorityPolicy === "FORBIDDEN" && authorities.length !== 0) throw new Error("LIVE_FRESH_WINDOW_AUTHORITY_CONFLICT")
     const authority = authorities[0] ?? null
-    const candidateService = new LocalInactiveCandidateAssemblyService(serving)
+    const candidateService = new LocalInactiveCandidateAssemblyService(serving, { inactiveManagedGreen: managedGreen })
     const downstreamExecutor = createDownstreamExecutor({ d2, d3, objectRoot, refresh: refreshStore, consistency, evidence, projection })
     const cleanRebuildRetainedRawReuse = cleanRebuild !== null
     const adapterInput = (dataset: RefreshLogicalDataset) => ({ dataset, storage, objectRoot, d2Client: d2, d2: d2Adapter, d3: d3Adapter, d3Coordinator: d3CoordinatorAdapter, canonical, refresh: refreshStore, allowBtcOhlcvAcquisition: authorityPolicy === "FORBIDDEN", enableCleanRebuildRetainedRawReuse: cleanRebuildRetainedRawReuse })
     const executorPorts = createLiveExecutorPortSet({ ohlcv: createDatasetAdapter(adapterInput("ohlcv")), "open-interest": createDatasetAdapter(adapterInput("open-interest")), funding: createDatasetAdapter(adapterInput("funding")), "agg-trade": createDatasetAdapter(adapterInput("agg-trade")) })
     const ports = composeConcreteLiveResumePorts({
-      targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
+      targets: { classify: async () => managedGreen
+        ? ({ refreshLocal: false, truthPlaneLocal: false, servingLocal: false, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: true, inactiveManagedGreen: true })
+        : ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
       execution,
       lease: control,
       checkpoints: control,
@@ -890,7 +901,7 @@ export async function createProcessLiveResumeBindings(input: ProcessLiveResumeBo
       executorPorts,
       watermarkAudit: createWatermarkAudit(refreshStore),
       downstreamExecutor,
-      candidateExecutor: createCandidateExecutor(candidateService, input.candidateBaseline, input.candidateBaseline ? { client: serving, downstream: downstreamExecutor } : undefined),
+      candidateExecutor: createCandidateExecutor(candidateService, input.candidateBaseline, input.candidateBaseline ? { client: serving, downstream: downstreamExecutor, inactiveManagedGreen: managedGreen } : undefined),
       plannerIdentity, plannerChecksum, intervalStart: start, intervalEnd: end, allowedDatasets: DATASETS, allowedInstruments: INSTRUMENTS,
     })
     return Object.freeze({ ports, capabilities: input.capabilities, close: () => scope.close() })

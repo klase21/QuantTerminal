@@ -69,6 +69,7 @@ export interface InactiveServingCandidateReview {
 
 export interface StageInactiveServingCandidateOptions {
   readonly injectFailureAfter?: "PAYLOADS" | "MEMBERS" | "MANIFEST"
+  readonly inactiveManagedGreen?: boolean
 }
 
 export interface SeparateTargetInactivePublicationOptions {
@@ -188,7 +189,10 @@ export function prepareInactiveServingCandidate(input: InactiveServingCandidateI
 }
 
 export async function stageInactiveServingCandidate(client: MvpServingPostgresClient, input: InactiveServingCandidateInput, options: StageInactiveServingCandidateOptions = {}): Promise<{ readonly status: "CREATED" | "DUPLICATE"; readonly review: InactiveServingCandidateReview }> {
-  if (client.roleIntent !== "PUBLISHER" || client.targetKind !== "LOCAL_ISOLATED") throw new Error("MVP8I_LOCAL_SERVING_PUBLISHER_REQUIRED")
+  if (
+    client.roleIntent !== "PUBLISHER"
+    || (client.targetKind !== "LOCAL_ISOLATED" && !(client.targetKind === "MANAGED_POSTGRES" && options.inactiveManagedGreen === true))
+  ) throw new Error("MVP8I_LOCAL_SERVING_PUBLISHER_REQUIRED")
   const plan = prepareInactiveServingCandidate(input)
   return client.transaction(async (sql) => {
     await sql.unsafe("SELECT pg_advisory_xact_lock(hashtext($1))", [plan.candidateId])

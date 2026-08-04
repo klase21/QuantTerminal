@@ -22,6 +22,13 @@ export interface GreenCleanAdminVerification {
   readonly postgresMajor16: boolean
   readonly readWrite: boolean
   readonly canCreateDatabase: boolean
+  readonly managed?: boolean
+}
+
+export interface GreenCleanAdminTargetPolicy {
+  readonly kind: "LOCAL" | "MANAGED"
+  readonly expectedHost?: string
+  readonly expectedRole?: string
 }
 
 export interface GreenCleanDatabaseInspection {
@@ -108,7 +115,7 @@ export function greenCleanDatabaseSpecifications(databaseSet: GreenCleanRebuildD
   return specifications
 }
 
-function parseAdminSource(sourceConnectionString: string, sourceBinding: GreenCleanAdminSourceBinding): URL {
+function parseAdminSource(sourceConnectionString: string, sourceBinding: GreenCleanAdminSourceBinding, policy: GreenCleanAdminTargetPolicy = { kind: "LOCAL" }): URL {
   if (sourceBinding !== "D4_ISOLATED_POSTGRES_URL" && sourceBinding !== "MVP_REFRESH_ISOLATED_POSTGRES_URL") {
     throw new Error("GREEN_CLEAN_ADMIN_SOURCE_BINDING_INVALID")
   }
@@ -119,14 +126,19 @@ function parseAdminSource(sourceConnectionString: string, sourceBinding: GreenCl
     throw new Error("GREEN_CLEAN_ADMIN_SOURCE_URL_INVALID")
   }
   if (!/^postgres(?:ql)?:$/.test(source.protocol)) throw new Error("GREEN_CLEAN_ADMIN_SOURCE_PROTOCOL_INVALID")
-  if (!LOOPBACK_HOSTS.has(source.hostname.toLowerCase())) throw new Error("GREEN_CLEAN_ADMIN_SOURCE_NOT_LOOPBACK")
+  const host = source.hostname.toLowerCase()
+  if (policy.kind === "LOCAL" && !LOOPBACK_HOSTS.has(host)) throw new Error("GREEN_CLEAN_ADMIN_SOURCE_NOT_LOOPBACK")
+  if (policy.kind === "MANAGED" && (LOOPBACK_HOSTS.has(host) || !policy.expectedHost || host !== policy.expectedHost.toLowerCase())) {
+    throw new Error("GREEN_CLEAN_MANAGED_ADMIN_HOST_MISMATCH")
+  }
   let role: string
   try {
     role = decodeURIComponent(source.username)
   } catch {
     throw new Error("GREEN_CLEAN_ADMIN_SOURCE_ROLE_INVALID")
   }
-  if (role !== "qt_d2_owner") throw new Error("GREEN_CLEAN_ADMIN_SOURCE_ROLE_INVALID")
+  const expectedRole = policy.kind === "MANAGED" ? policy.expectedRole : "qt_d2_owner"
+  if (!expectedRole || role !== expectedRole) throw new Error("GREEN_CLEAN_ADMIN_SOURCE_ROLE_INVALID")
   if (!source.password) throw new Error("GREEN_CLEAN_ADMIN_SOURCE_PASSWORD_REQUIRED")
   if (!source.pathname.replace(/^\/+/, "")) throw new Error("GREEN_CLEAN_ADMIN_SOURCE_DATABASE_REQUIRED")
   if (source.port && (!/^[0-9]+$/.test(source.port) || Number(source.port) < 1 || Number(source.port) > 65_535)) {
@@ -138,9 +150,10 @@ function parseAdminSource(sourceConnectionString: string, sourceBinding: GreenCl
 export function deriveGreenCleanAdminConnectionString(
   sourceConnectionString: string,
   sourceBinding: GreenCleanAdminSourceBinding,
+  policy: GreenCleanAdminTargetPolicy = { kind: "LOCAL" },
 ): string {
-  const admin = new URL(parseAdminSource(sourceConnectionString, sourceBinding).toString())
-  admin.pathname = "/postgres"
+  const admin = new URL(parseAdminSource(sourceConnectionString, sourceBinding, policy).toString())
+  if (policy.kind === "LOCAL") admin.pathname = "/postgres"
   return admin.toString()
 }
 
@@ -188,11 +201,12 @@ export class GreenCleanPostgresDatabaseAdminPort implements GreenCleanDatabaseLi
     sourceBinding: GreenCleanAdminSourceBinding,
     databaseSet: GreenCleanRebuildDatabaseSet,
     private readonly existingDatabaseVerifier?: GreenCleanExistingDatabaseVerifier,
+    private readonly targetPolicy: GreenCleanAdminTargetPolicy = { kind: "LOCAL" },
   ) {
-    this.source = parseAdminSource(sourceConnectionString, sourceBinding)
+    this.source = parseAdminSource(sourceConnectionString, sourceBinding, targetPolicy)
     const specifications = greenCleanDatabaseSpecifications(databaseSet)
     this.expectedSpecifications = new Map(specifications.map((specification) => [specification.database, specification]))
-    this.adminConnectionString = deriveGreenCleanAdminConnectionString(sourceConnectionString, sourceBinding)
+    this.adminConnectionString = deriveGreenCleanAdminConnectionString(sourceConnectionString, sourceBinding, targetPolicy)
     this.sql = postgres(this.adminConnectionString, {
       max: 1,
       prepare: false,
@@ -225,6 +239,7 @@ export class GreenCleanPostgresDatabaseAdminPort implements GreenCleanDatabaseLi
         postgresMajor16: Boolean(row && row.version >= 160_000 && row.version < 170_000),
         readWrite: row?.read_only === "off",
         canCreateDatabase: row?.can_create_database === true,
+        managed: this.targetPolicy.kind === "MANAGED",
       })
     } catch (error) {
       throw new Error(`GREEN_CLEAN_ADMIN_VERIFICATION_FAILED:${sanitizedPostgresCode(error)}`)
@@ -349,11 +364,12 @@ export class GreenCleanPostgresDatabaseAdminPort implements GreenCleanDatabaseLi
     this.assertExpectedSpecification(specification)
     assertIdentifier(specification.databaseName, "GREEN_CLEAN_DATABASE_NAME_INVALID")
     assertIdentifier(specification.ownerRole, "GREEN_CLEAN_DATABASE_OWNER_INVALID")
+    const owner = quoteIdentifier(specification.ownerRole)
     try {
-      await this.sql.unsafe(
-        `CREATE DATABASE ${quoteIdentifier(specification.databaseName)} OWNER ${quoteIdentifier(specification.ownerRole)}`,
-      )
+      if (this.targetPolicy.kind === "MANAGED") throw new Error("GREEN_CLEAN_MANAGED_DATABASE_PROVIDER_CREATION_REQUIRED")
+      await this.sql.unsafe(`CREATE DATABASE ${quoteIdentifier(specification.databaseName)} OWNER ${owner}`)
     } catch (error) {
+      if (error instanceof Error && error.message === "GREEN_CLEAN_MANAGED_DATABASE_PROVIDER_CREATION_REQUIRED") throw error
       throw new Error(`GREEN_CLEAN_DATABASE_CREATE_FAILED:${sanitizedPostgresCode(error)}`)
     }
   }
@@ -386,9 +402,10 @@ export async function reconcileGreenCleanDatabaseSet(
 ): Promise<GreenCleanDatabaseLifecycleResult> {
   const specifications = greenCleanDatabaseSpecifications(databaseSet)
   const admin = await port.verifyAdmin()
+  const localAdmin = !admin.managed && admin.database === "postgres" && admin.role === "qt_d2_owner"
+  const managedAdmin = admin.managed && admin.database === "neondb" && admin.role === "neondb_owner"
   if (
-    admin.database !== "postgres"
-    || admin.role !== "qt_d2_owner"
+    (!localAdmin && !managedAdmin)
     || !admin.postgresMajor16
     || !admin.readWrite
     || !admin.canCreateDatabase

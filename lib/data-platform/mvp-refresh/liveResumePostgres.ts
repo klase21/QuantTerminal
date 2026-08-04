@@ -271,6 +271,10 @@ export class PostgresLiveResumeCoordinatorControlPlane {
     return this.store.assertFence(this.leaseKey(runId), OWNER_ID, fencingToken)
   }
 
+  renew(runId: string, fencingToken: number): Promise<void> {
+    return this.store.renewLease(this.leaseKey(runId), OWNER_ID, fencingToken, this.leaseSeconds)
+  }
+
   release(runId: string, fencingToken: number): Promise<void> {
     return this.store.releaseLease(this.leaseKey(runId), OWNER_ID, fencingToken)
   }
@@ -298,6 +302,27 @@ export class PostgresLiveResumeCoordinatorControlPlane {
     return this.appendEvent(checkpoint, `STAGE_FAILURE_${checkpoint.stage}`)
   }
 
+  async reconcileTerminalState(runId: string): Promise<"RECONCILED" | "DUPLICATE"> {
+    return this.client.transaction(async (sql) => {
+      const events = await sql.unsafe<Array<{ payload: LiveResumeStageCheckpoint | string }>>("SELECT payload FROM refresh_control.refresh_event WHERE run_id=$1 AND entity_kind='live_resume_coordinator' AND entity_id=$1 AND event_kind='STAGE_COMPLETE' FOR SHARE", [runId])
+      if (events.length !== 1) throw new Error("LIVE_RESUME_COMPLETE_CHECKPOINT_REQUIRED")
+      const checkpoint = checkpointFromJson(events[0]!.payload)
+      if (checkpoint.coordinatorRunId !== runId || checkpoint.stage !== "COMPLETE" || checkpoint.state !== "COMPLETE") throw new Error("LIVE_RESUME_COMPLETE_CHECKPOINT_INVALID")
+
+      const units = await sql.unsafe<Array<{ state: string }>>("SELECT state FROM refresh_control.refresh_unit WHERE run_id=$1 ORDER BY unit_id FOR UPDATE", [runId])
+      if (units.length !== 24 || units.some((unit) => !RECOVERABLE_UNIT_STATES.has(unit.state) && unit.state !== "COMPLETE")) throw new Error("LIVE_RESUME_TERMINAL_UNIT_SET_INVALID")
+      const runs = await sql.unsafe<Array<{ state: string }>>("SELECT state FROM refresh_control.refresh_run WHERE run_id=$1 FOR UPDATE", [runId])
+      if (runs.length !== 1 || (!RECOVERABLE_RUN_STATES.has(runs[0]!.state) && runs[0]!.state !== "READY_FOR_RELEASE_REVIEW")) throw new Error("LIVE_RESUME_TERMINAL_RUN_STATE_INVALID")
+
+      const alreadyComplete = units.every((unit) => unit.state === "COMPLETE") && runs[0]!.state === "READY_FOR_RELEASE_REVIEW"
+      await sql.unsafe("UPDATE refresh_control.refresh_unit SET state='COMPLETE',updated_at=now() WHERE run_id=$1 AND state<>'COMPLETE'", [runId])
+      await sql.unsafe("UPDATE refresh_control.refresh_run SET state='READY_FOR_RELEASE_REVIEW',updated_at=now() WHERE run_id=$1 AND state<>'READY_FOR_RELEASE_REVIEW'", [runId])
+      const verified = await sql.unsafe<Array<{ runs: number; units: number }>>("SELECT (SELECT count(*)::int FROM refresh_control.refresh_run WHERE run_id=$1 AND state='READY_FOR_RELEASE_REVIEW') runs,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$1 AND state='COMPLETE') units", [runId])
+      if (verified[0]?.runs !== 1 || verified[0]?.units !== 24) throw new Error("LIVE_RESUME_TERMINAL_STATE_RECONCILIATION_FAILED")
+      return alreadyComplete ? "DUPLICATE" as const : "RECONCILED" as const
+    })
+  }
+
   private async appendEvent(checkpoint: LiveResumeStageCheckpoint, eventKind: string): Promise<"CREATED" | "DUPLICATE"> {
     const verified = checkpointFromJson(checkpoint)
     await this.assert(verified.coordinatorRunId, verified.fencingToken)
@@ -307,6 +332,7 @@ export class PostgresLiveResumeCoordinatorControlPlane {
     const rows = await this.client.sql.unsafe<Array<{ payload: LiveResumeStageCheckpoint | string }>>("SELECT payload FROM refresh_control.refresh_event WHERE event_id=$1", [eventId])
     const persisted = rows[0] ? checkpointFromJson(rows[0].payload) : null
     if (!persisted || persisted.checksum !== verified.checksum) throw new Error("LIVE_RESUME_CHECKPOINT_IMMUTABLE_CONFLICT")
+    if (verified.stage === "COMPLETE") await this.reconcileTerminalState(verified.coordinatorRunId)
     return result.count === 1 ? "CREATED" : "DUPLICATE"
   }
 

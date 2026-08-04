@@ -178,8 +178,9 @@ export function createBoundedLiveSlotExecutor(adapter: BoundedLiveSlotAdapter): 
     const preValidationBasis = { status, logicalSlotId: input.logicalSlotId, executionGenerationId: input.executionGenerationId, dataset: input.dataset, instrument: input.instrument, intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, unitId: input.unitId, sourceContractId: input.sourceContractId, sourceContractVersion: input.sourceContractVersion, providerBinding: input.providerBinding, retrievalIdentity: source.retrievalIdentity, rawArtifactIdentity: artifact.artifactIdentity, rawArtifactChecksum: artifact.artifactChecksum, candidateIdentity: candidate.candidateIdentity, candidateChecksum: candidate.candidateChecksum, canonicalOutputIdentities: Object.freeze([...commit.outputs]), createdCount: commit.createdCount, duplicateCount: commit.duplicateCount, conflictCount: 0, limitations: Object.freeze([]), retainedBytes: artifact.retainedBytes, durationMs: Math.max(0, Date.now() - startedAt), resumeToken: Object.freeze({ stage: "VALIDATED", logicalSlotId: input.logicalSlotId, outputChecksum: canonicalChecksum(commit.outputs) }), failureClassification: "READY" as const }
     const preValidationResult = Object.freeze({ ...preValidationBasis, outputChecksum: canonicalChecksum(preValidationBasis) })
     await verifyLiveExecutorResultBeforeFinalize(input, preValidationResult, (classification) => adapter.recordIdentityMismatch?.(input, classification) ?? Promise.resolve())
-    const limitations = await adapter.validate(input, source, artifact, candidate, commit)
-    const basis = { ...preValidationBasis, limitations: Object.freeze([...limitations]) }
+    const validationLimitations = await adapter.validate(input, source, artifact, candidate, commit)
+    const limitations = Object.freeze([...new Set([...source.limitations, ...validationLimitations])])
+    const basis = { ...preValidationBasis, limitations }
     return Object.freeze({ ...basis, outputChecksum: canonicalChecksum(basis) })
   }
 }

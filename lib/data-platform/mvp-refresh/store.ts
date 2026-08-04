@@ -196,6 +196,14 @@ export class MvpRefreshStore {
     if (!rows[0]?.valid) throw new Error("REFRESH_LEASE_FENCE_LOST")
   }
 
+  async renewLease(leaseKey: string, ownerId: string, fencingToken: number, leaseSeconds: number): Promise<void> {
+    const result = await this.client.sql.unsafe(
+      "UPDATE refresh_control.refresh_lease SET expires_at=now()+($4::text||' seconds')::interval WHERE lease_key=$1 AND owner_id=$2 AND fencing_token=$3 AND released_at IS NULL AND expires_at>now()",
+      [leaseKey, ownerId, fencingToken, leaseSeconds],
+    )
+    if (result.count !== 1) throw new Error("REFRESH_LEASE_FENCE_LOST")
+  }
+
   async releaseLease(leaseKey: string, ownerId: string, fencingToken: number): Promise<void> {
     const result = await this.client.sql.unsafe("UPDATE refresh_control.refresh_lease SET released_at=now() WHERE lease_key=$1 AND owner_id=$2 AND fencing_token=$3 AND released_at IS NULL AND expires_at>now()", [leaseKey, ownerId, fencingToken])
     if (result.count !== 1) throw new Error("REFRESH_LEASE_FENCE_LOST")

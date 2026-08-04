@@ -76,6 +76,7 @@ export interface LiveResumeTargetClassification {
   readonly objectStorageLocal: boolean
   readonly servingPublisher: boolean
   readonly managedOrProductionTarget: boolean
+  readonly inactiveManagedGreen?: boolean
 }
 
 export interface LiveResumeUnitResolution {
@@ -163,6 +164,7 @@ export interface LiveResumeCoordinatorPorts {
   readonly lease: {
     acquire(runId: string): Promise<{ readonly fencingToken: number }>
     assert(runId: string, fencingToken: number): Promise<void>
+    renew(runId: string, fencingToken: number): Promise<void>
     release(runId: string, fencingToken: number): Promise<void>
   }
   readonly checkpoints: {
@@ -487,21 +489,39 @@ export function readLiveResumeCandidateBaseline(output: LiveResumeStageOutput): 
 }
 
 export class MvpLiveResumeCoordinator {
-  constructor(private readonly ports: LiveResumeCoordinatorPorts) {}
+  constructor(private readonly ports: LiveResumeCoordinatorPorts, private readonly leaseHeartbeatMs = 60_000) {
+    if (!Number.isInteger(leaseHeartbeatMs) || leaseHeartbeatMs < 1) throw new Error("LIVE_RESUME_LEASE_HEARTBEAT_INTERVAL_INVALID")
+  }
 
   async execute(input: LiveResumeCoordinatorInput): Promise<LiveResumeCoordinatorResult> {
     verifyCertifiedLiveResumePlan(input.plan)
     verifyAllowed(input)
     const target = await this.ports.targets.classify()
-    if (!target.refreshLocal || !target.truthPlaneLocal || !target.servingLocal || !target.objectStorageLocal || !target.servingPublisher || target.managedOrProductionTarget) throw new Error("LIVE_RESUME_TARGET_BOUNDARY_REJECTED")
+    const localTarget = target.refreshLocal && target.truthPlaneLocal && target.servingLocal && !target.managedOrProductionTarget
+    const managedGreenTarget = !target.refreshLocal && !target.truthPlaneLocal && !target.servingLocal && target.managedOrProductionTarget && target.inactiveManagedGreen === true
+    if ((!localTarget && !managedGreenTarget) || !target.objectStorageLocal || !target.servingPublisher) throw new Error("LIVE_RESUME_TARGET_BOUNDARY_REJECTED")
     const execution = await this.ports.execution.resolveOrCreate({ plan: input.plan, mode: input.mode, intent: input.mode === "DRY_RUN" ? "DRY_RUN" : input.intent ?? "RUN" })
     const coordinatorRunId = execution.persistedRunId
     const lease = await this.ports.lease.acquire(coordinatorRunId)
     const checkpoints: LiveResumeStageCheckpoint[] = []
     const concurrency = input.maxConcurrency ?? LIVE_RESUME_MAX_CONCURRENCY
+    let heartbeatFailure: unknown = null
+    let heartbeatInFlight = Promise.resolve()
+    const heartbeat = () => {
+      heartbeatInFlight = heartbeatInFlight
+        .then(() => this.ports.lease.renew(coordinatorRunId, lease.fencingToken))
+        .catch((error: unknown) => { heartbeatFailure ??= error })
+    }
+    const heartbeatTimer = setInterval(heartbeat, this.leaseHeartbeatMs)
+    heartbeatTimer.unref()
+    const assertLeaseHealthy = async (): Promise<void> => {
+      await heartbeatInFlight
+      if (heartbeatFailure) throw heartbeatFailure
+      await this.ports.lease.assert(coordinatorRunId, lease.fencingToken)
+    }
 
     const stage = async (stageName: LiveResumeStage, inputBasis: unknown, execute: () => Promise<LiveResumeStageOutput>, options?: LiveResumeStageOptions): Promise<LiveResumeStageOutput> => {
-      await this.ports.lease.assert(coordinatorRunId, lease.fencingToken)
+      await assertLeaseHealthy()
       const previous = checkpoints.at(-1) ?? null
       const inputChecksum = canonicalChecksum({ stage: stageName, input: inputBasis })
       const stored = await this.ports.checkpoints.read(coordinatorRunId, stageName)
@@ -523,6 +543,7 @@ export class MvpLiveResumeCoordinator {
         await this.ports.checkpoints.appendFailure(Object.freeze({ ...failedBasis, checksum: checkpointChecksum(failedBasis) }))
         throw error
       }
+      await assertLeaseHealthy()
       const basis: Omit<LiveResumeStageCheckpoint, "checksum"> = Object.freeze({ coordinatorRunId, stage: stageName, intervalStart: input.plan.intervalStart, intervalEnd: input.plan.intervalEnd, plannerIdentity: input.plan.planIdentity, plannerChecksum: input.plan.planChecksum, inputChecksum, output, previousStage: previous?.stage ?? null, previousStageChecksum: previous?.checksum ?? null, fencingToken: lease.fencingToken, state: "COMPLETE", failureClassification: null, resumeEligible: true })
       const checkpoint = Object.freeze({ ...basis, checksum: checkpointChecksum(basis) })
       await this.ports.checkpoints.append(checkpoint)
@@ -615,6 +636,8 @@ export class MvpLiveResumeCoordinator {
       await stage("COMPLETE", { prior: checkpoints.map((value) => value.checksum) }, async () => makeOutput({ candidateExposed: false }, [coordinatorRunId]))
       return Object.freeze({ status: "COMPLETE", coordinatorRunId, planIdentity: input.plan.planIdentity, planChecksum: input.plan.planChecksum, logicalOutcomes: 24, unitIntents: resolutions.filter((value) => value.action === "CREATED_UNIT").length, resolutions: Object.freeze(resolutions), slotResults: Object.freeze(slotResults), checkpoints: Object.freeze(checkpoints), commonWatermark: input.plan.intervalEnd, candidateBaseline, candidateExposed: false })
     } finally {
+      clearInterval(heartbeatTimer)
+      await heartbeatInFlight
       await this.ports.lease.release(coordinatorRunId, lease.fencingToken)
     }
   }

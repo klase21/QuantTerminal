@@ -102,8 +102,11 @@ export function compareServingCorpusMembership(input: { readonly activeMembers: 
 }
 
 export class LocalInactiveCandidateAssemblyService {
-  constructor(private readonly client: MvpServingPostgresClient) {
-    if (client.roleIntent !== "PUBLISHER" || client.targetKind !== "LOCAL_ISOLATED") throw new Error("LOCAL_SERVING_PUBLISHER_REQUIRED")
+  constructor(private readonly client: MvpServingPostgresClient, options: { readonly inactiveManagedGreen?: boolean } = {}) {
+    if (
+      client.roleIntent !== "PUBLISHER"
+      || (client.targetKind !== "LOCAL_ISOLATED" && !(client.targetKind === "MANAGED_POSTGRES" && options.inactiveManagedGreen === true))
+    ) throw new Error("LOCAL_SERVING_PUBLISHER_REQUIRED")
   }
 
   async activeBaseline(): Promise<{ readonly corpusId: string; readonly servingChecksum: string; readonly governedThrough: string; readonly members: readonly ServingCorpusMember[] }> {

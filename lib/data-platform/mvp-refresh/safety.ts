@@ -39,12 +39,13 @@ export function inspectMvpRefreshTarget(connectionString: string | undefined, en
     const database = decodeURIComponent(url.pathname.replace(/^\//, "")).toLowerCase()
     const reasons: string[] = []
     const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
+    const managedCleanRebuild = environment.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
     const blueGreen = environment.MVP_BLUE_GREEN_RELEASE_MODE === "IMMUTABLE_CANDIDATE_DATABASE" && /^quantterminal_mvp8z5_refresh_[a-z0-9]+$/.test(expectedDatabase) && environment.MVP_BLUE_GREEN_TARGET_ID?.endsWith(`/${expectedDatabase}`)
     if (expectedDatabase !== "quantterminal_mvp_refresh_isolated" && !/^quantterminal_mvp8[c-e]_(?:canary_)?refresh_/.test(expectedDatabase) && !blueGreen && expectedDatabase !== cleanRebuild?.refreshDatabase) reasons.push("REFRESH_EXPECTED_DATABASE_NAME_UNSAFE")
     if (database !== expectedDatabase) reasons.push("REFRESH_ISOLATED_DATABASE_NAME_MISMATCH")
-    if (!["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase()) && !blueGreen) reasons.push("REFRESH_LOCAL_HOST_REQUIRED")
-    if (cleanRebuild && (database !== cleanRebuild.refreshDatabase || decodeURIComponent(url.username) !== cleanRebuild.refreshRole || !["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase()))) reasons.push("MVP_GREEN_CLEAN_REBUILD_REFRESH_TARGET_MISMATCH")
+    if (!["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase()) && !blueGreen && !managedCleanRebuild) reasons.push("REFRESH_LOCAL_HOST_REQUIRED")
+    if (cleanRebuild && (database !== cleanRebuild.refreshDatabase || decodeURIComponent(url.username) !== cleanRebuild.refreshRole || (managedCleanRebuild ? (["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase()) || url.hostname.toLowerCase() !== environment.MVP_GREEN_MANAGED_HOST?.toLowerCase()) : !["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())))) reasons.push("MVP_GREEN_CLEAN_REBUILD_REFRESH_TARGET_MISMATCH")
     for (const key of FORBIDDEN_ALIASES) if (environment[key] && environment[key] === connectionString) reasons.push(`MATCHES_${key}`)
     return Object.freeze({ safe: reasons.length === 0, database, reasons: Object.freeze(reasons) })
   } catch {

@@ -69,10 +69,16 @@ export function inspectMvpServingManagedTarget(connectionString: string | undefi
     if (!["postgres:", "postgresql:"].includes(url.protocol)) reasons.push("UNSUPPORTED_PROTOCOL")
     if (!database) reasons.push("SERVING_DATABASE_REQUIRED")
     if (expectedDatabase && database !== expectedDatabase) reasons.push("SERVING_MANAGED_DATABASE_MISMATCH")
+    const cleanRebuild = requireGreenCleanRebuildDatabaseSet(environment)
+    const managedCleanRebuild = environment.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
     if (["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())) reasons.push("MANAGED_POSTGRES_REMOTE_HOST_REQUIRED")
+    if (cleanRebuild && managedCleanRebuild && url.hostname.toLowerCase() !== environment.MVP_GREEN_MANAGED_HOST?.toLowerCase()) reasons.push("MVP_GREEN_MANAGED_HOST_REQUIRED")
     if (role !== expectedRole) reasons.push("SERVING_MANAGED_ROLE_INVALID")
     if (!url.password) reasons.push("SERVING_MANAGED_PASSWORD_REQUIRED")
-    for (const key of ["D2_CANONICAL_POSTGRES_URL", "D2_ISOLATED_POSTGRES_URL", "D3_POPULATION_POSTGRES_URL", "D3_ISOLATED_POSTGRES_URL", "D4_ISOLATED_POSTGRES_URL", "DATABASE_URL", "MVP_SERVING_ISOLATED_POSTGRES_URL", "MVP_SERVING_PUBLISHER_POSTGRES_URL"]) if (environment[key] && environment[key] === connectionString) reasons.push(`MATCHES_${key}`)
+    const aliases = managedCleanRebuild
+      ? ["DATABASE_URL", "MVP_SERVING_POSTGRES_URL", "MVP_SERVING_PUBLISHER_POSTGRES_URL", "MVP_SERVING_PRODUCTION_CANDIDATE_DB_URL", "MVP_GREEN_PARENT_POSTGRES_URL", "MVP_GREEN_MANAGED_PRODUCTION_POSTGRES_URL", "MVP_GREEN_MANAGED_ACTIVE_APPLICATION_POSTGRES_URL"]
+      : ["D2_CANONICAL_POSTGRES_URL", "D2_ISOLATED_POSTGRES_URL", "D3_POPULATION_POSTGRES_URL", "D3_ISOLATED_POSTGRES_URL", "D4_ISOLATED_POSTGRES_URL", "DATABASE_URL", "MVP_SERVING_ISOLATED_POSTGRES_URL", "MVP_SERVING_PUBLISHER_POSTGRES_URL"]
+    for (const key of aliases) if (environment[key] && environment[key] === connectionString) reasons.push(`MATCHES_${key}`)
     return Object.freeze({ safe: reasons.length === 0, redactedTarget: "MANAGED_POSTGRES_REDACTED", database, role, reasons: Object.freeze(reasons) })
   } catch { return Object.freeze({ safe: false, redactedTarget: "INVALID", database: null, role: null, reasons: Object.freeze(["INVALID_CONNECTION_STRING"]) }) }
 }

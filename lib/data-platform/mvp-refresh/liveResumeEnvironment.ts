@@ -2,7 +2,7 @@ import postgres from "postgres"
 
 import { inspectFilesystemObjectRoot } from "@/lib/data-platform/population/backfill/filesystemObjectStorage"
 import { inspectIntegratedBackfillTarget } from "@/lib/data-platform/population/backfill/integratedTargetSafety"
-import { inspectMvpServingIsolatedTarget } from "@/lib/data-platform/mvp-serving/safety"
+import { inspectMvpServingIsolatedTarget, inspectMvpServingManagedTarget } from "@/lib/data-platform/mvp-serving/safety"
 import { requireGreenCleanRebuildDatabaseSet } from "./greenCleanRebuildSafety"
 import type { LiveResumeCoordinatorPorts } from "./liveResumeCoordinator"
 
@@ -24,6 +24,7 @@ export interface LiveResumeBindingCapability {
   readonly bindingName: string
   readonly configured: boolean
   readonly localOnly: boolean
+  readonly managedTarget?: boolean
   readonly expectedDatabase: boolean
   readonly expectedRole: boolean
   readonly callable: boolean
@@ -143,13 +144,21 @@ function isLocal(value: string | undefined): boolean {
   try { return ["localhost", "127.0.0.1", "::1"].includes(new URL(value).hostname.toLowerCase()) } catch { return false }
 }
 
+function isExpectedManagedTarget(value: string | undefined, environment: NodeJS.ProcessEnv): boolean {
+  if (environment.MVP_GREEN_CLEAN_REBUILD_MODE !== "INACTIVE_MANAGED_POSTGRES_SET" || !value) return false
+  try {
+    const url = new URL(value)
+    return !isLocal(value) && Boolean(environment.MVP_GREEN_MANAGED_HOST) && url.hostname.toLowerCase() === environment.MVP_GREEN_MANAGED_HOST!.toLowerCase()
+  } catch { return false }
+}
+
 function errorCode(error: unknown): string | null {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : null
 }
 
-function diagnostic(input: { configured: boolean; localOnly: boolean; connected: boolean; database: boolean; role: boolean; code: string | null }): LiveResumeDiagnostic {
+function diagnostic(input: { configured: boolean; targetAllowed: boolean; connected: boolean; database: boolean; role: boolean; code: string | null }): LiveResumeDiagnostic {
   if (!input.configured) return "VARIABLE_MISSING"
-  if (!input.localOnly) return "NON_LOCAL_TARGET"
+  if (!input.targetAllowed) return "NON_LOCAL_TARGET"
   if (!input.connected) return input.code === "28P01" ? "AUTHENTICATION_FAILED" : "CONNECTION_FAILED"
   if (!input.database) return "WRONG_DATABASE"
   if (!input.role) return "WRONG_ROLE"
@@ -158,9 +167,9 @@ function diagnostic(input: { configured: boolean; localOnly: boolean; connected:
 
 async function databaseCapability(environment: NodeJS.ProcessEnv, requirement: DatabaseRequirement): Promise<LiveResumeBindingCapability> {
   const [variable, expectedDatabase, expectedRole, bindingName, mode] = requirement
-  const value = environment[variable], configured = Boolean(value), localOnly = isLocal(value)
+  const value = environment[variable], configured = Boolean(value), localOnly = isLocal(value), managedTarget = isExpectedManagedTarget(value, environment)
   let connected = false, database = false, role = false, code: string | null = null
-  if (configured && localOnly) {
+  if (configured && (localOnly || managedTarget)) {
     const sql = postgres(value!, { max: 1, prepare: false, connect_timeout: 10 })
     try {
       const rows = await sql.unsafe<Array<{ database_ok: boolean; role_ok: boolean; version_ok: boolean }>>(
@@ -170,8 +179,8 @@ async function databaseCapability(environment: NodeJS.ProcessEnv, requirement: D
       connected = Boolean(rows[0]?.version_ok); database = Boolean(rows[0]?.database_ok); role = expectedRole === null ? connected : Boolean(rows[0]?.role_ok)
     } catch (error) { code = errorCode(error) } finally { await sql.end({ timeout: 2 }) }
   }
-  const state = diagnostic({ configured, localOnly, connected, database, role, code })
-  return Object.freeze({ bindingName, configured, localOnly, expectedDatabase: database, expectedRole: role, callable: state === "READY", mode: mode as LiveResumeBindingMode, supportedDatasets: Object.freeze([]), supportedInstruments: Object.freeze([]), exactIntervalLimitHours: null, legacyWorkerDependency: false, activationCapable: false, diagnostic: state, limitationReason: state === "READY" ? null : `${variable}_${state}`, sanitizedErrorCode: code })
+  const state = diagnostic({ configured, targetAllowed: localOnly || managedTarget, connected, database, role, code })
+  return Object.freeze({ bindingName, configured, localOnly, managedTarget, expectedDatabase: database, expectedRole: role, callable: state === "READY", mode: mode as LiveResumeBindingMode, supportedDatasets: Object.freeze([]), supportedInstruments: Object.freeze([]), exactIntervalLimitHours: null, legacyWorkerDependency: false, activationCapable: false, diagnostic: state, limitationReason: state === "READY" ? null : `${variable}_${state}`, sanitizedErrorCode: code })
 }
 
 function derivedCapability(bindingName: string, source: LiveResumeBindingCapability, mode: LiveResumeBindingMode, datasets: readonly string[] = [], supported: readonly string[] = []): LiveResumeBindingCapability {
@@ -204,18 +213,18 @@ export async function preflightLocalLiveResumeEnvironment(environment: NodeJS.Pr
   const objectStorage: LiveResumeBindingCapability = Object.freeze({ bindingName: "bounded-object-storage", configured: objectConfigured, localOnly: objectInspection.safe, expectedDatabase: true, expectedRole: true, callable: objectState === "READY", mode: "READ_WRITE", supportedDatasets: Object.freeze(["ohlcv", "open-interest", "funding", "agg-trade"]), supportedInstruments: instruments, exactIntervalLimitHours: 24, legacyWorkerDependency: false, activationCapable: false, diagnostic: objectState, limitationReason: objectState === "READY" ? null : `D3_BACKFILL_OBJECT_ROOT_${objectState}`, sanitizedErrorCode: null })
   const servingRequirement = requirements.find((value) => value[3] === "inactive-candidate-serving")
   if (!servingRequirement || !servingRequirement[2]) throw new Error("LIVE_RESUME_SERVING_REQUIREMENT_MISSING")
-  const servingInspection = inspectMvpServingIsolatedTarget(environment.MVP_SERVING_ISOLATED_POSTGRES_URL, environment, {
-    database: servingRequirement[1],
-    role: servingRequirement[2],
-  })
-  const safeServing = servingInspection.safe && serving.localOnly
+  const managed = environment.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
+  const servingInspection = managed
+    ? inspectMvpServingManagedTarget(environment.MVP_SERVING_ISOLATED_POSTGRES_URL, servingRequirement[2], environment, servingRequirement[1])
+    : inspectMvpServingIsolatedTarget(environment.MVP_SERVING_ISOLATED_POSTGRES_URL, environment, { database: servingRequirement[1], role: servingRequirement[2] })
+  const safeServing = servingInspection.safe && (serving.localOnly || serving.managedTarget === true)
   const capabilities: LiveResumeBindingCapability[] = [...databases, objectStorage]
   capabilities.push(...datasetBindings.map(([name, datasets, supported]) => combineCapabilities(name, [d2, d3, objectStorage], "READ_WRITE", datasets, supported)))
   capabilities.push(...downstreamBindings.map((name) => derivedCapability(name, name.includes("refresh") || name.includes("watermark") || name.includes("reconciliation") || name.includes("authoritative") || name.includes("source-contract") ? refresh : d4, name.includes("reader") ? "READ_ONLY" : "APPEND_ONLY")))
   capabilities.push(derivedCapability("local-candidate-assembler", safeServing ? serving : { ...serving, callable: false, diagnostic: serving.diagnostic === "READY" ? "NON_LOCAL_TARGET" : serving.diagnostic, limitationReason: "SERVING_TARGET_REJECTED" }, "APPEND_ONLY"))
   capabilities.push(derivedCapability("candidate-activation", { ...serving, callable: false, diagnostic: "READY", limitationReason: "ACTIVATION_INTENTIONALLY_UNAVAILABLE" }, "READ_ONLY"))
   const mandatory = capabilities.filter((value) => value.bindingName !== "candidate-activation")
-  return Object.freeze({ version: LIVE_RESUME_ENVIRONMENT_VERSION, passed: mandatory.every((value) => value.configured && value.localOnly && value.expectedDatabase && value.expectedRole && value.callable), capabilities: Object.freeze(capabilities), productionOrNeonWriteTarget: false })
+  return Object.freeze({ version: LIVE_RESUME_ENVIRONMENT_VERSION, passed: mandatory.every((value) => value.configured && (value.localOnly || value.managedTarget === true) && value.expectedDatabase && value.expectedRole && value.callable), capabilities: Object.freeze(capabilities), productionOrNeonWriteTarget: false })
 }
 
 export interface LiveResumeLocalBindingSet {
@@ -226,7 +235,7 @@ export interface LiveResumeLocalBindingSet {
 
 export function composeLocalLiveResumeEnvironment(input: LiveResumeLocalBindingSet): LiveResumeCoordinatorPorts {
   const mandatory = input.capabilities.filter((value) => value.bindingName !== "candidate-activation")
-  if (!mandatory.length || mandatory.some((value) => !value.configured || !value.localOnly || !value.expectedDatabase || !value.expectedRole || !value.callable || value.legacyWorkerDependency || value.activationCapable)) throw new Error("LIVE_RESUME_ENVIRONMENT_BINDING_INCOMPLETE")
+  if (!mandatory.length || mandatory.some((value) => !value.configured || (!value.localOnly && value.managedTarget !== true) || !value.expectedDatabase || !value.expectedRole || !value.callable || value.legacyWorkerDependency || value.activationCapable)) throw new Error("LIVE_RESUME_ENVIRONMENT_BINDING_INCOMPLETE")
   if (input.capabilities.some((value) => value.bindingName === "candidate-activation" && value.callable)) throw new Error("LIVE_RESUME_ACTIVATION_BINDING_FORBIDDEN")
   return Object.freeze(input.ports)
 }

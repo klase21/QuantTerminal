@@ -55,14 +55,19 @@ export class GreenCleanServingMigrationOwnerClient implements MvpServingMigratio
     connectionString: string,
     private readonly expectedDatabase: string,
     private readonly expectedSessionUser: string,
+    expectedManagedHost?: string,
   ) {
     let url: URL
     try { url = new URL(connectionString) } catch { throw new Error("MVP_GREEN_CLEAN_SERVING_MIGRATION_URL_INVALID") }
     const database = decodeURIComponent(url.pathname.replace(/^\//, ""))
     const role = decodeURIComponent(url.username)
+    const host = url.hostname.toLowerCase()
+    const hostSafe = expectedManagedHost
+      ? !LOOPBACK.has(host) && host === expectedManagedHost.toLowerCase()
+      : LOOPBACK.has(host)
     if (
       !["postgres:", "postgresql:"].includes(url.protocol)
-      || !LOOPBACK.has(url.hostname.toLowerCase())
+      || !hostSafe
       || !url.password
       || database !== expectedDatabase
       || role !== expectedSessionUser

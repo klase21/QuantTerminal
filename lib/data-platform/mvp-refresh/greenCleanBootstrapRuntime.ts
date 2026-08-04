@@ -122,6 +122,26 @@ function retarget(sourceValue: string, database: string, expectedRole: string): 
   return source.toString()
 }
 
+function managedBinding(sourceValue: string, database: string, expectedRole: string, expectedHost: string): string {
+  let source: URL
+  try { source = new URL(sourceValue) } catch { throw new Error("GREEN_CLEAN_MANAGED_URL_INVALID") }
+  let observedDatabase = "", observedRole = ""
+  try {
+    observedDatabase = decodeURIComponent(source.pathname.replace(/^\/+/, ""))
+    observedRole = decodeURIComponent(source.username)
+  } catch { throw new Error("GREEN_CLEAN_MANAGED_IDENTITY_ENCODING_INVALID") }
+  if (
+    !["postgres:", "postgresql:"].includes(source.protocol)
+    || LOOPBACK.has(source.hostname.toLowerCase())
+    || !expectedHost
+    || source.hostname.toLowerCase() !== expectedHost.toLowerCase()
+    || !source.password
+    || observedDatabase !== database
+    || observedRole !== expectedRole
+  ) throw new Error("GREEN_CLEAN_MANAGED_SOURCE_BINDING_UNSAFE")
+  return sourceValue
+}
+
 function targetUrl(sourceValue: string, database: string): string {
   const source = new URL(sourceValue)
   source.pathname = `/${database}`
@@ -150,9 +170,10 @@ async function applyCanonicalD2RoleBlueprint(sql: postgres.Sql): Promise<void> {
   })
 }
 
-function redacted(value: string, binding: string): string {
+function redacted(value: string, binding: string, managed = false): string {
   const url = new URL(value)
-  return `${binding}=${url.hostname}:${url.port || "5432"}/${decodeURIComponent(url.pathname.replace(/^\//, ""))}`
+  const target = managed ? "MANAGED_REDACTED" : `${url.hostname}:${url.port || "5432"}`
+  return `${binding}=${target}/${decodeURIComponent(url.pathname.replace(/^\//, ""))}`
 }
 
 export function createGreenCleanRuntimeEnvironment(
@@ -160,23 +181,27 @@ export function createGreenCleanRuntimeEnvironment(
 ): { readonly environment: NodeJS.ProcessEnv; readonly databaseSet: GreenCleanRebuildDatabaseSet; readonly redactedTargets: readonly string[] } {
   const databaseSet = requireGreenCleanRebuildDatabaseSet(source)
   if (!databaseSet) throw new Error("MVP_GREEN_CLEAN_REBUILD_MODE_REQUIRED")
+  const managed = source.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
+  const bind = managed
+    ? (value: string, database: string, role: string) => managedBinding(value, database, role, required(source, "MVP_GREEN_MANAGED_HOST"))
+    : retarget
   const environment: NodeJS.ProcessEnv = {
     ...source,
-    D2_CANONICAL_POSTGRES_URL: retarget(required(source, "D2_CANONICAL_POSTGRES_URL"), databaseSet.backfillDatabase, databaseSet.d2Role),
-    D3_POPULATION_POSTGRES_URL: retarget(required(source, "D3_POPULATION_POSTGRES_URL"), databaseSet.backfillDatabase, databaseSet.d3Role),
-    D4_ISOLATED_POSTGRES_URL: retarget(required(source, "D4_ISOLATED_POSTGRES_URL"), databaseSet.d4Database, databaseSet.d4OwnerRole),
+    D2_CANONICAL_POSTGRES_URL: bind(required(source, "D2_CANONICAL_POSTGRES_URL"), databaseSet.backfillDatabase, databaseSet.d2Role),
+    D3_POPULATION_POSTGRES_URL: bind(required(source, "D3_POPULATION_POSTGRES_URL"), databaseSet.backfillDatabase, databaseSet.d3Role),
+    D4_ISOLATED_POSTGRES_URL: bind(required(source, "D4_ISOLATED_POSTGRES_URL"), databaseSet.d4Database, databaseSet.d4OwnerRole),
     D4_EXPECTED_DATABASE_NAME: databaseSet.d4Database,
-    MVP_REFRESH_ISOLATED_POSTGRES_URL: retarget(required(source, "MVP_REFRESH_ISOLATED_POSTGRES_URL"), databaseSet.refreshDatabase, databaseSet.refreshRole),
-    MVP_SERVING_ISOLATED_POSTGRES_URL: retarget(required(source, "MVP_SERVING_ISOLATED_POSTGRES_URL"), databaseSet.servingDatabase, databaseSet.servingPublisherRole),
+    MVP_REFRESH_ISOLATED_POSTGRES_URL: bind(required(source, "MVP_REFRESH_ISOLATED_POSTGRES_URL"), databaseSet.refreshDatabase, databaseSet.refreshRole),
+    MVP_SERVING_ISOLATED_POSTGRES_URL: bind(required(source, "MVP_SERVING_ISOLATED_POSTGRES_URL"), databaseSet.servingDatabase, databaseSet.servingPublisherRole),
   }
   return Object.freeze({
     environment,
     databaseSet,
     redactedTargets: Object.freeze([
-      redacted(environment.D2_CANONICAL_POSTGRES_URL!, "D2_D3_INTEGRATED"),
-      redacted(environment.D4_ISOLATED_POSTGRES_URL!, "D4_ISOLATED"),
-      redacted(environment.MVP_REFRESH_ISOLATED_POSTGRES_URL!, "MVP_REFRESH_ISOLATED"),
-      redacted(environment.MVP_SERVING_ISOLATED_POSTGRES_URL!, "MVP_SERVING_ISOLATED"),
+      redacted(environment.D2_CANONICAL_POSTGRES_URL!, "D2_D3_INTEGRATED", managed),
+      redacted(environment.D4_ISOLATED_POSTGRES_URL!, "D4_ISOLATED", managed),
+      redacted(environment.MVP_REFRESH_ISOLATED_POSTGRES_URL!, "MVP_REFRESH_ISOLATED", managed),
+      redacted(environment.MVP_SERVING_ISOLATED_POSTGRES_URL!, "MVP_SERVING_ISOLATED", managed),
     ]),
   })
 }
@@ -194,6 +219,7 @@ function d4Runtime(environment: NodeJS.ProcessEnv, intent: ConstructorParameters
 }
 
 async function openClients(environment: NodeJS.ProcessEnv): Promise<OpenClients> {
+  const managed = environment.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
   const d2 = createDurableCanonicalPostgresClientFromEnvironment({
     roleIntent: "MIGRATION_OWNER",
     maxConnections: 1,
@@ -210,13 +236,14 @@ async function openClients(environment: NodeJS.ProcessEnv): Promise<OpenClients>
   }, environment)
   const d4 = d4Runtime(environment, "MIGRATION_OWNER", "mvp-green-clean-d4")
   const refresh = new MvpRefreshPostgresClient(required(environment, "MVP_REFRESH_ISOLATED_POSTGRES_URL"), environment)
-  const serving = new MvpServingPostgresClient(required(environment, "MVP_SERVING_ISOLATED_POSTGRES_URL"), "PUBLISHER", environment, "LOCAL_ISOLATED")
+  const serving = new MvpServingPostgresClient(required(environment, "MVP_SERVING_ISOLATED_POSTGRES_URL"), "PUBLISHER", environment, managed ? "MANAGED_POSTGRES" : "LOCAL_ISOLATED")
   const databaseSet = requireGreenCleanRebuildDatabaseSet(environment)
   if (!databaseSet) throw new Error("MVP_GREEN_CLEAN_REBUILD_MODE_REQUIRED")
   const servingMigration = new GreenCleanServingMigrationOwnerClient(
     targetUrl(required(environment, "D4_ISOLATED_POSTGRES_URL"), databaseSet.servingDatabase),
     databaseSet.servingDatabase,
     databaseSet.d4OwnerRole,
+    managed ? required(environment, "MVP_GREEN_MANAGED_HOST") : undefined,
   )
   try {
     await Promise.all([d4.connect(), refresh.verify(), serving.verify(), servingMigration.verify()])
@@ -444,12 +471,30 @@ export async function createGreenCleanBootstrapRuntime(
   sourceEnvironment: NodeJS.ProcessEnv = process.env,
   oneDayReceiptContext?: GreenCleanOneDayReceiptContext,
 ): Promise<RuntimeResources> {
-  const configuredD2Url = required(sourceEnvironment, "D2_CANONICAL_POSTGRES_URL")
-  const sourceD4Url = required(sourceEnvironment, "D4_ISOLATED_POSTGRES_URL")
+  const managed = sourceEnvironment.MVP_GREEN_CLEAN_REBUILD_MODE === "INACTIVE_MANAGED_POSTGRES_SET"
+  const configuredD2Url = managed
+    ? required(sourceEnvironment, "MVP_GREEN_CLEAN_RETAINED_SOURCE_POSTGRES_URL")
+    : required(sourceEnvironment, "D2_CANONICAL_POSTGRES_URL")
+  const sourceD4Url = managed
+    ? required(sourceEnvironment, "MVP_GREEN_MANAGED_ADMIN_POSTGRES_URL")
+    : required(sourceEnvironment, "D4_ISOLATED_POSTGRES_URL")
   const objectRoot = required(sourceEnvironment, "D3_BACKFILL_OBJECT_ROOT")
   const { environment, databaseSet, redactedTargets } = createGreenCleanRuntimeEnvironment(sourceEnvironment)
   const sourceD2Url = resolveGreenCleanRetainedRawSourceUrl(configuredD2Url, databaseSet)
   const lifecycle = new GreenCleanPostgresDatabaseAdminPort(sourceD4Url, "D4_ISOLATED_POSTGRES_URL", databaseSet, async ({ specification, readOnlyQuery }) => {
+    if (managed) {
+      const ledgers: Readonly<Record<string, readonly string[]>> = Object.freeze({
+        BACKFILL: Object.freeze(["control.migration_ledger", "control.population_migration_ledger"]),
+        D4: Object.freeze(["d4_control.dependency_bootstrap_ledger", "d4_control.migration_ledger"]),
+        REFRESH: Object.freeze(["refresh_control.migration_ledger"]),
+        SERVING: Object.freeze(["serving_control.migration_ledger"]),
+      })
+      const rows = await readOnlyQuery<Array<{ exact: boolean }>>(
+        "SELECT bool_and(to_regclass(ledger_name) IS NOT NULL) exact FROM unnest($1::text[]) ledger_name",
+        [[...(ledgers[specification.database] ?? [])]],
+      )
+      return rows[0]?.exact ? "RECONCILED" : "CONFLICT"
+    }
     const markers: Readonly<Record<string, string>> = Object.freeze({
       BACKFILL: "SELECT (SELECT count(*) FROM control.migration_ledger)=8 AND (SELECT count(*) FROM control.population_migration_ledger)=5 exact",
       D4: "SELECT (SELECT count(*) FROM d4_control.dependency_bootstrap_ledger)=8 AND (SELECT count(*) FROM d4_control.migration_ledger)=14 exact",
@@ -458,9 +503,9 @@ export async function createGreenCleanBootstrapRuntime(
     })
     const rows = await readOnlyQuery<Array<{ exact: boolean }>>(markers[specification.database]!)
     return rows[0]?.exact ? "RECONCILED" : "CONFLICT"
-  })
+  }, managed ? { kind: "MANAGED", expectedHost: required(sourceEnvironment, "MVP_GREEN_MANAGED_HOST"), expectedRole: "neondb_owner" } : { kind: "LOCAL" })
   const adminUrl = new URL(sourceD4Url)
-  adminUrl.pathname = "/postgres"
+  if (!managed) adminUrl.pathname = "/postgres"
   const admin = postgres(adminUrl.toString(), { max: 1, prepare: false, connection: { application_name: "mvp-green-clean-bootstrap-admin" } })
   let clients: OpenClients | null = null
   let sourceRows: readonly GreenCleanRetainedRawObject[] | null = null
@@ -473,7 +518,33 @@ export async function createGreenCleanBootstrapRuntime(
   }
 
   const targetAdmin = async (database: string, work: (sql: postgres.Sql) => Promise<void>): Promise<void> => {
-    const sql = postgres(targetUrl(adminUrl.toString(), database), { max: 1, prepare: false, connection: { application_name: "mvp-green-clean-target-admin" } })
+    const ownerUrl = managed && database === databaseSet.backfillDatabase
+      ? required(environment, "D2_CANONICAL_POSTGRES_URL")
+      : targetUrl(adminUrl.toString(), database)
+    const sql = postgres(ownerUrl, { max: 1, prepare: false, connection: { application_name: "mvp-green-clean-target-admin" } })
+    try { await work(sql) } finally { await sql.end({ timeout: 5 }) }
+  }
+
+  const targetPopulationOwner = async (work: (sql: postgres.Sql) => Promise<void>): Promise<void> => {
+    const sql = postgres(required(environment, "D3_POPULATION_POSTGRES_URL"), { max: 1, prepare: false, connection: { application_name: "mvp-green-clean-population-owner" } })
+    try { await work(sql) } finally { await sql.end({ timeout: 5 }) }
+  }
+
+  const targetDatabaseOwner = async (database: string, work: (sql: postgres.Sql | postgres.TransactionSql) => Promise<void>): Promise<void> => {
+    if (!managed) return targetAdmin(database, (sql) => work(sql))
+    if (database === databaseSet.servingDatabase) {
+      await (await ensureClients()).servingMigration.transaction(work)
+      return
+    }
+    const ownerUrl = database === databaseSet.backfillDatabase
+      ? required(environment, "D2_CANONICAL_POSTGRES_URL")
+      : database === databaseSet.d4Database
+        ? required(environment, "D4_ISOLATED_POSTGRES_URL")
+        : database === databaseSet.refreshDatabase
+          ? required(environment, "MVP_REFRESH_ISOLATED_POSTGRES_URL")
+          : ""
+    if (!ownerUrl) throw new Error("GREEN_CLEAN_DATABASE_OWNER_BINDING_MISSING")
+    const sql = postgres(ownerUrl, { max: 1, prepare: false, connection: { application_name: "mvp-green-clean-database-owner" } })
     try { await work(sql) } finally { await sql.end({ timeout: 5 }) }
   }
 
@@ -502,7 +573,7 @@ export async function createGreenCleanBootstrapRuntime(
     })) as Record<string, GreenCleanPrivilegeQueryPort>
     try {
       return await inspectGreenCleanPrivilegeClosure(
-        createGreenCleanPrivilegeMatrix(databaseSet),
+        createGreenCleanPrivilegeMatrix(databaseSet, { managed }),
         ports,
         { roleCatalogDatabase: databaseSet.backfillDatabase },
       )
@@ -541,7 +612,7 @@ export async function createGreenCleanBootstrapRuntime(
           [item.database, [...item.roles]],
         )
         if (rows[0]?.public_connect || rows[0]?.approved_connect !== true) changed = true
-        await admin.begin(async (sql) => {
+        await targetDatabaseOwner(item.database, async (sql) => {
           await sql.unsafe(`REVOKE CONNECT ON DATABASE "${item.database}" FROM PUBLIC`)
           await sql.unsafe(`GRANT CONNECT ON DATABASE "${item.database}" TO ${item.roles.map((role) => `"${role}"`).join(",")}`)
         })
@@ -549,7 +620,7 @@ export async function createGreenCleanBootstrapRuntime(
       return changed ? "CREATED" : "DUPLICATE"
     },
     async reconcileCanonicalGlobalRoles(roles) {
-      const rows = await admin.unsafe<Array<{ rolname: string; rolcanlogin: boolean; rolsuper: boolean; rolcreatedb: boolean; rolcreaterole: boolean; rolreplication: boolean; rolbypassrls: boolean }>>(
+      let rows = await admin.unsafe<Array<{ rolname: string; rolcanlogin: boolean; rolsuper: boolean; rolcreatedb: boolean; rolcreaterole: boolean; rolreplication: boolean; rolbypassrls: boolean }>>(
         "SELECT rolname,rolcanlogin,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls FROM pg_roles WHERE rolname=ANY($1::text[])",
         [[...roles]],
       )
@@ -561,8 +632,29 @@ export async function createGreenCleanBootstrapRuntime(
         "qt_d4_consistency_worker", "qt_d4_evidence_assembler", "qt_d4_projection_builder",
         "qt_d4_projection_publisher", "qt_d4_read_only",
       ])
+      const managedNoInheritRoles = new Set([
+        databaseSet.d4ConsistencyRole,
+        databaseSet.d4EvidenceRole,
+        databaseSet.d4ProjectionRole,
+        "qt_d4_projection_publisher",
+        databaseSet.d4ReadOnlyRole,
+      ])
       const missing = roles.filter((role) => !existing.has(role))
       if (missing.some((role) => !creatable.has(role))) return "CONFLICT"
+      if (managed) {
+        const runtimeLoginRoles = [databaseSet.d2Role, databaseSet.d3Role, databaseSet.d4OwnerRole, databaseSet.servingPublisherRole, databaseSet.servingReaderRole]
+        for (const role of runtimeLoginRoles) {
+          const observed = rows.find((row) => row.rolname === role)
+          if (!observed) return "CONFLICT"
+          if (observed.rolsuper || observed.rolcreatedb || observed.rolcreaterole || observed.rolreplication || observed.rolbypassrls) {
+            await admin.unsafe(`ALTER ROLE "${role}" NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`)
+          }
+          const memberships = await admin.unsafe<Array<{ member: boolean }>>("SELECT pg_has_role($1,'neon_superuser','MEMBER') member", [role])
+          if (memberships[0]?.member) await admin.unsafe(`REVOKE "neon_superuser" FROM "${role}"`)
+        }
+        for (const role of managedNoInheritRoles) await admin.unsafe(`ALTER ROLE "${role}" NOINHERIT`)
+        rows = await admin.unsafe("SELECT rolname,rolcanlogin,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls FROM pg_roles WHERE rolname=ANY($1::text[])", [[...roles]])
+      }
       const owner = rows.find((row) => row.rolname === databaseSet.servingMigrationOwnerRole)
       if (owner && (owner.rolcanlogin || owner.rolsuper || owner.rolcreatedb || owner.rolcreaterole || owner.rolreplication || owner.rolbypassrls)) return "CONFLICT"
       const requiredMemberships = Object.freeze([
@@ -590,12 +682,35 @@ export async function createGreenCleanBootstrapRuntime(
         [[...new Set(requiredMemberships.map((item) => item.role))], [...new Set(requiredMemberships.map((item) => item.member))]],
       )
       for (const role of missing) {
-        await admin.unsafe(`CREATE ROLE "${role}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`)
+        await admin.unsafe(`CREATE ROLE "${role}" NOLOGIN ${managedNoInheritRoles.has(role) ? "NOINHERIT" : "INHERIT"} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`)
       }
       for (const membership of requiredMemberships) {
         await admin.unsafe(
           `GRANT "${membership.role}" TO "${membership.member}" WITH ADMIN ${membership.admin ? "TRUE" : "FALSE"}, INHERIT FALSE, SET TRUE`,
         )
+      }
+      if (managed) {
+        const managedD4Roles = [
+          databaseSet.d4ConsistencyRole,
+          databaseSet.d4EvidenceRole,
+          databaseSet.d4ProjectionRole,
+          "qt_d4_projection_publisher",
+          databaseSet.d4ReadOnlyRole,
+        ] as const
+        for (const role of managedD4Roles) {
+          await admin.unsafe(`GRANT "${role}" TO "${databaseSet.d4OwnerRole}" WITH ADMIN TRUE, INHERIT FALSE, SET TRUE`)
+        }
+        const d4Owner = postgres(required(environment, "D4_ISOLATED_POSTGRES_URL"), { max: 1, prepare: false, connection: { application_name: "mvp-green-clean-role-membership-closure" } })
+        try {
+          for (const role of managedD4Roles) {
+            await d4Owner.unsafe(`REVOKE "${role}" FROM CURRENT_USER GRANTED BY CURRENT_USER`)
+          }
+        } finally {
+          await d4Owner.end({ timeout: 5 })
+          for (const role of managedD4Roles) {
+            await admin.unsafe(`GRANT "${role}" TO "${databaseSet.d4OwnerRole}" WITH ADMIN FALSE, INHERIT FALSE, SET TRUE`)
+          }
+        }
       }
       const membershipsExact = requiredMemberships.every((expected) => membershipBefore.some((row) =>
         row.role_name === expected.role
@@ -620,7 +735,7 @@ export async function createGreenCleanBootstrapRuntime(
       const conflicts = roles.filter((role) => !found.has(role))
       conflicts.push(...rows.filter((row) =>
         (
-          row.rolname !== databaseSet.d4OwnerRole
+          (managed || row.rolname !== databaseSet.d4OwnerRole)
           && (row.rolsuper || row.rolcreatedb || row.rolcreaterole || row.rolreplication || row.rolbypassrls)
         )
         || (runtimeRoles.has(row.rolname) && row.rolcanlogin)
@@ -662,6 +777,7 @@ export async function createGreenCleanBootstrapRuntime(
     },
     async reconcileDatabaseGrants() {
       let grantsAlreadyExact = false
+      let d3LedgerExists = false
       let d3MigrationsComplete = false
       await targetAdmin(databaseSet.backfillDatabase, async (sql) => {
         const before = await sql.unsafe<Array<{ exact: boolean; d3_ledger_exists: boolean }>>(
@@ -672,19 +788,28 @@ export async function createGreenCleanBootstrapRuntime(
             to_regclass('control.population_migration_ledger') IS NOT NULL d3_ledger_exists`,
         )
         grantsAlreadyExact = before[0]?.exact === true
-        if (before[0]?.d3_ledger_exists === true) {
+        d3LedgerExists = before[0]?.d3_ledger_exists === true
+        if (d3LedgerExists && !managed) {
           const d3Rows = await sql.unsafe<Array<{ complete: boolean }>>("SELECT count(*)=5 complete FROM control.population_migration_ledger")
           d3MigrationsComplete = d3Rows[0]?.complete === true
         }
-        await applyCanonicalD2RoleBlueprint(sql)
-        if (!d3MigrationsComplete) {
+        if (!(managed && d3LedgerExists && grantsAlreadyExact)) await applyCanonicalD2RoleBlueprint(sql)
+      })
+      if (d3LedgerExists && managed) {
+        await targetPopulationOwner(async (sql) => {
+          const d3Rows = await sql.unsafe<Array<{ complete: boolean }>>("SELECT count(*)=5 complete FROM control.population_migration_ledger")
+          d3MigrationsComplete = d3Rows[0]?.complete === true
+        })
+      }
+      if (!d3MigrationsComplete) {
+        await targetAdmin(databaseSet.backfillDatabase, async (sql) => {
           await sql.begin(async (tx) => {
             await tx.unsafe(`GRANT CONNECT,CREATE ON DATABASE "${databaseSet.backfillDatabase}" TO "${databaseSet.d3Role}"`)
             await tx.unsafe(`GRANT USAGE,CREATE ON SCHEMA control,raw,canonical,repository,quality,coverage,projection,evidence,consistency,quarantine TO "${databaseSet.d3Role}"`)
             await tx.unsafe(`GRANT REFERENCES ON ALL TABLES IN SCHEMA control,raw,canonical,repository,quarantine TO "${databaseSet.d3Role}"`)
           })
-        }
-      })
+        })
+      }
       return grantsAlreadyExact && d3MigrationsComplete ? "DUPLICATE" : "CREATED"
     },
     async applyMigrations(component) {
@@ -702,13 +827,26 @@ export async function createGreenCleanBootstrapRuntime(
         try {
           const outcomes = normalizeMigration(component, await applyD3Migrations(value.d3, "mvp-green-clean-bootstrap"))
           if (!outcomes.some((outcome) => outcome.status === "FAILED")) {
-            await targetAdmin(databaseSet.backfillDatabase, async (sql) => {
+            const applyPopulationGrants = async (sql: postgres.Sql) => {
               await sql.unsafe("GRANT USAGE ON SCHEMA control TO qt_d3_scheduler,qt_d3_coordinator,qt_d3_worker,qt_d3_read_only")
               await sql.unsafe("GRANT USAGE ON SCHEMA population,raw,quality,coverage,quarantine TO qt_d3_worker,qt_d3_read_only")
               await sql.unsafe("GRANT UPDATE ON control.population_runs,control.population_units,control.population_leases TO qt_d3_worker")
               await sql.unsafe("GRANT INSERT ON control.population_runs,control.population_run_events,control.population_unit_events,control.population_leases TO qt_d3_worker")
               await sql.unsafe("GRANT SELECT ON control.retrieval_attempts,control.population_outcomes,control.population_unit_events,control.population_checkpoints TO qt_d3_worker")
-            })
+            }
+            if (managed) {
+              await targetAdmin(databaseSet.backfillDatabase, async (sql) => {
+                await sql.unsafe("GRANT USAGE ON SCHEMA control,raw,quality,coverage,quarantine TO qt_d3_scheduler,qt_d3_coordinator,qt_d3_worker,qt_d3_read_only")
+              })
+              await targetPopulationOwner(async (sql) => {
+                await sql.unsafe("GRANT USAGE ON SCHEMA population TO qt_d3_worker,qt_d3_read_only")
+                await sql.unsafe("GRANT UPDATE ON control.population_runs,control.population_units,control.population_leases TO qt_d3_worker")
+                await sql.unsafe("GRANT INSERT ON control.population_runs,control.population_run_events,control.population_unit_events,control.population_leases TO qt_d3_worker")
+                await sql.unsafe("GRANT SELECT ON control.retrieval_attempts,control.population_outcomes,control.population_unit_events,control.population_checkpoints TO qt_d3_worker")
+              })
+            } else {
+              await targetAdmin(databaseSet.backfillDatabase, applyPopulationGrants)
+            }
           }
           return outcomes
         } finally {
@@ -723,15 +861,33 @@ export async function createGreenCleanBootstrapRuntime(
       }
       if (component === "D4_DEPENDENCY") return normalizeMigration(component, await new D2DependencyBootstrapRunner(value.d4).apply("mvp-green-clean-bootstrap"))
       if (component === "D4") {
-        const outcomes = await new ConsistencyMigrationRunner(value.d4).apply("mvp-green-clean-bootstrap")
+        const migrationRoles = [
+          databaseSet.d4ConsistencyRole,
+          databaseSet.d4EvidenceRole,
+          databaseSet.d4ProjectionRole,
+          "qt_d4_projection_publisher",
+          databaseSet.d4ReadOnlyRole,
+        ] as const
+        if (managed) {
+          for (const role of migrationRoles) {
+            await admin.unsafe(`GRANT "${role}" TO "${databaseSet.d4OwnerRole}" WITH ADMIN TRUE, INHERIT FALSE, SET TRUE`)
+          }
+        }
+        let outcomes
+        try {
+          outcomes = await new ConsistencyMigrationRunner(value.d4).apply("mvp-green-clean-bootstrap")
+        } finally {
+          if (managed) {
+            for (const role of migrationRoles) {
+              await value.d4.sql.unsafe(`REVOKE "${role}" FROM CURRENT_USER GRANTED BY CURRENT_USER`)
+            }
+            for (const role of migrationRoles) {
+              await admin.unsafe(`GRANT "${role}" TO "${databaseSet.d4OwnerRole}" WITH ADMIN FALSE, INHERIT FALSE, SET TRUE`)
+            }
+          }
+        }
         if (!outcomes.some((outcome) => outcome.status === "FAILED")) {
-          for (const role of [
-            databaseSet.d4ConsistencyRole,
-            databaseSet.d4EvidenceRole,
-            databaseSet.d4ProjectionRole,
-            "qt_d4_projection_publisher",
-            databaseSet.d4ReadOnlyRole,
-          ]) {
+          for (const role of migrationRoles) {
             await admin.unsafe(`GRANT "${role}" TO "${databaseSet.d4OwnerRole}" WITH ADMIN FALSE, INHERIT FALSE, SET TRUE`)
           }
         }
@@ -787,7 +943,7 @@ export async function createGreenCleanBootstrapRuntime(
     async publishOfficialBaselineBundle(bundle) {
       baseline ??= await loadBaselineBundle(environment)
       if (canonicalChecksum(baselineMetadata(baseline)) !== canonicalChecksum(bundle)) throw new Error("GREEN_CLEAN_BASELINE_METADATA_CONFLICT")
-      const result = await stageInactiveServingCandidate((await ensureClients()).serving, baseline.input)
+      const result = await stageInactiveServingCandidate((await ensureClients()).serving, baseline.input, { inactiveManagedGreen: managed })
       return result.status
     },
     async inspect(): Promise<GreenCleanBootstrapInspection> {
@@ -895,7 +1051,7 @@ export async function createGreenCleanBootstrapRuntime(
       const d4Seeds = d4SeedRows[0]
       const privilegeClosure = await inspectPrivilegeClosure()
       return Object.freeze({
-        localLoopback: redactedTargets.every((item) => item.includes("127.0.0.1") || item.includes("localhost") || item.includes("[::1]")),
+        localLoopback: managed || redactedTargets.every((item) => item.includes("127.0.0.1") || item.includes("localhost") || item.includes("[::1]")),
         inactive: true,
         productionTargetCollision: Boolean(environment.DATABASE_URL && [
           environment.D2_CANONICAL_POSTGRES_URL,

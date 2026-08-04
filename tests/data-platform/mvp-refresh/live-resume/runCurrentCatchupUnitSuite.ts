@@ -134,7 +134,7 @@ let dryAuthorityCalls = 0
 const freshCoordinator = new MvpLiveResumeCoordinator({
   targets: { classify: async () => Object.freeze({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
   execution: { resolveOrCreate: async ({ plan }) => createDryRunLiveResumeExecutionSetup(plan) },
-  lease: { acquire: async () => Object.freeze({ fencingToken: 1 }), assert: async () => undefined, release: async () => undefined },
+  lease: { acquire: async () => Object.freeze({ fencingToken: 1 }), assert: async () => undefined, renew: async () => undefined, release: async () => undefined },
   checkpoints: {
     read: async (runId, stage) => dryCheckpoints.get(`${runId}:${stage}`) ?? null,
     append: async (checkpoint) => { dryCheckpoints.set(`${checkpoint.coordinatorRunId}:${checkpoint.stage}`, checkpoint); return "CREATED" },

@@ -51,7 +51,7 @@ function slotResult(slot: ReturnType<typeof plan>["slots"][number], unitId: stri
 
 function fixture() {
   const checkpoints = new Map<string, LiveResumeStageCheckpoint>(), createdUnits: string[] = [], executorCalls: string[] = [], downstreamCalls: string[] = [], completeAppendCalls: string[] = []
-  let fence = 1, candidateAssembled = false, candidateExposed = false
+  let fence = 1, candidateAssembled = false, candidateExposed = false, renewCalls = 0
   const ports: LiveResumeCoordinatorPorts = {
     targets: { classify: async () => ({ refreshLocal: true, truthPlaneLocal: true, servingLocal: true, objectStorageLocal: true, servingPublisher: true, managedOrProductionTarget: false }) },
     execution: { resolveOrCreate: async ({ plan: value, mode }) => {
@@ -59,7 +59,7 @@ function fixture() {
       if (mode !== "DRY_RUN" && createdUnits.length === 0) createdUnits.push(...setup.unitOutcomes.map((unit) => unit.unitId!))
       return setup
     } },
-    lease: { acquire: async () => ({ fencingToken: fence }), assert: async (_runId, token) => { if (token !== fence) throw new Error("STALE") }, release: async () => undefined },
+    lease: { acquire: async () => ({ fencingToken: fence }), assert: async (_runId, token) => { if (token !== fence) throw new Error("STALE") }, renew: async (_runId, token) => { if (token !== fence) throw new Error("STALE"); renewCalls += 1 }, release: async () => undefined },
     checkpoints: { read: async (runId, stage) => checkpoints.get(`${runId}:${stage}`) ?? [...checkpoints.entries()].filter(([key, value]) => key.startsWith(`${runId}:failure:${stage}:`) && value.state === "FAILED").at(-1)?.[1] ?? null, append: async (value) => { completeAppendCalls.push(value.stage); const key = `${value.coordinatorRunId}:${value.stage}`, existing = checkpoints.get(key); if (existing && existing.checksum !== value.checksum) throw new Error("CONFLICT"); if (existing) return "DUPLICATE"; checkpoints.set(key, value); return "CREATED" }, appendFailure: async (value) => { checkpoints.set(`${value.coordinatorRunId}:failure:${value.stage}:${value.checksum}`, value); return "CREATED" } },
     authoritativeOhlcv: { reuse: async (slot) => slotResult(slot, null) },
     executors: Object.fromEntries(Object.keys(contracts).map((dataset) => [dataset, { execute: async (slot: ReturnType<typeof plan>["slots"][number], unit: { unitId: string | null }) => { executorCalls.push(`${slot.dataset}:${slot.instrument}`); return slotResult(slot, unit.unitId) } }])) as unknown as LiveResumeCoordinatorPorts["executors"],
@@ -67,7 +67,7 @@ function fixture() {
     downstream: Object.fromEntries(["coverage", "consistency", "evidence", "projections", "replay"].map((name) => [name, async (input: { intervalStart: string; intervalEnd: string; slots: readonly LiveResumeSlotResult[] }) => { downstreamCalls.push(name); return liveResumeStageOutput({ intervalStart: input.intervalStart, intervalEnd: input.intervalEnd, slots: input.slots.length }, [`${name}:${input.intervalStart}`]) }])) as unknown as LiveResumeCoordinatorPorts["downstream"],
     candidate: { assemble: async () => { candidateAssembled = true; return liveResumeStageOutput({ lifecycle: "WITHHELD", exposure: "INTERNAL_ONLY" }, ["candidate:fixture"]) }, persistManifest: async () => liveResumeStageOutput({ channel: "candidate" }, ["manifest:fixture"]), compare: async () => { if (!candidateAssembled) throw new Error("CANDIDATE_REQUIRED"); return liveResumeStageOutput({ unexpectedDeletions: 0 }, ["comparison:fixture"]) } },
   }
-  return { ports, checkpoints, createdUnits, executorCalls, downstreamCalls, completeAppendCalls, stale: () => { fence += 1 }, exposed: () => candidateExposed }
+  return { ports, checkpoints, createdUnits, executorCalls, downstreamCalls, completeAppendCalls, stale: () => { fence += 1 }, exposed: () => candidateExposed, renewCalls: () => renewCalls }
 }
 
 async function main() {
@@ -116,6 +116,16 @@ async function main() {
   assert.equal(complete.candidateExposed, false)
   assert.equal(live.exposed(), false)
   assert.equal(live.completeAppendCalls.filter((stage) => stage === "COVERAGE_PERSISTED").length, 1)
+
+  const heartbeat = fixture()
+  const heartbeatExecutors = heartbeat.ports.executors as Record<string, { execute: LiveResumeCoordinatorPorts["executors"]["ohlcv"]["execute"] }>
+  for (const executor of Object.values(heartbeatExecutors)) {
+    const execute = executor.execute
+    executor.execute = async (...args) => { await new Promise((resolve) => setTimeout(resolve, 8)); return execute(...args) }
+  }
+  const heartbeatResult = await new MvpLiveResumeCoordinator(heartbeat.ports, 2).execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION", maxConcurrency: 2 })
+  assert.equal(heartbeatResult.status, "COMPLETE")
+  assert.ok(heartbeat.renewCalls() > 0)
 
   const rerun = await coordinator.execute({ plan: certified, allowedInstruments: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"], allowedDatasets: ["ohlcv", "open-interest", "funding", "agg-trade"], mode: "CERTIFICATION", maxConcurrency: 2 })
   assert.equal(rerun.status, "COMPLETE")

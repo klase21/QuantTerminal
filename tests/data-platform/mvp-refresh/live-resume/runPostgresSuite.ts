@@ -37,7 +37,7 @@ async function main() {
   const client = createMvpRefreshClientFromEnvironment()
   await client.verify()
   const plan = certifiedPlan(), identity = liveResumeRunIdentity(plan)
-  let setupVerified = false, checkpointVerified = false, failureHistoryVerified = false, statusVerified = false, appendOnlyMutationRejected = false
+  let setupVerified = false, checkpointVerified = false, failureHistoryVerified = false, statusVerified = false, terminalStateVerified = false, appendOnlyMutationRejected = false
   try {
     await client.sql.begin(async (sql) => {
       const transactionClient = { sql, transaction: async <T>(work: (value: typeof sql) => Promise<T>) => work(sql) } as unknown as MvpRefreshPostgresClient
@@ -128,6 +128,17 @@ async function main() {
       assert.equal(status.authoritativeReuse, 0)
       assert.equal(status.persistedUnitCount, 24)
       assert.equal(status.missingSlots, 0)
+      const control = new PostgresLiveResumeCoordinatorControlPlane(transactionClient, 300)
+      const lease = await control.acquire(setup.persistedRunId)
+      const output = liveResumeStageOutput({ candidateExposed: false }, [setup.persistedRunId])
+      const basis: Omit<LiveResumeStageCheckpoint, "checksum"> = { coordinatorRunId: setup.persistedRunId, stage: "COMPLETE", intervalStart: freshStart, intervalEnd: freshEnd, plannerIdentity: freshPlan.planIdentity, plannerChecksum: freshPlan.planChecksum, inputChecksum: canonicalChecksum({ input: "terminal-state-certification" }), output, previousStage: "CANDIDATE_COMPARISON_VERIFIED", previousStageChecksum: canonicalChecksum({ previous: true }), fencingToken: lease.fencingToken, state: "COMPLETE", failureClassification: null, resumeEligible: true }
+      const checkpoint = Object.freeze({ ...basis, checksum: canonicalChecksum(basis) })
+      assert.equal(await control.append(checkpoint), "CREATED")
+      assert.equal(await control.reconcileTerminalState(setup.persistedRunId), "DUPLICATE")
+      const terminal = await sql.unsafe<Array<{ run_state: string; complete_units: number }>>("SELECT state run_state,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$1 AND state='COMPLETE') complete_units FROM refresh_control.refresh_run WHERE run_id=$1", [setup.persistedRunId])
+      assert.deepEqual(terminal[0], { run_state: "READY_FOR_RELEASE_REVIEW", complete_units: 24 })
+      await control.release(setup.persistedRunId, lease.fencingToken)
+      terminalStateVerified = true
       const persisted = await sql.unsafe<Array<{ active_corpus_id: string; active_serving_checksum: string; units: number; btc_ohlcv: number }>>("SELECT p.active_corpus_id,p.active_serving_checksum,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$2) units,(SELECT count(*)::int FROM refresh_control.refresh_unit WHERE run_id=$2 AND dataset_id='ohlcv' AND instrument='BTCUSDT') btc_ohlcv FROM refresh_control.refresh_plan p WHERE p.plan_id=$1", [freshPlan.planIdentity, freshIdentity.runId])
       assert.deepEqual(persisted[0], { active_corpus_id: freshPlan.currentCatchup!.baseline.candidateId, active_serving_checksum: freshPlan.currentCatchup!.baseline.candidateChecksum, units: 24, btc_ohlcv: 1 })
       throw new Error("FRESH_CURRENT_CATCHUP_CERTIFICATION_ROLLBACK")
@@ -165,7 +176,7 @@ async function main() {
   }
 
   await client.shutdown()
-  console.log(JSON.stringify({ status: "PASS", setupVerified, checkpointVerified, failureHistoryVerified, statusVerified, appendOnlyMutationRejected, exactResume: "DUPLICATE", persistedRunIdPropagated: true, atomicRollback: true, retainedRows: 0 }))
+  console.log(JSON.stringify({ status: "PASS", setupVerified, checkpointVerified, failureHistoryVerified, statusVerified, terminalStateVerified, appendOnlyMutationRejected, exactResume: "DUPLICATE", persistedRunIdPropagated: true, atomicRollback: true, retainedRows: 0 }))
 }
 
 void main().catch((error) => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1 })
